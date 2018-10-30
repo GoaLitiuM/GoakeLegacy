@@ -34,6 +34,29 @@ ENDIF()
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 
+#some personal defaults for windows builds
+IF(${WIN32})
+	set(ZLIB_ROOT "${CMAKE_CURRENT_LIST_DIR}/thirdparty/zlib")
+	set(ZLIB_LIBRARY_RELEASE "${CMAKE_CURRENT_LIST_DIR}/thirdparty/zlib/build/Release/zlibstatic.lib")
+	set(ZLIB_LIBRARY_DEBUG "${CMAKE_CURRENT_LIST_DIR}/thirdparty/zlib/build/Release/zlibstatic.lib")
+	
+	set(PNG_PNG_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libpng")
+	set(PNG_LIBRARY_RELEASE "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libpng/build/Release/libpng16_static.lib")
+	set(PNG_LIBRARY_DEBUG "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libpng/build/Release/libpng16_static.lib")
+	
+	set(OGG_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libogg/include")
+	set(VORBISFILE_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libvorbis/include")
+	set(VORBISFILE_LIBRARY "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libvorbis/win32/VS2010/x64/Release/libvorbisfile_static.lib")
+	
+	set(JPEG_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libjpeg-turbo")
+	set(JPEG_LIBRARY "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libjpeg-turbo/build/Debug/jpeg-static.lib")
+	
+	set(FREETYPE_INCLUDE_DIR_freetype2 "${CMAKE_CURRENT_LIST_DIR}/thirdparty/freetype/include/freetype")
+	set(FREETYPE_INCLUDE_DIR_ft2build "${CMAKE_CURRENT_LIST_DIR}/thirdparty/freetype/include")
+	set(FREETYPE_LIBRARY_RELEASE "${CMAKE_CURRENT_LIST_DIR}/thirdparty/freetype/build/Release/freetype.lib")
+	set(FREETYPE_LIBRARY_DEBUG "${CMAKE_CURRENT_LIST_DIR}/thirdparty/freetype/build/Release/freetype.lib")
+ENDIF()
+
 IF(${CMAKE_VERSION} VERSION_LESS "3.9.0")
 ELSE()
 	IF(NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
