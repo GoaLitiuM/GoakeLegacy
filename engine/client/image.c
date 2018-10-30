@@ -747,13 +747,6 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 	#else
 		#define LIBPNG_LOADED() 1
 		#define PSTATIC(n) = &n
-		#ifdef _MSC_VER
-			#ifdef _WIN64
-				#pragma comment(lib, MSVCLIBSPATH "libpng64.lib")
-			#else
-				#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
-			#endif
-		#endif
 	#endif
 
 #ifndef PNG_NORETURN
@@ -1239,8 +1232,8 @@ err:
 	#include "./mingw-libs/jerror.h"
 #elif defined(_WIN32)
 	#define JPEG_API VARGS
-	#include "jpeglib.h"
-	#include "jerror.h"
+	#include <jpeglib.h>
+	#include <jerror.h>
 #else
 //	#include <jinclude.h>
 	#include <jpeglib.h>
@@ -1252,13 +1245,6 @@ err:
 	static dllhandle_t *libjpeg_handle;
 	#define LIBJPEG_LOADED() (libjpeg_handle != NULL)
 #else
-	#ifdef _MSC_VER
-		#ifdef _WIN64
-			#pragma comment(lib, MSVCLIBSPATH "libjpeg64.lib")
-		#else
-			#pragma comment(lib, MSVCLIBSPATH "jpeg.lib")
-		#endif
-	#endif
 	#define JSTATIC(n) = &n
 	#define LIBJPEG_LOADED() (1)
 #endif

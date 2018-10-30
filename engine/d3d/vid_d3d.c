@@ -19,9 +19,6 @@
 #define D3DPRESENT_LINEAR_CONTENT 2
 #endif
 
-//#pragma comment(lib, "../libs/dxsdk9/lib/d3d9.lib")
-
-
 /*Fixup outdated windows headers*/
 #ifndef WM_XBUTTONDOWN
    #define WM_XBUTTONDOWN      0x020B

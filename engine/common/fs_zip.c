@@ -47,14 +47,6 @@
 # endif
 # include <zlib.h>
 
-# ifdef _MSC_VER
-#  ifdef _WIN64
-#   pragma comment(lib, MSVCLIBSPATH "zlib64.lib")
-#  else
-#   pragma comment(lib, MSVCLIBSPATH "zlib.lib")
-#  endif
-# endif
-
 # ifdef DYNAMIC_ZLIB
 #  define ZLIB_LOADED() (zlib_handle!=NULL)
 void *zlib_handle;
@@ -68,8 +60,6 @@ void *zlib_handle;
 #ifndef Z_U4
 #define z_crc_t uLongf
 #endif
-
-//#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 
 #ifdef DYNAMIC_ZLIB
 	static int (ZEXPORT *qinflateEnd) (z_streamp strm) ZSTATIC(inflateEnd);

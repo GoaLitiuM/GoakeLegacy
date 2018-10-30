@@ -16,11 +16,6 @@
 #define ZEXPORT VARGS
 #include <zlib.h>
 
-#ifdef _WIN64
-//# pragma comment (lib, "../libs/zlib64.lib") 
-#else
-//# pragma comment (lib, "../libs/zlib.lib") 
-#endif
 #else
 #include <zlib.h>
 #endif

@@ -348,16 +348,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-	#ifndef MSVCLIBSPATH
-	#ifdef MSVCLIBPATH
-		#define MSVCLIBSPATH STRINGIFY(MSVCLIBPATH)
-	#elif _MSC_VER == 1200
-		#define MSVCLIBSPATH "../libs/vc6-libs/"
-	#else
-		#define MSVCLIBSPATH "../libs/"
-	#endif
-	#endif
-
 #if defined(SERVERONLY) && defined(CLIENTONLY)
 	#undef CLIENTONLY	//impossible build. assume the config had CLIENTONLY and they tried building a dedicated server
 #endif

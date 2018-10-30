@@ -12,8 +12,8 @@
 #include "qcc.h"
 #include "gui.h"
 
-//#define AVAIL_PNGLIB
-//#define AVAIL_ZLIB
+#define AVAIL_PNGLIB
+#define AVAIL_ZLIB
 
 #define EMBEDDEBUG
 
@@ -637,7 +637,7 @@ int PDECL QCC_PopFileSize (const char *fname)
 }
 
 #ifdef AVAIL_ZLIB
-#include "../libs/zlib.h"
+#include <zlib.h>
 #endif
 
 pbool PDECL QCC_WriteFileW (const char *name, wchar_t *data, int maxchars)
@@ -4690,16 +4690,6 @@ static void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsi
 }
 #endif
 
-#ifndef MSVCLIBSPATH
-#ifdef MSVCLIBPATH
-	#define MSVCLIBSPATH STRINGIFY(MSVCLIBPATH)
-#elif _MSC_VER == 1200
-	#define MSVCLIBSPATH "../" "../libs/vc6-libs/"
-#else
-	#define MSVCLIBSPATH "../" "../libs/"
-#endif
-#endif
-
 #ifdef AVAIL_PNGLIB
 	#ifndef AVAIL_ZLIB
 		#error PNGLIB requires ZLIB
@@ -4710,8 +4700,6 @@ static void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsi
 	#ifndef PNG_SUCKS_WITH_SETJMP
 		#if defined(MINGW)
 			#include "./mingw-libs/png.h"
-		#elif defined(_WIN32)
-			#include "../png.h"
 		#else
 			#include <png.h>
 		#endif
@@ -4724,13 +4712,6 @@ static void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsi
 	#else
 		#define LIBPNG_LOADED() 1
 		#define PSTATIC(n) = &n
-		#ifdef _MSC_VER
-			#ifdef _WIN64
-				#pragma comment(lib, MSVCLIBSPATH "libpng64.lib")
-			#else
-				#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
-			#endif
-		#endif
 	#endif
 
 #ifndef PNG_NORETURN
