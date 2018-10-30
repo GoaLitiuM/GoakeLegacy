@@ -581,15 +581,15 @@ ENDIF()
 
 
 #Quake Injector Alike plugin
-ADD_LIBRARY(qi MODULE
-	plugins/qvm_api.c
-	plugins/plugin.c
-	plugins/qi/qi.c
-	plugins/emailnot/md5.c
-	plugins/jabber/xml.c
-)
-SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
+#ADD_LIBRARY(qi MODULE
+#	plugins/qvm_api.c
+#	plugins/plugin.c
+#	plugins/qi/qi.c
+#	plugins/emailnot/md5.c
+#	plugins/jabber/xml.c
+#)
+#SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+#SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
 
 #Bullet Physics library plugin
 #FIND_PACKAGE(Bullet)
@@ -618,25 +618,25 @@ IF (${ODE_FOUND})
 ENDIF()
 
 #EzQuake Hud port plugin
-ADD_LIBRARY(ezhud MODULE
-	plugins/qvm_api.c
-	plugins/plugin.c
-	plugins/ezhud/ezquakeisms.c
-	plugins/ezhud/hud.c
-	plugins/ezhud/hud_common.c
-	plugins/ezhud/hud_editor.c
-)
-SET_TARGET_PROPERTIES(ezhud PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-SET_TARGET_PROPERTIES(ezhud PROPERTIES PREFIX "fteplug_")
+#ADD_LIBRARY(ezhud MODULE
+#	plugins/qvm_api.c
+#	plugins/plugin.c
+#	plugins/ezhud/ezquakeisms.c
+#	plugins/ezhud/hud.c
+#	plugins/ezhud/hud_common.c
+#	plugins/ezhud/hud_editor.c
+#)
+#SET_TARGET_PROPERTIES(ezhud PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+#SET_TARGET_PROPERTIES(ezhud PROPERTIES PREFIX "fteplug_")
 
 #IRC client plugin
-ADD_LIBRARY(irc MODULE
-	plugins/qvm_api.c
-	plugins/plugin.c
-	plugins/irc/ircclient.c
-)
-SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
+#ADD_LIBRARY(irc MODULE
+#	plugins/qvm_api.c
+#	plugins/plugin.c
+#	plugins/irc/ircclient.c
+#)
+#SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+#SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
 
 IF(NOT ${ANDROID})
 	#XMPP/jabber client plugin
