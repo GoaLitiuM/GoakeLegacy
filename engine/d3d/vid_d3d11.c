@@ -565,19 +565,22 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 			}
 			return 0;
 		case WM_SIZE:
-			d3d_resized = true;
+			if (d3dswapchain)
+			{
+				d3d_resized = true;
 
-			D3DVID_UpdateWindowStatus(mainwindow);
+				D3DVID_UpdateWindowStatus(mainwindow);
 
-			released3dbackbuffer();
-			IDXGISwapChain_ResizeBuffers(d3dswapchain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+				released3dbackbuffer();
+				IDXGISwapChain_ResizeBuffers(d3dswapchain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
 
-			D3D11BE_Reset(true);
-			vid.pixelwidth = window_rect.right - window_rect.left;
-			vid.pixelheight = window_rect.bottom - window_rect.top;
-			resetd3dbackbuffer(vid.pixelwidth, vid.pixelheight);
-			D3D11BE_Reset(false);
-			lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+				D3D11BE_Reset(true);
+				vid.pixelwidth = window_rect.right - window_rect.left;
+				vid.pixelheight = window_rect.bottom - window_rect.top;
+				resetd3dbackbuffer(vid.pixelwidth, vid.pixelheight);
+				D3D11BE_Reset(false);
+			}
+			lRet = DefWindowProc(hWnd, uMsg, wParam, lParam);
 			break;
 
 		case WM_CLOSE:
