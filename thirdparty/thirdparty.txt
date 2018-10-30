@@ -1,0 +1,8 @@
+Built against following third party dependencies:
+- freetype: freetype-2.9.1
+- libjpeg-turbo: libjpeg-turbo-2.0.0
+- libogg: libogg-1.3.3
+- libpng: lpng1635
+- libvorbis: libvorbis-1.3.6
+- nasm: nasm-2.14rc16
+- zlib: zlib-1.2.11
