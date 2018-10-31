@@ -1014,7 +1014,8 @@ int *debug;
 
 HHOOK llkeyboardhook;
 
-cvar_t	sys_disableWinKeys = CVAR("sys_disableWinKeys", "0");
+cvar_t	sys_disableWinKeys = CVARF("sys_disableWinKeys", "0", CVAR_NOTFROMSERVER);
+cvar_t	sys_disablePrintScreen = CVARF("sys_disablePrintScreen", "0", CVAR_NOTFROMSERVER);
 cvar_t	sys_disableTaskSwitch = CVARF("sys_disableTaskSwitch", "0", CVAR_NOTFROMSERVER);	// please don't encourage people to use this...
 
 LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
@@ -1025,26 +1026,27 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 	{
 	case HC_ACTION:
 		{
-		//Trap the Left Windowskey
-			if (pkbhs->vkCode == VK_SNAPSHOT)
+			//Trap the Print Screen key
+			if (sys_disablePrintScreen.ival && pkbhs->vkCode == VK_SNAPSHOT)
 			{
 				IN_KeyEvent (0, !(pkbhs->flags & LLKHF_UP), K_PRINTSCREEN, 0);
 				return 1;
 			}
 			if (sys_disableWinKeys.ival)
 			{
+				//Trap the Left Windows key
 				if (pkbhs->vkCode == VK_LWIN)
 				{
 					IN_KeyEvent (0, !(pkbhs->flags & LLKHF_UP), K_LWIN, 0);
 					return 1;
 				}
-			//Trap the Right Windowskey
+				//Trap the Right Windows key
 				if (pkbhs->vkCode == VK_RWIN)
 				{
 					IN_KeyEvent(0, !(pkbhs->flags & LLKHF_UP), K_RWIN, 0);
 					return 1;
 				}
-			//Trap the Application Key (what a pointless key)
+				//Trap the Application Key (what a pointless key)
 				if (pkbhs->vkCode == VK_APPS)
 				{
 					IN_KeyEvent (0, !(pkbhs->flags & LLKHF_UP), K_APP, 0);
@@ -1052,16 +1054,16 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 				}
 			}
 
-		// Disable CTRL+ESC
 			//this works, but we've got to give some way to tab out...
 			if (sys_disableTaskSwitch.ival)
 			{
+				// Disable CTRL+ESC
 				if (pkbhs->vkCode == VK_ESCAPE && GetAsyncKeyState (VK_CONTROL) >> ((sizeof(SHORT) * 8) - 1))
 					return 1;
-		// Disable ATL+TAB
+				// Disable ATL+TAB
 				if (pkbhs->vkCode == VK_TAB && pkbhs->flags & LLKHF_ALTDOWN)
 					return 1;
-		// Disable ALT+ESC
+				// Disable ALT+ESC
 				if (pkbhs->vkCode == VK_ESCAPE && pkbhs->flags & LLKHF_ALTDOWN)
 					return 1;
 			}
@@ -1084,7 +1086,9 @@ void SetHookState(qboolean state)
 		UnhookWindowsHookEx(llkeyboardhook);
 		llkeyboardhook = NULL;
 	}
-	if (state)
+
+	// only enable keyboard hooks when needed
+	if (state && (sys_disableWinKeys.ival || sys_disablePrintScreen.ival || sys_disableTaskSwitch.ival))
 		llkeyboardhook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, GetModuleHandle(NULL), 0);
 }
 
@@ -1533,6 +1537,7 @@ void Sys_Init (void)
 
 #ifndef SERVERONLY
 	Cvar_Register(&sys_disableWinKeys, "System vars");
+	Cvar_Register(&sys_disablePrintScreen, "System vars");
 	Cvar_Register(&sys_disableTaskSwitch, "System vars");
 	Cmd_AddCommandD("sys_register_file_associations", Sys_Register_File_Associations_f, "Register FTE as the system handler for .bsp .mvd .qwd .dem files. Also register the qw:// URL protocol. This command will probably trigger a UAC prompt in Windows Vista and up. Deny it for current-user-only asociations (will also prevent listing in windows' 'default programs' ui due to microsoft bugs/limitations).");
 
