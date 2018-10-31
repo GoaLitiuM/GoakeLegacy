@@ -6309,7 +6309,9 @@ void CL_ExecInitialConfigs(char *resetcommand)
 //	if (Key_Dest_Has(kdm_menu))
 //		Cbuf_AddText ("closemenu\ntogglemenu\n", RESTRICT_LOCAL);	//make sure the menu has the right content loaded.
 
+	cmd_blockwait = true;
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+	cmd_blockwait = false;
 
 	//assuming they didn't use any waits in their config (fools)
 	//the configs should be fully loaded.
