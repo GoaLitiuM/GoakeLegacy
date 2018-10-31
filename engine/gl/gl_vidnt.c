@@ -2881,8 +2881,8 @@ static LONG WINAPI GLMainWndProc (
 			GLAppActivate(FALSE, Minimized);//FIXME: thread
 			ClearAllStates ();	//FIXME: thread
 #endif
-			if (modestate != MS_WINDOWED)
-				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
+			//if (modestate != MS_WINDOWED)
+			//	ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
 			break;
 		case WM_SETFOCUS:
 #ifdef WTHREAD
