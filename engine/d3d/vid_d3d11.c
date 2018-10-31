@@ -373,7 +373,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
-#ifndef FUCKDXGI
+#if 0
 			if (keydown[K_LALT] && wParam == '\r')
 			{
 				if (d3dscreen)
@@ -1016,7 +1016,7 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 	{
 		//DXGI SUCKS and fucks up alt+tab every single time. its pointless to go from fullscreen to fullscreen-with-taskbar-obscuring-half-the-window.
 		//I'm just going to handle that stuff myself.
-		IDXGIFactory1_MakeWindowAssociation(fact, hWnd, DXGI_MWA_NO_WINDOW_CHANGES|DXGI_MWA_NO_ALT_ENTER|DXGI_MWA_NO_PRINT_SCREEN);
+		//IDXGIFactory1_MakeWindowAssociation(fact, hWnd, DXGI_MWA_NO_WINDOW_CHANGES|DXGI_MWA_NO_ALT_ENTER|DXGI_MWA_NO_PRINT_SCREEN);
 		IDXGIFactory1_Release(fact);
 	}
 }
@@ -1058,7 +1058,7 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	RegisterClass(&wc);
 
-	if (info->fullscreen/* == 2*/)
+	if (info->fullscreen == 2)
 		modestate = MS_FULLWINDOW;
 	else if (info->fullscreen)
 		modestate = MS_FULLSCREEN;	//FIXME: I'm done with fighting dxgi. I'm just going to pick the easy method that doesn't end up with totally fucked up behaviour.
@@ -1099,13 +1099,6 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
 
-	if (modestate == MS_FULLSCREEN)
-	{
-		if (!d3dscreen)
-			IDXGISwapChain_GetContainingOutput(d3dswapchain, &d3dscreen);
-		IDXGISwapChain_SetFullscreenState(d3dswapchain, true, d3dscreen);
-	}
-
 	while (PeekMessage(&msg, NULL,  0, 0, PM_REMOVE))
 	{
 		TranslateMessage(&msg);
@@ -1121,6 +1114,13 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	vid.width = vid.pixelwidth;
 	vid.height = vid.pixelheight;
+
+	if (modestate == MS_FULLSCREEN)
+	{
+		if (!d3dscreen)
+			IDXGISwapChain_GetContainingOutput(d3dswapchain, &d3dscreen);
+		IDXGISwapChain_SetFullscreenState(d3dswapchain, true, d3dscreen);
+	}
 
 	vid_initializing = false;
 
