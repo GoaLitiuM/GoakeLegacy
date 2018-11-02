@@ -163,6 +163,9 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#TODO SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-prototypes")			#for finding missing statics.
 	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")			#
 ENDIF()
+IF(CMAKE_C_COMPILER_ID MATCHES "MSVC" AND MSVC_VERSION GREATER_EQUAL 1600)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")							# uses all available cores to build MSVC projects
+endif()
 IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu89")
