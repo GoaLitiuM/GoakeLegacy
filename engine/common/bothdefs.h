@@ -828,9 +828,9 @@ STAT_VIEWHEIGHT		= 16,	//same as zquake
 STAT_TIME			= 17,	//zquake
 STAT_MATCHSTARTTIME = 18,
 //STAT_UNUSED		= 19,
-#ifdef SIDEVIEWS
+//#ifdef SIDEVIEWS
 STAT_VIEW2			= 20,
-#endif
+//#endif
 STAT_VIEWZOOM		= 21, // DP
 #define STAT_VIEWZOOM_SCALE 255
 //STAT_UNUSED		= 22,
