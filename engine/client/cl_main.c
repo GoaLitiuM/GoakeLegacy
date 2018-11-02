@@ -6422,6 +6422,8 @@ void Host_Init (quakeparms_t *parms)
 	Cvar_Init();
 	Memory_Init ();
 
+	COM_Init();
+
 	/*memory is working, its safe to printf*/
 	Con_Init ();
 
@@ -6430,7 +6432,6 @@ void Host_Init (quakeparms_t *parms)
 	COM_ParsePlusSets(false);
 	Cbuf_Init ();
 	Cmd_Init ();
-	COM_Init ();
 
 #ifdef PACKAGEMANAGER
 	//we have enough of the filesystem inited now that we can read the package list and figure out which engine was last installed.
