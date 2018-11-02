@@ -143,6 +143,7 @@ typedef struct cvar_group_s
 
 #define CVAR_WATCHED		(1<<22)	//report any attempts to change this cvar.
 #define CVAR_VIDEOLATCH		(1<<23)
+#define CVAR_HIDDEN			(1<<24)	//this cvar should never change, and should not be accessible or visible to user anywhere.
 
 #define CVAR_LASTFLAG CVAR_SHADERSYSTEM
 

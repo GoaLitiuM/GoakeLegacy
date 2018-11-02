@@ -339,6 +339,9 @@ showhelp:
 			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 				continue;
 
+			if (cmd->flags & CVAR_HIDDEN)
+				continue;
+
 			// list only cvars with search substring
 			if (search)
 			{
@@ -453,7 +456,7 @@ void Cvar_LockDefaults_f(void)
 	{
 		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
 		{
-			if (cmd->flags & (CVAR_NOSET | CVAR_CHEAT))
+			if (cmd->flags & (CVAR_NOSET | CVAR_CHEAT | CVAR_HIDDEN))
 				continue;
 
 			if (strcmp(cmd->string, cmd->defaultstr))
@@ -610,6 +613,8 @@ void Cvar_Reset_f (void)
 				continue;
 			if (cmd->flags & CVAR_NORESET)
 				continue;
+			if (cmd->flags & CVAR_HIDDEN)
+				continue;
 
 			// reset cvar to default only if its okay to do so
 			if (cmd->defaultstr)
@@ -655,6 +660,8 @@ char *Cvar_VariableString (const char *var_name)
 	var = Cvar_FindVar (var_name);
 	if (!var)
 		return cvar_null_string;
+	if (var->flags & CVAR_HIDDEN)
+		return cvar_null_string;
 	return var->string;
 }
 
@@ -665,6 +672,8 @@ void Cvar_SetNamed (const char *var_name, const char *newvalue)
 	var = Cvar_FindVar (var_name);
 	if (!var)
 		return;
+	if (var->flags & CVAR_HIDDEN)
+		return cvar_null_string;
 	Cvar_Set(var, newvalue);
 }
 
@@ -735,6 +744,12 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	if ((var->flags & CVAR_NOSET) && !force)
 	{
 		Con_Printf ("variable %s is readonly\n", var->name);
+		return NULL;
+	}
+
+	if (var->flags & CVAR_HIDDEN)
+	{
+		Con_Printf("variable %s is reserved\n", var->name);
 		return NULL;
 	}
 
@@ -1282,6 +1297,12 @@ qboolean	Cvar_Command (int level)
 	{
 		Con_Printf ("Server tried setting %s cvar\n", v->name);
 		return true;
+	}
+
+	if (v->flags & CVAR_HIDDEN)
+	{
+		//Con_Printf("Hidden %s cvar\n", v->name);
+		return false;
 	}
 
 // perform a variable print or set

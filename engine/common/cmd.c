@@ -2444,6 +2444,8 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 			for (grp=cvar_groups ; grp ; grp=grp->next)
 			for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
 			{
+				if (cvar->flags & CVAR_HIDDEN)
+					continue;
 				if (!Q_strncasecmp (partial,cvar->name, len) && (!partial[len] || strlen(cvar->name) == len))
 					Cmd_Complete_Check(cvar->name, &c, cvar->description);
 				if (cvar->name2 && !Q_strncasecmp (partial,cvar->name2, len) && (!partial[len] || strlen(cvar->name2) == len))
@@ -3802,6 +3804,11 @@ static void Cmd_set_f(void)
 		if (var->flags & CVAR_NOSET)
 		{
 			Con_Printf ("variable %s is readonly\n", var->name);
+			return;
+		}
+		if (var->flags & CVAR_HIDDEN)
+		{
+			Con_Printf("variable %s is reserved\n", var->name);
 			return;
 		}
 
