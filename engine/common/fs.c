@@ -6366,6 +6366,7 @@ static void COM_InitHomedir(ftemanifest_t *man)
 
 	com_homepathusable = usehome;
 	com_homepathenabled = false;
+	com_homepathusable = false;
 
 	i = COM_CheckParm("-homedir");
 	if (i && i+1<com_argc)
