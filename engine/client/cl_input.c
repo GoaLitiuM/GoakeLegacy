@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 float in_sensitivityscale = 1;
 
 static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
+void QDECL cl_mouselook_callback(struct cvar_s *var, char *oldvalue);
+
 #ifdef NQPROT
 static cvar_t	cl_movement = CVARD("cl_movement","1", "Specifies whether to send movement sequence info over DPP7 protocols (other protocols are unaffected). Unlike cl_nopred, this can result in different serverside behaviour.");
 #endif
@@ -59,6 +61,9 @@ usercmd_t cl_pendingcmd[MAX_SPLITS];
 unsigned int		con_splitmodifier;
 cvar_t	cl_forceseat = CVARAD("in_forceseat", "0", "in_forcesplitclient", "Overrides the device identifiers to control a specific client from any device. This can be used for debugging mods, where you only have one keyboard/mouse.");
 extern cvar_t cl_splitscreen;
+
+cvar_t cl_mouselook = CVARFCD("cl_mouselook", "1", CVAR_NOTFROMSERVER, cl_mouselook_callback, "Enables mouse look (+mlook)");
+
 int CL_TargettedSplit(qboolean nowrap)
 {
 	int mod;
@@ -194,7 +199,9 @@ static qboolean KeyDown_Scan (kbutton_t *b, kbutton_t *anti, int k)
 	}
 	return true;
 }
-static void KeyDown (kbutton_t *b, kbutton_t *anti)
+
+
+static qboolean KeyDown2 (kbutton_t *b, qboolean forced, kbutton_t *anti)
 {
 	int		k;
 	char	*c;
@@ -202,10 +209,10 @@ static void KeyDown (kbutton_t *b, kbutton_t *anti)
 	c = Cmd_Argv(1);
 	if (c[0])
 		k = atoi(c);
-	else
+	if (!c[0] || forced)
 		k = -1;		// typed manually at the console for continuous down
 
-	KeyDown_Scan(b, anti, k);
+	return KeyDown_Scan(b, anti, k);
 }
 
 static qboolean KeyUp_Scan (kbutton_t *b, int k)
@@ -246,7 +253,7 @@ static qboolean KeyUp_Scan (kbutton_t *b, int k)
 	}
 	return true;
 }
-static qboolean KeyUp (kbutton_t *b)
+static qboolean KeyUp2 (kbutton_t *b, qboolean forced)
 {
 	int		k;
 	char	*c;
@@ -254,12 +261,34 @@ static qboolean KeyUp (kbutton_t *b)
 	c = Cmd_Argv(1);
 	if (c[0])
 		k = atoi(c);
-	else
+	if (!c[0] || forced)
 		k = -1;
 
 	return KeyUp_Scan(b, k);
 }
 
+static qboolean KeyDown(kbutton_t *b, kbutton_t *anti)
+{
+	return KeyDown2(b, false, anti);
+}
+static qboolean KeyUp(kbutton_t *b)
+{
+	return KeyUp2(b, false);
+}
+
+void QDECL cl_mouselook_callback(struct cvar_s *var, char *oldvalue)
+{
+	// emulate the old +mlook behaviour
+	if (var->ival)
+		KeyDown2(&in_mlook, true, NULL);
+	else
+	{
+		int pnum = CL_TargettedSplit(false);
+		KeyUp2(&in_mlook, true);
+		if (!(in_mlook.state[pnum] & 1) && lookspring.ival)
+			V_StartPitchDrift(&cl.playerview[pnum]);
+	}
+}
 
 
 #ifdef QUAKESTATS
@@ -483,7 +512,6 @@ static void IN_FireUp(void)
 #define IN_DoWeaponHide()
 #endif
 
-
 static void IN_KLookDown (void) {KeyDown(&in_klook, NULL);}
 static void IN_KLookUp (void) {KeyUp(&in_klook);}
 static void IN_MLookDown (void) {KeyDown(&in_mlook, NULL);}
@@ -580,8 +608,8 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 		char		*name;
 	} buttons [] =
 	{
-		{&in_mlook,		"mlook"},
-		{&in_klook,		"klook"},
+		//{&in_mlook,		"mlook"},
+		//{&in_klook,		"klook"},
 		{&in_left,		"left"},
 		{&in_right,		"right"},
 		{&in_forward,	"forward"},
@@ -2537,9 +2565,12 @@ void CL_InitInput (void)
 		Cmd_AddCommand (pcmd[sp][1],	CL_Split_f);
 		Cmd_AddCommand (pcmd[sp][2],	CL_Split_f);
 
-/*default mlook to pressed, (on android we split the two sides of the screen)*/
+		//default mlook to pressed, (on android we split the two sides of the screen)
 		in_mlook.state[sp] = 1;
 	}
+
+	Cvar_Register(&cl_mouselook, inputnetworkcvargroup);
+	cl_mouselook_callback(&cl_mouselook, cl_mouselook.string);
 
 	/*then alternative arged ones*/
 	Cmd_AddCommand ("p",			CL_SplitA_f);
@@ -2582,10 +2613,10 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-jump",		IN_JumpUp);
 	Cmd_AddCommand ("impulse",		IN_Impulse);
 	Cmd_AddCommandD("weapon",		IN_Impulse, "Partial implementation for compatibility");	//for pseudo-compat with ezquake.
-	Cmd_AddCommand ("+klook",		IN_KLookDown);
-	Cmd_AddCommand ("-klook",		IN_KLookUp);
-	Cmd_AddCommand ("+mlook",		IN_MLookDown);
-	Cmd_AddCommand ("-mlook",		IN_MLookUp);
+	//Cmd_AddCommand ("+klook",		IN_KLookDown);
+	//Cmd_AddCommand ("-klook",		IN_KLookUp);
+	//Cmd_AddCommand ("+mlook",		IN_MLookDown);
+	//Cmd_AddCommand ("-mlook",		IN_MLookUp);
 
 #ifdef QUAKESTATS
 	//for pseudo-compat with ezquake.
