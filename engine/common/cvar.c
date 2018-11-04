@@ -1504,23 +1504,23 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all, qboolean changedonly)
 			else if (!(var->flags & CVAR_ARCHIVE) && !all)
 				continue;
 
-			if (!writtengroupheader)
+			/*if (!writtengroupheader)
 			{
 				writtengroupheader = true;
 				s = va("\n// %s\n", grp->name);
 				VFS_WRITE(f, s, strlen(s));
-			}
+			}*/
 
 			if (var->flags & CVAR_USERCREATED)
 			{
 				if (var->flags & CVAR_ARCHIVE)
-					s = va("seta %s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+					s = va("seta %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 				else
-					s = va("set %s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+					s = va("set %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 			}
 			else
-				s = va("%s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
-			s = Cvar_AddDescription(buffer, sizeof(buffer), s, var->description);
+				s = va("%s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+			//s = Cvar_AddDescription(buffer, sizeof(buffer), s, var->description);
 			VFS_WRITE(f, s, strlen(s));
 		}
 	}
