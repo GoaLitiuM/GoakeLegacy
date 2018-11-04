@@ -2380,8 +2380,8 @@ void M_Menu_Main_f (void)
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 36);
 	}
 
-	if (!m_preset_chosen.ival)
-		M_Menu_Preset_f();
+	//if (!m_preset_chosen.ival)
+	//	M_Menu_Preset_f();
 }
 
 int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y)

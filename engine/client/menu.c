@@ -1257,7 +1257,7 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
 #endif
 	Cmd_AddCommand ("menu_spcheats", M_Menu_Singleplayer_Cheats_f);
-	Cmd_AddCommand ("menu_fps", M_Menu_FPS_f);
+	//Cmd_AddCommand ("menu_fps", M_Menu_FPS_f);
 	Cmd_AddCommand ("menu_render" , M_Menu_Render_f);
 	Cmd_AddCommand ("menu_lighting", M_Menu_Lighting_f);
 #ifdef GLQUAKE
@@ -1322,7 +1322,7 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_teamplay_team_fortress");
 	Cmd_RemoveCommand ("menu_teamplay_status_location_misc");
 	Cmd_RemoveCommand ("menu_spcheats");
-	Cmd_RemoveCommand ("menu_fps");
+	//Cmd_RemoveCommand ("menu_fps");
 	Cmd_RemoveCommand ("menu_render");
 	Cmd_RemoveCommand ("menu_lighting");
 	Cmd_RemoveCommand ("menu_textures");
@@ -1369,7 +1369,7 @@ void M_Init (void)
 	Cmd_AddCommand("menu_restart", M_Restart_f);
 	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
 	Cmd_AddCommand("closemenu", M_CloseMenu_f);
-	Cmd_AddCommand("fps_preset", FPS_Preset_f);
+	//Cmd_AddCommand("fps_preset", FPS_Preset_f);
 	Cmd_AddCommand("menupop", M_MenuPop_f);
 
 	//server browser is kinda complex, and has clipboard integration which we need to sandbox a little
