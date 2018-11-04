@@ -2761,7 +2761,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		World_ClipToLinks(w, &w->portallist, &clip);
 	}
 
-#ifdef HAVE_CLIENT
+#if defined(CSQC_DAT) && defined(HAVE_CLIENT)
 	{
 		extern world_t csqc_world;
 		if (w == &csqc_world)

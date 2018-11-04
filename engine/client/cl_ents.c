@@ -48,7 +48,9 @@ extern	cvar_t gl_simpleitems;
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
 
+#ifdef CSQC_DAT
 extern world_t csqc_world;
+#endif
 
 static struct predicted_player
 {

@@ -6486,7 +6486,9 @@ void CL_Parse_BrushEdit(void)
 				else
 					mod->entityinfo[idx].keyvals = NULL;
 
+#ifdef CSQC_DAT
 				CSQC_MapEntityEdited(modelindex, idx, data);
+#endif
 			}
 		}
 	}

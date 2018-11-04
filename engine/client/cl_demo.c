@@ -547,8 +547,10 @@ qboolean CL_GetDemoMessage (void)
 		{	//start the timer only once we are connected.
 			//make sure everything is loaded, to avoid stalls
 
+#ifdef MENU_DAT
 			if (Key_Dest_Has(kdm_gmenu))
 				MP_Toggle(0);
+#endif
 			COM_WorkerFullSync();
 
 			cls.td_starttime = Sys_DoubleTime();

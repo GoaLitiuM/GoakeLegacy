@@ -2773,6 +2773,7 @@ static void CLDP_ParseDownloadBegin(char *s)
 	{
 		if (cls.demoplayback && !dl && cl_dp_csqc_progssize && size == cl_dp_csqc_progssize && !strcmp(fname, cl_dp_csqc_progsname))
 		{	//its somewhat common for demos to contain a copy of the csprogs, so that the same version is available when trying to play the demo back.
+#ifdef CSQC_DAT
 			extern cvar_t cl_download_csprogs, cl_nocsqc;
 			if (!cl_nocsqc.ival && cl_download_csprogs.ival)
 			{
@@ -2783,6 +2784,7 @@ static void CLDP_ParseDownloadBegin(char *s)
 				//Begin downloading it...
 			}
 			else
+#endif
 				return;	//silently ignore it
 		}
 		else

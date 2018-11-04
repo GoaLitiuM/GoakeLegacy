@@ -44,7 +44,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //okay, so these are a quick but easy hack
 int PR_EnableEBFSBuiltin(const char *name, int binum);
+#ifdef CSQC_DAT
 int PR_CSQC_BuiltinValid(const char *name, int num);
+#endif
 
 /*cvars for the gamecode only*/
 cvar_t	nomonsters = CVAR("nomonsters", "0");
@@ -11746,7 +11748,10 @@ typedef struct
 	qboolean misc;
 } knowndef_t;
 #include "cl_master.h"
+
+#if defined(CSQC_DAT) || defined(MENU_DAT)
 void Key_PrintQCDefines(vfsfile_t *f);
+#endif
 void PR_DumpPlatform_f(void)
 {
 #ifdef SERVERONLY
@@ -12953,8 +12958,10 @@ void PR_DumpPlatform_f(void)
 				nd |= H2;
 		}
 		
+#ifdef CSQC_DAT
 		if (PR_CSQC_BuiltinValid(BuiltinList[i].name, idx))
 			nd |= CS;
+#endif
 #ifdef MENU_DAT
 		if (MP_BuiltinValid(BuiltinList[i].name, idx))
 			nd |= MENU;
@@ -13157,7 +13164,9 @@ void PR_DumpPlatform_f(void)
 	if (targ & (CS|MENU))
 	{
 		VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
+#if defined(CSQC_DAT) || defined(MENU_DAT)
 		Key_PrintQCDefines(f);
+#endif
 		VFS_PRINTF(f, "#endif\n");
 	}
 
