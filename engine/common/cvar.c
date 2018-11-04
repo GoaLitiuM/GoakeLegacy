@@ -1471,7 +1471,7 @@ Writes lines containing "set variable value" for all variables
 with the archive flag set to true.
 ============
 */
-void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
+void Cvar_WriteVariables (vfsfile_t *f, qboolean all, qboolean changedonly)
 {
 	qboolean writtengroupheader;
 	cvar_group_t *grp;
@@ -1483,36 +1483,46 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	{
 		writtengroupheader = false;
-		for (var = grp->cvars ; var ; var = var->next)
-			if (var->flags & CVAR_ARCHIVE || (all && var != &cl_warncmd))
+		for (var = grp->cvars; var; var = var->next)
+		{
+			if (var == &cl_warncmd)
+				continue;
+
+			//yeah, don't force-save readonly cvars.
+			if (var->flags & (CVAR_NOSET | CVAR_NOSAVE))
+				continue;
+
+			val = var->string;	//latched vars should act differently.
+			if (var->latched_string)
+				val = var->latched_string;
+
+			if (changedonly)
 			{
-				//yeah, don't force-save readonly cvars.
-				if (var->flags & (CVAR_NOSET|CVAR_NOSAVE))
-					continue;
+				if (!strcmp(val, var->defaultstr))
+					continue; //no changes from default value
+			}
+			else if (!(var->flags & CVAR_ARCHIVE) && !all)
+				continue;
 
-				if (!writtengroupheader)
-				{
-					writtengroupheader = true;
-					s = va("\n// %s\n", grp->name);
-					VFS_WRITE(f, s, strlen(s));
-				}
-
-				val = var->string;	//latched vars should act differently.
-				if (var->latched_string)
-					val = var->latched_string;
-
-				if (var->flags & CVAR_USERCREATED)
-				{
-					if (var->flags & CVAR_ARCHIVE)
-						s = va("seta %s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
-					else
-						s = va("set %s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
-				}
-				else
-					s = va("%s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
-				s = Cvar_AddDescription(buffer, sizeof(buffer), s, var->description);
+			if (!writtengroupheader)
+			{
+				writtengroupheader = true;
+				s = va("\n// %s\n", grp->name);
 				VFS_WRITE(f, s, strlen(s));
 			}
+
+			if (var->flags & CVAR_USERCREATED)
+			{
+				if (var->flags & CVAR_ARCHIVE)
+					s = va("seta %s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+				else
+					s = va("set %s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+			}
+			else
+				s = va("%s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+			s = Cvar_AddDescription(buffer, sizeof(buffer), s, var->description);
+			VFS_WRITE(f, s, strlen(s));
+		}
 	}
 }
 

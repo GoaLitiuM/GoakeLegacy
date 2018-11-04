@@ -55,7 +55,7 @@ typedef struct cmdalias_s
 
 cmdalias_t	*cmd_alias;
 
-cvar_t	cfg_save_all = CVARFD("cfg_save_all", "", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, cfg_save ALWAYS saves all cvars. If 0, cfg_save only ever saves archived cvars. If empty, cfg_save saves all cvars only when an explicit filename was given (ie: when not used internally via quit menu options).");
+cvar_t	cfg_save_all = CVARFD("cfg_save_all", "2", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 0, only saves archived cvars. If 1, saves all cvars. If 2, saves only changed cvars. If empty, saves all cvars only when an explicit filename was given (ie: when not used internally via quit menu options).");
 cvar_t	cfg_save_auto = CVARFD("cfg_save_auto", "0", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, the config will automatically be saved and without prompts. If 0, you'll have to save your config manually (possibly via prompts from the quit menu).");
 cvar_t	cfg_save_infos = CVARFD("cfg_save_infos", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves userinfo and serverinfo to configs.");
 cvar_t	cfg_save_aliases = CVARFD("cfg_save_aliases", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves userinfo and serverinfo to configs.");
@@ -3973,6 +3973,7 @@ static void Cmd_WriteConfig_f(void)
 	char fname[MAX_QPATH];
 	char sysname[MAX_OSPATH];
 	qboolean all = true;
+	qboolean changedonly = false;
 
 	if (Cmd_IsInsecure() && Cmd_Argc() > 1)
 	{
@@ -3996,6 +3997,7 @@ static void Cmd_WriteConfig_f(void)
 		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 4, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg");
 
 		all = cfg_save_all.ival;
+		changedonly = cfg_save_all.ival == 2;
 	}
 	else
 	{
@@ -4012,6 +4014,7 @@ static void Cmd_WriteConfig_f(void)
 		f = FS_OpenVFS(fname, "wbp", FS_BASEGAMEONLY);
 
 		all = cfg_save_all.ival || !*cfg_save_all.string;
+		changedonly = cfg_save_all.ival == 2 || !*cfg_save_all.string;
 	}
 	if (!f)
 	{
@@ -4043,7 +4046,7 @@ static void Cmd_WriteConfig_f(void)
 #endif
 	if (cfg_save_aliases.ival)
 		Alias_WriteAliases (f);
-	Cvar_WriteVariables (f, all);
+	Cvar_WriteVariables (f, all, changedonly);
 	VFS_CLOSE(f);
 
 	Cvar_Saved();
