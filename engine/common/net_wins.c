@@ -4667,7 +4667,7 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 			}
 
 			//and the connection is okay
-
+#ifdef NQPROT
 			if (st->clienttype == TCPC_WEBSOCKETNQ)
 			{
 				//inject a connection request so that our server actually accepts them...
@@ -4680,6 +4680,7 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 				MSG_WriteString(&net_message, NQ_NETCHAN_GAMENAME);
 				MSG_WriteByte(&net_message, NQ_NETCHAN_VERSION);
 			}
+#endif
 			return true;
 		}
 	}
