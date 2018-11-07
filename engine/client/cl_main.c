@@ -6236,14 +6236,14 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
 
 	Cbuf_AddText("unbindall\nshowpic_removeall\n", RESTRICT_LOCAL);
-	Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);
-	Cbuf_AddText("bind voldown \"inc volume -0.1\"\n", RESTRICT_LOCAL);
-	Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);
-	Cbuf_AddText("alias restart map_restart\n",RESTRICT_LOCAL);
-	Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
+	//Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);
+	//Cbuf_AddText("bind voldown \"inc volume -0.1\"\n", RESTRICT_LOCAL);
+	//Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);
+	//Cbuf_AddText("alias restart map_restart\n",RESTRICT_LOCAL);
+	//Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
 #ifdef QUAKESTATS
-	Cbuf_AddText("alias +attack2 +button3\n", RESTRICT_LOCAL);
-	Cbuf_AddText("alias -attack2 -button3\n", RESTRICT_LOCAL);
+	//Cbuf_AddText("alias +attack2 +button3\n", RESTRICT_LOCAL);
+	//Cbuf_AddText("alias -attack2 -button3\n", RESTRICT_LOCAL);
 #endif
 	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
