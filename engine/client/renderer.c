@@ -453,7 +453,7 @@ cvar_t r_telestyle							= CVARFD ("r_telestyle", "1", CVAR_ARCHIVE|CVAR_SHADERS
 cvar_t r_vertexdlights						= CVARD	("r_vertexdlights", "0", "Determine model lighting with respect to nearby dlights. Poor-man's rtlights.");
 
 cvar_t vid_preservegamma					= CVARD ("vid_preservegamma", "0", "Restore initial hardware gamma ramps when quitting.");
-cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "1",
+cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "4",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Use hardware gamma ramps. 0=ugly texture-based gamma, 1=glsl(windowed) or hardware(fullscreen), 2=always glsl, 3=always hardware gamma (disabled if hardware doesn't support), 4=scene-only gamma.");
 cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
