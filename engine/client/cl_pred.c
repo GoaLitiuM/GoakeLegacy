@@ -410,6 +410,8 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	pmove.jump_held = from->jump_held;
 	pmove.waterjumptime = from->waterjumptime;
 	pmove.pm_type = from->pm_type;
+	pmove.jump_time = from->jump_time;
+	pmove.jump_count = from->jump_count;
 
 	pmove.cmd = *u;
 	pmove.skipent = entnum;
@@ -429,6 +431,8 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	to->waterjumptime = pmove.waterjumptime;
 	to->jump_held = pmove.jump_held;
 	to->jump_msec = pmove.jump_msec;
+	to->jump_time = pmove.jump_time;
+	to->jump_count = pmove.jump_count;
 	pmove.jump_msec = 0;
 
 	VectorCopy (pmove.origin, to->origin);
@@ -1211,6 +1215,9 @@ void CL_PredictMovePNum (int seat)
 	oldphysent = pmove.numphysent;
 	CL_SetSolidPlayers();
 	pmove.skipent = trackent;
+
+	tostate->jump_time = cl.players[pv->playernum].statsf[STAT_JUMPTIME];
+	tostate->jump_count = cl.players[pv->playernum].statsf[STAT_JUMPCOUNT];
 
 	//just in case we don't run any prediction
 	VectorCopy(tostate->gravitydir, pmove.gravitydir);

@@ -2270,6 +2270,27 @@ void CL_CheckServerInfo(void)
 		movevars.flyfriction = *s?Q_atof(s):4;
 		//s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_edgefriction");
 		//movevars.edgefriction = *s?Q_atof(s):2;
+
+		movevars.maxvelocity = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxvelocity"));
+		movevars.gravity = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_gravity"));
+		movevars.stopspeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_stopspeed"));
+		movevars.maxspeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxspeed"));
+		movevars.spectatormaxspeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_spectatormaxspeed"));
+		movevars.accelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_accelerate"));
+		movevars.airaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_airaccelerate"));
+		movevars.wateraccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_wateraccelerate"));
+		movevars.friction = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_friction"));
+		movevars.waterfriction = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_waterfriction"));
+		movevars.wallfriction = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_wallfriction"));
+		movevars.maxairspeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxairspeed"));
+		movevars.maxairstrafespeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxairstrafespeed"));
+		movevars.jumpvelocity = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_jumpvelocity"));
+		movevars.jumpboost = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_jumpboost"));
+		movevars.edgefriction = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_edgefriction"));
+		movevars.aircontrol = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_aircontrol"));
+		movevars.airstopaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_airstopaccelerate"));
+		movevars.movementstyle = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_movementstyle"));
+		movevars.strafeaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_strafeaccelerate"));
 	}
 	movevars.coordsize = cls.netchan.netprim.coordsize;
 

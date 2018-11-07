@@ -42,18 +42,29 @@ solid_edge items only clip against bsp models.
 
 */
 
-cvar_t	sv_maxvelocity = CVAR("sv_maxvelocity","10000");
+cvar_t	sv_maxvelocity = CVARF("sv_maxvelocity","10000", CVAR_SERVERINFO);
 
-cvar_t	sv_gravity			 = CVAR( "sv_gravity", "800");
-cvar_t	sv_stopspeed		 = CVAR( "sv_stopspeed", "100");
-cvar_t	sv_maxspeed			 = CVAR( "sv_maxspeed", "320");
-cvar_t	sv_spectatormaxspeed = CVAR( "sv_spectatormaxspeed", "500");
-cvar_t	sv_accelerate		 = CVAR( "sv_accelerate", "10");
-cvar_t	sv_airaccelerate	 = CVAR( "sv_airaccelerate", "0.7");
-cvar_t	sv_wateraccelerate	 = CVAR( "sv_wateraccelerate", "10");
-cvar_t	sv_friction			 = CVAR( "sv_friction", "4");
-cvar_t	sv_waterfriction	 = CVAR( "sv_waterfriction", "4");
-cvar_t	sv_wallfriction		 = CVARD( "sv_wallfriction", "1", "Additional friction when running into walls");
+cvar_t	sv_gravity			 = CVARF( "sv_gravity", "800", CVAR_SERVERINFO);
+cvar_t	sv_stopspeed		 = CVARF( "sv_stopspeed", "100", CVAR_SERVERINFO);
+cvar_t	sv_maxspeed			 = CVARF( "sv_maxspeed", "320", CVAR_SERVERINFO);
+cvar_t	sv_spectatormaxspeed = CVARF( "sv_spectatormaxspeed", "500", CVAR_SERVERINFO);
+cvar_t	sv_accelerate		 = CVARFD( "sv_accelerate", "15", CVAR_SERVERINFO, "Ground acceleration\nQW: 10, CPM: 15");
+cvar_t	sv_airaccelerate	 = CVARFD( "sv_airaccelerate", "0.4", CVAR_SERVERINFO, "Diagonal air acceleration\nQW: N/A, CPM: 1");
+cvar_t	sv_wateraccelerate	 = CVARF( "sv_wateraccelerate", "10", CVAR_SERVERINFO);
+cvar_t	sv_friction			 = CVARFD( "sv_friction", "8", CVAR_SERVERINFO, "QW: 4, CPM: 8");
+cvar_t	sv_waterfriction	 = CVARF( "sv_waterfriction", "4", CVAR_SERVERINFO);
+cvar_t	sv_wallfriction		 = CVARFD( "sv_wallfriction", "1", CVAR_SERVERINFO, "Additional friction when running into walls");
+cvar_t	sv_edgefriction		 = CVARF("sv_edgefriction", "2", CVAR_SERVERINFO);
+cvar_t	sv_maxairspeed		 = CVARFD("sv_maxairspeed", "320", CVAR_SERVERINFO, "QW: sv_maxairstrafespeed, CPM: 320");
+cvar_t	sv_jumpvelocity		 = CVARF("sv_jumpvelocity", "270", CVAR_SERVERINFO);
+cvar_t	sv_jumpboost		 = CVARFD("sv_jumpboost", "100", CVAR_SERVERINFO, "Jump velocity boost from double jumps.\nQW: 0, CPM: 100");
+cvar_t	sv_strafeaccelerate	 = CVARFD("sv_strafeaccelerate", "10", CVAR_SERVERINFO, "QW: 10, CPM: 70");
+cvar_t	sv_maxairstrafespeed = CVARFD("sv_maxairstrafespeed", "30", CVAR_SERVERINFO, "QW: 30, CPM: 30");
+cvar_t	sv_aircontrol		 = CVARFD("sv_aircontrol", "0", CVAR_SERVERINFO, "QW: N/A, CPM: 150");
+cvar_t	sv_airstopaccelerate = CVARFD("sv_airstopaccelerate", "2.5", CVAR_SERVERINFO, "QW: N/A, CPM: 2.5");
+cvar_t	sv_movementstyle	 = CVARFD("sv_movementstyle", "2", CVAR_SERVERINFO, "Toggles between classic movement and promode style strafe movement, value 2 enables classic forward movement");
+
+
 cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse", "0");
 cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
 cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
@@ -70,9 +81,9 @@ cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
 cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "This is the speed that players will sink at while inactive in water. Empty means 60.");
 cvar_t	pm_flyfriction		= CVARFD("pm_flyfriction", "", CVAR_SERVERINFO, "Amount of friction that applies in fly or 6dof mode. Empty means 4.");
-cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "", CVAR_SERVERINFO);
+cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "1", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
-cvar_t	pm_airstep			 = CVARAF("pm_airstep", "", "sv_jumpstep", CVAR_SERVERINFO);
+cvar_t	pm_airstep			 = CVARAF("pm_airstep", "1", "sv_jumpstep", CVAR_SERVERINFO);
 cvar_t	pm_stepdown			 = CVARF("pm_stepdown", "", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
 cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", "edgefriction", CVAR_SERVERINFO, "Default value of 2");	//alternative name (without prefix) for compat with dp
@@ -94,6 +105,15 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_sound_watersplash,				cvargroup_serverphysics);
 	Cvar_Register (&sv_sound_land,						cvargroup_serverphysics);
 	Cvar_Register (&sv_stepheight,						cvargroup_serverphysics);
+	Cvar_Register (&sv_edgefriction,					cvargroup_serverphysics);
+	Cvar_Register (&sv_maxairspeed,						cvargroup_serverphysics);
+	Cvar_Register (&sv_jumpvelocity,					cvargroup_serverphysics);
+	Cvar_Register (&sv_jumpboost,						cvargroup_serverphysics);
+	Cvar_Register (&sv_strafeaccelerate,				cvargroup_serverphysics);
+	Cvar_Register (&sv_maxairstrafespeed,				cvargroup_serverphysics);
+	Cvar_Register (&sv_aircontrol,						cvargroup_serverphysics);
+	Cvar_Register (&sv_airstopaccelerate,				cvargroup_serverphysics);
+	Cvar_Register (&sv_movementstyle,					cvargroup_serverphysics);
 
 	Cvar_Register (&sv_gameplayfix_noairborncorpse,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
@@ -2694,5 +2714,16 @@ void SV_SetMoveVars(void)
 	movevars.watersinkspeed		= *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction		= *pm_flyfriction.string?pm_flyfriction.value:4;
 	//movevars.edgefriction		= *pm_edgefriction.string?pm_edgefriction.value:2;
+	movevars.maxvelocity		= sv_maxvelocity.value;
+	movevars.wallfriction		= sv_wallfriction.value;
+	movevars.edgefriction		= sv_edgefriction.value;
+	movevars.maxairspeed		= sv_maxairspeed.value;
+	movevars.jumpvelocity		= sv_jumpvelocity.value;
+	movevars.jumpboost			= sv_jumpboost.value;
+	movevars.strafeaccelerate	= sv_strafeaccelerate.value;
+	movevars.maxairstrafespeed	= sv_maxairstrafespeed.value;
+	movevars.aircontrol			= sv_aircontrol.value;
+	movevars.airstopaccelerate	= sv_airstopaccelerate.value;
+	movevars.movementstyle		= sv_movementstyle.value;
 }
 #endif

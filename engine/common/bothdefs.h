@@ -232,8 +232,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HALFLIFEMODELS
 	#undef RUNTIMELIGHTING
 	#undef HEXEN2
-	#undef PACKAGE_DOOMWAD	
-	#undef MAP_PROC	
+	#undef PACKAGE_DOOMWAD
+	#undef MAP_PROC
 	#undef Q1BSPS
 	#undef Q2BSPS
 	#undef Q3BSPS
@@ -516,7 +516,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if  defined(MD1MODELS) || defined(MD2MODELS) || defined(MD3MODELS)
 	#define NONSKELETALMODELS
 #endif
-#if  defined(ZYMOTICMODELS) || defined(MD5MODELS) || defined(DPMMODELS) || defined(PSKMODELS) || defined(INTERQUAKEMODELS) 
+#if  defined(ZYMOTICMODELS) || defined(MD5MODELS) || defined(DPMMODELS) || defined(PSKMODELS) || defined(INTERQUAKEMODELS)
 	#define SKELETALMODELS	//defined if we have a skeletal model.
 #endif
 #if (defined(CSQC_DAT) || !defined(CLIENTONLY)) && defined(SKELETALMODELS)
@@ -902,6 +902,14 @@ STAT_H2_PLAYERCLASS,
 STAT_H2_OBJECTIVE1,	//integer
 STAT_H2_OBJECTIVE2,	//integer
 #endif
+
+
+STAT_JUMPTIME								= 215,
+STAT_JUMPCOUNT								= 216,
+
+STAT_MOVEVARS_JUMPFIX						= 217,
+STAT_MOVEVARS_JUMPBOOST						= 218,
+STAT_MOVEVARS_MOVEMENTSTYLE					= 219,
 
 STAT_MOVEVARS_AIRACCEL_QW_STRETCHFACTOR		= 220, // DP
 STAT_MOVEVARS_AIRCONTROL_PENALTY			= 221, // DP

@@ -7202,6 +7202,8 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 	pmove.pm_type = SV_PMTypeForClient (host_client, sv_player);
 	pmove.jump_held = host_client->jump_held;
+	pmove.jump_time = sv_player->xv->jump_time;
+	pmove.jump_count = sv_player->xv->jump_count;
 	pmove.jump_msec = 0;
 	if (progstype != PROG_QW)	//this is just annoying.
 		pmove.waterjumptime = sv_player->v->teleport_time - sv.time;
@@ -7285,6 +7287,8 @@ if (sv_player->v->health > 0 && before && !after )
 	}
 
 	host_client->jump_held = pmove.jump_held;
+	sv_player->xv->jump_time = pmove.jump_time;
+	sv_player->xv->jump_count = pmove.jump_count;
 	if (progstype != PROG_QW)	//this is just annoying.
 	{
 		if (pmove.waterjumptime)

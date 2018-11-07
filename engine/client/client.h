@@ -79,6 +79,8 @@ typedef struct
 	qboolean	onground;
 	qboolean	jump_held;
 	int			jump_msec;		// hack for fixing bunny-hop flickering on non-ZQuake servers
+	float		jump_time;
+	int			jump_count;
 	vec3_t		szmins, szmaxs;
 	vec3_t		gravitydir;
 

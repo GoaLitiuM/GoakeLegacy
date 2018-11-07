@@ -23,10 +23,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 movevars_t		movevars;
 playermove_t	pmove;
 
-#define movevars_dpflags		MOVEFLAG_QWCOMPAT
-#define movevars_edgefriction	2
-#define movevars_maxairspeed	30
-#define movevars_jumpspeed		270
+//#define movevars_dpflags		MOVEFLAG_QWCOMPAT
+//#define movevars_edgefriction	2
+//#define movevars_maxairspeed	30
+//#define movevars_jumpspeed		270
 
 float		frametime;
 
@@ -299,8 +299,8 @@ int PM_SlideMove (void)
 				&& Length(pmove.velocity)>200 && pmove.cmd.buttons & 2 && !pmove.jump_held && !pmove.waterjumptime)
 			{
 				PM_ClipVelocity (original_velocity, planes[i], pmove.velocity, 2);
-				if (pmove.velocity[2] < movevars_jumpspeed)
-					pmove.velocity[2] = movevars_jumpspeed;
+				if (pmove.velocity[2] < movevars.jumpvelocity)
+					pmove.velocity[2] = movevars.jumpvelocity;
 				pmove.jump_msec = pmove.cmd.msec;
 				pmove.jump_held = true;
 				pmove.waterjumptime = 0;
@@ -431,8 +431,8 @@ int PM_StepSlideMove (qboolean in_air)
 	if ((in_air || movevars.slidefix) && originalvel[2] < 0)
 		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
-	PM_SlideMove ();
-
+	int blocked2 = PM_SlideMove ();
+	
 // press down the stepheight
 	VectorMA (pmove.origin, stepsize, pmove.gravitydir, dest);
 	trace = PM_PlayerTracePortals (pmove.origin, dest, MASK_PLAYERSOLID, NULL);
@@ -475,6 +475,15 @@ usedown:
 		//FIXME gravitydir
 		pmove.velocity[0] *= scale;
 		pmove.velocity[1] *= scale;
+	}
+	
+	if (blocked2 == 0 && blocked && pmove.velocity[2] > 0)
+	{
+		if (pmove.jump_count <= 1)
+		{
+			// kill jump velocity when hitting stairs
+			pmove.velocity[2] = 0;
+		}
 	}
 
 	return blocked;
@@ -521,7 +530,7 @@ void PM_Friction (void)
 	else if (pmove.onground) {
 		// apply ground friction
 		friction = movevars.friction;
-		if (movevars_edgefriction != 1.0)
+		if (movevars.edgefriction != 1.0)
 		{
 			// if the leading edge is over a dropoff, increase friction
 			start[0] = stop[0] = pmove.origin[0] + pmove.velocity[0]/speed*16;
@@ -530,7 +539,7 @@ void PM_Friction (void)
 			//id quirk: this is a tracebox, NOT a traceline, yet still starts BELOW the player.
 			start[2] = pmove.origin[2] + pmove.player_mins[2];
 			stop[2] = start[2] - 34;
-			if (movevars_dpflags & MOVEFLAG_QWEDGEBOX)	//quirky qw behaviour uses a tracebox, which
+			if (movevars.flags & MOVEFLAG_QWEDGEBOX)	//quirky qw behaviour uses a tracebox, which
 				trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
 			else
 			{
@@ -544,7 +553,7 @@ void PM_Friction (void)
 				VectorCopy(max, pmove.player_maxs);
 			}
 			if (trace.fraction == 1 && !trace.startsolid)
-				friction *= movevars_edgefriction;
+				friction *= movevars.edgefriction;
 		}
 		control = speed < movevars.stopspeed ? movevars.stopspeed : speed;
 		drop = control*friction*frametime;
@@ -612,8 +621,8 @@ void PM_AirAccelerate (vec3_t wishdir, float wishspeed, float accel)
 	else
 		originalspeed = 0;	//shh compiler.
 
-	if (wishspd > movevars_maxairspeed)
-		wishspd = movevars_maxairspeed;
+	if (wishspd > movevars.maxairstrafespeed)
+		wishspd = movevars.maxairstrafespeed;
 	currentspeed = DotProduct (pmove.velocity, wishdir);
 	addspeed = wishspd - currentspeed;
 	if (addspeed <= 0)
@@ -643,7 +652,33 @@ void PM_AirAccelerate (vec3_t wishdir, float wishspeed, float accel)
 	}
 }
 
+void PM_Aircontrol(vec3_t wishdir, float wishspeed)
+{
+	float	zspeed, speed, dot, k;
+	int		i;
 
+	if (wishspeed == 0)
+		return;
+
+	zspeed = pmove.velocity[2];
+	pmove.velocity[2] = 0;
+	speed = VectorNormalize(pmove.velocity);
+
+	dot = DotProduct(pmove.velocity, wishdir);
+	k = 32 * movevars.aircontrol * dot*dot*frametime;
+
+	if (dot > 0)
+	{
+		// we can't change direction while slowing down
+		for (i = 0; i < 2; i++)
+			pmove.velocity[i] = pmove.velocity[i] * speed + wishdir[i] * k;
+		VectorNormalize(pmove.velocity);
+	}
+
+	for (i = 0; i < 2; i++)
+		pmove.velocity[i] *= speed;
+	pmove.velocity[2] = zspeed;
+}
 
 /*
 ===================
@@ -807,16 +842,12 @@ void PM_AirMove (void)
 
 	wishspeed = VectorNormalize(wishdir);
 
-//
-// clamp to server defined max speed
-//
-	if (wishspeed > movevars.maxspeed)
-	{
-		wishspeed = movevars.maxspeed;
-	}
-
 	if (pmove.onground)
 	{
+		// clamp to server defined max speed
+		if (wishspeed > movevars.maxspeed)
+			wishspeed = movevars.maxspeed;
+		
 		if (movevars.slidefix)
 		{
 			if (DotProduct(pmove.velocity, pmove.gravitydir) < 0)
@@ -850,9 +881,54 @@ void PM_AirMove (void)
 	else
 	{
 		int blocked;
+		
+		// clamp to server defined max speed
+		if (wishspeed > movevars.maxairspeed)
+			wishspeed = movevars.maxairspeed;
 
-		// not on ground, so little effect on velocity
-		PM_AirAccelerate (wishdir, wishspeed, movevars.accelerate);
+		if (movevars.movementstyle == 0)
+		{
+			// QW movement
+			PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
+		}
+		else if (movevars.movementstyle == 1)
+		{
+			// CPM movement
+			float wishspeed2 = wishspeed;	
+			float accel = movevars.airaccelerate;
+			if (DotProduct(pmove.velocity, wishdir) < 0)
+				accel = movevars.airstopaccelerate;
+				
+			if (fabs(smove) > 0 && fmove == 0)
+			{
+				// only strafe movement
+				if (wishspeed > movevars.maxairstrafespeed)
+					wishspeed = movevars.maxairstrafespeed;
+					
+				accel = movevars.strafeaccelerate;
+			}
+
+			PM_Accelerate(wishdir, wishspeed, accel);
+			
+			// air control while holding forward/back buttons
+			if (fabs(movevars.aircontrol) > 0 && smove == 0 && fabs(fmove) > 0)
+				PM_Aircontrol(wishdir, wishspeed2);
+		}
+		else if (movevars.movementstyle == 2)
+		{
+			// CPM movement without air control
+			float accel = movevars.airaccelerate;
+			if (DotProduct(pmove.velocity, wishdir) < 0)
+				accel = movevars.airstopaccelerate;
+				
+			if ((fabs(smove) > 0 && fmove == 0) || (fabs(fmove) > 0 && smove == 0))
+			{
+				// strafe values are used when only one of the movement keys are active
+				PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
+			}
+			else
+				PM_Accelerate(wishdir, wishspeed, accel);
+		}
 
 		// add gravity
 		VectorMA(pmove.velocity, movevars.entgravity * movevars.gravity * frametime, pmove.gravitydir, pmove.velocity);
@@ -1101,6 +1177,15 @@ static void PM_CheckJump (void)
 	if (pmove.jump_held && !pmove.jump_msec)
 		return;		// don't pogo stick
 
+	// double jumping mechanism, give a boost to jump velocity when player has jumped recently
+	float jumpvelocity = movevars.jumpvelocity;
+	if (pmove.jump_count == 1)
+		jumpvelocity += movevars.jumpboost;
+		
+	if (pmove.jump_time == 0)
+		pmove.jump_time += frametime;
+	pmove.jump_count++;
+
 	// check for jump bug
 	// groundplane normal was set in the call to PM_CategorizePosition
 	if (-DotProduct(pmove.gravitydir, pmove.velocity) < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
@@ -1110,15 +1195,15 @@ static void PM_CheckJump (void)
 	}
 
 	pmove.onground = false;
-	VectorMA(pmove.velocity, -movevars_jumpspeed, pmove.gravitydir, pmove.velocity);
+	VectorMA(pmove.velocity, -jumpvelocity, pmove.gravitydir, pmove.velocity);
 
 	if (movevars.ktjump > 0 && pmove.pm_type != PM_WALLWALK)
 	{
 		if (movevars.ktjump > 1)
 			movevars.ktjump = 1;
-		if (pmove.velocity[2] < movevars_jumpspeed)
+		if (pmove.velocity[2] < jumpvelocity)
 			pmove.velocity[2] = pmove.velocity[2] * (1 - movevars.ktjump)
-				+ movevars_jumpspeed * movevars.ktjump;
+				+ jumpvelocity * movevars.ktjump;
 	}
 
 	pmove.jump_held = true;		// don't jump again until released
@@ -1414,6 +1499,16 @@ void PM_PlayerMove (float gamespeed)
 		pmove.jump_msec += pmove.cmd.msec;
 		if (pmove.jump_msec > 50)
 			pmove.jump_msec = 0;
+	}
+
+	if (pmove.jump_time > 0)
+	{
+		pmove.jump_time += frametime; 
+		if (pmove.jump_time >= 0.400)
+		{
+			pmove.jump_time = 0;
+			pmove.jump_count = 0;
+		}
 	}
 
 	PM_CheckJump ();

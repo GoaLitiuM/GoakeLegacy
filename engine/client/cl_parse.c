@@ -5454,7 +5454,7 @@ static void CL_SetStatMovevar(int pnum, int stat, int ivalue, float value)
 		}
 		break;
 	case STAT_MOVEFLAGS:
-//		movevars.flags = ivalue;
+		movevars.flags = ivalue;
 		break;
 	case STAT_MOVEVARS_GRAVITY:
 		movevars.gravity = value;

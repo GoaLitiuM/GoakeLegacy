@@ -65,6 +65,8 @@ typedef struct
 	vec3_t		gravitydir;
 	qboolean		jump_held;
 	int			jump_msec;	// msec since last jump
+	float		jump_time;
+	int			jump_count;
 	float		waterjumptime;
 	int			pm_type;
 	vec3_t		player_mins;
@@ -120,6 +122,17 @@ typedef struct {
 	qboolean stepdown;
 	qboolean slidyslopes;
 	int stepheight;
+
+	float maxvelocity;
+	float maxairspeed;
+	float maxairstrafespeed;
+	float jumpvelocity;
+	float jumpboost;
+	float wallfriction;
+	float strafeaccelerate;
+	float aircontrol;
+	float airstopaccelerate;
+	int movementstyle;
 
 	qbyte coordsize;
 

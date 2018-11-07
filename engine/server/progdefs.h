@@ -307,7 +307,9 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	svextqcfieldshexen2 \
 	comfieldfloat(pvsflags,"Reconfigures when the entity is visible to clients")/*EXT_CSQC_1*/\
 	comfieldfloat(uniquespawnid,"Incremented by 1 whenever the entity is respawned. Persists across remove calls, for when the two-second grace period is insufficient.")/*FTE_ENT_UNIQUESPAWNID*/\
-	comfieldfunction(customizeentityforclient, ".float()","Called just before an entity is sent to a client (non-csqc protocol). This gives you a chance to tailor 'self' according to what 'other' should see.")
+	comfieldfunction(customizeentityforclient, ".float()","Called just before an entity is sent to a client (non-csqc protocol). This gives you a chance to tailor 'self' according to what 'other' should see.")\
+	comfieldfloat(jump_time, NULL)\
+	comfieldint(jump_count, NULL)
 
 #ifdef HALFLIFEMODELS
 #define HALFLIFEMODEL_FIELDS	\
