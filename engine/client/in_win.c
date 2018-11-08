@@ -563,6 +563,31 @@ static void INS_DeactivateMouse (void)
 
 /*
 ===========
+INS_ForceClipCursor
+===========
+*/
+void INS_ForceClipCursor(void)
+{
+	if (!mouseactive)
+		return;
+
+	//some software may try to clip the cursor at the same time as we do,
+	//so we periodically check and detect when cursor is about to escape,
+	//and we recenter the cursor to prevent accidental cursor clicks outside
+	//the original clipping area.
+
+	POINT pos;
+	GetCursorPos(&pos);
+	if (pos.x >= window_rect.left+5 && pos.x <= window_rect.right-5 &&
+		pos.y >= window_rect.top+5 && pos.y <= window_rect.bottom-5)
+	{
+	}
+	else
+		SetCursorPos(window_center_x, window_center_y);
+}
+
+/*
+===========
 INS_SetQuakeMouseState
 ===========
 */

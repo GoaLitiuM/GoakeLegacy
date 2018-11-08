@@ -3018,6 +3018,7 @@ static LONG WINAPI GLMainWndProc (
 				INS_RawInput_Read((HANDLE)lParam);
 				lRet = 0;
 			}
+			INS_ForceClipCursor();
 			break;
 		case WM_DEVICECHANGE:
 			COM_AddWork(WG_MAIN, INS_DeviceChanged, NULL, NULL, uMsg, 0);

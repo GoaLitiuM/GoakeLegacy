@@ -351,6 +351,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			// raw input handling
 			if (!vid_initializing)
 				INS_RawInput_Read((HANDLE)lParam);
+			INS_ForceClipCursor();
 			break;
 		case WM_DEVICECHANGE:
 			COM_AddWork(WG_MAIN, INS_DeviceChanged, NULL, NULL, uMsg, 0);
