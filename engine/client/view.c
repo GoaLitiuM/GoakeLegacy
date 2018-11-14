@@ -54,7 +54,7 @@ cvar_t	vsec_yaw[SIDEVIEWS]		= {CVAR("v2_yaw", "180"),		CVAR("v3_yaw", "90"),		CV
 #endif
 
 cvar_t	cl_rollspeed			= CVAR("cl_rollspeed", "200");
-cvar_t	cl_rollangle			= CVARD("cl_rollangle", "2.0", "Controls how much the view should tilt while strafing.");
+cvar_t	cl_rollangle			= CVARD("cl_rollangle", "0.0", "Controls how much the view should tilt while strafing.");
 cvar_t	v_deathtilt				= CVAR("v_deathtilt", "1");
 
 cvar_t	cl_bob					= CVARD("cl_bob","0.02", "Controls how much the camera position should bob up down as the player runs around.");

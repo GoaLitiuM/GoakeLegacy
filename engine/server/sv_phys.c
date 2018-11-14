@@ -76,9 +76,9 @@ cvar_t	sv_gameplayfix_spawnbeforethinks	= CVARD( "sv_gameplayfix_spawnbeforethin
 cvar_t	dpcompat_noretouchground	= CVARD( "dpcompat_noretouchground", "0", "Prevents entities that are already standing on an entity from touching the same entity again.");
 cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 cvar_t	sv_sound_land		 = CVAR( "sv_sound_land", "demon/dland2.wav");
-cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	"sv_stepheight", CVAR_SERVERINFO, "If empty, the value "STRINGIFY(PM_DEFAULTSTEPHEIGHT)" will be used instead. This is the size of the step you can step up or down.");
+cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "18",	"sv_stepheight", CVAR_SERVERINFO, "If empty, the value "STRINGIFY(PM_DEFAULTSTEPHEIGHT)" will be used instead. This is the size of the step you can step up or down.");
 
-cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
+cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "1", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
 cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "This is the speed that players will sink at while inactive in water. Empty means 60.");
 cvar_t	pm_flyfriction		= CVARFD("pm_flyfriction", "", CVAR_SERVERINFO, "Amount of friction that applies in fly or 6dof mode. Empty means 4.");
