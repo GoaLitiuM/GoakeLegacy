@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // release version
 #define FTE_VER_MAJOR 1
 #define FTE_VER_MINOR 6
+#define FTE_VER_EXTRA ""
 
 #if defined(__APPLE__) && defined(__MACH__)
 	#define MACOSX

@@ -114,16 +114,12 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 // Version
 //
 
-// defines needed to transform MAJOR/MINOR defines into an x.xx string define...
+// defines needed to transform MAJOR/MINOR defines into an x.x string define...
 #define STR2(x) #x
 #define STR(x) STR2(x)
 #define V_DOT "."
 #define V_MAJ STR(FTE_VER_MAJOR)
-#if FTE_VER_MINOR < 10
-#define V_MIN STR(0) STR(FTE_VER_MINOR)
-#else
 #define V_MIN STR(FTE_VER_MINOR)
-#endif
 #define V_STR V_MAJ V_DOT V_MIN
 
 VS_VERSION_INFO VERSIONINFO

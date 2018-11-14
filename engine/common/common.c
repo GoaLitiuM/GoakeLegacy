@@ -7452,7 +7452,7 @@ char *version_string(void)
 	if (!done)
 	{
 #ifdef OFFICIAL_RELEASE
-		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+		Q_snprintfz(s, sizeof(s), "%s v%i.%i%s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_EXTRA);
 #else
 #if defined(SVNREVISION)
 		if (strcmp(STRINGIFY(SVNREVISION), "-"))

@@ -1678,7 +1678,7 @@ void CL_UpdateSeats(void)
 				ver = va("%s v%i.%02i %s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, STRINGIFY(SVNREVISION));
 			else
 #endif
-				ver = va("%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+				ver = va("%s v%i.%i%s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_EXTRA);
 			InfoBuf_SetStarKey(info, "*ver", ver);
 			InfoBuf_ToString(info, infostr, sizeof(infostr), NULL, NULL, NULL, &cls.userinfosync, info);
 

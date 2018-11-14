@@ -651,7 +651,7 @@ void SVNQ_New_f (void)
 	}
 
 #ifdef OFFICIAL_RELEASE
-	Q_snprintfz(build, sizeof(build), "v%i.%02i", FTE_VER_MAJOR, FTE_VER_MINOR);
+	Q_snprintfz(build, sizeof(build), "v%i.%i%s", FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_EXTRA);
 #else
 #if defined(SVNREVISION)
 	if (strcmp(STRINGIFY(SVNREVISION), "-"))
