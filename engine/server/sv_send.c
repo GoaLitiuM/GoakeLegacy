@@ -2131,9 +2131,11 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 				statsf[STAT_WEAPONFRAME] = ent->v->weaponframe;		//weapon frame is sent differently with classic quakeworld protocols.
 
 			// stuff the sigil bits into the high bits of items for sbar
+#ifndef NOLEGACY
 			if (sv.haveitems2)
 				statsi[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
 			else
+#endif
 				statsi[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 		}
 
@@ -2153,11 +2155,14 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		else
 			statsi[STAT_VIEW2] = 0;
 	#endif
-
+#ifndef NOLEGACY
 		if (!ent->xv->viewzoom)
 			statsf[STAT_VIEWZOOM] = STAT_VIEWZOOM_SCALE;
 		else
 			statsf[STAT_VIEWZOOM] = max(1,ent->xv->viewzoom*STAT_VIEWZOOM_SCALE);
+#else
+		statsf[STAT_VIEWZOOM] = STAT_VIEWZOOM_SCALE;
+#endif
 #endif
 
 #ifdef NQPROT
