@@ -1,5 +1,6 @@
 // GoakeWorld build config file
 
+#define GOAKE                        // because i'm lazy with actual protocol stuff
 //general rebranding
 #define DISTRIBUTION			"Goake"					//should be kept short. 3 or 4 letters is good, with no spaces.
 #define DISTRIBUTIONLONG		"GoaLitiuM"						//think of this as your company name. It isn't shown too often, so can be quite long.

@@ -3056,6 +3056,29 @@ client_t *SVC_DirectConnect(void)
 	}
 	newcl->zquake_extensions &= SUPPORTED_Z_EXTENSIONS;
 
+#ifdef GOAKE
+	s = InfoBuf_ValueForKey(&newcl->userinfo, "*ver");
+	if (!*s)
+		s = InfoBuf_ValueForKey(&newcl->userinfo, "*client");
+	if (strncmp(s, "Goake", 5) != 0)
+	{
+		// drop all non-Goake clients
+		SV_RejectMessage(protocol, "This is a Goake server.\n");
+		Con_DPrintf ("* Rejected non-goake client.\n");
+		return NULL;
+	}
+	else
+	{
+		char* my_ver = version_string();
+		if (strcmp(s, my_ver))
+		{
+			// drop clients with wrong version
+			SV_RejectMessage(protocol, "This is a %s server.\n", my_ver);
+			Con_DPrintf ("* Rejected wrong goake client.\n");
+			return NULL;
+		}
+	}
+#endif
 	//ezquake's download mechanism is so smegging buggy.
 	//its causing far far far too many connectivity issues. seriously. its beyond a joke. I cannot stress that enough.
 	//as the client needs to listen for the serverinfo to know which extensions will actually be used (yay demos), we can just forget that it supports svc-level extensions, at least for anything that isn't spammed via clc_move etc before the serverinfo.
