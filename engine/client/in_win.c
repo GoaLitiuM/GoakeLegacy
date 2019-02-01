@@ -111,6 +111,9 @@ static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
 
 static cvar_t	cl_keypad = CVAR("cl_keypad", "1");
 
+extern cvar_t	sys_disableWinKeys;
+extern cvar_t	sys_disablePrintScreen;
+
 extern float multicursor_x[8], multicursor_y[8];
 extern qboolean multicursor_active[8];
 
@@ -945,9 +948,12 @@ int INS_RawInput_KeyboardRegister(void)
 
 	Rid.usUsagePage = 0x01;
 	Rid.usUsage = 0x06;
-	Rid.dwFlags = RIDEV_NOLEGACY | RIDEV_APPKEYS | RIDEV_NOHOTKEYS; // fetch everything, disable hotkey behavior (should cvar?)
+	Rid.dwFlags = RIDEV_NOLEGACY | RIDEV_APPKEYS; // fetch everything, disable hotkey behavior (should cvar?)
 	Rid.hwndTarget = NULL;
-
+	
+	if (sys_disablePrintScreen.ival && sys_disableWinKeys.ival)
+		Rid.dwFlags |= RIDEV_NOHOTKEYS;
+	
 	if (!(*_RRID)(&Rid, 1, sizeof(Rid)))
 		return 1;
 
