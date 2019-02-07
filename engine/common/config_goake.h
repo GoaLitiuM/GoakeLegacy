@@ -17,7 +17,7 @@
 #define GAME_FULLNAME			FULLENGINENAME 	//full name of the game we're playing
 #define GAME_BASEGAMES			GAME_SHORTNAME	//comma-separate list of basegame strings to use
 #define GAME_PROTOCOL			"GOAKE"	//so other games won't show up in the server browser
-//#define GAME_DEFAULTPORT		27500			//slightly reduces the chance of people connecting to the wrong type of server
+#define GAME_DEFAULTPORT		59184			//slightly reduces the chance of people connecting to the wrong type of server
 //#define GAME_IDENTIFYINGFILES	NULL			//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL		NULL			//url for the package manger to update from
 //#define GAME_DEFAULTCMDS		NULL			//a string containing the things you want to exec in order to override default.cfg
@@ -86,7 +86,7 @@
 //#define IMAGEFMT_VTF          //hl2 image format
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)
 #define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
-#define PACKAGE_TEXWAD          //quake's image wad support
+//#define PACKAGE_TEXWAD          //quake's image wad support
 #define AVAIL_FREETYPE			//for truetype font rendering
 #define DECOMPRESS_ETC2			//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
 #define DECOMPRESS_S3TC			//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
@@ -112,7 +112,7 @@
 #define MVD_RECORDING			//server can record MVDs.
 
 // Networking options
-#define NQPROT					//act as an nq client/server, with nq gamecode.
+//#define NQPROT					//act as an nq client/server, with nq gamecode.
 #define HAVE_PACKET				//we can send unreliable messages!
 #define HAVE_TCP				//we can create/accept TCP connections.
 #define HAVE_GNUTLS				//on linux
@@ -155,7 +155,7 @@
 //#define NOQCDESCRIPTIONS 2	//if 2, disables writing fteextensions.qc completely. 1 just omits the text. (ignored in debug builds.)
 
 // Outdated stuff
-#define SVRANKING				//legacy server-side ranking system.
+//#define SVRANKING				//legacy server-side ranking system.
 ////#define QTERM				//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 //#define SVCHAT					//ancient lame builtin to support NPC-style chat...
 ////#define SV_MASTER			//Support running the server as a master server. Should probably not be used.
