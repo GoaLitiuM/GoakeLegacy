@@ -6285,6 +6285,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	if (COM_FCheckExists ("autoexec.cfg"))
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 #else
+#ifdef QUAKESTATS
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
 	hrc = COM_FDepthFile("hexen.rc", true);	//h2
@@ -6300,6 +6301,8 @@ void CL_ExecInitialConfigs(char *resetcommand)
 		def = hrc;
 	}
 	else
+#endif
+#ifdef Q3CLIENT
 	{	//they didn't give us an rc file!
 //		int cfg = COM_FDepthFile ("config.cfg", true);
 		int q3cfg = COM_FDepthFile ("q3config.cfg", true);
@@ -6315,10 +6318,21 @@ void CL_ExecInitialConfigs(char *resetcommand)
 		if (def!=FDEPTH_MISSING)
 			Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
+#else
+	{
+	}
+#endif
 #endif
 #ifdef QUAKESPYAPI
 	if (COM_FCheckExists ("frontend.cfg"))
 		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
+#endif
+#ifdef GOAKE
+	Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
+	if (COM_FDepthFile ("config.cfg", true) <= def)
+		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
+	if (COM_FCheckExists ("autoexec.cfg"))
+		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 #endif
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 	COM_ParsePlusSets(true);

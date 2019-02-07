@@ -676,7 +676,7 @@ static void Cmd_Exec_f (void)
 		{
 			int cfgdepth = COM_FDepthFile(name, true);
 			int defdepth = COM_FDepthFile("default.cfg", true);
-			Cbuf_InsertText("exec fte.cfg", Cmd_ExecLevel, true);
+			//Cbuf_InsertText("exec fte.cfg", Cmd_ExecLevel, true);
 			if (defdepth < cfgdepth && cfgdepth != FDEPTH_MISSING)
 			{
 				if (cl_warncmd.ival)
