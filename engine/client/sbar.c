@@ -985,7 +985,11 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 
 	COM_FlushFSCache(false, true);	//make sure the fs cache is built if needed. there's lots of loading here.
 
+#ifdef PACKAGE_TEXWAD
 	if (!wad_base)	//the wad isn't loaded. This is an indication that it doesn't exist.
+#else
+	if (true)
+#endif
 	{
 		sbarfailed = true;
 		return;
