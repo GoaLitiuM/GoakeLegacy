@@ -34,27 +34,55 @@ ENDIF()
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 
-#some personal defaults for windows builds
+#a bit more sane dependency setup for windows, assuming all the libraries are installed and built correctly
 IF(${WIN32})
-	set(ZLIB_ROOT "${CMAKE_CURRENT_LIST_DIR}/thirdparty/zlib")
-	set(ZLIB_LIBRARY_RELEASE "${CMAKE_CURRENT_LIST_DIR}/thirdparty/zlib/build/Release/zlibstatic.lib")
-	set(ZLIB_LIBRARY_DEBUG "${CMAKE_CURRENT_LIST_DIR}/thirdparty/zlib/build/Release/zlibstatic.lib")
+	set(ZLIB_ROOT "${CMAKE_SOURCE_DIR}/thirdparty/zlib")
+	INCLUDE_DIRECTORIES(${ZLIB_ROOT})	
 	
-	set(PNG_PNG_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libpng")
-	set(PNG_LIBRARY_RELEASE "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libpng/build/Release/libpng16_static.lib")
-	set(PNG_LIBRARY_DEBUG "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libpng/build/Release/libpng16_static.lib")
+	set(PNG_PNG_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/thirdparty/libpng")
+	INCLUDE_DIRECTORIES(${PNG_PNG_INCLUDE_DIR})
 	
-	set(OGG_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libogg/include")
-	set(VORBISFILE_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libvorbis/include")
-	set(VORBISFILE_LIBRARY "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libvorbis/win32/VS2010/x64/Release/libvorbisfile_static.lib")
+	set(OGG_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/thirdparty/libogg/include")
+	INCLUDE_DIRECTORIES(${OGG_INCLUDE_DIR})
 	
-	set(JPEG_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libjpeg-turbo")
-	set(JPEG_LIBRARY "${CMAKE_CURRENT_LIST_DIR}/thirdparty/libjpeg-turbo/build/Debug/jpeg-static.lib")
+	set(VORBISFILE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/thirdparty/libvorbis/include")
+	INCLUDE_DIRECTORIES(${VORBISFILE_INCLUDE_DIR})
 	
-	set(FREETYPE_INCLUDE_DIR_freetype2 "${CMAKE_CURRENT_LIST_DIR}/thirdparty/freetype/include/freetype")
-	set(FREETYPE_INCLUDE_DIR_ft2build "${CMAKE_CURRENT_LIST_DIR}/thirdparty/freetype/include")
-	set(FREETYPE_LIBRARY_RELEASE "${CMAKE_CURRENT_LIST_DIR}/thirdparty/freetype/build/Release/freetype.lib")
-	set(FREETYPE_LIBRARY_DEBUG "${CMAKE_CURRENT_LIST_DIR}/thirdparty/freetype/build/Release/freetype.lib")
+	set(JPEG_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/thirdparty/libjpeg-turbo")
+	INCLUDE_DIRECTORIES(${JPEG_INCLUDE_DIR})
+	
+	set(FREETYPE_INCLUDE_DIR_ft2build "${CMAKE_SOURCE_DIR}/thirdparty/freetype/include")
+	set(FREETYPE_INCLUDE_DIR_freetype2 "${CMAKE_SOURCE_DIR}/thirdparty/freetype/include/freetype")
+	set(FREETYPE_INCLUDE_DIRS "${FREETYPE_INCLUDE_DIR_ft2build};${FREETYPE_INCLUDE_DIR_freetype2}")
+	list(REMOVE_DUPLICATES FREETYPE_INCLUDE_DIRS)
+	INCLUDE_DIRECTORIES(${FREETYPE_INCLUDE_DIRS})
+	
+	IF(CMAKE_SIZEOF_VOID_P EQUAL 4) #32-bit
+		set(ZLIB_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/zlib/build/Release/zlibstatic.lib")
+		INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/thirdparty/zlib/build")
+		set(PNG_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/libpng/build/Release/libpng16_static.lib")
+		INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/thirdparty/libpng/build")
+		set(VORBISFILE_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/libvorbis/win32/VS2017/x86/Release/libvorbisfile_static.lib")
+		set(JPEG_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/libjpeg-turbo/build/Release/jpeg-static.lib")
+		INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/thirdparty/libjpeg-turbo/build")
+		set(FREETYPE_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/freetype/build/Release/freetype.lib")
+		INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/thirdparty/freetype/build")
+	ELSE() #64-bit
+		set(ZLIB_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/zlib/build64/Release/zlibstatic.lib")
+		INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/thirdparty/zlib/build64")
+		set(PNG_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/libpng/build64/Release/libpng16_static.lib")
+		INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/thirdparty/libpng/build64")
+		set(VORBISFILE_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/libvorbis/win32/VS2017/x64/Release/libvorbisfile_static.lib")
+		set(JPEG_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/libjpeg-turbo/build64/Release/jpeg-static.lib")
+		INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/thirdparty/libjpeg-turbo/build64")
+		set(FREETYPE_LIBRARY "${CMAKE_SOURCE_DIR}/thirdparty/freetype/build64/Release/freetype.lib")
+		INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/thirdparty/freetype/build64")
+	ENDIF()
+ENDIF()
+
+IF(POLICY CMP0074)
+	# allow overriding PACKAGE_ROOT variables, this is for manually pointing the dependency paths for windows
+	cmake_policy(SET CMP0074 NEW)
 ENDIF()
 
 IF(${CMAKE_VERSION} VERSION_LESS "3.9.0")
@@ -76,7 +104,7 @@ ELSE()
 	ENDIF()
 ENDIF()
 
-SET(FTE_BUILD_CONFIG ${CMAKE_HOME_DIRECTORY}/engine/common/config_fteqw.h CACHE FILEPATH "Which build config file to use to control supported features.")
+SET(FTE_BUILD_CONFIG ${CMAKE_SOURCE_DIR}/engine/common/config_fteqw.h CACHE FILEPATH "Which build config file to use to control supported features.")
 SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};CONFIG_FILE_NAME=${FTE_BUILD_CONFIG})
 
 FIND_PACKAGE(ZLIB)
@@ -107,25 +135,19 @@ ELSE()
 ENDIF()
 
 FIND_PACKAGE(JPEG)
-IF(JPEG_FOUND)
-	INCLUDE_DIRECTORIES( ${JPEG_INCLUDE_DIR} )
-ELSE()
+IF(NOT JPEG_FOUND)
 	MESSAGE(WARNING "libjpeg library NOT available. Who cares?")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_JPEG)
 ENDIF()
 
 FIND_PACKAGE(PNG)
-IF(PNG_FOUND)
-	INCLUDE_DIRECTORIES( ${PNG_INCLUDE_DIRS} )
-ELSE()
+IF(NOT PNG_FOUND)
 	MESSAGE(WARNING "libpng library NOT available. Good luck with screenshots.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_PNG)
 ENDIF()
 	
 FIND_PACKAGE(Freetype)
-IF(FREETYPE_FOUND)
-	INCLUDE_DIRECTORIES( ${FREETYPE_INCLUDE_DIRS} )
-ELSE()
+IF(NOT FREETYPE_FOUND)
 	MESSAGE(WARNING "freetype library NOT available. I hope you're okay with ascii.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_FREETYPE)
 ENDIF()
@@ -139,21 +161,8 @@ ELSE()
 ENDIF()
 
 FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
-FIND_PATH(VORBISFILE_INCLUDE_DIR vorbis/vorbisfile.h)
-IF(VORBISFILE_INCLUDE_DIR)
-	INCLUDE_DIRECTORIES( ${VORBISFILE_INCLUDE_DIR} )
-ENDIF()
-
-IF(NOT VORBISFILE_LIBRARY OR NOT VORBISFILE_INCLUDE_DIR)
+IF(NOT VORBISFILE_LIBRARY)
 	MESSAGE(WARNING "libvorbisfile library NOT available. Who listens to the bgm anyway?")
-	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OGG)
-ENDIF()
-
-FIND_PATH(OGG_INCLUDE_DIR ogg/ogg.h)
-IF(OGG_INCLUDE_DIR)
-	INCLUDE_DIRECTORIES( ${OGG_INCLUDE_DIR} )
-ELSE()
-	MESSAGE(WARNING "libogg library NOT available.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OGG)
 ENDIF()
 
@@ -179,7 +188,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	ENDIF()
 ENDIF()
 IF(CMAKE_C_COMPILER_ID MATCHES "MSVC" AND MSVC_VERSION GREATER_EQUAL 1600)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")							# uses all available cores to build MSVC projects
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")							# uses all available cores to build the projects in parallel
 endif()
 IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
@@ -691,40 +700,40 @@ SET(FTE_CLIENT_FILES
 	engine/vk/vk_init.c
 )
 
-ADD_LIBRARY(fteq3bot MODULE
-	engine/botlib/be_aas_bspq3.c
-	engine/botlib/be_aas_entity.c
-	engine/botlib/be_aas_move.c
-	engine/botlib/be_aas_routealt.c
-	engine/botlib/be_ai_char.c
-	engine/botlib/be_ai_goal.c
-	engine/botlib/be_ai_weight.c
-	engine/botlib/l_crc.c
-	engine/botlib/l_memory.c
-	engine/botlib/l_struct.c
-	engine/botlib/be_aas_cluster.c
-	engine/botlib/be_aas_file.c
-	engine/botlib/be_aas_optimize.c
-	engine/botlib/be_aas_route.c
-	engine/botlib/be_ai_chat.c
-	engine/botlib/be_ai_move.c
-	engine/botlib/be_ea.c
-	engine/botlib/l_libvar.c
-	engine/botlib/l_precomp.c
-	engine/botlib/be_aas_debug.c
-	engine/botlib/be_aas_main.c
-	engine/botlib/be_aas_reach.c
-	engine/botlib/be_aas_sample.c
-	engine/botlib/be_ai_gen.c
-	engine/botlib/be_ai_weap.c
-	engine/botlib/be_interface.c
-	engine/botlib/l_log.c
-	engine/botlib/l_script.c
-	engine/botlib/standalone.c
-)
-SET_TARGET_PROPERTIES(fteq3bot PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON};BOTLIB;EXTERNALBOTLIB")
-TARGET_LINK_LIBRARIES(fteq3bot ${FTE_LIBS} )
-SET_TARGET_PROPERTIES(fteq3bot PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+# ADD_LIBRARY(fteq3bot MODULE
+	# engine/botlib/be_aas_bspq3.c
+	# engine/botlib/be_aas_entity.c
+	# engine/botlib/be_aas_move.c
+	# engine/botlib/be_aas_routealt.c
+	# engine/botlib/be_ai_char.c
+	# engine/botlib/be_ai_goal.c
+	# engine/botlib/be_ai_weight.c
+	# engine/botlib/l_crc.c
+	# engine/botlib/l_memory.c
+	# engine/botlib/l_struct.c
+	# engine/botlib/be_aas_cluster.c
+	# engine/botlib/be_aas_file.c
+	# engine/botlib/be_aas_optimize.c
+	# engine/botlib/be_aas_route.c
+	# engine/botlib/be_ai_chat.c
+	# engine/botlib/be_ai_move.c
+	# engine/botlib/be_ea.c
+	# engine/botlib/l_libvar.c
+	# engine/botlib/l_precomp.c
+	# engine/botlib/be_aas_debug.c
+	# engine/botlib/be_aas_main.c
+	# engine/botlib/be_aas_reach.c
+	# engine/botlib/be_aas_sample.c
+	# engine/botlib/be_ai_gen.c
+	# engine/botlib/be_ai_weap.c
+	# engine/botlib/be_interface.c
+	# engine/botlib/l_log.c
+	# engine/botlib/l_script.c
+	# engine/botlib/standalone.c
+# )
+# SET_TARGET_PROPERTIES(fteq3bot PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON};BOTLIB;EXTERNALBOTLIB")
+# TARGET_LINK_LIBRARIES(fteq3bot ${FTE_LIBS} )
+# SET_TARGET_PROPERTIES(fteq3bot PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 
 FILE(STRINGS "${FTE_BUILD_CONFIG}" BULLET_INTERNAL REGEX "^#define[\t ]+USE_INTERNAL_BULLET")
 IF(BULLET_INTERNAL)
@@ -950,25 +959,25 @@ ELSE()
 	MESSAGE(WARNING "ffmpeg library NOT available. Quake shouldn't be playing fmv anyway.")
 ENDIF()
 
-IF(NOT ANDROID)
+#IF(NOT ANDROID)
 	#XMPP/jabber client plugin
-	ADD_LIBRARY(xmpp MODULE
-		plugins/qvm_api.c
-		plugins/plugin.c
-		plugins/jabber/jabberclient.c
-		plugins/jabber/xml.c
-		plugins/jabber/jingle.c
-		plugins/jabber/sift.c
-		engine/common/sha1.c
-		plugins/emailnot/md5.c
-	)
-	SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(xmpp PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
-	IF(${WIN32})
-	ELSE()
-		TARGET_LINK_LIBRARIES(xmpp m resolv)
-	ENDIF()
-ENDIF()
+	# ADD_LIBRARY(xmpp MODULE
+		# plugins/qvm_api.c
+		# plugins/plugin.c
+		# plugins/jabber/jabberclient.c
+		# plugins/jabber/xml.c
+		# plugins/jabber/jingle.c
+		# plugins/jabber/sift.c
+		# engine/common/sha1.c
+		# plugins/emailnot/md5.c
+	# )
+	# SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+	# SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
+	# SET_TARGET_PROPERTIES(xmpp PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	# IF(${WIN32})
+	# ELSE()
+		# TARGET_LINK_LIBRARIES(xmpp m resolv)
+	# ENDIF()
+# ENDIF()
 
 #cef plugin
