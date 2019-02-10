@@ -33,7 +33,7 @@
 //#define CLIENTONLY			//
 #define MULTITHREAD				//misc basic multithreading - dsound, downloads, basic stuff that's unlikely to have race conditions.
 #define LOADERTHREAD			//worker threads for loading misc stuff. falls back on main thread if not supported.
-#define AVAIL_DINPUT
+//#define AVAIL_DINPUT
 //#define SIDEVIEWS   4   		//enable secondary/reverse views.
 //#define MAX_SPLITS	4u
 //#define TEXTEDITOR				//my funky text editor! its awesome!
@@ -152,7 +152,7 @@
 //#define NOBUILTINMENUS
 #define NOLEGACY				//just spike trying to kill off crappy crap...
 #define USEAREAGRID				//world collision optimisation. REQUIRED for performance with xonotic. hopefully it helps a few other mods too.
-//#define NOQCDESCRIPTIONS 2	//if 2, disables writing fteextensions.qc completely. 1 just omits the text. (ignored in debug builds.)
+#define NOQCDESCRIPTIONS 2	//if 2, disables writing fteextensions.qc completely. 1 just omits the text. (ignored in debug builds.)
 
 // Outdated stuff
 //#define SVRANKING				//legacy server-side ranking system.
