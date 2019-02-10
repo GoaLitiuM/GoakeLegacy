@@ -147,7 +147,7 @@ int main (int argc, const char **argv)
 
 
 #ifdef _WIN32
-	logfile = fopen("fteqcc.log", "wt");
+	//logfile = fopen("fteqcc.log", "wt");
 #endif
 	if (logfile)
 	{
