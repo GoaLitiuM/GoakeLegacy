@@ -2431,7 +2431,7 @@ void SV_MVDList_f (void)
 	Con_Printf("content of %s/*.mvd\n", sv_demoDir.string);
 	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
-	if (!list->name[0])
+	if (!list || !list->name[0])
 	{
 		Con_Printf("no demos\n");
 	}
