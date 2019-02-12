@@ -20,6 +20,7 @@
 //#define GAME_IDENTIFYINGFILES	NULL			//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL		NULL			//url for the package manger to update from
 //#define GAME_DEFAULTCMDS		NULL			//a string containing the things you want to exec in order to override default.cfg 
+//#define GAME_CFGFILE			"fte"			//name of the configuration filename used for loading and saving
 
 
 // Allowed renderers... There should ONLY be undefs here (other C files won't be pulled in automatically)

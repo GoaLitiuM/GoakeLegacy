@@ -389,6 +389,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef ENGINEWEBSITE
 	#define ENGINEWEBSITE "http://fte.triptohell.info"	//url for program
 #endif
+#ifndef GAME_CFGFILE
+#define GAME_CFGFILE "fte"	//fte.cfg
+#endif
+
 
 #if !defined(_WIN32) || defined(WINRT)
 	#undef HAVE_SPEECHTOTEXT

@@ -658,7 +658,7 @@ static void Cmd_Exec_f (void)
 	{
 		f = Cmd_Argv(1);
 		if (!*f)
-			f = "fte";
+			f = GAME_CFGFILE;
 		snprintf(name, sizeof(name)-5, "configs/%s", f);
 		COM_DefaultExtension(name, ".cfg", sizeof(name));
 	}
@@ -3980,7 +3980,7 @@ static void Cmd_WriteConfig_f(void)
 #ifdef QUAKETC
 		snprintf(fname, sizeof(fname), "config.cfg");
 #else
-		snprintf(fname, sizeof(fname), "fte.cfg");
+		snprintf(fname, sizeof(fname), GAME_CFGFILE".cfg");
 #endif
 
 		MasterInfo_WriteServers();
