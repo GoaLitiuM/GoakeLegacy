@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_edgefriction;
 extern cvar_t  dpcompat_stats;
-extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_jumpboost, sv_maxairstrafespeed;
+extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_jumpboost, sv_maxairstrafespeed, pm_jumpfix;
 
 /*
 =============================================================================
@@ -2216,6 +2216,8 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_WALLFRICTION]					= sv_wallfriction.value;
 			statsfi[STAT_MOVEVARS_MOVEMENTSTYLE]				= sv_movementstyle.ival;
 			statsfi[STAT_MOVEVARS_JUMPBOOST]					= sv_jumpvelocity.value;
+
+			statsfi[STAT_MOVEVARS_JUMPFIX]						= pm_jumpfix.value;
 		}
 #endif
 #ifdef GOAKE
