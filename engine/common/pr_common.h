@@ -438,6 +438,7 @@ void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalva
 void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_stringtokeynum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_setkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_setmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -516,7 +517,7 @@ void QCBUILTIN PF_gettime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 
 void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal);
+int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, int firststatement, char *reason, pbool fatal);
 void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored);
 void PR_Common_SaveGame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary);
 qboolean PR_Common_LoadGame(pubprogfuncs_t *prinst, char *command, const char **file);
@@ -775,7 +776,9 @@ enum lightfield_e
 	lfield_rotation=13,
 	lfield_dietime=14,
 	lfield_rgbdecay=15,
-	lfield_radiusdecay=16
+	lfield_radiusdecay=16,
+
+	lfield_stylestring=17
 };
 enum csqc_input_event
 {

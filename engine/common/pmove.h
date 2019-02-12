@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -113,6 +113,7 @@ typedef struct {
 	float bunnyspeedcap;
 	float watersinkspeed;
 	float ktjump;
+	float edgefriction; //default 2
 	int	walljump;
 	qboolean slidefix;
 	qboolean airstep;
@@ -126,7 +127,7 @@ typedef struct {
 } movevars_t;
 
 #define MOVEFLAG_VALID							0x80000000	//to signal that these are actually known. otherwise reserved.
-#define MOVEFLAG_Q2AIRACCELERATE				0x00000001	
+#define MOVEFLAG_Q2AIRACCELERATE				0x00000001
 #define MOVEFLAG_NOGRAVITYONGROUND				0x00000002	//no slope sliding
 #define MOVEFLAG_GRAVITYUNAFFECTEDBYTICRATE		0x00000004	//apply half-gravity both before AND after the move, which better matches the curve
 #define MOVEFLAG_QWEDGEBOX						0x00010000	//calculate edgefriction using tracebox and a buggy start pos

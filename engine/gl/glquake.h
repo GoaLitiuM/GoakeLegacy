@@ -175,6 +175,7 @@ typedef void		(APIENTRYP FTEPFNGLLINKPROGRAMARBPROC)			(GLhandleARB programObj);
 typedef void        (APIENTRYP FTEPFNGLBINDATTRIBLOCATIONARBPROC)   (GLhandleARB programObj, GLuint index, GLcharARB *name);
 typedef GLint		(APIENTRYP FTEPFNGLGETATTRIBLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
 typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIBPOINTER)			(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
+typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIB4FARBPROC)		(GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
 typedef void		(APIENTRYP FTEPFNGLENABLEVERTEXATTRIBARRAY)		(GLuint index);
 typedef void		(APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAY)	(GLuint index);
 typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
@@ -228,15 +229,15 @@ typedef struct {
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
 
-	qboolean sgis_generate_mipmap;
+//	qboolean sgis_generate_mipmap;
 
 	qboolean arb_texture_env_combine;
 	qboolean arb_texture_env_dot3;
-	qboolean arb_texture_cube_map;
 
 	qboolean arb_texture_compression;	//means we support dynamic compression, rather than any specific compressed texture formats
 
 	qboolean geometryshaders;
+	qboolean arb_tessellation_shader;
 
 	qboolean ext_framebuffer_objects;
 	qboolean arb_framebuffer_srgb;
@@ -405,10 +406,8 @@ void R_InitFlashblends(void);
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 #endif
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-void R_ReloadRTLights_f(void);
 qboolean R_LoadRTLights(void);
 qboolean R_ImportRTLights(const char *entlump);
-void R_SaveRTLights_f(void);
 
 //doom
 #ifdef MAP_DOOM
@@ -717,6 +716,7 @@ extern FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
 extern FTEPFNGLUNIFORM2FVARBPROC			qglUniform2fvARB;
 extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
+extern FTEPFNGLVERTEXATTRIB4FARBPROC		qglVertexAttrib4f;
 extern FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
 extern FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
@@ -1039,9 +1039,7 @@ extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 extern FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 extern FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
-typedef void (APIENTRY *lpMTexFUNC) (GLenum en, GLfloat f1, GLfloat f2);
 typedef void (APIENTRY *lpSelTexFUNC) (GLenum en);
-extern lpMTexFUNC qglMTexCoord2fSGIS;
 extern lpSelTexFUNC qglSelectTextureSGIS;
 
 //these functions are not available in gles2, for one reason or another
@@ -1078,6 +1076,7 @@ extern FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 extern void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 
 extern void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
+extern void (APIENTRY *qglMultiDrawElements) (GLenum mode, const GLsizei * count, GLenum type, const GLvoid * const * indices, GLsizei drawcount);
 extern void (APIENTRY *qglEnableClientState) (GLenum array);
 extern void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 

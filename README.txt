@@ -1,4 +1,4 @@
-Fork of FTEQW [r5329].
+Fork based on FTEQW (r5390), can be found here: https://sourceforge.net/projects/fteqw/ 
 
 
 

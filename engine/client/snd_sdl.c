@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#ifdef HAVE_MIXER
+#if defined(HAVE_MIXER) || defined(VOICECHAT)
 #include "winquake.h"
 
 #ifdef DYNAMIC_SDL
@@ -65,11 +65,30 @@ static const char *(SDLCALL *SDL_GetError)					(void);
 static uint32_t (SDLCALL *SDL_GetQueuedAudioSize)			(SDL_AudioDeviceID dev);
 static uint32_t (SDLCALL *SDL_DequeueAudio)					(SDL_AudioDeviceID dev, void *data, uint32_t len);
 #endif
+static dllfunction_t sdl_funcs[] =
+{
+	{(void*)&SDL_Init, "SDL_Init"},
+	{(void*)&SDL_InitSubSystem, "SDL_InitSubSystem"},
+	{(void*)&SDL_OpenAudioDevice, "SDL_OpenAudioDevice"},
+	{(void*)&SDL_PauseAudioDevice, "SDL_PauseAudioDevice"},
+	{(void*)&SDL_LockAudioDevice, "SDL_LockAudioDevice"},
+	{(void*)&SDL_UnlockAudioDevice, "SDL_UnlockAudioDevice"},
+	{(void*)&SDL_CloseAudioDevice, "SDL_CloseAudioDevice"},
+	{(void*)&SDL_GetNumAudioDevices, "SDL_GetNumAudioDevices"},
+	{(void*)&SDL_GetAudioDeviceName, "SDL_GetAudioDeviceName"},
+	{(void*)&SDL_GetError, "SDL_GetError"},
+#if SDL_VERSION_ATLEAST(2,0,5)
+	{(void*)&SDL_GetQueuedAudioSize, "SDL_GetQueuedAudioSize"},
+	{(void*)&SDL_DequeueAudio, "SDL_DequeueAudio"},
+#endif
+	{NULL, NULL}
+};
+static dllhandle_t *libsdl;
 #else
 #include <SDL.h>
 #endif
-
-#define SELFPAINT
+#define SDRVNAME "SDL"
+#endif
 
 //SDL calls a callback each time it needs to repaint the 'hardware' buffers
 //This results in extra latency due it needing to buffer that much data.
@@ -81,34 +100,17 @@ static uint32_t (SDLCALL *SDL_DequeueAudio)					(SDL_AudioDeviceID dev, void *da
 static qboolean SSDL_InitAudio(void)
 {
 	static qboolean inited = false;
+	if (COM_CheckParm("-nosdlsnd") || COM_CheckParm("-nosdl"))
+		return false;
 #ifdef DYNAMIC_SDL
-	static dllfunction_t funcs[] =
-	{
-		{(void*)&SDL_Init, "SDL_Init"},
-		{(void*)&SDL_InitSubSystem, "SDL_InitSubSystem"},
-		{(void*)&SDL_OpenAudioDevice, "SDL_OpenAudioDevice"},
-		{(void*)&SDL_PauseAudioDevice, "SDL_PauseAudioDevice"},
-		{(void*)&SDL_LockAudioDevice, "SDL_LockAudioDevice"},
-		{(void*)&SDL_UnlockAudioDevice, "SDL_UnlockAudioDevice"},
-		{(void*)&SDL_CloseAudioDevice, "SDL_CloseAudioDevice"},
-		{(void*)&SDL_GetNumAudioDevices, "SDL_GetNumAudioDevices"},
-		{(void*)&SDL_GetAudioDeviceName, "SDL_GetAudioDeviceName"},
-		{(void*)&SDL_GetError, "SDL_GetError"},
-#if SDL_VERSION_ATLEAST(2,0,5)
-		{(void*)&SDL_GetQueuedAudioSize, "SDL_GetQueuedAudioSize"},
-		{(void*)&SDL_DequeueAudio, "SDL_DequeueAudio"},
-#endif
-		{NULL, NULL}
-	};
-	static dllhandle_t *libsdl;
 	if (!libsdl)
 	{
-		libsdl = Sys_LoadLibrary("libSDL2-2.0.so.0", funcs);
+		libsdl = Sys_LoadLibrary("libSDL2-2.0.so.0", sdl_funcs);
 		if (!libsdl)
-			libsdl = Sys_LoadLibrary("libSDL2.so", funcs);	//maybe they have a dev package installed that fixes this mess.
+			libsdl = Sys_LoadLibrary("libSDL2.so", sdl_funcs);	//maybe they have a dev package installed that fixes this mess.
 #ifdef _WIN32
 		if (!libsdl)
-			libsdl = Sys_LoadLibrary("SDL2", funcs);
+			libsdl = Sys_LoadLibrary("SDL2", sdl_funcs);
 #endif
 		if (libsdl)
 			SDL_Init(SDL_INIT_NOPARACHUTE);
@@ -119,9 +121,6 @@ static qboolean SSDL_InitAudio(void)
 		}
 	}
 #endif
-
-	if (COM_CheckParm("-nosndsnd"))
-		return false;
 
 	if (!inited)
 		if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
@@ -134,7 +133,8 @@ static qboolean SSDL_InitAudio(void)
 	return true;
 }
 
-
+#ifdef HAVE_MIXER
+#define SELFPAINT
 static void SSDL_Shutdown(soundcardinfo_t *sc)
 {
 	Con_DPrintf("Shutdown SDL sound\n");
@@ -329,7 +329,6 @@ static qboolean QDECL SDL_InitCard(soundcardinfo_t *sc, const char *devicename)
 	return true;
 }
 
-#define SDRVNAME "SDL"
 static qboolean QDECL SDL_Enumerate(void (QDECL *cb) (const char *drivername, const char *devicecode, const char *readablename))
 {
 #if SDL_MAJOR_VERSION >= 2
@@ -356,6 +355,7 @@ sounddriver_t SDL_Output =
 	SDL_InitCard,
 	SDL_Enumerate
 };
+#endif
 
 #if SDL_VERSION_ATLEAST(2,0,5) && defined(VOICECHAT)
 //Requires SDL 2.0.5+ supposedly.
@@ -404,20 +404,24 @@ static void *QDECL SDL_Capture_Init (int rate, const char *devname)
 	SDL_AudioSpec want, have;
 	sdlcapture_t c, *r;
 
-	memset(&want, 0, sizeof(want));
-	want.freq = rate;
-	want.format = AUDIO_S16SYS;
-	want.channels = 1;
-	want.samples = 256;	//this seems to be chunk sizes rather than total buffer size, so lets keep it reasonably small for lower latencies
-	want.callback = NULL;
+	if (SSDL_InitAudio())
+	{
+		memset(&want, 0, sizeof(want));
+		want.freq = rate;
+		want.format = AUDIO_S16SYS;
+		want.channels = 1;
+		want.samples = 256;	//this seems to be chunk sizes rather than total buffer size, so lets keep it reasonably small for lower latencies
+		want.callback = NULL;
 
-	c.dev = SDL_OpenAudioDevice(devname, true, &want, &have, 0);
-	if (!c.dev)	//failed?
-		return NULL;
-
-	r = Z_Malloc(sizeof(*r));
-	*r = c;
-	return r;
+		c.dev = SDL_OpenAudioDevice(devname, true, &want, &have, 0);
+		if (c.dev)
+		{
+			r = Z_Malloc(sizeof(*r));
+			*r = c;
+			return r;
+		}
+	}
+	return NULL;
 }
 
 /*minbytes is a hint to not bother wasting time*/
@@ -445,4 +449,4 @@ snd_capture_driver_t SDL_Capture =
 	SDL_Capture_Shutdown
 };
 #endif
-#endif
+

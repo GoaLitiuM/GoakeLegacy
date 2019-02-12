@@ -59,6 +59,7 @@ int VMQ3_StringToHandle(char *str);
 void VMQ3_FlushStringHandles(void);
 
 #ifdef VM_UI
+qboolean UI_IsRunning(void);
 qboolean UI_Command(void);
 void UI_Init (void);
 void UI_Start (void);
@@ -67,7 +68,7 @@ qboolean UI_OpenMenu(void);
 void UI_Restart_f(void);
 qboolean UI_Q2LayoutChanged(void);
 void UI_StringChanged(int num);
-qboolean UI_MousePosition(int xpos, int ypos);
+qboolean UI_MousePosition(float xpos, float ypos);
 int UI_MenuState(void);
 qboolean UI_KeyPress(int key, int unicode, qboolean down);
 void UI_Reset(void);
@@ -104,6 +105,7 @@ qboolean CG_VideoRestarted(void);
 int CG_Refresh(void);
 qboolean CG_Command(void);
 qboolean CG_KeyPress(int key, int unicode, int down);
+unsigned int CG_GatherLoopingSounds(vec3_t *positions, unsigned int *entnums, sfx_t **sounds, unsigned int max);
 #endif
 
 typedef struct {

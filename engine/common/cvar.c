@@ -761,13 +761,15 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		latch = "variable %s is latched and will be applied for the start of the next map\n";
 //	else if (var->flags & CVAR_LATCHFLUSH)
 //		latch = "variable %s is latched (type flush)\n";
+#ifdef HAVE_CLIENT
 	else if (var->flags & CVAR_VIDEOLATCH && qrenderer != QR_NONE)
 		latch = "variable %s will be changed after a vid_restart\n";
 	else if (var->flags & CVAR_RENDERERLATCH && qrenderer != QR_NONE)
 		latch = "variable %s will be changed after a vid_reload\n";
+#endif
 	else if (var->flags & CVAR_RULESETLATCH)
 		latch = "variable %s is latched due to current ruleset\n";
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	else if (var->flags & CVAR_CHEAT && !cls.allow_cheats && cls.state)
 		latch = "variable %s is a cheat variable - latched\n";
 	else if (var->flags & CVAR_SEMICHEAT && !cls.allow_semicheats && cls.state)
@@ -806,13 +808,13 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		return NULL;
 	}
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (var->flags & CVAR_SERVERINFO)
 	{
 		InfoBuf_SetKey (&svs.info, var->name, value);
 	}
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (var->flags & CVAR_SHADERSYSTEM)
 	{
 		if (var->string && value)
@@ -864,10 +866,10 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 
 			if (var->flags & CVAR_TELLGAMECODE)
 			{
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 				SVQ1_CvarChanged(var);
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 #ifdef MENU_DAT
 				MP_CvarChanged(var);
 #endif
@@ -1359,7 +1361,9 @@ qboolean	Cvar_Command (int level)
 		return true;
 	}
 
-#ifndef SERVERONLY
+	olev = Cmd_ExecLevel;
+	Cmd_ExecLevel = level;
+#ifdef HAVE_CLIENT
 	if (v->flags & CVAR_USERINFO)
 	{
 		int seat = CL_TargettedSplit(true);
@@ -1373,6 +1377,7 @@ qboolean	Cvar_Command (int level)
 		}
 		else
 			CL_SetInfo(seat, v->name, str);
+		Cmd_ExecLevel = olev;
 		return true;
 	}
 
@@ -1389,6 +1394,7 @@ qboolean	Cvar_Command (int level)
 			else
 			{
 				Cvar_LockFromServer(v, str);
+				Cmd_ExecLevel = olev;
 				return true;
 			}
 		}
@@ -1399,12 +1405,12 @@ qboolean	Cvar_Command (int level)
 		if (v->defaultstr && strcmp(v->defaultstr, str))
 		{	//lock the cvar, unless it's going to it's default value.
 			Cvar_LockFromServer(v, str);
+			Cmd_ExecLevel = olev;
 			return true;
 		}
 	}
 #endif
 
-	olev = Cmd_ExecLevel;
 	Cmd_ExecLevel = 0;//just to try to detect any bugs that could happen from this
 	Cvar_Set (v, str);	//will use all, quote included
 	Cmd_ExecLevel = olev;

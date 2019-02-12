@@ -143,7 +143,7 @@ const char *temp_type (int temp, dstatement_t *start, dfunction_t *df)
 
 }
 
-boolean IsConstant(QCC_ddef_t *def)
+pbool IsConstant(QCC_ddef_t *def)
 {
 
 	int i;
@@ -170,6 +170,13 @@ boolean IsConstant(QCC_ddef_t *def)
 		}
 	}
 	return true;
+}
+
+const char *qcstring(int str)
+{
+	if ((unsigned)str >= strofs)
+		return "";
+	return strings+str;
 }
 
 char *type_name (QCC_ddef_t *def)
@@ -509,10 +516,10 @@ static struct {
 	{108,	"showpicent",	NULL, {NULL},																"void(string slot, entity player)"},
 	{109,	"hidepicent",	NULL, {NULL},																"void(string slot, entity player)"},
 
-	{110,	"fopen",		&type_float, {&type_string,&type_float},									"filestream(string filename, float mode, optional float mmapminsize)"},
-	{111,	"fclose",		NULL, {&type_float},														"void(filestream fhandle)"},
-	{112,	"fgets",		&type_string, {&type_float,&type_string},									"string(filestream fhandle)"},
-	{113,	"fputs",		NULL, {&type_float,&type_string},											"void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
+	{110,	"fopen",		&type_float, {&type_string,&type_float},									"float(string filename, float mode, optional float mmapminsize)"},
+	{111,	"fclose",		NULL, {&type_float},														"void(float fhandle)"},
+	{112,	"fgets",		&type_string, {&type_float,&type_string},									"string(float fhandle)"},
+	{113,	"fputs",		NULL, {&type_float,&type_string},											"void(float fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
 	{114,	"strlen",		&type_float, {&type_string},												"float(string s)"},
 	{115,	"strcat",		&type_string, {&type_string,&type_string},									"string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},
 	{116,	"substring",	&type_string, {&type_string,&type_float,&type_float},						"string(string s, float start, float length)"},
@@ -964,7 +971,7 @@ char *DecompileReturnType(dfunction_t *df)
 {
 	dstatement_t *ds;
 	unsigned short dom;
-	boolean foundret = false;
+	pbool foundret = false;
 	static int recursion;
 	char *ret = NULL;	//return null if we don't know.
 	int couldbeastring = true;
@@ -1254,8 +1261,9 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 
 	if (def)
 	{
+		const char *defname = qcstring(def->s_name);
 
-		if (!strcmp(strings + def->s_name, "IMMEDIATE") || !strcmp(strings + def->s_name, ".imm") || !def->s_name)
+		if (!strcmp(defname, "IMMEDIATE") || !strcmp(defname, ".imm") || !def->s_name)
 		{
 			etype_t ty;
 			if (!req_t)
@@ -1270,7 +1278,7 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 		}
 		else 
 		{
-			if (!strings[def->s_name])
+			if (!*defname)
 			{
 				char line[16];
 				char *buf;
@@ -2297,7 +2305,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 	return;
 }
 
-boolean DecompileDecompileFunction(dfunction_t * df, dstatement_t *altdone)
+pbool DecompileDecompileFunction(dfunction_t * df, dstatement_t *altdone)
 {
 	dstatement_t *ds;
 	int indent;
@@ -2442,7 +2450,7 @@ char *DecompileValueString(etype_t type, void *val)
 
 char *DecompilePrintParameter(QCC_ddef_t * def)
 {
-	static char line[128];
+	static char line[256];
 	static char debug[128];
 
 	line[0] = '0';
@@ -3034,11 +3042,11 @@ void DecompileFunction(const char *name, int *lastglobal)
 	QCC_CatVFile(Decompileofile, "};\n");
 }
 
-extern boolean safedecomp;
+extern pbool safedecomp;
 int fake_name;
 char synth_name[1024]; // fake name part2
 
-boolean TrySynthName(const char *first)
+pbool TrySynthName(const char *first)
 {
 	int i;
 
@@ -3060,7 +3068,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 	int i;
 	unsigned int o;
 	dfunction_t *d;
-	boolean bogusname;
+	pbool bogusname;
 	vfile_t *f;
 	char fname[512];
 	int lastglob = 1;

@@ -1928,7 +1928,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, cha
 		CloseClipboard();
 	}
 }
-void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
+void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 {
 	HANDLE glob;
 	char *temp;
@@ -3215,7 +3215,6 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 //	char *foo;
 	HWND edit = FindWindowEx(hwnd, NULL, "EDIT", NULL);
 	HWND list;
-	extern qboolean	com_homepathenabled;
 //	OutputDebugString(va("got %u (%u)\n", uMsg, lp));
 	switch(uMsg)
 	{
@@ -3231,6 +3230,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 		{
 			wchar_t szDir[MAX_PATH];
 #ifndef _DEBUG
+			extern qboolean	com_homepathenabled;
 			//the standard location iiuc
 			if (com_homepathenabled && pSHGetSpecialFolderPathW(NULL, szDir, CSIDL_PROGRAM_FILES, TRUE) && microsoft_accessW(szDir, ACCESS_READ | ACCESS_WRITE))
 				;

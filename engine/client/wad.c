@@ -796,7 +796,10 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 #ifdef PACKAGE_TEXWAD
 	mapskys_t *msky;
 
-	wads[0] = '\0';
+	if (wmodel && wmodel->fromgame == fg_halflife)
+		strcpy(wads, "decals.wad");
+	else
+		wads[0] = '\0';
 #endif
 
 	cl.skyrotate = 0;
@@ -835,7 +838,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 			Q_strncatz(wads, token, sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
 #endif
 		}
-		else if (!strcmp("fog", key))	//q1 extension. FIXME: should be made temporary.
+		else if (!strcmp("fog", key) || !strcmp("airfog", key))	//q1 extension. FIXME: should be made temporary.
 		{
 			key[0] = 'f';
 			key[1] = 'o';

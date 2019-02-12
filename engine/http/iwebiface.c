@@ -7,7 +7,7 @@
 
 #ifdef WEBSVONLY	//we need some functions from quake
 
-char *NET_SockadrToString(char *s, int slen, struct sockaddr_qstorage *addr)
+char *NET_SockadrToString(char *s, int slen, struct sockaddr_qstorage *addr, size_t sizeofaddr)
 {
 	switch(((struct sockaddr*)addr)->sa_family)
 	{
@@ -221,8 +221,14 @@ int main(int argc, char **argv)
 	if (arg < argc)
 		autheduserpassword = argv[arg++];
 
-	printf("http port %i\n", httpport);
-	printf("ftp port %i\n", ftpport);
+	if (httpport)
+		printf("http port %i\n", httpport);
+	else
+		printf("http not enabled\n");
+	if (ftpport)
+		printf("ftp port %i\n", ftpport);
+	else
+		printf("ftp not enabled\n");
 	if (authedusername || autheduserpassword)
 		printf("Username = \"%s\"\nPassword = \"%s\"\n", authedusername, autheduserpassword);
 	else
@@ -652,9 +658,10 @@ qboolean Sys_rmdir (const char *path)
 }
 #else
 #include <unistd.h>
+#include <sys/stat.h>
 void FS_CreatePath(const char *pname, enum fs_relative relativeto)
 {
-	mkdir(pname);
+	mkdir(pname, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 }
 qboolean Sys_rmdir (const char *path)
 {

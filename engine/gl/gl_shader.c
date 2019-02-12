@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <ctype.h>
 
 extern texid_t missing_texture;
-texid_t r_whiteimage;
+texid_t r_whiteimage, r_blackimage;
 qboolean shader_reload_needed;
 static qboolean shader_rescan_needed;
 static char **saveshaderbody;
@@ -189,15 +189,15 @@ skipwhite:
 	return com_token;
 }
 
-static float Shader_FloatArgument(shader_t *shader, char *arg)
+static float Com_FloatArgument(const char *shadername, char *arg, size_t arglen)
 {
-	char *var;
-	int arglen = strlen(arg);
+	const char *var;
 
 	//grab an argument instead, otherwise 0
-	var = shader->name;
+	var = shadername;
 	while((var = strchr(var, '#')))
 	{
+		var++;
 		if (!strnicmp(var, arg, arglen))
 		{
 			if (var[arglen] == '=')
@@ -209,6 +209,7 @@ static float Shader_FloatArgument(shader_t *shader, char *arg)
 	}
 	return 0;	//not present.
 }
+#define Shader_FloatArgument(s,k) (Com_FloatArgument(s->name,k,strlen(k)))
 
 
 
@@ -315,7 +316,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			token++;
 
 		if (*token == '#')
-			lhs = !!Shader_FloatArgument(shader, token);
+			lhs = !!Shader_FloatArgument(shader, token+1);
 		else if (!Q_stricmp(token, "lpp"))
 			lhs = r_lightprepass;
 		else if (!Q_stricmp(token, "lightmap"))
@@ -495,7 +496,7 @@ static float Shader_ParseFloat(shader_t *shader, char **ptr, float defaultval)
 	{
 		if (token[1] == '#')
 		{
-			return Shader_FloatArgument(shader, token+1);
+			return Shader_FloatArgument(shader, token+2);
 		}
 		else
 		{
@@ -767,6 +768,7 @@ texid_t R_LoadColourmapImage(void)
 	unsigned int x;
 	unsigned int data[256*(VID_GRADES)];
 	qbyte *colourmappal = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);
+#if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)
 	if (!colourmappal)
 	{
 		size_t sz;
@@ -778,6 +780,7 @@ texid_t R_LoadColourmapImage(void)
 			BZ_Free(pcx);
 		}
 	}
+#endif
 	if (colourmappal)
 	{
 		for (x = 0; x < sizeof(data)/sizeof(data[0]); x++)
@@ -1119,7 +1122,6 @@ static qboolean Shader_ParseProgramCvar(char *script, cvar_t **cvarrefs, char **
 	cvarnames[0] = Z_Malloc(script - namestart + 1);
 	memcpy(cvarnames[0], namestart, script - namestart);
 	cvarnames[0][script - namestart] = 0;
-	cvarnames[1] = NULL;
 
 	while (*script == ' ' || *script == '\t')
 		script++;
@@ -1154,15 +1156,16 @@ const struct sh_defaultsamplers_s sh_defaultsamplers[] =
 	{"s_paletted",		1u<<8},
 	{"s_reflectcube",	1u<<9},
 	{"s_reflectmask",	1u<<10},
-	{"s_lightmap",		1u<<11},
-	{"s_deluxemap",		1u<<12},
+	{"s_displacement",	1u<<11},
+	{"s_lightmap",		1u<<12},
+	{"s_deluxemap",		1u<<13},
 #if MAXRLIGHTMAPS > 1
-	{"s_lightmap1",		1u<<13},
-	{"s_lightmap2",		1u<<14},
-	{"s_lightmap3",		1u<<15},
-	{"s_deluxemap1",	1u<<16},
-	{"s_deluxemap2",	1u<<17},
-	{"s_deluxemap3",	1u<<18},
+	{"s_lightmap1",		1u<<14},
+	{"s_lightmap2",		1u<<15},
+	{"s_lightmap3",		1u<<16},
+	{"s_deluxemap1",	1u<<17},
+	{"s_deluxemap2",	1u<<18},
+	{"s_deluxemap3",	1u<<19},
 #else
 	{"s_lightmap1",		0},
 	{"s_lightmap2",		0},
@@ -1174,46 +1177,127 @@ const struct sh_defaultsamplers_s sh_defaultsamplers[] =
 	{NULL}
 };
 
-/*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
+static struct
+{
+	char *name;
+	unsigned int bitmask;
+} permutations[] =
+{
+	{"BUMP", PERMUTATION_BUMPMAP},
+	{"FULLBRIGHT", PERMUTATION_FULLBRIGHT},
+	{"UPPERLOWER", PERMUTATION_UPPERLOWER},
+	{"REFLECTCUBEMASK", PERMUTATION_REFLECTCUBEMASK},
+	{"SKELETAL", PERMUTATION_SKELETAL},
+	{"FOG", PERMUTATION_FOG},
+	{"FRAMEBLEND", PERMUTATION_FRAMEBLEND},
+	{"LIGHTSTYLED", PERMUTATION_LIGHTSTYLES}
+};
+#define MAXMODIFIERS 64
+
+void VARGS Q_strlcatfz (char *dest, size_t *offset, size_t size, const char *fmt, ...) LIKEPRINTF(4);
+void VARGS Q_strlcatfz (char *dest, size_t *offset, size_t size, const char *fmt, ...)
+{
+	va_list		argptr;
+
+	dest += *offset;
+	size -= *offset;
+
+	va_start (argptr, fmt);
+	Q_vsnprintfz(dest, size, fmt, argptr);
+	va_end (argptr);
+	*offset += strlen(dest);
+}
+struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
+{
+	const char *permutationdefines[3];
+	struct programpermu_s *pp;
+	size_t n, pn = 0;
+	char defines[8192];
+	size_t offset;
+
+	extern cvar_t gl_specular, gl_specular_power;
+
+	if (~prog->supportedpermutations & p)
+		return NULL;	//o.O
+	pp = Z_Malloc(sizeof(*pp));
+	pp->permutation = p;
+	*defines = 0;
+	offset = 0;
+	if (p & PERMUTATION_SKELETAL)
+		Q_strlcatfz(defines, &offset, sizeof(defines), "#define MAX_GPU_BONES %i\n", sh_config.max_gpu_bones);
+	if (gl_specular.value)
+		Q_strlcatfz(defines, &offset, sizeof(defines), "#define SPECULAR\n#define SPECULAR_BASE_MUL %f\n#define SPECULAR_BASE_POW %f\n", 1.0*gl_specular.value, max(1,gl_specular_power.value));
+
+	for (n = 0; n < countof(permutations); n++)
+	{
+		if (p & permutations[n].bitmask)
+			Q_strlcatfz(defines, &offset, sizeof(defines), "#define %s\n", permutations[n].name);
+	}
+	if (p & PERMUTATION_UPPERLOWER)
+		Q_strlcatfz(defines, &offset, sizeof(defines), "#define UPPER\n#define LOWER\n");
+	if (p & PERMUTATION_BUMPMAP)
+	{
+		if (r_glsl_offsetmapping.ival)
+		{
+			Q_strlcatfz(defines, &offset, sizeof(defines), "#define OFFSETMAPPING\n");
+			if (r_glsl_offsetmapping_reliefmapping.ival && (p & PERMUTATION_BUMPMAP))
+				Q_strlcatfz(defines, &offset, sizeof(defines), "#define RELIEFMAPPING\n");
+		}
+
+		if (r_deluxemapping)	//fixme: should be per-model really
+			Q_strlcatfz(defines, &offset, sizeof(defines), "#define DELUXE\n");
+	}
+	permutationdefines[pn++] = defines;
+	permutationdefines[pn++] = prog->preshade;
+	permutationdefines[pn++] = NULL;
+
+	if (!sh_config.pCreateProgram(prog, pp, prog->shaderver, permutationdefines, prog->shadertext, prog->tess?prog->shadertext:NULL, prog->tess?prog->shadertext:NULL, prog->geom?prog->shadertext:NULL, prog->shadertext, prog->warned, NULL))
+		prog->warned = true;
+
+	//extra loop to validate the programs actually linked properly.
+	//delaying it like this gives certain threaded drivers a chance to compile them all while we're messing around with other junk
+	if (sh_config.pValidateProgram && !sh_config.pValidateProgram(prog, pp, prog->warned, NULL))
+		prog->warned = true;
+
+	if (sh_config.pProgAutoFields)
+	{
+		cvar_t *cvarrefs[64];
+		char *cvarnames[64+1];
+		int cvartypes[64];
+
+		unsigned char *cvardata = prog->cvardata;
+		size_t size = prog->cvardatasize, i;
+		for (i = 0; i < countof(cvartypes) && size; i++)
+		{
+			memcpy(&cvartypes[i], cvardata, sizeof(int));
+			cvarnames[i] = cvardata+sizeof(int);
+			size -= sizeof(int)+strlen(cvarnames[i])+1;
+			cvardata += sizeof(int)+strlen(cvarnames[i])+1;
+			cvarrefs[i] = Cvar_FindVar(cvarnames[i]);
+		}
+		cvarnames[i] = NULL; //no more
+		sh_config.pProgAutoFields(prog, pp, cvarrefs, cvarnames, cvartypes);
+	}
+	return pp;
+}
+
 static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver, char *blobfilename)
 {
 #if defined(GLQUAKE) || defined(D3DQUAKE)
-	static struct
-	{
-		char *name;
-		unsigned int bitmask;
-	} permutations[] =
-	{
-		{"#define BUMP\n", PERMUTATION_BUMPMAP},
-		{"#define FULLBRIGHT\n", PERMUTATION_FULLBRIGHT},
-		{"#define UPPERLOWER\n", PERMUTATION_UPPERLOWER},
-		{"#define REFLECTCUBEMASK\n", PERMUTATION_REFLECTCUBEMASK},
-		{"#define SKELETAL\n", PERMUTATION_SKELETAL},
-		{"#define FOG\n", PERMUTATION_FOG},
-		{"#define FRAMEBLEND\n", PERMUTATION_FRAMEBLEND},
-		{"#define LIGHTSTYLED\n", PERMUTATION_LIGHTSTYLES}
-	};
-#define MAXMODIFIERS 64
-	const char *permutationdefines[countof(permutations) + MAXMODIFIERS + 1];
+//	const char *permutationdefines[countof(permutations) + MAXMODIFIERS + 1];
 	unsigned int nopermutation = PERMUTATIONS-1;
-	int nummodifiers = 0;
-	int p, n, pn;
+//	int nummodifiers = 0;
+	int p;
 	char *end;
-	vfsfile_t *blobfile;
-	unsigned int permuoffsets[PERMUTATIONS], initoffset=0;
-	unsigned int blobheaderoffset=0;
-	qboolean blobadded;
-	qboolean geom = false;
-	qboolean tess = false;
-	qboolean cantess = false;
 
-	char maxgpubones[128];
 	cvar_t *cvarrefs[64];
 	char *cvarnames[64];
 	int cvartypes[64];
-	int cvarcount = 0;
-	qboolean onefailed = false;
+	size_t cvarcount = 0, i;
 	extern cvar_t gl_specular, gl_specular_power;
+	qboolean cantess;	//not forced.
+	char prescript[8192];
+	size_t offset = 0;
 #endif
 
 #ifdef VKQUAKE
@@ -1235,8 +1319,15 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	if (!sh_config.pCreateProgram && !sh_config.pLoadBlob)
 		return false;
 
-	cvarnames[cvarcount] = NULL;
+	if (prog->name)
+		return false;	//o.O
 
+	*prescript = 0;
+	offset = 0;
+	memset(prog->permu, 0, sizeof(prog->permu));
+	prog->name = Z_StrDup(name);
+	prog->geom = false;
+	prog->tess = false;
 	prog->nofixedcompat = true;
 	prog->numsamplers = 0;
 	prog->defaulttextures = 0;
@@ -1251,52 +1342,94 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		}
 		else if (!strncmp(script, "!!geom", 6))
 		{
-			geom = true;
+			prog->geom = true;
 			script += 6;
 		}
 		else if (!strncmp(script, "!!tess", 6))
 		{
-			tess = true;
+			prog->tess = true;
 			script += 6;
 		}
 		else if (!strncmp(script, "!!samps", 7))
 		{
+			com_tokentype_t tt;
+			qboolean ignore = false;
 			script += 7;
-			while (*script != '\n' && *script != '\r')
+			for(;;)
 			{
 				size_t len;
 				int i;
-				char *start;
-				while (*script == ' ' || *script == '\t')
-					script++;
-				start = script;
-				while (*script != ' ' && *script != '\t' && *script != '\r' && *script != '\n')
-					script++;
+				char *type, *idx, *next;
+				char *token = com_token;
 
+				next = COM_ParseTokenOut(script, "", com_token, sizeof(com_token), &tt);
+				if (tt == TTP_LINEENDING || tt == TTP_EOF)
+					break;
+				script = next;
+
+				if (*token == '=' || *token == '!')
+				{
+					len = strlen(token);
+					if (*token == (Com_FloatArgument(name, token+1, len-1)?'!':'='))
+						ignore = true;
+					continue;
+				}
+				else if (ignore)
+					continue;
 #ifndef NOLEGACY
-				if (script-start >= 8 && !strncmp(start, "deluxmap", 8))
+				else if (!strncmp(token, "deluxmap", 8))
 				{	//FIXME: remove this some time.
-					start = va("deluxemap%s",start+8);
-					len = strlen(start);
+					token = va("deluxemap%s",token+8);
+				}
+#endif
+				type = strchr(token, ':');
+				idx = strchr(token, '=');
+				if (type || idx)
+				{	//name:type=idx
+					if (type)
+						*type++ = 0;
+					else
+						type = "sampler2D";
+					if (idx)
+					{
+						*idx++ = 0;
+						i = atoi(idx);
+					}
+					else
+						i = prog->numsamplers;
+					if (prog->numsamplers < i+1)
+						prog->numsamplers = i+1;
+
+					//I really want to use layout(binding = %i) here, but its specific to the glsl version (which we don't really know yet)
+					Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define s_%s s_t%u\nuniform %s s_%s;\n", token, i, type, token);
 				}
 				else
-#endif
-					len = script-start;
-				for (i = 0; sh_defaultsamplers[i].name; i++)
 				{
-					if (!strncmp(start, sh_defaultsamplers[i].name+2, len) && sh_defaultsamplers[i].name[2+len] == 0)
+					len = strlen(token);
+					for (i = 0; sh_defaultsamplers[i].name; i++)
 					{
-						prog->defaulttextures |= sh_defaultsamplers[i].defaulttexbits;
-						break;
+						if (!strcmp(token, sh_defaultsamplers[i].name+2))
+						{
+							prog->defaulttextures |= sh_defaultsamplers[i].defaulttexbits;
+							break;
+						}
 					}
-				}
-				if (!sh_defaultsamplers[i].name)
-				{
-					i = atoi(start);
-					if (i)
-						prog->numsamplers = i;
-					else
-						Con_Printf("Unknown texture name in %s\n", name);
+					if (!sh_defaultsamplers[i].name)
+					{	//this path is deprecated.
+						i = atoi(token);
+						if (i)
+						{
+							if (qrenderer == QR_OPENGL)
+							{
+								while (prog->numsamplers < i)
+									Q_strlcatfz(prescript, &offset, sizeof(prescript), "uniform sampler2D s_t%u;\n", prog->numsamplers++);
+							}
+							else if (prog->numsamplers < i)
+								prog->numsamplers = i;
+						}
+						else
+							Con_Printf("Unknown texture name in %s\n", name);
+					}
 				}
 			}
 		}
@@ -1348,7 +1481,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			end = script;
 			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
 				end++;
-			if (nummodifiers < MAXMODIFIERS && end - script < 64)
+			if (end - script < 64)
 			{
 				cvar_t *var;
 				char namebuf[64];
@@ -1373,20 +1506,20 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					if (srgb)
 					{
 						if (type == '4')
-							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec4":"float4"), SRGBf(var->vec4[0]/div), SRGBf(var->vec4[1]/div), SRGBf(var->vec4[2]/div), var->vec4[3]/div));
+							Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define %s %s(%g,%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec4":"float4"), SRGBf(var->vec4[0]/div), SRGBf(var->vec4[1]/div), SRGBf(var->vec4[2]/div), var->vec4[3]/div);
 						else if (type == '3')
-							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec3":"float3"), SRGBf(var->vec4[0]/div), SRGBf(var->vec4[1]/div), SRGBf(var->vec4[2]/div)));
+							Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define %s %s(%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec3":"float3"), SRGBf(var->vec4[0]/div), SRGBf(var->vec4[1]/div), SRGBf(var->vec4[2]/div));
 						else
-							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %g\n", namebuf, SRGBf(var->value/div)));
+							Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define %s %g\n", namebuf, SRGBf(var->value/div));
 					}
 					else
 					{
 						if (type == '4')
-							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec4":"float4"), var->vec4[0]/div, var->vec4[1]/div, var->vec4[2]/div, var->vec4[3]/div));
+							Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define %s %s(%g,%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec4":"float4"), var->vec4[0]/div, var->vec4[1]/div, var->vec4[2]/div, var->vec4[3]/div);
 						else if (type == '3')
-							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec3":"float3"), var->vec4[0]/div, var->vec4[1]/div, var->vec4[2]/div));
+							Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define %s %s(%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec3":"float3"), var->vec4[0]/div, var->vec4[1]/div, var->vec4[2]/div);
 						else
-							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %g\n", namebuf, var->value/div));
+							Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define %s %g\n", namebuf, var->value/div);
 					}
 				}
 			}
@@ -1394,17 +1527,17 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		}
 		else if (!strncmp(script, "!!cvarf", 7))
 		{
-			if (cvarcount+1 != sizeof(cvarnames)/sizeof(cvarnames[0]))
+			if (cvarcount != sizeof(cvarnames)/sizeof(cvarnames[0]))
 				cvarcount += Shader_ParseProgramCvar(script+7, &cvarrefs[cvarcount], &cvarnames[cvarcount], &cvartypes[cvarcount], SP_CVARF);
 		}
 		else if (!strncmp(script, "!!cvari", 7))
 		{
-			if (cvarcount+1 != sizeof(cvarnames)/sizeof(cvarnames[0]))
+			if (cvarcount != sizeof(cvarnames)/sizeof(cvarnames[0]))
 				cvarcount += Shader_ParseProgramCvar(script+7, &cvarrefs[cvarcount], &cvarnames[cvarcount], &cvartypes[cvarcount], SP_CVARI);
 		}
 		else if (!strncmp(script, "!!cvarv", 7))
 		{
-			if (cvarcount+1 != sizeof(cvarnames)/sizeof(cvarnames[0]))
+			if (cvarcount != sizeof(cvarnames)/sizeof(cvarnames[0]))
 				cvarcount += Shader_ParseProgramCvar(script+7, &cvarrefs[cvarcount], &cvarnames[cvarcount], &cvartypes[cvarcount], SP_CVAR3F);
 		}
 		else if (!strncmp(script, "!!permu", 7))
@@ -1417,7 +1550,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				end++;
 			for (p = 0; p < countof(permutations); p++)
 			{
-				if (!strncmp(permutations[p].name+8, script, end - script) && permutations[p].name[8+end-script] == '\n')
+				if (!strncmp(permutations[p].name, script, end - script) && permutations[p].name[end-script] == '\0')
 				{
 					nopermutation &= ~permutations[p].bitmask;
 					break;
@@ -1449,7 +1582,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			minver = strtol(script, &script, 0);
 			while (*script == ' ' || *script == '\t')
 				script++;
-			maxver = strtol(script, NULL, 0); 
+			maxver = strtol(script, NULL, 0);
 			if (!maxver)
 				maxver = minver;
 
@@ -1479,284 +1612,87 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		while (*script && *script != '\n')
 			script++;
 	};
+	prog->shadertext = Z_StrDup(script);
 
 	if (qrenderer == qrtype && ver < 150)
-		tess = cantess = false;	//GL_ARB_tessellation_shader requires glsl 150(gl3.2) (or glessl 3.1). nvidia complains about layouts if you try anyway
-
-	if (sh_config.pLoadBlob && blobfilename && *blobfilename)
-		blobfile = FS_OpenVFS(blobfilename, "w+b", FS_GAMEONLY);
-	else
-		blobfile = NULL;
+		prog->tess = cantess = false;	//GL_ARB_tessellation_shader requires glsl 150(gl3.2) (or glessl 3.1). nvidia complains about layouts if you try anyway
 
 	if (!r_fog_permutation.ival)
 		nopermutation |= PERMUTATION_BIT_FOG;
-
-	if (blobfile)
-	{
-		unsigned int magic;
-		unsigned int corrupt = false;
-		char ever[MAX_QPATH];
-		char *thisever = version_string();
-		corrupt |= VFS_READ(blobfile, &magic, sizeof(magic)) != sizeof(magic);
-		corrupt |= magic != *(unsigned int*)"FBLB";
-		corrupt |= VFS_READ(blobfile, &blobheaderoffset, sizeof(blobheaderoffset)) != sizeof(blobheaderoffset);
-		corrupt |= VFS_READ(blobfile, ever, sizeof(ever)) != sizeof(ever);
-
-		corrupt |= strcmp(ever, thisever);
-		//if the magic or header didn't read properly then the file is corrupt
-		if (corrupt)
-		{
-			//close and reopen it without the + flag, to replace it with a new file.
-			VFS_CLOSE(blobfile);
-			blobfile = FS_OpenVFS(blobfilename, "wb", FS_GAMEONLY);
-
-			if (blobfile)
-			{
-				blobheaderoffset = 0;
-				VFS_SEEK(blobfile, 0);
-				magic = *(unsigned int*)"FBLB";	//magic
-				VFS_WRITE(blobfile, &magic, sizeof(magic));
-				VFS_WRITE(blobfile, &blobheaderoffset, sizeof(blobheaderoffset));
-				memset(ever, 0, sizeof(ever));	//make sure we don't leak stuff.
-				Q_strncpyz(ever, thisever, sizeof(ever));
-				VFS_WRITE(blobfile, ever, sizeof(ever));
-				blobheaderoffset = 0;
-			}
-		}
-	}
-	blobadded = false;
-
 	if (!sh_config.max_gpu_bones)
-	{
-		Q_snprintfz(maxgpubones, sizeof(maxgpubones), "");
 		nopermutation |= PERMUTATION_SKELETAL;
-	}
-	else if (qrenderer == QR_OPENGL && sh_config.maxver < 120)	//with old versions of glsl (including gles), mat3x4 is not supported, and we have to emulate it with 3*vec4. maybe we should just do that unconditionally, but whatever.
-		Q_snprintfz(maxgpubones, sizeof(maxgpubones), "#define MAX_GPU_BONES %i\n#define PACKEDBONES\n", sh_config.max_gpu_bones);
-	else
-		Q_snprintfz(maxgpubones, sizeof(maxgpubones), "#define MAX_GPU_BONES %i\n", sh_config.max_gpu_bones);
-	if (gl_specular.value)
-	{
-		if (nummodifiers < MAXMODIFIERS)
-			permutationdefines[nummodifiers++] = Z_StrDup(va("#define SPECULAR\n#define SPECULAR_BASE_MUL %f\n#define SPECULAR_BASE_POW %f\n", 1.0*gl_specular.value, max(1,gl_specular_power.value)));
-	}
+
+	//multiple lightmaps is kinda hacky. if any are set, all must be.
+#define ALTLIGHTMAPSAMP 13
+	if (prog->defaulttextures & ((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2))))
+		prog->defaulttextures |=((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2)));
+#define ALTDELUXMAPSAMP 16
+	if (prog->defaulttextures & ((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2))))
+		prog->defaulttextures |=((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2)));
+
 	for (end = strchr(name, '#'); end && *end; )
 	{
-		char *start = end+1, *d;
+		char *start = end+1;
 		end = strchr(start, '#');
 		if (!end)
 			end = start + strlen(start);
 		if (end-start == 7 && !Q_strncasecmp(start, "usemods", 7))
 			prog->nofixedcompat = false;
-		if (nummodifiers < MAXMODIFIERS)
+
+		if (end-start == 4 && !Q_strncasecmp(start, "tess", 4))
+			prog->tess |= cantess;
+
+		Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define ");
+		while (offset < sizeof(prescript) && start < end)
 		{
-			if (end-start == 4 && !Q_strncasecmp(start, "tess", 4))
-				tess |= cantess;
-
-			permutationdefines[nummodifiers] = d = BZ_Malloc(10 + end - start);
-			memcpy(d, "#define ", 8);
-			memcpy(d+8, start, end - start);
-			memcpy(d+8+(end-start), "\n", 2);
-
-			start = strchr(d+8, '=');
-			if (start)
-				*start = ' ';
-
-			for (start = d+8; *start; start++)
-				*start = toupper(*start);
-			nummodifiers++;
-			permutationdefines[nummodifiers] = NULL;
-		}
-	}
-
-	if (blobfile)
-	{
-		unsigned int next;
-		unsigned int argsz;
-		char *args, *mp;
-		const char *mv;
-		int ml, mi;
-		unsigned int bloblink = 4;
-
-		//walk through looking for an argset match
-		while (blobheaderoffset)
-		{
-			VFS_SEEK(blobfile, blobheaderoffset);
-			VFS_READ(blobfile, &next, sizeof(next));
-			VFS_READ(blobfile, &argsz, sizeof(argsz));
-			args = Z_Malloc(argsz+1);
-			VFS_READ(blobfile, args, argsz);
-			args[argsz] = 0;
-			for (mi = 0, mp = args; mi < nummodifiers; mi++)
+			if (*start == '=')
 			{
-				mv = permutationdefines[mi]+8;
-				ml = strlen(mv);
-				if (mp+ml > args+argsz)
-					break;
-				if (strncmp(mp, mv, ml))
-					break;
-				mp += ml;
-			}
-			//this one is a match. 
-			if (mi == nummodifiers && mp == args+argsz)
-			{
-				blobheaderoffset = VFS_TELL(blobfile);
-				VFS_READ(blobfile, permuoffsets, sizeof(permuoffsets));
+				start++;
+				prescript[offset++] = ' ';
 				break;
 			}
-
-			bloblink = blobheaderoffset;
-			blobheaderoffset = next;
+			prescript[offset++] = toupper(*start++);
 		}
-
-		//these arguments have never been seen before. add a new argset.
-		if (!blobheaderoffset)
-		{
-			unsigned int link = 0;
-			initoffset = VFS_GETLEN(blobfile);
-			VFS_SEEK(blobfile, initoffset);
-			VFS_WRITE(blobfile, &link, sizeof(link));
-
-			for (mi = 0, argsz = 0; mi < nummodifiers; mi++)
-			{
-				mv = permutationdefines[mi]+8;
-				ml = strlen(mv);
-				argsz += ml;
-			}
-			VFS_WRITE(blobfile, &argsz, sizeof(argsz));
-			for (mi = 0; mi < nummodifiers; mi++)
-			{
-				mv = permutationdefines[mi]+8;
-				ml = strlen(mv);
-				VFS_WRITE(blobfile, mv, ml);
-			}
-
-			//and the offsets come here
-			blobheaderoffset = VFS_TELL(blobfile);
-			memset(permuoffsets, 0, sizeof(permuoffsets));
-			VFS_WRITE(blobfile, permuoffsets, sizeof(permuoffsets));
-
-			//now rewrite the link to add us. the value in the file should always be set to 0.
-			VFS_SEEK(blobfile, bloblink);
-			VFS_WRITE(blobfile, &initoffset, sizeof(initoffset));
-		}
+		while (offset < sizeof(prescript) && start < end)
+			prescript[offset++] = toupper(*start++);
+		Q_strlcatfz(prescript, &offset, sizeof(prescript), "\n");
 	}
 
-	prog->tess = tess;
-	prog->supportedpermutations = ~nopermutation;
-	for (p = 0; p < PERMUTATIONS; p++)
+	prog->preshade = Z_StrDup(prescript);
+	prog->supportedpermutations = (~nopermutation) & (PERMUTATIONS-1);
+	prog->shaderver = ver;
+
+	if (cvarcount)
 	{
-		qboolean isprimary;
-		memset(&prog->permu[p].h, 0, sizeof(prog->permu[p].h));
-		if (nopermutation & p)
+		*prescript = 0;
+		offset = 0;
+		for (i = 0; i < cvarcount && offset < sizeof(prescript); i++)
 		{
-			continue;
-		}
-		pn = nummodifiers;
-		for (n = 0; n < countof(permutations); n++)
-		{
-			if (p & permutations[n].bitmask)
-				permutationdefines[pn++] = permutations[n].name;
-		}
-		isprimary = (pn-nummodifiers)==1;
-		if (p & PERMUTATION_UPPERLOWER)
-			permutationdefines[pn++] = "#define UPPER\n#define LOWER\n";
-		if (p & PERMUTATION_SKELETAL)
-			permutationdefines[pn++] = maxgpubones;
-		if (p & PERMUTATION_BUMPMAP)
-		{
-			if (r_glsl_offsetmapping.ival)
+			if (cvarrefs[i])
 			{
-				permutationdefines[pn++] = "#define OFFSETMAPPING\n";
-				if (r_glsl_offsetmapping_reliefmapping.ival && (p & PERMUTATION_BUMPMAP))
-					permutationdefines[pn++] = "#define RELIEFMAPPING\n";
+				memcpy(prescript+offset, &cvartypes[i], sizeof(int));
+				offset+=4;
+				Q_strlcatfz(prescript, &offset, sizeof(prescript), "%s", cvarnames[i]);
+				offset++;
 			}
-
-			if (r_deluxemapping)	//fixme: should be per-model really
-				permutationdefines[pn++] = "#define DELUXE\n";
 		}
-		permutationdefines[pn++] = NULL;
-
-
-		if (blobfile && permuoffsets[p])
-		{
-			VFS_SEEK(blobfile, permuoffsets[p]);
-			if (sh_config.pLoadBlob(prog, name, p, blobfile))
-				continue;	//blob was loaded from disk, yay.
-			//otherwise fall through.
-		}
-		if (blobfile && !sh_config.pValidateProgram)
-		{
-			initoffset = VFS_GETLEN(blobfile);
-			VFS_SEEK(blobfile, initoffset);
-		}
-#define SILENTPERMUTATIONS (developer.ival?0:PERMUTATION_SKELETAL)
-		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, geom?script:NULL, script, (p & SILENTPERMUTATIONS)?true:onefailed, sh_config.pValidateProgram?NULL:blobfile))
-		{
-			if (isprimary)
-				prog->supportedpermutations &= ~p;
-			if (!(p & SILENTPERMUTATIONS))
-				onefailed = true;	//don't flag it if skeletal failed.
-			if (!p)	//give up if permutation 0 failed. that one failing is fatal.
-				break;
-		}
-		if (!sh_config.pValidateProgram && blobfile && initoffset != VFS_GETLEN(blobfile))
-		{
-			permuoffsets[p] = initoffset;
-			blobadded = true;
-		}
+		prog->cvardata = Z_Malloc(offset);
+		prog->cvardatasize = offset;
+		memcpy(prog->cvardata, prescript, prog->cvardatasize);
 	}
-	while(nummodifiers)
-		Z_Free((char*)permutationdefines[--nummodifiers]);
-
-	//extra loop to validate the programs actually linked properly.
-	//delaying it like this gives certain threaded drivers a chance to compile them all while we're messing around with other junk
-	if (sh_config.pValidateProgram)
-	for (p = 0; p < PERMUTATIONS; p++)
-	{
-		if (nopermutation & p)
-			continue;
-		if (blobfile)
-		{
-			initoffset = VFS_GETLEN(blobfile);
-			VFS_SEEK(blobfile, initoffset);
-		}
-		if (!sh_config.pValidateProgram(prog, name, p, (p & PERMUTATION_SKELETAL)?true:onefailed, blobfile))
-		{
-			if (!(p & PERMUTATION_SKELETAL))
-			{
-				onefailed = true;	//don't flag it if skeletal failed.
-				continue;
-			}
-			if (!p)
-				break;
-		}
-		if (blobfile && initoffset != VFS_GETLEN(blobfile))
-		{
-			permuoffsets[p] = initoffset;
-			blobadded = true;
-		}
-	}
-
-	if (sh_config.pProgAutoFields)
-		sh_config.pProgAutoFields(prog, name, cvarrefs, cvarnames, cvartypes);
 
 	while(cvarcount)
 		Z_Free((char*)cvarnames[--cvarcount]);
 
-	if (blobfile && blobadded)
-	{
-		VFS_SEEK(blobfile, blobheaderoffset);
-		VFS_WRITE(blobfile, permuoffsets, sizeof(permuoffsets));
-	}
-	if (blobfile)
-		VFS_CLOSE(blobfile);
-
-	if (p == PERMUTATIONS)
-		return true;
-#endif
+	//ensure that permutation 0 works correctly as a fallback.
+	//FIXME: add debug mode to compile all.
+	prog->permu[0] = Shader_LoadPermutation(prog, 0);
+	return !!prog->permu[0];
+#else
 	return false;
+#endif
 }
+
 typedef struct sgeneric_s
 {
 	program_t prog;
@@ -1780,6 +1716,11 @@ void Shader_UnloadProg(program_t *prog)
 {
 	if (sh_config.pDeleteProg)
 		sh_config.pDeleteProg(prog);
+
+	Z_Free(prog->name);
+	Z_Free(prog->preshade);
+	Z_Free(prog->shadertext);
+	Z_Free(prog->cvardata);
 
 	Z_Free(prog);
 }
@@ -1845,6 +1786,14 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 	{
 		sh_config.pDeleteProg(&g->prog);
 	}
+	Z_Free(g->prog.name);
+	g->prog.name = NULL;
+	Z_Free(g->prog.preshade);
+	g->prog.preshade = NULL;
+	Z_Free(g->prog.shadertext);
+	g->prog.shadertext = NULL;
+	Z_Free(g->prog.cvardata);
+	g->prog.cvardata = NULL;
 
 	if (file)
 	{
@@ -1875,17 +1824,6 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 			}
 		}
 	}
-}
-
-const char *Shader_NameForGeneric(program_t *prog)
-{
-	sgeneric_t *g;
-	for (g = sgenerics; g; g = g->next)
-	{
-		if (prog == &g->prog)
-			return g->name;
-	}
-	return "INLINE";
 }
 
 program_t *Shader_FindGeneric(char *name, int qrtype)
@@ -2018,7 +1956,8 @@ struct shader_field_names_s shader_unif_names[] =
 	{"m_modelview",				SP_M_MODELVIEW},//the combined modelview matrix
 	{"m_projection",			SP_M_PROJECTION},//projection matrix
 /**/{"m_modelviewprojection",	SP_M_MODELVIEWPROJECTION},//fancy mvp matrix. probably has degraded precision.
-	{"m_bones",					SP_M_ENTBONES},	//bone matrix array. should normally be read via sys/skeletal.h
+	{"m_bones_packed",			SP_M_ENTBONES_PACKED},	//bone matrix array. should normally be read via sys/skeletal.h
+	{"m_bones_mat3x4",			SP_M_ENTBONES_MAT3X4},	//bone matrix array. should normally be read via sys/skeletal.h
 	{"m_invviewprojection",		SP_M_INVVIEWPROJECTION},//inverted vp matrix
 	{"m_invmodelviewprojection",SP_M_INVMODELVIEWPROJECTION},//inverted mvp matrix.
 /**///m_modelinv
@@ -2238,6 +2177,12 @@ static void Shader_LowerMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 	char *token = Shader_ParseString(ptr);
 	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
 	shader->defaulttextures->loweroverlay = Shader_FindImage(token, flags);
+}
+static void Shader_DisplacementMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->displacement = Shader_FindImage(token, flags|IF_NOSRGB);
 }
 
 static void Shaderpass_QF_Material(shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2492,6 +2437,7 @@ static shaderkey_t shaderkeys[] =
 	{"uppermap",			Shader_UpperMap,			"fte"},
 	{"lowermap",			Shader_LowerMap,			"fte"},
 	{"reflectmask",			Shader_ReflectMask,			"fte"},
+	{"displacementmap",		Shader_DisplacementMap,		"fte"},
 
 	{"portalfboscale",		Shader_PortalFBOScale,		"fte"},	//portal/mirror/refraction/reflection FBOs are resized by this scale
 	{"basefactor",			NULL,						"fte"},	//material scalers for glsl
@@ -2642,6 +2588,11 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	else if (!Q_stricmp (tname, "$reflectmask"))
 	{
 		pass->texgen = T_GEN_REFLECTMASK;
+	}
+	else if (!Q_stricmp (tname, "$displacement"))
+	{
+		shader->flags |= SHADER_HASDISPLACEMENT;
+		pass->texgen = T_GEN_DISPLACEMENT;
 	}
 	else if (!Q_stricmp (tname, "$shadowmap"))
 	{
@@ -3741,6 +3692,8 @@ qboolean Shader_Init (void)
 		r_whiteimage = r_nulltex;
 	else
 		r_whiteimage = R_LoadTexture("$whiteimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
+	memset(wibuf, 0, sizeof(wibuf));
+	r_blackimage = R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
 
 	Shader_NeedReload(true);
 	Shader_DoReload();
@@ -4103,19 +4056,20 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 	} defaulttgen[] =
 	{
 		//light
-		{T_GEN_SHADOWMAP,		0},						//1
-		{T_GEN_LIGHTCUBEMAP,	0},						//2
+		{T_GEN_SHADOWMAP,		0},						//0
+		{T_GEN_LIGHTCUBEMAP,	0},						//1
 
 		//material
-		{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//3
-		{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//4
-		{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//5
-		{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
-		{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//7
-		{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//8
-		{T_GEN_PALETTED,		SHADER_HASPALETTED},	//9
-		{T_GEN_REFLECTCUBE,		0},						//10
-		{T_GEN_REFLECTMASK,		0},						//11
+		{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//2
+		{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//3
+		{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//4
+		{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//5
+		{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
+		{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//7
+		{T_GEN_PALETTED,		SHADER_HASPALETTED},	//8
+		{T_GEN_REFLECTCUBE,		0},						//9
+		{T_GEN_REFLECTMASK,		0},						//10
+		{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
@@ -5028,9 +4982,9 @@ done:;
 		}
 	}
 
-	pass = s->passes;
-	for (i = 0; i < s->numpasses; i++, pass++)
+	for (i = 0; i < s->numpasses; i += (pass->prog?pass->numMergedPasses:1))
 	{
+		pass = s->passes+i;
 		if (!(pass->shaderbits & (SBITS_BLEND_BITS|SBITS_MASK_BITS)))
 		{
 			break;
@@ -5110,14 +5064,14 @@ done:;
 
 		if (!s->sort)
 		{
-			if (pass->shaderbits & SBITS_ATEST_BITS)
+			if (i < s->numpasses && (s->passes[i].shaderbits & SBITS_ATEST_BITS))
 				s->sort = SHADER_SORT_SEETHROUGH;
 		}
 
 		if (!( s->flags & SHADER_DEPTHWRITE) &&
 			!(s->flags & SHADER_SKY))
 		{
-			pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
+			s->passes->shaderbits |= SBITS_MISC_DEPTHWRITE;
 			s->flags |= SHADER_DEPTHWRITE;
 		}
 	}
@@ -5216,19 +5170,20 @@ done:;
 		} defaulttgen[] =
 		{
 			//light
-			{T_GEN_SHADOWMAP,		0},						//1
-			{T_GEN_LIGHTCUBEMAP,	0},						//2
+			{T_GEN_SHADOWMAP,		0},						//0
+			{T_GEN_LIGHTCUBEMAP,	0},						//1
 
 			//material
-			{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//3
-			{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//4
-			{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//5
-			{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
-			{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//7
-			{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//8
-			{T_GEN_PALETTED,		SHADER_HASPALETTED},	//9
-			{T_GEN_REFLECTCUBE,		0},						//10
-			{T_GEN_REFLECTMASK,		0},						//11
+			{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//2
+			{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//3
+			{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//4
+			{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//5
+			{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
+			{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//7
+			{T_GEN_PALETTED,		SHADER_HASPALETTED},	//8
+			{T_GEN_REFLECTCUBE,		0},						//9
+			{T_GEN_REFLECTMASK,		0},						//10
+			{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
@@ -5436,6 +5391,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader, unsigned int 
 			tex->reflectmask	= src->reflectmask;
 		if (!TEXVALID(tex->reflectcube))
 			tex->reflectcube	= src->reflectcube;
+		if (!TEXVALID(tex->displacement))
+			tex->displacement	= src->displacement;
 	}
 	for (a = 1; a < aframes; a++)
 	{
@@ -5455,6 +5412,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader, unsigned int 
 			tex[a].reflectmask	= tex[0].reflectmask;
 		if (!TEXVALID(tex[a].reflectcube))
 			tex[a].reflectcube	= tex[0].reflectcube;
+		if (!TEXVALID(tex[a].displacement))
+			tex[a].displacement	= tex[0].displacement;
 	}
 	for (a = 0; a < aframes; a++, tex++)
 	{
@@ -5672,6 +5631,8 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			tex[a].reflectmask	= tex[0].reflectmask;
 		if (!TEXVALID(tex[a].reflectcube))
 			tex[a].reflectcube	= tex[0].reflectcube;
+		if (!TEXVALID(tex[a].displacement))
+			tex[a].displacement	= tex[0].displacement;
 	}
 	for (a = 0; a < aframes; a++, tex++)
 	{
@@ -6027,7 +5988,7 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, s
 		type = 3;
 	else
 		type = 0;
-	alpha = Shader_FloatArgument(s, "#ALPHA");
+	alpha = Shader_FloatArgument(s, "ALPHA");
 	if (alpha)
 		explicitalpha = true;
 	else
@@ -6210,12 +6171,12 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 	}
-	else if (Shader_FloatArgument(s, "#WARP"))//!strncmp(shortname, "warp/", 5) || !strncmp(shortname, "warp33/", 7) || !strncmp(shortname, "warp66/", 7))
+	else if (Shader_FloatArgument(s, "WARP"))//!strncmp(shortname, "warp/", 5) || !strncmp(shortname, "warp33/", 7) || !strncmp(shortname, "warp66/", 7))
 	{
 		char tmpbuffer[2048];
 		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname, tmpbuffer, sizeof(tmpbuffer)));
 	}
-	else if (Shader_FloatArgument(s, "#ALPHA"))//   !strncmp(shortname, "trans/", 6))
+	else if (Shader_FloatArgument(s, "ALPHA"))//   !strncmp(shortname, "trans/", 6))
 	{
 		Shader_DefaultScript(shortname, s,
 				"{\n"
@@ -6714,12 +6675,12 @@ static qboolean Shader_ParseShader(char *parsename, shader_t *s)
 	{
 		//if the named shader is a .shader file then just directly load it.
 		token = COM_GetFileExtension(parsename, NULL);
-		if (!strcmp(token, ".shader") || !*token)
+		if (!strcmp(token, ".mat") || !*token)
 		{
 			char shaderfile[MAX_QPATH];
 			if (!*token)
 			{
-				Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.shader", parsename);
+				Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.mat", parsename);
 				file = COM_LoadTempMoreFile(shaderfile, &length);
 			}
 			else
@@ -6964,7 +6925,7 @@ static char *Shader_DecomposePass(char *o, shaderpass_t *p, qboolean simple)
 
 	if (p->prog)
 	{
-		sprintf(o, "program %s\n", Shader_NameForGeneric(p->prog));
+		sprintf(o, "program %s\n", p->prog->name);
 		o+=strlen(o);
 	}
 
@@ -7148,6 +7109,7 @@ static char *Shader_DecomposeSubPass(char *o, shaderpass_t *p, qboolean simple)
 	case T_GEN_PALETTED: sprintf(o, "paletted "); break;
 	case T_GEN_REFLECTCUBE: sprintf(o, "reflectcube "); break;
 	case T_GEN_REFLECTMASK: sprintf(o, "reflectmask "); break;
+	case T_GEN_DISPLACEMENT: sprintf(o, "displacementmap "); break;
 	case T_GEN_CURRENTRENDER: sprintf(o, "currentrender "); break;
 	case T_GEN_SOURCECOLOUR: sprintf(o, "sourcecolour "); break;
 	case T_GEN_SOURCEDEPTH: sprintf(o, "sourcedepth "); break;
@@ -7196,7 +7158,7 @@ char *Shader_Decompose(shader_t *s)
 
 	if (s->prog)
 	{
-		sprintf(o, "program %s\n", Shader_NameForGeneric(s->prog));
+		sprintf(o, "program %s\n", s->prog->name);
 		o+=strlen(o);
 
 		p = s->passes;
@@ -7298,23 +7260,23 @@ char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 					break;
 				}
 			}
-		}
 
-		if (!strchr(parsename, ':'))
-		{
-			//if the named shader is a .shader file then just directly load it.
-			const char *token = COM_GetFileExtension(parsename, NULL);
-			if (!strcmp(token, ".shader") || !*token)
+			if (!strchr(parsename, ':'))
 			{
-				char shaderfile[MAX_QPATH];
-				if (!*token)
+				//if the named shader is a .shader file then just directly load it.
+				const char *token = COM_GetFileExtension(parsename, NULL);
+				if (!strcmp(token, ".shader") || !*token)
 				{
-					Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.shader", parsename);
-					if (COM_FCheckExists(shaderfile))
-						Q_snprintfz(fname, fnamesize, "%s:%i", shaderfile, 1);
+					char shaderfile[MAX_QPATH];
+					if (!*token)
+					{
+						Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.shader", parsename);
+						if (COM_FCheckExists(shaderfile))
+							Q_snprintfz(fname, fnamesize, "%s:%i", shaderfile, 1);
+					}
+					else if (COM_FCheckExists(parsename))
+						Q_snprintfz(fname, fnamesize, "%s:%i", parsename, 1);
 				}
-				else if (COM_FCheckExists(parsename))
-					Q_snprintfz(fname, fnamesize, "%s:%i", parsename, 1);
 			}
 		}
 	}

@@ -439,38 +439,33 @@ void M_Menu_Setup_f (void)
 #ifdef Q2CLIENT
 	if (M_GameType() == MGT_QUAKE2)	//quake2 main menu.
 	{
-		if (R2D_SafeCachePic("pics/m_banner_player_setup"))
+		static const char *modeloptions[] =
 		{
-			static const char *modeloptions[] =
-			{
-				"male",
-				"female",
-				NULL
-			};
-			mpic_t *p;
-			menucustom_t *cu;
-			Key_Dest_Add(kdm_emenu);
+			"male",
+			"female",
+			NULL
+		};
+		menucustom_t *cu;
+		Key_Dest_Add(kdm_emenu);
 
-			menu = M_CreateMenu(sizeof(setupmenu_t));
-			info = menu->data;
-//			menu->key = MC_Main_Key;
+		menu = M_CreateMenu(sizeof(setupmenu_t));
+		info = menu->data;
+//		menu->key = MC_Main_Key;
 
-			MC_AddPicture(menu, 0, 4, 38, 166, "pics/m_main_plaque");
-			p = R2D_SafeCachePic("pics/m_main_logo");
-			if (!p)
-				return;
-			MC_AddPicture(menu, 0, 173, 36, 42, "pics/m_main_logo");
+		MC_AddPicture(menu, 0, 4, 38, 166, "pics/m_main_plaque");
+		MC_AddPicture(menu, 0, 173, 36, 42, "pics/m_main_logo");
 
-			menu->selecteditem = (menuoption_t*)
-			(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
-			(info->modeledit = MC_AddCvarCombo(menu, 64, 160,72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
-			info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
-			cu = MC_AddCustom(menu, 64, 88+16, NULL, 0);
-			cu->draw = MSetupQ2_TransDraw;
-			cu->key = MSetupQ2_ChangeSkin;
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_player_setup");
 
-			menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
-		}
+		menu->selecteditem = (menuoption_t*)
+		(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
+		(info->modeledit = MC_AddCvarCombo(menu, 64, 160,72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
+		info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
+		cu = MC_AddCustom(menu, 64, 88+16, NULL, 0, NULL);
+		cu->draw = MSetupQ2_TransDraw;
+		cu->key = MSetupQ2_ChangeSkin;
+
+		menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
 		return;
 	}
 #endif
@@ -510,7 +505,7 @@ void M_Menu_Setup_f (void)
 		(info->skinedit = MC_AddEdit(menu, 64, 160, 72, "Your skin", skin.string));
 	}
 
-	ci = MC_AddCustom(menu, 172+32, 88, NULL, 0);
+	ci = MC_AddCustom(menu, 172+32, 88, NULL, 0, NULL);
 	ci->draw = MSetup_TransDraw;
 	ci->key = NULL;
 
@@ -577,6 +572,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key
 	if (cls.state)
 		Cbuf_AddText("disconnect\n", RESTRICT_LOCAL);
 
+	Cbuf_AddText("sv_playerslots \"\"\n", RESTRICT_LOCAL);	//just in case.
 	Cbuf_AddText(va("maxclients \"%s\"\n", numplayeroptions[info->numplayers->selectedoption]), RESTRICT_LOCAL);
 	if (info->rundedicated->value)
 		Cbuf_AddText("setrenderer dedicated\n", RESTRICT_LOCAL);
@@ -711,7 +707,7 @@ void M_Menu_GameOptions_f (void)
 		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"map", "start");
 	y += 16;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, menu->selecteditem->common.posy, NULL, false);
 
 
 	info->lowercolour = bottomcolor.value;

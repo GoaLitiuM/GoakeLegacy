@@ -30,7 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define CHAN_ITEM   3
 #define CHAN_BODY   4
 
-extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, sv_edgefriction;
+extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_edgefriction;
 extern cvar_t  dpcompat_stats;
 
 /*
@@ -41,7 +41,7 @@ Con_Printf redirection
 =============================================================================
 */
 
-char	sv_redirected_buf[8000];
+char	sv_redirected_buf[countof(sv_redirected_buf)];
 
 redirect_t	sv_redirected;
 int sv_redirectedlang;
@@ -74,7 +74,7 @@ void SV_FlushRedirect (void)
 		send[4] = A2C_PRINT;
 		memcpy (send+5, sv_redirected_buf, strlen(sv_redirected_buf)+1);
 
-		NET_SendPacket (NS_SERVER, strlen(send)+1, send, &net_from);
+		NET_SendPacket (svs.sockets, strlen(send)+1, send, &net_from);
 	}
 #ifdef SUBSERVERS
 	else if (sv_redirected == RD_MASTER)
@@ -144,208 +144,6 @@ void SV_EndRedirect (void)
 	sv_redirectedlang = 0;	//clenliness rather than functionality. Shouldn't be needed.
 	sv_redirected = RD_NONE;
 }
-
-
-/*
-================
-Con_Printf
-
-Handles cursor positioning, line wrapping, etc
-================
-*/
-#define	MAXPRINTMSG	4096
-// FIXME: make a buffer size safe vsprintf?
-#ifdef SERVERONLY
-vfsfile_t *con_pipe;
-vfsfile_t *Con_POpen(char *conname)
-{
-	if (!conname || !*conname)
-	{
-		if (con_pipe)
-			VFS_CLOSE(con_pipe);
-		con_pipe = VFSPIPE_Open(2, false);
-		return con_pipe;
-	}
-	return NULL;
-}
-
-static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
-{
-	Con_Printf("%s", (char*)data);
-	BZ_Free(data);
-}
-void VARGS Con_Printf (const char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	if (!Sys_IsMainThread())
-	{
-		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
-		return;
-	}
-
-	// add to redirected message
-	if (sv_redirected)
-	{
-		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
-			SV_FlushRedirect ();
-		strcat (sv_redirected_buf, msg);
-		if (sv_redirected != -1)
-			return;
-	}
-
-	Sys_Printf ("%s", msg);	// also echo to debugging console
-	Con_Log(msg); // log to console
-
-	if (con_pipe)
-		VFS_PUTS(con_pipe, msg);
-}
-void Con_TPrintf (translation_t stringnum, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-	const char *fmt;
- 
-	if (!Sys_IsMainThread())
-	{	//shouldn't be redirected anyway...
-		fmt = langtext(stringnum,svs.language);
-		va_start (argptr,stringnum);
-		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-		va_end (argptr);
-		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
-		return;
-	}
-
-	// add to redirected message
-	if (sv_redirected)
-	{
-		fmt = langtext(stringnum,sv_redirectedlang);
-		va_start (argptr,stringnum);
-		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-		va_end (argptr);
-
-		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
-			SV_FlushRedirect ();
-		strcat (sv_redirected_buf, msg);
-		return;
-	}
-
-	fmt = langtext(stringnum,svs.language);
-
-	va_start (argptr,stringnum);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	Sys_Printf ("%s", msg);	// also echo to debugging console
-	Con_Log(msg); // log to console
-
-	if (con_pipe)
-		VFS_PUTS(con_pipe, msg);
-}
-/*
-================
-Con_DPrintf
-
-A Con_Printf that only shows up if the "developer" cvar is set
-================
-*/
-static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
-{
-	Con_DLPrintf(a, "%s", (char*)data);
-	BZ_Free(data);
-}
-void Con_DPrintf (const char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-	extern cvar_t log_developer;
-
-	if (!developer.value && !log_developer.value)
-		return;
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	if (!Sys_IsMainThread())
-	{
-		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
-		return;
-	}
-
-	// add to redirected message
-	if (sv_redirected)
-	{
-		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
-			SV_FlushRedirect ();
-		strcat (sv_redirected_buf, msg);
-		if (sv_redirected != -1)
-			return;
-	}
-
-	if (developer.value)
-		Sys_Printf ("%s", msg);	// also echo to debugging console
-
-	if (log_developer.value)
-		Con_Log(msg); // log to console
-}
-void Con_DLPrintf (int level, const char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-	extern cvar_t log_developer;
-
-	if (developer.ival < level && !log_developer.value)
-		return;
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	if (!Sys_IsMainThread())
-	{
-		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), level, 0);
-		return;
-	}
-
-	// add to redirected message
-	if (sv_redirected)
-	{
-		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
-			SV_FlushRedirect ();
-		strcat (sv_redirected_buf, msg);
-		if (sv_redirected != -1)
-			return;
-	}
-
-	if (developer.ival >= level)
-		Sys_Printf ("%s", msg);	// also echo to debugging console
-
-	if (log_developer.value)
-		Con_Log(msg); // log to console
-}
-
-//for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
-void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	if (developerlevel)
-		Con_DLPrintf (developerlevel, "%s", msg);
-	else
-		Con_Printf("%s", msg);
-}
-#endif
 
 /*
 =============================================================================
@@ -624,7 +422,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 	client_t	*cl;
 	int			i;
 	int oldlang=-1;
-	const char *fmt = langtext(stringnum, oldlang=svs.language);
+	const char *fmt = langtext(stringnum, oldlang=com_language);
 
 	va_start (argptr,stringnum);
 	vsnprintf (string,sizeof(string)-1, fmt,argptr);
@@ -730,7 +528,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	int seat;
 	qboolean	andspecs = false;
 
-	if (!sv.multicast.cursize 
+	if (!sv.multicast.cursize
 #ifdef NQPROT
 		&& !sv.nqmulticast.cursize
 #endif
@@ -1069,7 +867,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 						break;
 
 					if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
-					{
+					{	//always in range if within 1024 units (consistent with quakeworld).
 						vec3_t delta;
 						VectorSubtract(origin, split->edict->v->origin, delta);
 						if (DotProduct(delta, delta) <= 1024*1024)
@@ -2406,6 +2204,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_WATERACCELERATE]				= sv_wateraccelerate.value;
 			statsfi[STAT_MOVEVARS_ENTGRAVITY]					= client->entgravity/sv_gravity.value;
 			statsfi[STAT_MOVEVARS_JUMPVELOCITY]					= 270;//sv_jumpvelocity.value;	//bah
+			//statsfi[STAT_MOVEVARS_EDGEFRICTION]					= pm_edgefriction.value;
 			statsfi[STAT_MOVEVARS_EDGEFRICTION]					= sv_edgefriction.value;
 			statsfi[STAT_MOVEVARS_MAXAIRSPEED]					= 30;	//max speed before airaccel cuts out. this is hardcoded in qw pmove
 			statsfi[STAT_MOVEVARS_STEPHEIGHT]					= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
@@ -2768,7 +2567,12 @@ qboolean SV_SendClientDatagram (client_t *client)
 	}
 
 	if (client->netchan.fragmentsize)
-		clientlimit = client->netchan.fragmentsize;	//try not to overflow
+	{
+		if (client->netchan.remote_address.type == NA_LOOPBACK)
+			clientlimit = countof(buf);	//biiiig...
+		else
+			clientlimit = client->netchan.fragmentsize;	//try not to overflow
+	}
 	else if (client->protocol == SCP_NETQUAKE)
 		clientlimit = MAX_NQDATAGRAM;				//vanilla client is limited.
 	else
@@ -2776,6 +2580,8 @@ qboolean SV_SendClientDatagram (client_t *client)
 	if (clientlimit > countof(buf))
 		clientlimit = countof(buf);
 	msg.maxsize = clientlimit - client->datagram.cursize;
+	if (msg.maxsize <= 0)
+		msg.maxsize = clientlimit;	//its going to overflow. favour ents over unreliables. its a little less fatal
 
 	if (sv.world.worldmodel && !client->controller)
 	{
@@ -2831,7 +2637,9 @@ qboolean SV_SendClientDatagram (client_t *client)
 		SZ_Clear (&msg);
 	}
 
+#ifdef NQPROT
 	SV_DarkPlacesDownloadChunk(client, &msg);
+#endif
 
 	// send the datagram
 	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
@@ -3052,7 +2860,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 		if (info == &svs.info)
 			pl = 255;	//colourmaps being 1-based with these being 0-based means that only 0-254 are valid players, and 255 is unused, so lets use it for serverinfo blobs.
 		else
-			pl = (client_t*)info-svs.clients;
+			pl = (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients;
 
 		ClientReliableWrite_Begin(client, svc_setinfo, 7+strlen(enckey)+1+strlen(encval)+1);
 		ClientReliableWrite_Byte(client, 255); //special meaning to say that this is a partial update
@@ -3339,14 +3147,14 @@ static void SV_SendUserinfoChange(client_t *to, client_t *about, qboolean isbasi
 	{
 		if (isbasic || (to->fteprotocolextensions & PEXT_BIGUSERINFOS))
 		{
-			if (ISQWCLIENT(to) && !strcmp(key, "*bothcolours")) 
+			if (ISQWCLIENT(to) && !strcmp(key, "*bothcolours"))
 			{
 				newval = InfoBuf_ValueForKey(&about->userinfo, "topcolor");
 				ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
 				ClientReliableWrite_Byte(to, playernum);
 				ClientReliableWrite_String(to, "topcolor");
 				ClientReliableWrite_String(to, InfoBuf_ValueForKey(&about->userinfo, "topcolor"));
-				
+
 				newval = InfoBuf_ValueForKey(&about->userinfo, "bottomcolor");
 				ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
 				ClientReliableWrite_Byte(to, playernum);
@@ -3693,7 +3501,9 @@ void SV_SendClientMessages (void)
 			SV_SendClientDatagram (c);
 		else
 		{
+#ifdef NQPROT
 			SV_DarkPlacesDownloadChunk(c, &c->datagram);
+#endif
 			fnum = c->netchan.outgoing_sequence;
 			sentbytes = Netchan_Transmit (&c->netchan, c->datagram.cursize, c->datagram.data, SV_RateForClient(c));	// just update reliable
 			if (ISQWCLIENT(c) || ISNQCLIENT(c))

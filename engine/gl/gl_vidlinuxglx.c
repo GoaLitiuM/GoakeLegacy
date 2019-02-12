@@ -84,6 +84,7 @@ static qboolean XVK_SetupSurface_XCB(void);
 
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
+#include <wchar.h>
 
 static Display *vid_dpy = NULL;
 static Cursor vid_nullcursor;	//'cursor' to use when none should be shown
@@ -210,15 +211,18 @@ static struct
 	XIC		(*pXCreateIC)(XIM im, ...);
 	void	(*pXSetICFocus)(XIC ic); 
 	void	(*pXUnsetICFocus)(XIC ic); 
-	char *  (*pXGetICValues)(XIC ic, ...); 
+	char *  (*pXGetICValues)(XIC ic, ...);
+	char *  (*pXSetICValues)(XIC ic, ...);
 	Bool	(*pXFilterEvent)(XEvent *event, Window w);
 	int		(*pXutf8LookupString)(XIC ic, XKeyPressedEvent *event, char *buffer_return, int bytes_buffer, KeySym *keysym_return, Status *status_return);
 	int		(*pXwcLookupString)(XIC ic, XKeyPressedEvent *event, wchar_t *buffer_return, int bytes_buffer, KeySym *keysym_return, Status *status_return);
 	void	(*pXDestroyIC)(XIC ic);
 	Status	(*pXCloseIM)(XIM im);
 	qboolean	dounicode;
+	int			ime_shown;
 	XIC			unicodecontext;
 	XIM			inputmethod;
+	XPoint		ime_pos;
 
 	struct
 	{
@@ -325,6 +329,7 @@ static qboolean x11_initlib(void)
 			x11.pXSetICFocus		= Sys_GetAddressForName(x11.lib, "XSetICFocus");
 			x11.pXUnsetICFocus		= Sys_GetAddressForName(x11.lib, "XUnsetICFocus");
 			x11.pXGetICValues		= Sys_GetAddressForName(x11.lib, "XGetICValues");
+			x11.pXSetICValues		= Sys_GetAddressForName(x11.lib, "XSetICValues");
 			x11.pXFilterEvent		= Sys_GetAddressForName(x11.lib, "XFilterEvent");
 			x11.pXutf8LookupString	= Sys_GetAddressForName(x11.lib, "Xutf8LookupString");
 			x11.pXwcLookupString	= Sys_GetAddressForName(x11.lib, "XwcLookupString");
@@ -1304,7 +1309,10 @@ static struct
 
 	const char * (*QueryExtensionsString)(Display * dpy,  int screen);
 	void *(*GetProcAddress) (char *name);
-	void (*SwapInterval) (Display *dpy, GLXDrawable drawable, int interval);
+	void (*SwapIntervalSGI) (int interval);				//FFS!
+	void (*SwapIntervalMESA) (unsigned int interval);	//FFS!
+	void (*SwapIntervalEXT) (Display *dpy, GLXDrawable drawable, int interval);
+	qboolean swaptear;
 
 	GLXFBConfig *(*ChooseFBConfig)(Display *dpy, int screen, const int *attrib_list, int *nelements);
 	int (*GetFBConfigAttrib)(Display *dpy, GLXFBConfig config, int attribute, int * value);
@@ -1322,9 +1330,343 @@ static void GLX_CloseLibrary(void)
 }
 */
 
+#if 0//def _DEBUG
+//this is a list of the functions that exist in opengles2, as well as wglCreateContextAttribsARB.
+//functions not in this list *should* be stubs that just return errors, but we can't always depend on drivers for that... they shouldn't get called.
+//this list is just to make it easier to test+debug android gles2 stuff using windows.
+static char *gles2funcs[] =
+{
+#define f(n) #n,
+		f(glActiveTexture)
+		f(glAttachShader)
+		f(glBindAttribLocation)
+		f(glBindBuffer)
+		f(glBindFramebuffer)
+		f(glBindRenderbuffer)
+		f(glBindTexture)
+		f(glBlendColor)
+		f(glBlendEquation)
+		f(glBlendEquationSeparate)
+		f(glBlendFunc)
+		f(glBlendFuncSeparate)
+		f(glBufferData)
+		f(glBufferSubData)
+		f(glCheckFramebufferStatus)
+		f(glClear)
+		f(glClearColor)
+		f(glClearDepthf)
+		f(glClearStencil)
+		f(glColorMask)
+		f(glCompileShader)
+		f(glCompressedTexImage2D)
+		f(glCompressedTexSubImage2D)
+		f(glCopyTexImage2D)
+		f(glCopyTexSubImage2D)
+		f(glCreateProgram)
+		f(glCreateShader)
+		f(glCullFace)
+		f(glDeleteBuffers)
+		f(glDeleteFramebuffers)
+		f(glDeleteProgram)
+		f(glDeleteRenderbuffers)
+		f(glDeleteShader)
+		f(glDeleteTextures)
+		f(glDepthFunc)
+		f(glDepthMask)
+		f(glDepthRangef)
+		f(glDetachShader)
+		f(glDisable)
+		f(glDisableVertexAttribArray)
+		f(glDrawArrays)
+		f(glDrawElements)
+		f(glEnable)
+		f(glEnableVertexAttribArray)
+		f(glFinish)
+		f(glFlush)
+		f(glFramebufferRenderbuffer)
+		f(glFramebufferTexture2D)
+		f(glFrontFace)
+		f(glGenBuffers)
+		f(glGenerateMipmap)
+		f(glGenFramebuffers)
+ 		f(glGenRenderbuffers)
+		f(glGenTextures)
+		f(glGetActiveAttrib)
+		f(glGetActiveUniform)
+		f(glGetAttachedShaders)
+		f(glGetAttribLocation)
+		f(glGetBooleanv)
+		f(glGetBufferParameteriv)
+		f(glGetError)
+		f(glGetFloatv)
+		f(glGetFramebufferAttachmentParameteriv)
+		f(glGetIntegerv)
+		f(glGetProgramiv)
+		f(glGetProgramInfoLog)
+		f(glGetRenderbufferParameteriv)
+		f(glGetShaderiv)
+		f(glGetShaderInfoLog)
+		f(glGetShaderPrecisionFormat)
+		f(glGetShaderSource)
+		f(glGetString)
+		f(glGetTexParameterfv)
+		f(glGetTexParameteriv)
+		f(glGetUniformfv)
+		f(glGetUniformiv)
+		f(glGetUniformLocation)
+		f(glGetVertexAttribfv)
+		f(glGetVertexAttribiv)
+		f(glGetVertexAttribPointerv)
+		f(glHint)
+		f(glIsBuffer)
+		f(glIsEnabled)
+		f(glIsFramebuffer)
+		f(glIsProgram)
+		f(glIsRenderbuffer)
+		f(glIsShader)
+		f(glIsTexture)
+		f(glLineWidth)
+		f(glLinkProgram)
+		f(glPixelStorei)
+		f(glPolygonOffset)
+		f(glReadPixels)
+		f(glReleaseShaderCompiler)
+		f(glRenderbufferStorage)
+		f(glSampleCoverage)
+		f(glScissor)
+		f(glShaderBinary)
+		f(glShaderSource)
+		f(glStencilFunc)
+		f(glStencilFuncSeparate)
+		f(glStencilMask)
+		f(glStencilMaskSeparate)
+		f(glStencilOp)
+		f(glStencilOpSeparate)
+		f(glTexImage2D)
+		f(glTexParameterf)
+		f(glTexParameterfv)
+		f(glTexParameteri)
+		f(glTexParameteriv)
+		f(glTexSubImage2D)
+		f(glUniform1f)
+		f(glUniform1fv)
+		f(glUniform1i)
+		f(glUniform1iv)
+		f(glUniform2f)
+		f(glUniform2fv)
+		f(glUniform2i)
+		f(glUniform2iv)
+		f(glUniform3f)
+		f(glUniform3fv)
+		f(glUniform3i)
+		f(glUniform3iv)
+		f(glUniform4f)
+		f(glUniform4fv)
+		f(glUniform4i)
+		f(glUniform4iv)
+		f(glUniformMatrix2fv)
+		f(glUniformMatrix3fv)
+		f(glUniformMatrix4fv)
+		f(glUseProgram)
+		f(glValidateProgram)
+		f(glVertexAttrib1f)
+		f(glVertexAttrib1fv)
+		f(glVertexAttrib2f)
+		f(glVertexAttrib2fv)
+		f(glVertexAttrib3f)
+		f(glVertexAttrib3fv)
+		f(glVertexAttrib4f)
+		f(glVertexAttrib4fv)
+		f(glVertexAttribPointer)
+		f(glViewport)
+		f(wglCreateContextAttribsARB)
+		NULL
+};
+
+//this is a list of the functions that exist in opengles2, as well as wglCreateContextAttribsARB.
+//functions not in this list *should* be stubs that just return errors, but we can't always depend on drivers for that... they shouldn't get called.
+//this list is just to make it easier to test+debug android gles2 stuff using windows.
+static char *gles1funcs[] =
+{
+#define f(n) #n,
+
+		/* Available only in Common profile */
+		f(glAlphaFunc)
+		f(glClearColor)
+		f(glClearDepthf)
+		f(glClipPlanef)
+		f(glColor4f)
+		f(glDepthRangef)
+		f(glFogf)
+		f(glFogfv)
+		f(glFrustumf)
+		f(glGetClipPlanef)
+		f(glGetFloatv)
+		f(glGetLightfv)
+		f(glGetMaterialfv)
+		f(glGetTexEnvfv)
+		f(glGetTexParameterfv)
+		f(glLightModelf)
+		f(glLightModelfv)
+		f(glLightf)
+		f(glLightfv)
+		f(glLineWidth)
+		f(glLoadMatrixf)
+		f(glMaterialf)
+		f(glMaterialfv)
+		f(glMultMatrixf)
+		f(glMultiTexCoord4f)
+		f(glNormal3f)
+		f(glOrthof)
+		f(glPointParameterf)
+		f(glPointParameterfv)
+		f(glPointSize)
+		f(glPolygonOffset)
+		f(glRotatef)
+		f(glScalef)
+		f(glTexEnvf)
+		f(glTexEnvfv)
+		f(glTexParameterf)
+		f(glTexParameterfv)
+		f(glTranslatef)
+
+		/* Available in both Common and Common-Lite profiles */
+		f(glActiveTexture)
+		f(glAlphaFuncx)
+		f(glBindBuffer)
+		f(glBindTexture)
+		f(glBlendFunc)
+		f(glBufferData)
+		f(glBufferSubData)
+		f(glClear)
+		f(glClearColorx)
+		f(glClearDepthx)
+		f(glClearStencil)
+		f(glClientActiveTexture)
+		f(glClipPlanex)
+		f(glColor4ub)
+		f(glColor4x)
+		f(glColorMask)
+		f(glColorPointer)
+		f(glCompressedTexImage2D)
+		f(glCompressedTexSubImage2D)
+		f(glCopyTexImage2D)
+		f(glCopyTexSubImage2D)
+		f(glCullFace)
+		f(glDeleteBuffers)
+		f(glDeleteTextures)
+		f(glDepthFunc)
+		f(glDepthMask)
+		f(glDepthRangex)
+		f(glDisable)
+		f(glDisableClientState)
+		f(glDrawArrays)
+		f(glDrawElements)
+		f(glEnable)
+		f(glEnableClientState)
+		f(glFinish)
+		f(glFlush)
+		f(glFogx)
+		f(glFogxv)
+		f(glFrontFace)
+		f(glFrustumx)
+		f(glGetBooleanv)
+		f(glGetBufferParameteriv)
+		f(glGetClipPlanex)
+		f(glGenBuffers)
+		f(glGenTextures)
+		f(glGetError)
+		f(glGetFixedv)
+		f(glGetIntegerv)
+		f(glGetLightxv)
+		f(glGetMaterialxv)
+		f(glGetPointerv)
+		f(glGetString)
+		f(glGetTexEnviv)
+		f(glGetTexEnvxv)
+		f(glGetTexParameteriv)
+		f(glGetTexParameterxv)
+		f(glHint)
+		f(glIsBuffer)
+		f(glIsEnabled)
+		f(glIsTexture)
+		f(glLightModelx)
+		f(glLightModelxv)
+		f(glLightx)
+		f(glLightxv)
+		f(glLineWidthx)
+		f(glLoadIdentity)
+		f(glLoadMatrixx)
+		f(glLogicOp)
+		f(glMaterialx)
+		f(glMaterialxv)
+		f(glMatrixMode)
+		f(glMultMatrixx)
+		f(glMultiTexCoord4x)
+		f(glNormal3x)
+		f(glNormalPointer)
+		f(glOrthox)
+		f(glPixelStorei)
+		f(glPointParameterx)
+		f(glPointParameterxv)
+		f(glPointSizex)
+		f(glPolygonOffsetx)
+		f(glPopMatrix)
+		f(glPushMatrix)
+		f(glReadPixels)
+		f(glRotatex)
+		f(glSampleCoverage)
+		f(glSampleCoveragex)
+		f(glScalex)
+		f(glScissor)
+		f(glShadeModel)
+		f(glStencilFunc)
+		f(glStencilMask)
+		f(glStencilOp)
+		f(glTexCoordPointer)
+		f(glTexEnvi)
+		f(glTexEnvx)
+		f(glTexEnviv)
+		f(glTexEnvxv)
+		f(glTexImage2D)
+		f(glTexParameteri)
+		f(glTexParameterx)
+		f(glTexParameteriv)
+		f(glTexParameterxv)
+		f(glTexSubImage2D)
+		f(glTranslatex)
+		f(glVertexPointer)
+		f(glViewport)
+
+		/*required to switch stuff around*/
+		f(wglCreateContextAttribsARB)
+		f(glXGetProcAddress)
+		f(glXQueryExtensionsString)
+		f(glXChooseFBConfig)
+		f(glXGetFBConfigAttrib)
+		f(glXGetVisualFromFBConfig)
+		f(glXCreateContextAttribsARB)
+		NULL
+};
+#endif
+
 static void *GLX_GetSymbol(char *name)
 {
 	void *symb;
+
+#if 0//def _DEBUG
+	if (1)
+	{
+		int i;
+		for (i = 0; gles1funcs[i]; i++)
+		{
+			if (!strcmp(name, gles1funcs[i]))
+				break;
+		}
+		if (!gles1funcs[i])
+			return NULL;	//not in the list
+	}
+#endif
 
 	if (glx.GetProcAddress)
 		symb = glx.GetProcAddress(name);
@@ -1334,6 +1676,29 @@ static void *GLX_GetSymbol(char *name)
 	if (!symb)
 		symb = Sys_GetAddressForName(glx.gllibrary, name);
 	return symb;
+}
+
+static qboolean GLX_CheckExtension(const char *ext)
+{
+	const char *e = glx.glxextensions, *n;
+	size_t el = strlen(ext);
+	while(e && *e)
+	{
+		while (*e == ' ')
+			e++;
+		n = strchr(e, ' ');
+		if (!n)
+			n = n+strlen(e);
+
+		if (n-e == el && !strncmp(ext, e, el))
+		{
+			Con_DPrintf("GLX: Found %s\n", ext);
+			return true;
+		}
+		e = n;
+	}
+	Con_DPrintf("GLX: Missing %s\n", ext);
+	return false;
 }
 
 static qboolean GLX_InitLibrary(char *driver)
@@ -1364,17 +1729,15 @@ static qboolean GLX_InitLibrary(char *driver)
 	if (!glx.gllibrary)
 		return false;
 
+	glx.QueryExtensionsString = GLX_GetSymbol("glXQueryExtensionsString");
 	glx.GetProcAddress = GLX_GetSymbol("glXGetProcAddress");
 	if (!glx.GetProcAddress)
 		glx.GetProcAddress = GLX_GetSymbol("glXGetProcAddressARB");
-	glx.QueryExtensionsString = GLX_GetSymbol("glXQueryExtensionsString");
 
 	glx.ChooseFBConfig = GLX_GetSymbol("glXChooseFBConfig");
 	glx.GetFBConfigAttrib = GLX_GetSymbol("glXGetFBConfigAttrib");
 	glx.GetVisualFromFBConfig = GLX_GetSymbol("glXGetVisualFromFBConfig");
 	glx.CreateContextAttribs = GLX_GetSymbol("glXCreateContextAttribsARB");
-	glx.SwapInterval = GLX_GetSymbol("glXSwapIntervalEXT");
-
 	return true;
 }
 
@@ -1385,29 +1748,6 @@ static qboolean GLX_InitLibrary(char *driver)
 #define GLX_CONTEXT_OPENGL_NO_ERROR_ARB	0x31B3
 #endif
 
-static qboolean GLX_CheckExtension(const char *ext)
-{
-	const char *e = glx.glxextensions, *n;
-	size_t el = strlen(ext);
-	while(e && *e)
-	{
-		while (*e == ' ')
-			e++;
-		n = strchr(e, ' ');
-		if (!n)
-			n = n+strlen(e);
-
-		if (n-e == el && !strncmp(ext, e, el))
-		{
-			Con_DPrintf("GLX: Found %s\n", ext);
-			return true;
-		}
-		e = n;
-	}
-	Con_DPrintf("GLX: Missing %s\n", ext);
-	return false;
-}
-
 //Since GLX1.3 (equivelent to gl1.2)
 static GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 {
@@ -1417,9 +1757,6 @@ static GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 	GLXFBConfig *fbconfigs;
 
 	qboolean hassrgb, hasmultisample;//, hasfloats;
-
-	if (glx.QueryExtensionsString)
-		glx.glxextensions = glx.QueryExtensionsString(vid_dpy, scrnum);
 
 	if (!glx.ChooseFBConfig || !glx.GetVisualFromFBConfig)
 	{
@@ -1493,7 +1830,7 @@ static GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 			if (!info->multisample || !hasmultisample)
 				continue;
 			attrib[n++] = GLX_SAMPLE_BUFFERS_ARB;	attrib[n++] = True;
-			attrib[n++] = GLX_SAMPLES_ARB,			attrib[n++] = info->multisample;
+			attrib[n++] = GLX_SAMPLES_ARB;			attrib[n++] = info->multisample;
 		}
 
 		//attrib[n++] = GLX_ACCUM_RED_SIZE;	attrib[n++] = 0;
@@ -1687,6 +2024,171 @@ static void X_ShutdownUnicode(void)
 	x11.inputmethod = NULL;
 	x11.dounicode = false;
 }
+static int XIMPreEditStartCallback(XIC ic, XPointer client_data, XPointer call_data)
+{
+	Z_Free(vid.ime_preview);	//just in case
+	vid.ime_preview = NULL;
+	vid.ime_previewlen = 0;
+//	Con_Printf("XIMPreEditStartCallback\n");
+	return -1;	//length of string we can handle (negative for unlimited)
+}
+static void XIMPreEditDoneCallback(XIC ic, XPointer client_data, XPointer call_data)
+{
+//	Con_Printf("XIMPreEditDoneCallback\n");
+
+	Z_Free(vid.ime_preview);
+	vid.ime_preview = NULL;
+	vid.ime_previewlen = 0;
+}
+static void XIMPreEditDrawCallback(XIM ic, XPointer client_data, XIMPreeditDrawCallbackStruct *d)
+{
+	//if chg_length, wipe chg_length chars @chg_first.
+	//if text, insert at chg_first (with per-char feedback properties)
+	//if feedback (without text) then change text char flags
+	//caret should then be moved accordingly.
+//	Con_Printf("XIMPreEditDrawCallback %i %i %i %i %s\n", d->caret, d->chg_first, d->chg_length, d->text?d->text->encoding_is_wchar:0, d->text?d->text->string.multi_byte:"???");
+	conchar_t *part[3];
+	size_t clen[3], c;
+	conchar_t *n;
+	unsigned int wc;
+	unsigned int defaultfl = CON_WHITEMASK, fl;
+
+	if (d->chg_length || (d->text && d->text->length))
+	{
+		//so inputs are in terms of chars.
+		//our conchar_t struct is variable-sized (*sigh*), so we always use our longchar encoding.
+		//so we end up with two conchars per wchar.
+		part[0] = vid.ime_preview;
+		clen[0] = bound(0, d->chg_first, vid.ime_previewlen/2)*2;
+		part[1] = NULL;
+		clen[1] = 0;
+		part[2] = part[0]+clen[0] + bound(0, d->chg_length, vid.ime_previewlen/2)*2;
+		clen[2] = 0;
+		if (part[2])
+			while (part[2][clen[2]])
+				clen[2]+=1;
+		if (d->text && d->text->encoding_is_wchar && d->text->string.wide_char)
+		{
+			part[1] = alloca(d->text->length * 2*sizeof(wchar_t));
+			for (c = 0; c < d->text->length; c++)
+			{
+				wc = d->text->string.wide_char[c];
+				if (!wc)
+					break; //erk? nulls confuse things
+				part[1][c*2+0] = CON_LONGCHAR|(wc>>16);
+				part[1][c*2+1] = defaultfl|(wc&CON_CHARMASK);
+			}
+			clen[1] = c*2;
+		}
+		else if (d->text && !d->text->encoding_is_wchar && d->text->string.multi_byte)
+		{
+			const char *in = d->text->string.multi_byte;
+			int error;
+			part[1] = alloca(d->text->length * 2*sizeof(wchar_t));
+			//FIXME: d->text->length is meant to be chars, but fcitx always reports 1.
+			for (c = 0; c < d->text->length; c++)
+			{
+				//FIXME: This should use mbcstowcs, but that would require switching locales all the frikkin time, which isn't thread-safe.
+				wc = utf8_decode(&error, in, &in);
+				if (!wc)
+					break;	//abort if there's a null...
+				part[1][c*2+0] = CON_LONGCHAR|(wc>>16);
+				part[1][c*2+1] = defaultfl|(wc&CON_CHARMASK);
+			}
+			clen[1] = c*2;
+		}
+
+		n = Z_Malloc((clen[0]+clen[1]+clen[2]+1)*sizeof(*n));
+		memcpy(n,					part[0],	clen[0]*sizeof(*n));
+		memcpy(n+clen[0],			part[1],	clen[1]*sizeof(*n));
+		memcpy(n+clen[0]+clen[1],	part[2],	clen[2]*sizeof(*n));
+		n[clen[0]+clen[1]+clen[2]] = 0;
+		Z_Free(vid.ime_preview);
+		vid.ime_preview = n;
+		vid.ime_previewlen = clen[0]+clen[1]+clen[2];
+	}
+
+	if (d->text && d->text->feedback && d->chg_first >= 0 && d->chg_first+d->text->length <= vid.ime_previewlen/2)
+	{
+		for (c = 0; c < d->text->length; c++)
+		{
+			fl = defaultfl;
+			if (d->text->feedback[c] & XIMPrimary)
+				fl = COLOR_RED<<CON_FGSHIFT;
+			if (d->text->feedback[c] & XIMSecondary)
+				fl = COLOR_GREEN<<CON_FGSHIFT;
+			if (d->text->feedback[c] & XIMTertiary)
+				fl = COLOR_BLUE<<CON_FGSHIFT;
+			if (d->text->feedback[c] & XIMUnderline)
+				fl = COLOR_MAGENTA<<CON_FGSHIFT;
+			if (d->text->feedback[c] & XIMReverse)
+				fl = ((fl&CON_FGMASK) << (CON_BGSHIFT-CON_FGSHIFT)) | ((fl&CON_BGMASK) >> (CON_BGSHIFT-CON_FGSHIFT));
+			if (d->text->feedback[c] & XIMHighlight)
+				fl |= CON_2NDCHARSETTEXT;
+			vid.ime_preview[(d->chg_first+c)*2+1] = ((vid.ime_preview[(d->chg_first+c)*2+1])&~CON_FLAGSMASK)|fl;
+		}
+	}
+
+	vid.ime_caret = bound(0, d->caret, vid.ime_previewlen/2)*2;
+}
+static void XIMPreEditCaretCallback(XIC ic, XPointer client_data, XIMPreeditCaretCallbackStruct *d)
+{
+//	Con_Printf("XIMPreEditCaretCallback %i %i %i\n", d->direction, d->position, d->style);
+}
+static qboolean XIMSupportedStyle(XIMStyle preedit, XIMStyle status)
+{
+	if (!(	//preedit==XIMPreeditCallbacks||	//FIXME: this should actually work, but we still need an ime that actually supports it properly to be sure.
+			//preedit==XIMPreeditPosition||
+			//preedit==XIMPreeditArea||			//FIXME: assume the bottom half of the screen
+			preedit==XIMPreeditNothing||
+			preedit==XIMPreeditNone))
+		return false;
+	if (!(	//status==XIMStatusCallbacks||
+			//status==XIMStatusArea||
+			status==XIMStatusNothing||
+			status==XIMStatusNone))
+		return false;
+
+	return true;
+}
+static XIMStyle XIMPreferredStyle(XIMStyle old, XIMStyle new)
+{	//favour the more complicated (supported) preedit styles, *THEN* choose the preferred status style.
+	XIMStyle p1 = old&0x00ff;
+	XIMStyle p2 = new&0x00ff;
+	XIMStyle s1 = old&0xff00;
+	XIMStyle s2 = new&0xff00;
+	if (!XIMSupportedStyle(p2, s2))
+		return old;
+	if (!XIMSupportedStyle(p1, s1))
+		return new;
+	if (p1 != p2)
+	{	//choose based upon the preedit flags
+		if ((p1^p2)&XIMPreeditCallbacks)			//FIXME: support this one properly some time.
+			return (p1&XIMPreeditCallbacks)?old:new;
+		if ((p1^p2)&XIMPreeditPosition)
+			return (p1&XIMPreeditPosition)?old:new;
+		if ((p1^p2)&XIMPreeditArea)
+			return (p1&XIMPreeditArea)?old:s2;
+		if ((p1^p2)&XIMPreeditNothing)
+			return (p1&XIMPreeditNothing)?old:new;
+		if ((p1^p2)&XIMPreeditNone)
+			return (p1&XIMPreeditNone)?old:new;
+	}
+	else
+	{	//preedit flags are equal, now pick the better
+		if ((s1^s2)&XIMStatusCallbacks)
+			return (s1&XIMStatusCallbacks)?old:new;
+		if ((s1^s2)&XIMStatusArea)
+			return (s1&XIMStatusArea)?old:new;
+		if ((s1^s2)&XIMStatusNothing)
+			return (s1&XIMStatusNothing)?old:new;
+		if ((s1^s2)&XIMStatusNone)
+			return (s1&XIMStatusNone)?old:new;
+	}
+
+	//difference not known. stick with the first
+	return old;
+}
 #include <locale.h>
 static long X_InitUnicode(void)
 {
@@ -1694,12 +2196,13 @@ static long X_InitUnicode(void)
 	X_ShutdownUnicode();
 
 	//FIXME: enable by default if ubuntu's issue can ever be resolved.
-	if (X11_CheckFeature("xim", false))
+	if (X11_CheckFeature("xim", true))
 	{
-		if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXGetIMValues && x11.pXCreateIC && x11.pXSetICFocus && x11.pXUnsetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
+		if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXGetIMValues && x11.pXCreateIC && x11.pXSetICFocus && x11.pXUnsetICFocus && x11.pXGetICValues && x11.pXSetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
 		{
-			setlocale(LC_CTYPE, "");	//just in case.
+			setlocale(LC_ALL, "");	//just in case.
 			x11.pXSetLocaleModifiers("");
+
 			if (x11.pXSupportsLocale())
 			{
 				x11.inputmethod = x11.pXOpenIM(vid_dpy, NULL, XI_RESOURCENAME, XI_RESOURCECLASS);
@@ -1710,48 +2213,49 @@ static long X_InitUnicode(void)
 					int i;
 					x11.pXGetIMValues(x11.inputmethod, XNQueryInputStyle, &sup, NULL);
 					for (i = 0; sup && i < sup->count_styles; i++)
-					{	//each style will have one of each bis set.
-#define prestyles (XIMPreeditNothing|XIMPreeditNone)
-#define statusstyles (XIMStatusNothing|XIMStatusNone)
-#define supstyles (prestyles|statusstyles)
-						if ((sup->supported_styles[i] & supstyles) != sup->supported_styles[i])
-							continue;
-						if ((st & prestyles) != (sup->supported_styles[i] & prestyles))
-						{
-							if ((sup->supported_styles[i] & XIMPreeditNothing) && !(st & XIMPreeditNothing))
-								st = sup->supported_styles[i];
-							else if ((sup->supported_styles[i] & XIMPreeditNone) && !(st & (XIMPreeditNone|XIMPreeditNothing)))
-								st = sup->supported_styles[i];
-						}
-						else
-						{
-							if ((sup->supported_styles[i] & XIMStatusNothing) && !(st & XIMStatusNothing))
-								st = sup->supported_styles[i];
-							else if ((sup->supported_styles[i] & XIMStatusNone) && !(st & (XIMStatusNone|XIMStatusNothing)))
-								st = sup->supported_styles[i];
-						}
-					}
+						st = XIMPreferredStyle(st, sup->supported_styles[i]);
 					x11.pXFree(sup);
+					Con_DPrintf("Chosen XIM Input Style: %x\n", (unsigned)st);
+//					st=XIMPreeditCallbacks|XIMStatusArea;
+//					st=XIMPreeditCallbacks|XIMStatusNothing;
 					if (st != 0)
 					{
+						XIMCallback pe_cb_start={NULL,(XIMProc)XIMPreEditStartCallback};
+						XIMCallback pe_cb_done={NULL,(XIMProc)XIMPreEditDoneCallback};
+						XIMCallback pe_cb_draw={NULL,(XIMProc)XIMPreEditDrawCallback};
+						XIMCallback pe_cb_caret={NULL,(XIMProc)XIMPreEditCaretCallback};
+						void *preedit[] = {
+								//should probably add in fonts, but that's kinda messy if we don't know the language/charset very well
+								XNPreeditStartCallback,	&pe_cb_start,
+								XNPreeditDoneCallback,	&pe_cb_done,
+								XNPreeditDrawCallback,	&pe_cb_draw,
+								XNPreeditCaretCallback,	&pe_cb_caret,
+								XNSpotLocation,			&x11.ime_pos,
+								NULL};
+						void *status[] = {
+								NULL};
+
 						x11.unicodecontext = x11.pXCreateIC(x11.inputmethod,
 							XNInputStyle, st,
 							XNClientWindow, vid_window,
-							XNFocusWindow, vid_window,
+//							XNFocusWindow, vid_window,
 							XNResourceName, XI_RESOURCENAME,
 							XNResourceClass, XI_RESOURCECLASS,
+							XNPreeditAttributes, preedit,
+							XNStatusAttributes, status,
 							NULL);
 						if (x11.unicodecontext)
 						{
-//							x11.pXSetICFocus(x11.unicodecontext);
+							x11.ime_shown = -1;
 							x11.dounicode = true;
 
 							x11.pXGetICValues(x11.unicodecontext, XNFilterEvents, &requiredevents, NULL);
+							requiredevents |= KeyPressMask;
 						}
 					}
 				}
 			}
-			setlocale(LC_CTYPE, "C");
+			setlocale(LC_ALL, "C");
 		}
 	}
 
@@ -1772,13 +2276,14 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 	keysym = x11.pXLookupKeysym(ev, 0);
 	if (pressed && !filtered)
 	{
-		if (x11.dounicode)
+		if (x11.dounicode && vid.ime_allow)
 		{
 			Status status = XLookupNone;
 			if (x11.pXutf8LookupString)
 			{
-				char buf1[4] = {0};
-				char *buf = buf1, *c;
+				char buf1[512] = {0};
+				char *buf = buf1;
+				const char *c;
 				int count = x11.pXutf8LookupString(x11.unicodecontext, (XKeyPressedEvent*)ev, buf1, sizeof(buf1), NULL, &status);
 				if (status == XBufferOverflow)
 				{
@@ -1796,7 +2301,7 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 			else
 			{
 				//is allowed some weird encodings...
-				wchar_t buf1[4] = {0};
+				wchar_t buf1[512] = {0};
 				wchar_t *buf = buf1;
 				int count = x11.pXwcLookupString(x11.unicodecontext, (XKeyPressedEvent*)ev, buf, sizeof(buf1), &shifted, &status);
 				if (status == XBufferOverflow)
@@ -2073,8 +2578,14 @@ static void GetEvent(void)
 	x11.pXNextEvent(vid_dpy, &event);
 
 	if (x11.dounicode)
-		if (x11.pXFilterEvent(&event, vid_window))
+	{
+		if (x11.pXFilterEvent(&event, None))//vid_window))
+		{
+			if (vid.ime_allow)
+				return;
 			filtered = true;
+		}
+	}
 
 	switch (event.type)
 	{
@@ -2324,8 +2835,8 @@ static void GetEvent(void)
 			modeswitchtime = Sys_Milliseconds() + 1500;	/*fairly slow, to make sure*/
 		}
 
-		if (event.xfocus.window == vid_window && x11.unicodecontext)
-			x11.pXSetICFocus(x11.unicodecontext);
+		if (event.xfocus.window == vid_window)
+			x11.ime_shown = -1;
 
 		//we we're focusing onto the game window and we're currently fullscreen, hide the other one so alt-tab won't select that instead of a real alternate app.
 //		if ((fullscreenflags & FULLSCREEN_ACTIVE) && (fullscreenflags & FULLSCREEN_LEGACY) && event.xfocus.window == vid_window)
@@ -2333,8 +2844,8 @@ static void GetEvent(void)
 		break;
 	case FocusOut:
 		//if we're already active, the decoy window shouldn't be focused anyway.
-		if (event.xfocus.window == vid_window && x11.unicodecontext)
-			x11.pXSetICFocus(x11.unicodecontext);
+		if (event.xfocus.window == vid_window)
+			x11.ime_shown = -1;
 
 		if ((fullscreenflags & FULLSCREEN_ACTIVE) && event.xfocus.window == vid_decoywindow)
 		{
@@ -2571,7 +3082,7 @@ static void GetEvent(void)
 			else if (event.xselectionrequest.property != None && event.xselectionrequest.target == xa_l1string)
 			{	//STRING == latin1. convert as needed.
 				char *latin1 = alloca(strlen(cliptext)+1);	//may shorten
-				char *in = cliptext;
+				const char *in = cliptext;
 				int c = 0;
 				int err;
 				while (*in && c < sizeof(latin1))
@@ -2919,14 +3430,28 @@ void GLVID_SwapBuffers (void)
 			int n = vid_vsync.ival;
 			if (cls.timedemo && cls.demoplayback)
 				n = 0;
+			if (!glx.swaptear)
+				n = abs(n);
 			if (glx.swapint != n)
 			{
 				glx.swapint = n;
-				if (glx.SwapInterval)
+				if (glx.SwapIntervalEXT)
 				{
-					glx.SwapInterval(vid_dpy, vid_window, glx.swapint);
-					Con_Printf("Swap interval %i\n", glx.swapint);
+					glx.SwapIntervalEXT(vid_dpy, vid_window, glx.swapint);
+					Con_DPrintf("Swap interval changed to %i\n", glx.swapint);
 				}
+				else if (glx.SwapIntervalMESA && glx.swapint>=0)
+				{
+					glx.SwapIntervalMESA(glx.swapint);
+					Con_DPrintf("Swap interval changed to %i\n", glx.swapint);
+				}
+				else if (glx.SwapIntervalSGI && glx.swapint>0)
+				{
+					glx.SwapIntervalSGI(glx.swapint);
+					Con_DPrintf("Swap interval changed to %i\n", glx.swapint);
+				}
+				else
+					Con_Printf("Unable to change swap interval to %i\n", glx.swapint);
 			}
 		}
 
@@ -2965,35 +3490,43 @@ static void X_StoreIcon(Window wnd)
 	if (!filedata)
 		filedata = FS_LoadMallocFile("icon.jpg", &filesize);
 #endif
+#ifdef IMAGEFMT_BMP
 	if (!filedata)
 		filedata = FS_LoadMallocFile("icon.ico", &filesize);
+#endif
 	if (filedata)
 	{
 		int imagewidth, imageheight;
-		int *iconblob;
+		unsigned long *iconblob;	//yes, long, even on 64bit machines. and even when we claim it to be 32bit. xlib legacy cruft that'll get stripped...
 		uploadfmt_t format;
 		qbyte *imagedata = ReadRawImageFile(filedata, filesize, &imagewidth, &imageheight, &format, true, "icon.png");
 		Z_Free(filedata);
 
-		iconblob = BZ_Malloc(sizeof(int)*(2+imagewidth*imageheight));
-		iconblob[0] = imagewidth;
-		iconblob[1] = imageheight;
-		//needs to be 0xARGB, rather than RGBA bytes
-		for (i = 0; i < imagewidth*imageheight; i++)
-			iconblob[i+2] = (imagedata[i*4+3]<<24) | (imagedata[i*4+0]<<16) | (imagedata[i*4+1]<<8) | (imagedata[i*4+2]<<0);
-		Z_Free(imagedata);
+		if (imagedata)
+		{
+			iconblob = BZ_Malloc(sizeof(*iconblob)*(2+imagewidth*imageheight));
+			iconblob[0] = imagewidth;
+			iconblob[1] = imageheight;
+			//needs to be 0xARGB, rather than RGBA bytes
+			for (i = 0; i < imagewidth*imageheight; i++)
+				iconblob[i+2] = (imagedata[i*4+3]<<24) | (imagedata[i*4+0]<<16) | (imagedata[i*4+1]<<8) | (imagedata[i*4+2]<<0);
+			Z_Free(imagedata);
 
-		x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)iconblob, 2+imagewidth*imageheight);
-		BZ_Free(iconblob);
+			x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)iconblob, 2+imagewidth*imageheight);
+			BZ_Free(iconblob);
+			return;
+		}
 	}
-	else
+
 	{
 		//fall back to the embedded icon.
 		unsigned long data[64*64+2];
 		data[0] = icon.width;
 		data[1] = icon.height;
+
+		/* GIMP exports dumps as RGBA only, so we have to convert them too - eukara */
 		for (i = 0; i < data[0]*data[1]; i++)
-			data[i+2] = ((unsigned int*)icon.pixel_data)[i];
+			data[i+2] = (icon.pixel_data[i*4+3]<<24) | (icon.pixel_data[i*4+0]<<16) | (icon.pixel_data[i*4+1]<<8) | (icon.pixel_data[i*4+2]<<0);
 
 		x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)data, data[0]*data[1]+2);
 	}
@@ -3323,6 +3856,8 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		break;
 #endif
 	case PSL_GLX:
+		if (glx.QueryExtensionsString)
+			glx.glxextensions = glx.QueryExtensionsString(vid_dpy, scrnum);
 		fbconfig = GLX_GetFBConfig(info);
 		if (fbconfig)
 			visinfo = glx.GetVisualFromFBConfig(vid_dpy, fbconfig);
@@ -3417,9 +3952,38 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		if (visinfo != &vinfodef)
 #endif
 			x11.pXFree(visinfo);
+
+		glx.SwapIntervalEXT = GLX_CheckExtension("GLX_EXT_swap_control")?GLX_GetSymbol("glXSwapIntervalEXT"):NULL;
+		glx.swaptear = glx.SwapIntervalEXT&&GLX_CheckExtension("GLX_EXT_swap_control_tear");
+//		if (glx.swaptear)
+//			glx.QueryDrawable(vid_dpy, vid_window, 0x20F3, &glx.swaptear);
+		if (!glx.SwapIntervalEXT)
+			glx.SwapIntervalMESA = GLX_CheckExtension("GLX_MESA_swap_control")?GLX_GetSymbol("glXSwapIntervalMESA"):NULL;
+		if (!glx.SwapIntervalEXT && !glx.SwapIntervalMESA)
+			glx.SwapIntervalSGI = GLX_CheckExtension("GLX_SGI_swap_control")?GLX_GetSymbol("glXSwapIntervalSGI"):NULL;
 		glx.swapint = vid_vsync.ival;
-		if (glx.SwapInterval)
-			glx.SwapInterval(vid_dpy, vid_window, glx.swapint);
+		if (!glx.swaptear)
+			glx.swapint	= abs(glx.swapint);
+		if (*vid_vsync.string)
+		{
+			if (glx.SwapIntervalEXT /*&& (glx.swapint>=0 || swap_tear)*/)
+			{
+				glx.SwapIntervalEXT(vid_dpy, vid_window, glx.swapint);
+				Con_DPrintf("Swap interval %i\n", glx.swapint);
+			}
+			else if (glx.SwapIntervalMESA && glx.swapint>=0)
+			{
+				glx.SwapIntervalMESA(abs(glx.swapint));
+				Con_DPrintf("Swap interval %i\n", glx.swapint);
+			}
+			else if (glx.SwapIntervalSGI && glx.swapint>0)
+			{
+				glx.SwapIntervalSGI(glx.swapint);
+				Con_DPrintf("Swap interval %i\n", glx.swapint);
+			}
+			else
+				Con_Printf("Unable to explicitly %s vsync\n", glx.swapint?"configure":"disable");
+		}
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
@@ -3450,7 +4014,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 				break;
 		}
 #endif
-		Con_Printf("Failed to create a vulkan context.\n");
+		Con_Printf(CON_ERROR "Failed to create a vulkan context.\n");
 		GLVID_Shutdown();
 		return false;
 #endif
@@ -3773,7 +4337,7 @@ static qboolean X11_Clipboard_Notify(XSelectionEvent *xselection)
 }
 */
 
-void Sys_SaveClipboard(clipboardtype_t clipboardtype, char *text)
+void Sys_SaveClipboard(clipboardtype_t clipboardtype, const char *text)
 {
 	free(clipboard_buffer[clipboardtype]);
 	clipboard_buffer[clipboardtype] = strdup(text);
@@ -3840,6 +4404,28 @@ void Sys_SendKeyEvents(void)
 	}
 	if (vid_dpy && vid_window)
 	{
+		if (x11.unicodecontext)
+		{
+			qboolean want = vid.ime_allow && vid.activeapp;
+			XPoint pos;
+			if (want != x11.ime_shown)
+			{
+				x11.ime_shown = want;
+				if (x11.ime_shown)
+					x11.pXSetICFocus(x11.unicodecontext);
+				else
+					x11.pXUnsetICFocus(x11.unicodecontext);
+			}
+			pos.x = (vid.ime_position[0] * vid.pixelwidth)/vid.width;
+			pos.y = (vid.ime_position[1] * vid.pixelheight)/vid.height;
+			if (/*x11.ime_shown &&*/ (x11.ime_pos.x != pos.x || x11.ime_pos.y != pos.y))
+			{
+				void *attr[] = {XNSpotLocation, &x11.ime_pos, NULL};
+				x11.ime_pos = pos;
+				x11.pXSetICValues(x11.unicodecontext, XNPreeditAttributes, attr, NULL);
+			}
+		}
+
 		while (x11.pXPending(vid_dpy))
 			GetEvent();
 

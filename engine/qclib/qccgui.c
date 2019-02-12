@@ -354,8 +354,8 @@ static pbool QCC_RegSetValue(HKEY base, char *keyname, char *valuename, int type
 #undef Sys_Error
 void Sys_Error(const char *text, ...);
 
-pbool qcc_vfiles_changed;
-static vfile_t *qcc_vfiles;
+extern pbool qcc_vfiles_changed;
+extern vfile_t *qcc_vfiles;
 HWND mainwindow;
 HINSTANCE ghInstance;
 static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) ;
@@ -449,96 +449,6 @@ void QCC_SaveVFiles(void)
 			return;
 		}
 	}
-}
-void QCC_CloseAllVFiles(void)
-{
-	vfile_t *f;
-
-	while(qcc_vfiles)
-	{
-		f = qcc_vfiles;
-		qcc_vfiles = f->next;
-
-		free(f->file);
-		free(f);
-	}
-	qcc_vfiles_changed = false;
-}
-vfile_t *QCC_FindVFile(const char *name)
-{
-	vfile_t *f;
-	for (f = qcc_vfiles; f; f = f->next)
-	{
-		if (!strcmp(f->filename, name))
-			return f;
-	}
-	//give it another go, for case
-	for (f = qcc_vfiles; f; f = f->next)
-	{
-		if (!QC_strcasecmp(f->filename, name))
-			return f;
-	}
-	return NULL;
-}
-vfile_t *QCC_AddVFile(const char *name, void *data, size_t size)
-{
-	vfile_t *f = QCC_FindVFile(name);
-	if (!f)
-	{
-		f = malloc(sizeof(vfile_t) + strlen(name));
-		f->next = qcc_vfiles;
-		strcpy(f->filename, name);
-		qcc_vfiles = f;
-	}
-	else
-		free(f->file);
-	f->file = malloc(size);
-	f->type = FT_CODE;
-	memcpy(f->file, data, size);
-	f->size = f->bufsize = size;
-
-	qcc_vfiles_changed = true;
-	return f;
-}
-void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
-{
-	va_list argptr;
-	char msg[8192];
-	size_t n;
-
-	va_start (argptr,fmt);
-	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
-	va_end (argptr);
-
-	n = strlen(msg);
-	if (f->size+n > f->bufsize)
-	{
-		size_t msize = f->bufsize + n + 8192;
-		f->file = realloc(f->file, msize);
-		f->bufsize = msize;
-	}
-	memcpy((char*)f->file+f->size, msg, n);
-	f->size += n;
-}
-void QCC_InsertVFile(vfile_t *f, size_t pos, const char *fmt, ...)
-{
-	va_list argptr;
-	char msg[8192];
-	size_t n;
-	va_start (argptr,fmt);
-	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
-	va_end (argptr);
-
-	n = strlen(msg);
-	if (f->size+n > f->bufsize)
-	{
-		size_t msize = f->bufsize + n + 8192;
-		f->file = realloc(f->file, msize);
-		f->bufsize = msize;
-	}
-	memmove((char*)f->file+pos+n, (char*)f->file+pos, f->size-pos);
-	f->size += n;
-	memcpy((char*)f->file+pos, msg, n);
 }
 
 void QCC_EnumerateFilesResult(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
@@ -1143,7 +1053,7 @@ enum
 
 
 
-void GUI_DialogPrint(char *title, char *text)
+void GUI_DialogPrint(const char *title, const char *text)
 {
 	MessageBox(mainwindow, text, title, 0);
 }
@@ -1410,17 +1320,37 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_STYLESETFORE, STYLE_BRACEBAD,					RGB(0x3F, 0x00, 0x00));
 		SendMessage(newc, SCI_STYLESETBACK, STYLE_BRACEBAD,					RGB(0xff, 0xaf, 0xaf));
 
+		//SCE_C_WORD
 		SendMessage(newc, SCI_SETKEYWORDS,	0,	(LPARAM)
 					"if else for do not while asm break case const continue "
-					"default entity enum enumflags extern "
-					"float goto int integer __variant __in __out __inout noref "
+					"default enum enumflags extern "
+					"float goto __in __out __inout noref "
 					"nosave shared state optional string "
 					"struct switch thinktime until loop "
-					"typedef union var vector void "
+					"typedef union var "
 					"accessor get set inline "
-					"virtual nonvirtual class static nonstatic local return"
+					"virtual nonvirtual class static nonstatic local return "
+					"string float vector void int integer __variant entity"
 					);
 
+		//SCE_C_WORD2
+		{
+			char buffer[65536];
+			GenBuiltinsList(buffer, sizeof(buffer));
+			SendMessage(newc, SCI_SETKEYWORDS,	1,	(LPARAM)buffer);
+		}
+		//SCE_C_COMMENTDOCKEYWORDERROR
+		//SCE_C_GLOBALCLASS
+		SendMessage(newc, SCI_SETKEYWORDS,	3,	(LPARAM)
+					""
+					);
+		//preprocessor listing
+		{
+			char *deflist = QCC_PR_GetDefinesList();
+			SendMessage(newc, SCI_SETKEYWORDS,	4,	(LPARAM)deflist);
+			free(deflist);
+		}
+		//task markers (in comments only)
 		SendMessage(newc, SCI_SETKEYWORDS,	5,	(LPARAM)
 					"TODO FIXME BUG"
 					);
@@ -3012,7 +2942,7 @@ static void EditorReload(editor_t *editor)
 	size_t flensz;
 	char *rawfile;
 	char *file;
-	unsigned int flen;
+	size_t flen;
 	pbool dofree;
 	rawfile = QCC_ReadFile(editor->filename, NULL, NULL, &flensz);
 	flen = flensz;
@@ -3505,6 +3435,12 @@ void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t
 				char *deflist = QCC_PR_GetDefinesList();
 				SendMessage(e->editpane, SCI_SETKEYWORDS,	4,	(LPARAM)deflist);
 				free(deflist);
+
+				{	//and just in case some system defs changed.
+					char buffer[65536];
+					GenBuiltinsList(buffer, sizeof(buffer));
+					SendMessage(e->editpane, SCI_SETKEYWORDS,	1,	(LPARAM)buffer);
+				}
 
 				blen = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0);
 				buffer = buf_get(buf_ctx, blen+1);
@@ -4607,6 +4543,7 @@ void GUI_CreateInstaller_Android(void)
 	free(mandata);
 }
 
+#ifdef AVAIL_PNGLIB
 //size info that microsoft recommends
 static const struct
 {
@@ -4626,6 +4563,8 @@ static const struct
 //	{32, 32, 1},
 	{256, 256, 32}	//vista!
 };
+#endif
+
 //dates back to 16bit windows. bah.
 #pragma pack(push)
 #pragma pack(2)
@@ -6800,7 +6739,7 @@ void compilecb(void)
 void Sys_Error(const char *text, ...);
 void RunCompiler(char *args, pbool quick)
 {
-	char *argv[128];
+	const char *argv[128];
 	int argc;
 	progexterns_t ext;
 	progfuncs_t funcs;

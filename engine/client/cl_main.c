@@ -46,7 +46,7 @@ int startuppending;
 void Host_FinishLoading(void);
 
 
-cvar_t	cl_crypt_rcon = CVARFD("cl_crypt_rcon", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "Controls whether to send a hash instead of sending rcon passwords as plain-text. Set to 1 for security, or 0 for backwards compatibility.\nYour command and any responses will still be sent as plain text.\nInstead, it is recommended to use rcon ONLY via dtls/tls/wss connections.");	//CVAR_NOTFROMSERVER prevents evil servers from degrading it to send plain-text passwords.
+cvar_t	cl_crypt_rcon = CVARFD("cl_crypt_rcon", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "Controls whether to send a hash instead of sending your rcon password as plain-text. Set to 1 for security, or 0 for backwards compatibility.\nYour command and any responses will still be sent as plain text.\nInstead, it is recommended to use rcon ONLY via dtls/tls/wss connections.");	//CVAR_NOTFROMSERVER prevents evil servers from degrading it to send plain-text passwords.
 cvar_t	rcon_password = CVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);
 
 cvar_t	rcon_address = CVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
@@ -54,6 +54,8 @@ cvar_t	rcon_address = CVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
 cvar_t	cl_timeout = CVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = CVARD("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
+
+cvar_t	cl_disconnectreason = CVARAFD("_cl_disconnectreason", "", "com_errorMessage", CVAR_NOSAVE, "This cvar contains the reason for the last disconnection, so that mod menus can know why things failed.");
 
 cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 is only reliable with total conversions.\nIf sv_pure is set, the client will prefer the highest value set.");
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
@@ -70,7 +72,7 @@ cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
 extern cvar_t net_compress;
 
-cvar_t	cl_defaultport		= 
+cvar_t	cl_defaultport		=
 	#ifdef GAME_DEFAULTPORT	//remove the confusing port alias if we're running as a TC, as well as info about irrelevant games.
 		CVARFD("cl_defaultport", STRINGIFY(PORT_DEFAULTSERVER),			 0, "The default port used to connect to servers.")
 	#else
@@ -99,6 +101,7 @@ cvar_t	m_yaw = CVARF("m_yaw","0.022", CVAR_ARCHIVE);
 cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
 cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
+cvar_t	cl_lerp_maxinterval = CVARD("cl_lerp_maxinterval", "0.3", "Maximum interval between keyframes, in seconds. Larger values can result in entities drifting very slowly when they move sporadically.");
 cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "1", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
 cvar_t	cl_predict_players			= CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
 cvar_t	cl_predict_players_frac		= CVARD("cl_predict_players_frac", "0.9", "How much of other players to predict. Values less than 1 will help minimize overruns.");
@@ -232,10 +235,10 @@ static_entity_t *cl_static_entities;
 unsigned int    cl_max_static_entities;
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		*cl_dlights;
-unsigned int	cl_maxdlights; /*size of cl_dlights array*/
+size_t	cl_maxdlights; /*size of cl_dlights array*/
 
 int cl_baselines_count;
-int rtlights_first, rtlights_max;
+size_t rtlights_first, rtlights_max;
 
 // refresh list
 // this is double buffered so the last frame
@@ -299,11 +302,6 @@ qbyte		*host_basepal;
 qbyte		*h2playertranslations;
 
 cvar_t	host_speeds = CVAR("host_speeds","0");		// set for running times
-#ifdef CRAZYDEBUGGING
-cvar_t	developer = CVAR("developer","1");
-#else
-cvar_t	developer = CVAR("developer","0");
-#endif
 
 int			fps_count;
 qboolean	forcesaveprompt;
@@ -382,10 +380,12 @@ void CL_MakeActive(char *gamename)
 
 	//kill models left over from the last map.
 	Mod_Purge(MP_MAPCHANGED);
-	Image_Purge();
 
 	//and reload shaders now if needed (this was blocked earlier)
 	Shader_DoReload();
+
+	//and now free any textures that were not still needed.
+	Image_Purge();
 
 	SCR_EndLoadingPlaque();
 	CL_UpdateWindowTitle();
@@ -451,7 +451,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 
 	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP2 NEHAHRABJP NEHAHRABJP3 QUAKE\\challenge\\%s\\name\\%s", 255, 255, 255, 255, challenge, name.string);
 
-	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+	NET_SendPacket (cls.sockets, strlen(data), data, adr);
 
 	cl.splitclients = 0;
 }
@@ -549,7 +549,7 @@ CL_SendConnectPacket
 called by CL_Connect_f and CL_CheckResend
 ======================
 */
-void CL_SendConnectPacket (netadr_t *to, int mtu, 
+void CL_SendConnectPacket (netadr_t *to, int mtu,
 #ifdef PROTOCOL_VERSION_FTE
 						   int ftepext, int ftepext2,
 #endif
@@ -720,7 +720,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	if (info)
 		Q_strncatz(data, va("0x%x \"%s\"\n", PROTOCOL_INFO_GUID, info), sizeof(data));
 
-	NET_SendPacket (NS_CLIENT, strlen(data), data, to);
+	NET_SendPacket (cls.sockets, strlen(data), data, to);
 }
 
 char *CL_TryingToConnect(void)
@@ -748,7 +748,7 @@ void CL_CheckForResend (void)
 	char *host;
 	extern int	r_blockvidrestart;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
 	{
 		const char *lbp;
@@ -764,6 +764,8 @@ void CL_CheckForResend (void)
 		Cvar_ForceSet(&cl_servername, cls.servername);
 		if (!NET_StringToAdr(cls.servername, 0, &connectinfo.adr))
 			return;	//erk?
+		if (*cl_disconnectreason.string)
+			Cvar_Set(&cl_disconnectreason, "");
 		connectinfo.trying = true;
 		connectinfo.istransfer = false;
 		connectinfo.adr.prot = NP_DGRAM;
@@ -945,7 +947,7 @@ void CL_CheckForResend (void)
 			NET_AdrToString(data, sizeof(data), &connectinfo.adr);
 
 			/*eat up the server's packets, to clear any lingering loopback packets (like disconnect commands... yes this might cause packetloss for other clients)*/
-			while(NET_GetPacket (NS_SERVER, 0) >= 0)
+			while(NET_GetPacket (svs.sockets, 0) >= 0)
 			{
 			}
 			net_message.packing = SZ_RAWBYTES;
@@ -1030,8 +1032,10 @@ void CL_CheckForResend (void)
 #ifdef HAVE_DTLS
 	if (connectinfo.dtlsupgrade != DTLS_ACTIVE)
 #endif
-		//FIXME: this is switching ports far too much
-		NET_InitClient(false);
+	{
+		if (!cls.sockets)	//only if its needed... we don't want to keep using a new port unless we have to
+			NET_InitClient(false);
+	}
 
 	t1 = Sys_DoubleTime ();
 	if (!connectinfo.istransfer)
@@ -1044,6 +1048,7 @@ void CL_CheckForResend (void)
 
 		if (!NET_StringToAdr (host, connectinfo.defaultport, &connectinfo.adr))
 		{
+			Cvar_Set(&cl_disconnectreason, va("Bad server address \"%s\"", host));
 			Con_TPrintf ("Bad server address \"%s\"\n", host);
 			connectinfo.trying = false;
 			SCR_EndLoadingPlaque();
@@ -1070,6 +1075,7 @@ void CL_CheckForResend (void)
 	}
 	if (!NET_IsClientLegal(&connectinfo.adr))
 	{
+		Cvar_Set(&cl_disconnectreason, va("Illegal server address"));
 		Con_TPrintf ("Illegal server address\n");
 		SCR_EndLoadingPlaque();
 		connectinfo.trying = false;
@@ -1099,6 +1105,7 @@ void CL_CheckForResend (void)
 	if (connectinfo.tries == 0)
 		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, &connectinfo.adr))
 		{
+			Cvar_Set(&cl_disconnectreason, va("Unable to establish connection to %s\n", cls.servername));
 			Con_Printf ("Unable to establish connection to %s\n", cls.servername);
 			connectinfo.trying = false;
 			SCR_EndLoadingPlaque();
@@ -1107,13 +1114,17 @@ void CL_CheckForResend (void)
 
 	contype |= 1; /*always try qw type connections*/
 //	if ((connect_tries&3)==3) || (connect_defaultport==26000))
+#ifdef VM_UI
+	if (!UI_IsRunning())	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
+#endif
 		contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
 
 	/*DP, QW, Q2, Q3*/
+	/*NOTE: ioq3 has <challenge> <gamename> args. yes, a challenge to get a challenge.*/
 	if (contype & 1)
 	{
 		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		switch(NET_SendPacket (NS_CLIENT, strlen(data), data, &connectinfo.adr))
+		switch(NET_SendPacket (cls.sockets, strlen(data), data, &connectinfo.adr))
 		{
 		case NETERR_CLOGGED:	//temporary failure
 		case NETERR_SENT:		//yay, works!
@@ -1153,7 +1164,7 @@ void CL_CheckForResend (void)
 			MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
-		switch(NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &connectinfo.adr))
+		switch(NET_SendPacket (cls.sockets, sb.cursize, sb.data, &connectinfo.adr))
 		{
 		case NETERR_CLOGGED:	//temporary failure
 		case NETERR_SENT:		//yay, works!
@@ -1169,6 +1180,7 @@ void CL_CheckForResend (void)
 
 	if (!keeptrying)
 	{
+		Cvar_Set(&cl_disconnectreason, va("No route to \"%s\", giving up\n", cls.servername));
 		Con_TPrintf ("No route to host, giving up\n");
 		connectinfo.trying = false;
 		SCR_EndLoadingPlaque();
@@ -1188,6 +1200,8 @@ void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 	NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr);
 #endif
 	memset(&connectinfo, 0, sizeof(connectinfo));
+	if (*cl_disconnectreason.string)
+		Cvar_Set(&cl_disconnectreason, "");
 	connectinfo.trying = true;
 	connectinfo.defaultport = port;
 	connectinfo.protocol = CP_UNKNOWN;
@@ -1208,9 +1222,13 @@ void CL_BeginServerReconnect(void)
 	NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr);
 	connectinfo.dtlsupgrade = 0;
 #endif
+	if (*cl_disconnectreason.string)
+		Cvar_Set(&cl_disconnectreason, "");
 	connectinfo.trying = true;
 	connectinfo.istransfer = false;
 	connectinfo.time = 0;
+
+	NET_InitClient(false);
 }
 
 void CL_Transfer_f(void)
@@ -1240,6 +1258,7 @@ void CL_Transfer_f(void)
 			connectinfo.istransfer = true;
 			Q_strncpyz(connectinfo.guid, oldguid, sizeof(oldguid));	//retain the same guid on transfers
 		}
+		Cvar_Set(&cl_disconnectreason, "Transferring....");
 		connectinfo.trying = true;
 		connectinfo.defaultport = cl_defaultport.value;
 		connectinfo.protocol = CP_UNKNOWN;
@@ -1273,7 +1292,7 @@ void CL_Connect_f (void)
 
 #ifndef CLIENTONLY
 	if (sv.state == ss_clustermode)
-		CL_Disconnect ();
+		CL_Disconnect (NULL);
 	else
 #endif
 		CL_Disconnect_f ();
@@ -1309,7 +1328,7 @@ static void CL_ConnectBestRoute_f (void)
 
 #ifndef CLIENTONLY
 	if (sv.state == ss_clustermode)
-		CL_Disconnect ();
+		CL_Disconnect (NULL);
 	else
 #endif
 		CL_Disconnect_f ();
@@ -1392,7 +1411,7 @@ void CLNQ_Connect_f (void)
 	CL_BeginServerConnect(server, 26000, true);
 }
 #endif
- 
+
 #ifdef IRCCONNECT
 void CL_IRCConnect_f (void)
 {
@@ -1529,7 +1548,7 @@ void CL_Rcon_f (void)
 		}
 	}
 
-	NET_SendPacket (NS_CLIENT, strlen(message)+1, message, &to);
+	NET_SendPacket (cls.sockets, strlen(message)+1, message, &to);
 }
 
 void CL_BlendFog(fogstate_t *result, fogstate_t *oldf, float time, fogstate_t *newf)
@@ -1761,7 +1780,9 @@ void CL_ClearState (qboolean gamestart)
 
 	if (cfg_save_auto.ival && Cvar_UnsavedArchive())
 		Cmd_ExecuteString("cfg_save\n", RESTRICT_LOCAL);
+#ifdef CL_MASTER
 	MasterInfo_WriteServers();
+#endif
 }
 
 /*
@@ -1772,10 +1793,13 @@ Sends a disconnect message to the server
 This is also called on Host_Error, so it shouldn't cause any errors
 =====================
 */
-void CL_Disconnect (void)
+void CL_Disconnect (const char *reason)
 {
 	qbyte	final[12];
 	int i;
+
+	if (reason)
+		Cvar_Set(&cl_disconnectreason, reason);
 
 	connectinfo.trying = false;
 
@@ -1916,7 +1940,7 @@ void CL_Disconnect_f (void)
 		SV_UnspawnServer();
 #endif
 
-	CL_Disconnect ();
+	CL_Disconnect (NULL);
 
 	connectinfo.trying = false;
 
@@ -2163,7 +2187,7 @@ void CL_CheckServerInfo(void)
 	int oldteamplay;
 	qboolean spectating = true;
 	int i;
-	
+
 	//spectator 2 = spectator-with-scores, considered to be players. this means we don't want to allow spec cheats while they're inactive, because that would be weird.
 	for (i = 0; i < cl.splitclients; i++)
 		if (cl.playerview[i].spectator != 1)
@@ -2244,8 +2268,10 @@ void CL_CheckServerInfo(void)
 		movevars.watersinkspeed = *s?Q_atof(s):60;
 		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_flyfriction");
 		movevars.flyfriction = *s?Q_atof(s):4;
+		//s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_edgefriction");
+		//movevars.edgefriction = *s?Q_atof(s):2;
 	}
-	movevars.coordsize = cls.netchan.netprim.coordsize; 
+	movevars.coordsize = cls.netchan.netprim.coordsize;
 
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)
@@ -2448,7 +2474,7 @@ void CL_SetInfo_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		InfoBuf_Print (&cls.userinfo[pnum], "");
-		Con_Printf("[%u]", (unsigned int)cls.userinfo[pnum].totalsize);
+		Con_Printf("[%u]\n", (unsigned int)cls.userinfo[pnum].totalsize);
 		return;
 	}
 	if (Cmd_Argc() != 3)
@@ -2488,7 +2514,7 @@ void CL_SetInfo_f (void)
 	CL_SetInfo(pnum, Cmd_Argv(1), Cmd_Argv(2));
 }
 
-#ifdef _DEBUG
+#if 1//def _DEBUG
 void CL_SetInfoBlob_f (void)
 {
 	qofs_t fsize;
@@ -2643,7 +2669,11 @@ void CL_Packet_f (void)
 	}
 	*out = 0;
 
-	NET_SendPacket (NS_CLIENT, out-send, send, &adr);
+	if (!cls.sockets)
+		NET_InitClient(false);
+	if (!NET_EnsureRoute(cls.sockets, "packet", Cmd_Argv(1), &adr))
+		return;
+	NET_SendPacket (cls.sockets, out-send, send, &adr);
 
 	if (Cmd_FromGamecode())
 	{
@@ -2754,7 +2784,7 @@ void CL_Stopdemo_f (void)
 	if (cls.demoplayback == DPB_NONE)
 		return;
 	CL_StopPlayback ();
-	CL_Disconnect ();
+	CL_Disconnect (NULL);
 }
 
 
@@ -2800,7 +2830,7 @@ void CL_Changing_f (void)
 =================
 CL_Reconnect_f
 
-The server is changing levels
+User command, or NQ protocol command (messy).
 =================
 */
 void CL_Reconnect_f (void)
@@ -2829,7 +2859,7 @@ void CL_Reconnect_f (void)
 		return;
 	}
 
-	CL_Disconnect();
+	CL_Disconnect(NULL);
 	CL_BeginServerReconnect();
 }
 
@@ -2889,7 +2919,7 @@ void CL_ConnectionlessPacket (void)
 		Q_snprintfz(data+6, sizeof(data)-6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
 		len = strlen(data);
 
-		NET_SendPacket (NS_CLIENT, len, &data, &net_from);
+		NET_SendPacket (cls.sockets, len, &data, &net_from);
 		return;
 	}
 
@@ -2938,7 +2968,7 @@ void CL_ConnectionlessPacket (void)
 				{
 					connectinfo.istransfer = true;
 					connectinfo.adr = adr;
-					NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
+					NET_SendPacket (cls.sockets, strlen(data), data, &adr);
 				}
 			}
 			return;
@@ -2948,20 +2978,29 @@ void CL_ConnectionlessPacket (void)
 			char *data = MSG_ReadStringLine();
 			Con_Printf ("reject\n%s\n", data);
 			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				Cvar_Set(&cl_disconnectreason, va("%s\n", data));
 				connectinfo.trying = false;
+			}
 			return;
 		}
 		else if (!strcmp(s, "badname"))
 		{	//rejected purely because of player name
 			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				Cvar_Set(&cl_disconnectreason, va("bad player name\n"));
 				connectinfo.trying = false;
+			}
 		}
 		else if (!strcmp(s, "badaccount"))
 		{	//rejected because username or password is wrong
 			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				Cvar_Set(&cl_disconnectreason, va("invalid username or password\n"));
 				connectinfo.trying = false;
+			}
 		}
-		
+
 		Con_Printf ("f%s\n", s);
 		return;
 	}
@@ -3189,11 +3228,12 @@ void CL_ConnectionlessPacket (void)
 
 			//server says it can do tls.
 			char *pkt = va("%c%c%c%cdtlsconnect %i", 255, 255, 255, 255, connectinfo.challenge);
-			NET_SendPacket (NS_CLIENT, strlen(pkt), pkt, &net_from);
+			NET_SendPacket (cls.sockets, strlen(pkt), pkt, &net_from);
 			return;
 		}
 		if (connectinfo.dtlsupgrade == DTLS_REQUIRE)
 		{
+			Cvar_Set(&cl_disconnectreason, va("Server does not support/allow dtls. not connecting\n"));
 			connectinfo.trying = false;
 			Con_Printf("Server does not support/allow dtls. not connecting.\n");
 			return;
@@ -3223,6 +3263,8 @@ void CL_ConnectionlessPacket (void)
 			Con_TPrintf ("print\n");
 
 			s = MSG_ReadString ();
+			if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+				Cvar_Set(&cl_disconnectreason, s);
 			Con_Printf ("%s", s);
 			return;
 		}
@@ -3235,6 +3277,7 @@ void CL_ConnectionlessPacket (void)
 		{
 			if (NET_CompareAdr(&net_from, &cls.netchan.remote_address))
 			{
+				Cvar_Set(&cl_disconnectreason, "Disconnect request from server");
 				Con_Printf ("disconnect\n");
 				CL_Disconnect_f();
 				return;
@@ -3333,7 +3376,17 @@ void CL_ConnectionlessPacket (void)
 	{
 		s = MSG_ReadString ();
 		COM_Parse(s);
-		if (!strcmp(com_token, "tlsopened"))
+
+		if (!strcmp(com_token, "isconnect"))
+		{
+			Con_Printf("Disconnect\n");
+			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				Cvar_Set(&cl_disconnectreason, "Disconnect request from server");
+				CL_Disconnect_f();
+			}
+		}
+		else if (!strcmp(com_token, "tlsopened"))
 		{	//server is letting us know that its now listening for a dtls handshake.
 #ifdef HAVE_DTLS
 			Con_Printf ("dtlsopened\n");
@@ -3404,7 +3457,7 @@ client_connect:	//fixme: make function
 #ifndef CLIENTONLY
 				if (sv.state != ss_clustermode)
 #endif
-					CL_Disconnect ();
+					CL_Disconnect (NULL);
 			}
 			else
 			{
@@ -3513,24 +3566,33 @@ client_connect:	//fixme: make function
 	if (c == 'p')
 	{
 		if (!strncmp(net_message.data+4, "print\n", 6))
-		{
+		{	//quake2+quake3 send rejects this way
 			Con_TPrintf ("print\n");
 			Con_Printf ("%s", net_message.data+10);
+
+			if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+				Cvar_Set(&cl_disconnectreason, net_message.data+10);
 			return;
 		}
 	}
 	if (c == A2C_PRINT)
-	{
+	{	//closest quakeworld has to a reject message
 		Con_TPrintf ("print\n");
 
 		s = MSG_ReadString ();
 		Con_Printf ("%s", s);
+
+		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}
-	if (c == 'r')//dp's reject
-	{
+	if (c == 'r')
+	{	//darkplaces-style rejects
 		s = MSG_ReadString ();
 		Con_Printf("r%s\n", s);
+
+		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}
 
@@ -3625,6 +3687,9 @@ void CLNQ_ConnectionlessPacket(void)
 	case CCREP_REJECT:
 		s = MSG_ReadString();
 		Con_Printf("Connect failed\n%s\n", s);
+
+		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}
 }
@@ -3700,7 +3765,7 @@ void CL_ReadPackets (void)
 
 		if (cls.state == ca_disconnected)
 		{	//connect to nq servers, but don't get confused with sequenced packets.
-			if (NET_WasSpecialPacket(NS_CLIENT))
+			if (NET_WasSpecialPacket(cls.sockets))
 				continue;
 #ifdef NQPROT
 			CLNQ_ConnectionlessPacket ();
@@ -3714,7 +3779,7 @@ void CL_ReadPackets (void)
 		if (!cls.demoplayback &&
 			!NET_CompareAdr (&net_from, &cls.netchan.remote_address))
 		{
-			if (NET_WasSpecialPacket(NS_CLIENT))
+			if (NET_WasSpecialPacket(cls.sockets))
 				continue;
 			Con_DPrintf ("%s:sequenced packet from wrong server\n"
 				,NET_AdrToString(adr, sizeof(adr), &net_from));
@@ -3787,7 +3852,7 @@ void CL_ReadPackets (void)
 #endif
 		{
 			Con_TPrintf ("\nServer connection timed out.\n");
-			CL_Disconnect ();
+			CL_Disconnect ("Connection Timed Out");
 			return;
 		}
 	}
@@ -4158,7 +4223,7 @@ void CL_FTP_f(void)
 void CL_Fog_f(void)
 {
 	int ftype = Q_strcasecmp(Cmd_Argv(0), "fog");
-	if ((cl.fog_locked && !Cmd_FromGamecode()) || Cmd_Argc() <= 1)
+	if ((cl.fog_locked && !Cmd_FromGamecode() && !cls.allow_cheats) || Cmd_Argc() <= 1)
 	{
 		if (Cmd_ExecLevel != RESTRICT_INSECURE)
 			Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
@@ -4390,10 +4455,10 @@ void CL_Init (void)
 	CSQC_RegisterCvarsAndThings();
 #endif
 	Cvar_Register (&host_speeds, cl_controlgroup);
-	Cvar_Register (&developer, cl_controlgroup);
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	Cvar_Register (&cl_disconnectreason, cl_controlgroup);
 	Cvar_Register (&cl_proxyaddr, cl_controlgroup);
 	Cvar_Register (&cl_sendguid, cl_controlgroup);
 	Cvar_Register (&cl_defaultport, cl_controlgroup);
@@ -4430,6 +4495,7 @@ void CL_Init (void)
 	Cvar_Register (&rcon_password,	cl_controlgroup);
 	Cvar_Register (&rcon_address,	cl_controlgroup);
 
+	Cvar_Register (&cl_lerp_maxinterval, cl_controlgroup);
 	Cvar_Register (&cl_lerp_players, cl_controlgroup);
 	Cvar_Register (&cl_predict_players,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_players_frac,	cl_predictiongroup);
@@ -4640,7 +4706,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("user", CL_User_f);
 	Cmd_AddCommand ("users", CL_Users_f);
 
-#ifdef _DEBUG
+#if 1//def _DEBUG
 	Cmd_AddCommand ("setinfoblob", CL_SetInfoBlob_f);
 #endif
 	Cmd_AddCommand ("setinfo", CL_SetInfo_f);
@@ -4727,7 +4793,7 @@ NORETURN void VARGS Host_EndGame (const char *message, ...)
 
 	SCR_EndLoadingPlaque();
 
-	CL_Disconnect ();
+	CL_Disconnect (string);
 
 	SV_UnspawnServer();
 	connectinfo.trying = false;
@@ -4760,7 +4826,7 @@ void VARGS Host_Error (const char *error, ...)
 	COM_AssertMainThread(string);
 	Con_TPrintf ("Host_Error: %s\n", string);
 
-	CL_Disconnect ();
+	CL_Disconnect (string);
 	cls.demonum = -1;
 
 	inerror = false;
@@ -4876,10 +4942,10 @@ void Host_RunFileNotify(struct dl_download *dl)
 #define HRF_DEMO		(HRF_DEMO_MVD|HRF_DEMO_QWD|HRF_DEMO_DM2|HRF_DEMO_DEM)
 #define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE|HRF_ARCHIVE|HRF_MODEL|HRF_CONFIG)
 typedef struct {
-	unsigned int flags;
 	struct dl_download *dl;
 	vfsfile_t *srcfile;
 	vfsfile_t *dstfile;
+	unsigned int flags;
 	char fname[1];	//system path or url.
 } hrf_t;
 
@@ -5137,7 +5203,7 @@ void Host_DoRunFile(hrf_t *f)
 		f->flags &= ~HRF_WAITING;
 		waitingformanifest--;
 	}
-	
+
 	if (f->flags & HRF_ABORT)
 	{
 done:
@@ -5180,7 +5246,7 @@ done:
 	if (!(f->flags & HRF_FILETYPES))
 	{
 		f->flags |= Host_GuessFileType(NULL, f->fname);
-		
+
 		//if we still don't know what it is, give up.
 		if (!(f->flags & HRF_FILETYPES))
 		{
@@ -5276,7 +5342,9 @@ done:
 //						if (f->flags & HRF_DOWNLOADED)
 						man->blockupdate = true;
 						BZ_Free(fdata);
+#ifdef PACKAGEMANAGER
 						PM_Shutdown();
+#endif
 						FS_ChangeGame(man, true, true);
 					}
 					else
@@ -5745,7 +5813,7 @@ double Host_Frame (double time)
 	if (vid.isminimized && (maxfps <= 0 || maxfps > 10))
 		maxfps = 10;
 
-	if (maxfps > 0 
+	if (maxfps > 0
 #ifdef HAVE_MEDIA_ENCODER
 		&& Media_Capturing() != 2
 #endif
@@ -5898,10 +5966,15 @@ double Host_Frame (double time)
 		VectorClear(cl.playerview[i].audio.velocity);
 	}
 
+	if (R2D_Flush)
+	{
+		R2D_Flush();
+		Con_Printf("R2D_Flush was set outside of SCR_UpdateScreen\n");
+	}
 	if (SCR_UpdateScreen && !vid.isminimized)
 	{
 		extern cvar_t r_stereo_method;
-
+		r_refdef.warndraw = false;
 		r_refdef.stereomethod = r_stereo_method.ival;
 #ifdef FTE_TARGET_WEB
 		if (emscriptenfte_getvrframedata())
@@ -5911,12 +5984,14 @@ double Host_Frame (double time)
 
 		{
 			RSpeedMark();
+			vid.ime_allow = false;
 			if (SCR_UpdateScreen())
 				fps_count++;
 			if (R2D_Flush)
 				Sys_Error("update didn't flush 2d cache\n");
 			RSpeedEnd(RSPEED_TOTALREFRESH);
 		}
+		r_refdef.warndraw = true;
 	}
 	else
 		fps_count++;
@@ -6159,13 +6234,17 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	int def;
 
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
-	
+
 	Cbuf_AddText("unbindall\nshowpic_removeall\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind voldown \"inc volume -0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);
 	Cbuf_AddText("alias restart map_restart\n",RESTRICT_LOCAL);
 	Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
+#ifdef QUAKESTATS
+	Cbuf_AddText("alias +attack2 +button3\n", RESTRICT_LOCAL);
+	Cbuf_AddText("alias -attack2 -button3\n", RESTRICT_LOCAL);
+#endif
 	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
 	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults
@@ -6294,8 +6373,10 @@ void Host_FinishLoading(void)
 
 		Menu_Download_Update();
 
+#ifdef IPLOG
 		IPLog_Merge_File("iplog.txt");
 		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
+#endif
 	}
 
 	if (PM_IsApplying(true))
@@ -6321,7 +6402,9 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
+#ifdef PACKAGEMANAGER
 	char engineupdated[MAX_OSPATH];
+#endif
 	int man;
 
 	com_parseutf8.ival = 1;	//enable utf8 parsing even before cvars are registered.
@@ -6347,6 +6430,7 @@ void Host_Init (quakeparms_t *parms)
 	Cmd_Init ();
 	COM_Init ();
 
+#ifdef PACKAGEMANAGER
 	//we have enough of the filesystem inited now that we can read the package list and figure out which engine was last installed.
 	if (PM_FindUpdatedEngine(engineupdated, sizeof(engineupdated)))
 	{
@@ -6364,6 +6448,8 @@ void Host_Init (quakeparms_t *parms)
 		}
 		PM_Shutdown();	//will restart later as needed, but we need to be sure that no files are open or anything.
 	}
+#endif
+
 	V_Init ();
 	NET_Init ();
 
@@ -6510,7 +6596,9 @@ void Host_Shutdown(void)
 	Validation_FlushFileList();
 
 	Cmd_Shutdown();
+#ifdef PACKAGEMANAGER
 	PM_Shutdown();
+#endif
 	Key_Unbindall_f();
 
 #ifdef PLUGINS

@@ -75,7 +75,7 @@ enum
 	ASPECT2D_CUSTOM,
 };
 
-qboolean M_Vid_GetMode(int num, int *w, int *h)
+qboolean M_Vid_GetMode(qboolean forfullscreen, int num, int *w, int *h)
 {
 	int i;
 
@@ -123,7 +123,6 @@ menu_t *M_Options_Title(int *y, int infosize)
 	{
 	case MGT_QUAKE2:	//q2...
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_options");
-		*y += 32;
 		break;
 #ifdef HEXEN2
 	case MGT_HEXEN2://h2
@@ -325,6 +324,9 @@ void M_Menu_Options_f (void)
 	};
 	menu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
+	int framey = y;
+
+	MC_AddFrameStart(menu, framey);
 	y = MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 
 #ifdef PLUGINS
@@ -348,6 +350,7 @@ void M_Menu_Options_f (void)
 		MC_AddCvarCombo(menu, 16, 216, y, "Use Hud Plugin", &plug_sbar, hudplugopts, hudplugvalues);			y += 8;
 	}
 #endif
+	MC_AddFrameEnd(menu, framey);
 }
 
 #ifndef __CYGWIN__
@@ -667,7 +670,9 @@ void M_Menu_Audio_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
+	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+	MC_AddFrameEnd(menu, y);
 }
 
 #else
@@ -764,7 +769,9 @@ void M_Menu_Particles_f (void)
 	static menuresel_t resel;
 
 	menu = M_Options_Title(&y, 0);
+	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
+	MC_AddFrameEnd(menu, y);
 }
 
 const char *presetname[] =
@@ -1059,6 +1066,34 @@ void FPS_Preset_f (void)
 		return;
 	}
 
+	if (!stricmp("dp", arg))
+	{
+		if (sv.state)
+			Cbuf_InsertText("echo Be sure to restart your server\n", RESTRICT_LOCAL, false);
+		Cbuf_InsertText(
+			//these are for smc+derived mods
+			"sv_listen_dp 1\n"					//awkward, but forces the server to load the effectinfo.txt in advance.
+			"sv_bigcoords 1\n"					//for viewmodel lep precision (would be better to use csqc)
+			"r_particledesc \"effectinfo high\"\n" //blurgh.
+			"dpcompat_noretouchground 1\n"		//don't call touch functions on entities that already appear onground. this also changes the order that the onground flag is set relative to touch functions.
+			"cl_nopred 1\n"						//DP doesn't predict by default, and DP mods have a nasty habit of clearing .solid values during prethinks, which screws up prediction. so play safe.
+			"r_dynamic 0\nr_shadow_realtime_dlight 1\n" //fte has separate cvars for everything. which kinda surprises people and makes stuff twice as bright as it should be.
+
+			//general compat stuff
+			"dpcompat_console 1\n"				//
+			"dpcompat_findradiusarealinks 1\n"	//faster findradiuses (but that require things are setorigined properly)
+			"dpcompat_makeshitup 2\n"			//flatten shaders to a single pass, then add new specular etc passes.
+			//"dpcompat_nopremulpics 1\n"			//don't use premultiplied alpha (solving issues with compressed image formats)
+			"dpcompat_psa_ungroup 1\n"			//don't use framegroups with psk models at all.
+			"dpcompat_set 1\n"					//handle 3-arg sets differently
+			"dpcompat_stats 1\n"				//truncate float stats
+			"dpcompat_strcat_limit 16383\n"		//xonotic compat. maximum length of strcat strings.
+
+//			"sv_listen_dp 1\nsv_listen_nq 0\nsv_listen_qw 0\ncl_loopbackprotocol dpp7\ndpcompat_nopreparse 1\n"
+			, RESTRICT_LOCAL, false);
+		return;
+	}
+
 	if (!stricmp("tenebrae", arg))
 	{	//for the luls. combine with the tenebrae mod for maximum effect.
 		Cbuf_InsertText(
@@ -1202,7 +1237,9 @@ void M_Menu_FPS_f (void)
 			MB_EDITCVAR("Skybox", "r_skybox"),
 			MB_END()
 		};
+		MC_AddFrameStart(menu, y);
 		MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+		MC_AddFrameEnd(menu, y);
 	}
 }
 
@@ -1263,7 +1300,9 @@ void M_Menu_Render_f (void)
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);
+	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+	MC_AddFrameEnd(menu, y);
 }
 
 #ifdef GLQUAKE
@@ -1359,7 +1398,9 @@ void M_Menu_Textures_f (void)
 	};
 	menu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
+	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+	MC_AddFrameEnd(menu, y);
 }
 #endif
 
@@ -1394,6 +1435,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 			break;
 		}
 #ifdef MINIMAL
+		(void)cvarv;
 		Cbuf_AddText(va("r_shadow_realtime_world %s;r_shadow_realtime_world_shadows %s\n", cvarsrw, cvarsrws), RESTRICT_LOCAL);
 #else
 		Cbuf_AddText(va("r_vertexlight %s;r_shadow_realtime_world %s;r_shadow_realtime_world_shadows %s\n", cvarv, cvarsrw, cvarsrws), RESTRICT_LOCAL);
@@ -1655,7 +1697,9 @@ void M_Menu_Lighting_f (void)
 			MB_END()
 		};
 		static menuresel_t resel;
+		MC_AddFrameStart(menu, y);
 		MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+		MC_AddFrameEnd(menu, y);
 	}
 }
 
@@ -2880,7 +2924,30 @@ void M_Menu_Video_f (void)
 	int y;
 	int resmodechoice, res2dmodechoice;
 	int reschoices[ASPECT_RATIOS], res2dchoices[ASPECT_RATIOS];
-	menu_t *menu = M_Options_Title(&y, sizeof(videomenuinfo_t));
+	menu_t *menu;
+
+	//not calling M_Options_Title because of quake2's different banner.
+	y = 32;
+	Key_Dest_Add(kdm_emenu);
+	menu = M_CreateMenu(sizeof(videomenuinfo_t));
+	switch(M_GameType())
+	{
+	case MGT_QUAKE2:	//q2...
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_video");
+		break;
+#ifdef HEXEN2
+	case MGT_HEXEN2://h2
+		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title3.lmp");
+		y += 32;
+		break;
+#endif
+	default: //q1
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
+		break;
+	}
+
 	info = (videomenuinfo_t*)menu->data;
 
 	snprintf(current3dres, sizeof(current3dres), "Current: %ix%i", vid.pixelwidth, vid.pixelheight);
@@ -2962,7 +3029,9 @@ void M_Menu_Video_f (void)
 			
 			MB_END()
 		};
+		MC_AddFrameStart(menu, y);
 		MC_AddBulk(menu, &resel, bulk, 16, 200, y);
+		MC_AddFrameEnd(menu, y);
 	}
 
 	/*
@@ -3456,8 +3525,11 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			"end: skin-=1\n"
 			"pgup: frame+=1\n"
 			"pgdn: frame-=1\n"
-			"mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
-			, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
+			"mins: %g %g %g, maxs: %g %g %g\n"
+			"flags: %#x %#x\n", 
+				ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2],
+				ent.model->flags, ent.model->engineflags),
+			CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		break;
 	case MV_COLLISION:
 		if (!ent.model)
@@ -3711,7 +3783,7 @@ void M_Menu_ModelViewer_f(void)
 
 	menu = M_CreateMenu(sizeof(*mv));
 	mv = menu->data;
-	c = MC_AddCustom(menu, 64, 32, mv, 0);
+	c = MC_AddCustom(menu, 64, 32, mv, 0, NULL);
 	menu->cursoritem = (menuoption_t*)c;
 	c->draw = M_ModelViewerDraw;
 	c->key = M_ModelViewerKey;
@@ -3946,7 +4018,7 @@ void M_Menu_Mods_f (void)
 		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
 	}
 
-	c = MC_AddCustom(menu, 64, 32, menu->data, 0);
+	c = MC_AddCustom(menu, 64, 32, menu->data, 0, NULL);
 	menu->cursoritem = (menuoption_t*)c;
 	c->draw = Mods_Draw;
 	c->key = Mods_Key;

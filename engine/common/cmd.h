@@ -148,6 +148,7 @@ char *Cmd_AliasExist(const char *name, int restrictionlevel);
 void Alias_WipeStuffedAliases(void);
 
 void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions);
+#define Cmd_AddMacroD(s,f,unsafe,desc) Cmd_AddMacro(s,f,unsafe)
 
 void Cmd_TokenizePunctation (char *text, char *punctuation);
 const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolean qctokenize);
@@ -158,6 +159,7 @@ void	Cmd_ExecuteString (const char *text, int restrictionlevel);
 
 void Cmd_Args_Set(const char *newargs, size_t len);
 
+//higher levels have greater access, BUT BE SURE TO CHECK Cmd_IsInsecure()
 #define RESTRICT_MAX_TOTAL  31
 #define RESTRICT_MAX_USER	29
 #define RESTRICT_DEFAULT	20
@@ -194,3 +196,4 @@ qboolean If_EvaluateBoolean(const char *text, int restriction);
 extern cvar_t rcon_level;
 
 void Cmd_AddTimer(float delay, void(*callback)(int iarg, void *data), int iarg, void *data, size_t datasize); //wrong place, gah
+

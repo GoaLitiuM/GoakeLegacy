@@ -6,7 +6,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 cmake_policy(SET CMP0063 NEW)
 
-PROJECT(fteqw)
+PROJECT(FTEQuake)
 
 INCLUDE_DIRECTORIES(
 	engine/common
@@ -58,51 +58,50 @@ IF(${WIN32})
 ENDIF()
 
 IF(${CMAKE_VERSION} VERSION_LESS "3.9.0")
+	MESSAGE(STATUS "no LTO - old cmake.")
 ELSE()
-	IF(NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
+	cmake_policy(SET CMP0069 NEW)
+	IF(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
 		#use LTO where possible. reportedly requires cmake 3.9 to actually work
 		INCLUDE(CheckIPOSupported)
 		check_ipo_supported(RESULT result)
 		IF(result)
 			SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+			MESSAGE(STATUS "Using LTO.")
+		ELSE()
+			MESSAGE(STATUS "no LTO - not supported.")
 		ENDIF()
+	ELSE()
+		MESSAGE(STATUS "no LTO - debug.")
 	ENDIF()
 ENDIF()
+
+SET(FTE_BUILD_CONFIG ${CMAKE_HOME_DIRECTORY}/engine/common/config_fteqw.h CACHE FILEPATH "Which build config file to use to control supported features.")
+SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};CONFIG_FILE_NAME=${FTE_BUILD_CONFIG})
 
 FIND_PACKAGE(ZLIB)
 IF(NOT ZLIB_FOUND)
 	MESSAGE(WARNING "libz library NOT available. compressed pk3 will not be available.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ZLIB)
-	SET(ZLIB_LIBRARY m)
-	SET(ZLIB_LIBRARIES m)
+	SET(ZLIB_LIBRARY )
+	SET(ZLIB_LIBRARIES )
 ENDIF()
 
-FIND_PACKAGE(GnuTLS)
-IF(NOT GNUTLS_FOUND)
-	MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
-	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
-ENDIF()
-
-FIND_PACKAGE(ALSA)
-IF(NOT ALSA_FOUND)
-	MESSAGE(WARNING "asound (alsa) library NOT available.")
-	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ALSA)
-ENDIF()
-
-FIND_PACKAGE(X11)
-IF(X11_FOUND)
-	IF (NOT X11_Xcursor_FOUND)			
-		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_CURSOR)
-		MESSAGE(WARNING "Xcursor library NOT available.")
-	ENDIF()
+FIND_PACKAGE(BZip2)
+IF(BZIP2_FOUND)
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};AVAIL_BZLIB)
+	SET(FTE_LIBS ${FTE_LIBS} bz2)
+	SET(FTESV_LIBS ${FTESV_LIBS} bz2)
+	MESSAGE(STATUS "bzip2 library found. bz2-compressed pk3s will work for the price of extra bloat! yay!")
 ELSE()
-	MESSAGE(WARNING "x11 library NOT available.")
-	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11)
+	MESSAGE(WARNING "bzip2 library NOT available. bz2-compressed pk3s will not be available, as if anyone cares.")
 ENDIF()
 
 SET(OpenGL_GL_PREFERENCE LEGACY)
 FIND_PACKAGE(OpenGL)
-IF(NOT OpenGL_FOUND)
+IF(OpenGL_FOUND)
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};GLQUAKE)
+ELSE()
 	MESSAGE(WARNING "opengl library NOT available. Will depend upon vulkan.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OPENGL)
 ENDIF()
@@ -129,6 +128,14 @@ IF(FREETYPE_FOUND)
 ELSE()
 	MESSAGE(WARNING "freetype library NOT available. I hope you're okay with ascii.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_FREETYPE)
+ENDIF()
+
+FIND_PATH(VULKAN_INCLUDE_DIR vulkan/vulkan.h)
+IF(VULKAN_INCLUDE_DIR)
+	INCLUDE_DIRECTORIES( ${VULKAN_INCLUDE_DIR} )
+	SET(FTE_DEFINES ${FTE_DEFINES};VKQUAKE) #no libs required, thankfully
+ELSE()
+	MESSAGE(WARNING "Vulkan headers NOT available.")
 ENDIF()
 
 FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
@@ -162,6 +169,14 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wc++-compat")	#lul
 	#TODO SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-prototypes")			#for finding missing statics.
 	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")			#
+	
+	#might as well do this, public builds use the regular Makefile.
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing")
+	ELSE()
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+	ENDIF()
 ENDIF()
 IF(CMAKE_C_COMPILER_ID MATCHES "MSVC" AND MSVC_VERSION GREATER_EQUAL 1600)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")							# uses all available cores to build MSVC projects
@@ -169,15 +184,16 @@ endif()
 IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu89")
-endif()
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DEBUG")
+ENDIF()
 
 IF(${ANDROID})
 #	FIND_PACKAGE(Freetype REQUIRED)
 
 #	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
 
-	SET(FTE_DEFINES ${FTE_DEFINES};ANDROID;GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS android log EGL ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS})
+	SET(FTE_DEFINES ${FTE_DEFINES};ANDROID;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_LIBS ${FTE_LIBS} android log EGL ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_droid.c
 		engine/common/sys_linux_threads.c
@@ -191,8 +207,8 @@ ELSEIF(${WIN32})
 	
 	#	engine/server/sv_sys_win.c
 	
-	SET(FTE_LIBS ${ZLIB_LIBRARIES} ${PNG_LIBRARIES} ${JPEG_LIBRARIES} ole32 gdi32 wsock32 winmm)
-	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;D3D9QUAKE;D3D11QUAKE) #D3D11QUAKE not included.
+	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES} ${PNG_LIBRARIES} ${JPEG_LIBRARIES} ole32 gdi32 wsock32 winmm dxguid)
+	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;D3D9QUAKE;D3D11QUAKE)
 	SET(FTE_ARCH_FILES 
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
@@ -222,7 +238,7 @@ ELSEIF(${WIN32})
 		engine/d3d/vid_d3d8.c
 	)
 	
-	SET(FTESV_LIBS ${ZLIB_LIBRARIES} wsock32 winmm)
+	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES} wsock32 winmm)
 	SET(FTESV_ARCH_FILES 
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
@@ -232,8 +248,33 @@ ELSEIF(${WIN32})
 	)
 ELSEIF(${UNIX})	#linux(ish)
 				#openbsd will have issues with snd_linux.c
-	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
+
+	#linux-only packages
+	FIND_PACKAGE(GnuTLS)
+	IF(NOT GNUTLS_FOUND)
+		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
+	ENDIF()
+
+	FIND_PACKAGE(ALSA)
+	IF(NOT ALSA_FOUND)
+		MESSAGE(WARNING "asound (alsa) library NOT available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ALSA)
+	ENDIF()
+
+	FIND_PACKAGE(X11)
+	IF(X11_FOUND)
+		IF (NOT X11_Xcursor_FOUND)
+			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_CURSOR)
+			MESSAGE(WARNING "Xcursor library NOT available.")
+		ENDIF()
+	ELSE()
+		MESSAGE(WARNING "x11 library NOT available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11)
+	ENDIF()
+
+	SET(FTE_DEFINES ${FTE_DEFINES};DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_linux.c
 		engine/common/sys_linux_threads.c
@@ -243,6 +284,7 @@ ELSEIF(${UNIX})	#linux(ish)
 		engine/client/snd_al.c
 		engine/client/snd_alsa.c
 		engine/client/snd_linux.c
+		engine/client/snd_pulse.c
 		engine/client/snd_sdl.c	#we use SDL audio even without sys_sdl, because of pulseaudio fucking over alsa, alsa fucking over oss3, and oss4 not being used. Either way, openal should be the default anyway.
 
 		engine/client/cd_linux.c
@@ -287,7 +329,7 @@ ELSEIF(${UNIX})	#linux(ish)
 		engine/common/net_ssl_gnutls.c
 #		engine/common/net_ssl_openssl.c
 	)
-	SET(FTESV_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread)
+	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread)
 
 #	SET(FTE_DEFINES ${FTE_DEFINES};HAVE_OPENSSL)
 #	SET(FTESV_DEFINES ${FTESV_DEFINES};HAVE_OPENSSL)
@@ -305,8 +347,8 @@ ELSEIF(1)	#SDL
 	INCLUDE_DIRECTORIES(${FREETYPE_INCLUDE_DIRS} ${SDL2_INCLUDE_DIRS})
 	
 	#SDL2.0.7 supports vulkan, so lets use it.
-	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
+	SET(FTE_DEFINES ${FTE_DEFINES};FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_sdl.c
 		engine/client/snd_al.c
@@ -317,7 +359,7 @@ ELSEIF(1)	#SDL
 	)
 
 	SET(FTESV_DEFINES FTE_SDL;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTESV_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
+	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 
 	IF(WIN32)
 		SET(FTE_LIBS ${FTE_LIBS} wsock32 gdi32 ole32)
@@ -395,6 +437,7 @@ SET(FTE_COMMON_FILES
 	engine/common/fs_stdio.c
 	engine/common/fs_xz.c
 	engine/common/fs_zip.c
+	engine/common/fs_vpk.c
 	engine/common/gl_q2bsp.c
 	engine/common/huff.c
 	engine/common/log.c
@@ -414,6 +457,92 @@ SET(FTE_COMMON_FILES
 	engine/common/sha1.c
 	engine/common/translate.c
 	engine/common/zone.c
+	
+	
+	#important headers
+	engine/common/bothdefs.h
+	engine/common/config_fteqw.h
+	engine/common/config_minimal.h
+	engine/common/config_nocompat.h
+	engine/common/config_wastes.h
+	engine/common/config_freecs.h
+
+	#useless headers that I'll never search for
+	engine/client/api_menu.h
+	engine/client/cdaudio.h
+	engine/client/client.h
+	engine/client/cl_ignore.h
+	engine/client/cl_master.h
+	engine/client/clq3defs.h
+	engine/client/input.h
+	engine/client/keys.h
+	engine/client/menu.h
+	engine/client/merged.h
+	engine/client/modelgen.h
+	engine/client/quakedef.h
+	engine/client/render.h
+	engine/client/sbar.h
+	engine/client/screen.h
+	engine/client/sound.h
+	engine/client/spritegn.h
+#	engine/client/sys_plugfte.h
+	engine/client/vid.h
+	engine/client/view.h
+	engine/client/wad.h
+#	engine/client/winquake.h
+	engine/common/bothdefs.h
+	engine/common/bspfile.h
+	engine/common/cmd.h
+	engine/common/com_mesh.h
+	engine/common/common.h
+	engine/common/console.h
+	engine/common/crc.h
+	engine/common/cvar.h
+	engine/common/fs.h
+	engine/common/mathlib.h
+	engine/common/net.h
+	engine/common/netinc.h
+	engine/common/particles.h
+	engine/common/pmove.h
+	engine/common/pr_common.h
+	engine/common/protocol.h
+	engine/common/sys.h
+	engine/common/translate.h
+	engine/common/ui_public.h
+	engine/common/vm.h
+	engine/common/world.h
+	engine/common/zone.h
+	engine/gl/gl_draw.h
+	engine/gl/gl_model.h
+	engine/gl/glquake.h
+	engine/gl/glsupp.h
+	engine/gl/gl_terrain.h
+	engine/gl/gl_videgl.h
+	engine/gl/model_hl.h
+	engine/gl/shader.h
+	engine/http/iweb.h
+	engine/qclib/cmdlib.h
+	engine/qclib/execloop.h
+	engine/qclib/gui.h
+	engine/qclib/hash.h
+	engine/qclib/pr_comp.h
+	engine/qclib/progsint.h
+	engine/qclib/progslib.h
+	engine/qclib/progtype.h
+	engine/qclib/qcc.h
+	engine/qclib/qcd.h
+	engine/server/botlib.h
+	engine/server/progdefs.h
+	engine/server/progs.h
+	engine/server/q2game.h
+	engine/server/q3g_public.h
+	engine/server/server.h
+	#engine/server/svhl_gcapi.h
+	engine/server/sv_sql.h
+	#engine/sw/sw.h
+	#engine/sw/sw_spans.h
+	engine/vk/vkrenderer.h
+	engine/web/ftejslib.h
 	
 	#sigh
 	engine/client/pr_skelobj.c
@@ -562,7 +691,67 @@ SET(FTE_CLIENT_FILES
 	engine/vk/vk_init.c
 )
 
-IF(${ANDROID})
+ADD_LIBRARY(fteq3bot MODULE
+	engine/botlib/be_aas_bspq3.c
+	engine/botlib/be_aas_entity.c
+	engine/botlib/be_aas_move.c
+	engine/botlib/be_aas_routealt.c
+	engine/botlib/be_ai_char.c
+	engine/botlib/be_ai_goal.c
+	engine/botlib/be_ai_weight.c
+	engine/botlib/l_crc.c
+	engine/botlib/l_memory.c
+	engine/botlib/l_struct.c
+	engine/botlib/be_aas_cluster.c
+	engine/botlib/be_aas_file.c
+	engine/botlib/be_aas_optimize.c
+	engine/botlib/be_aas_route.c
+	engine/botlib/be_ai_chat.c
+	engine/botlib/be_ai_move.c
+	engine/botlib/be_ea.c
+	engine/botlib/l_libvar.c
+	engine/botlib/l_precomp.c
+	engine/botlib/be_aas_debug.c
+	engine/botlib/be_aas_main.c
+	engine/botlib/be_aas_reach.c
+	engine/botlib/be_aas_sample.c
+	engine/botlib/be_ai_gen.c
+	engine/botlib/be_ai_weap.c
+	engine/botlib/be_interface.c
+	engine/botlib/l_log.c
+	engine/botlib/l_script.c
+	engine/botlib/standalone.c
+)
+SET_TARGET_PROPERTIES(fteq3bot PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON};BOTLIB;EXTERNALBOTLIB")
+TARGET_LINK_LIBRARIES(fteq3bot ${FTE_LIBS} )
+SET_TARGET_PROPERTIES(fteq3bot PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+
+FILE(STRINGS "${FTE_BUILD_CONFIG}" BULLET_INTERNAL REGEX "^#define[\t ]+USE_INTERNAL_BULLET")
+IF(BULLET_INTERNAL)
+	#Built-in bullet physics plugin...
+	FIND_PACKAGE(Bullet REQUIRED)
+	SET(FTE_COMMON_FILES ${FTE_COMMON_FILES} plugins/bullet/bulletplug.cpp)
+	INCLUDE_DIRECTORIES( ${BULLET_INCLUDE_DIRS} )
+	SET(FTE_LIBS ${FTE_LIBS} ${BULLET_LIBRARIES})
+	SET(FTESV_LIBS ${FTESV_LIBS} ${BULLET_LIBRARIES})
+ELSE()
+	#Bullet Physics library plugin
+	FIND_PACKAGE(Bullet)
+	IF (BULLET_FOUND)
+		ADD_LIBRARY(bullet MODULE
+			plugins/qvm_api.c
+			plugins/plugin.c
+			plugins/bullet/bulletplug.cpp
+		)
+		TARGET_INCLUDE_DIRECTORIES(bullet PUBLIC ${BULLET_INCLUDE_DIRS})
+		SET_TARGET_PROPERTIES(bullet PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
+		SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
+		SET_TARGET_PROPERTIES(bullet PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+		TARGET_LINK_LIBRARIES(bullet m ${BULLET_LIBRARIES})
+	ENDIF()
+ENDIF()
+
+IF(ANDROID)
 	#android sucks. everything is a library. so we build the engine as a shared library and completely ignore dedicated servers+tools
 	ADD_LIBRARY(ftedroid MODULE
 		${FTE_ARCH_FILES}
@@ -587,7 +776,44 @@ ELSE()
 	)
 	SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
+	
+	ADD_EXECUTABLE(iqmtool
+		iqm/iqm.cpp
+		iqm/iqm.h
+	)
+	SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
 
+	IF(NOT WIN32)
+		ADD_EXECUTABLE(ftemaster
+			${FTESV_ARCH_FILES}
+			engine/server/sv_master.c
+			engine/common/net_wins.c
+			engine/common/cvar.c
+			engine/common/cmd.c
+			engine/common/sha1.c		#for websockets
+			engine/http/httpclient.c	#for the pipe stuff
+			engine/common/log.c
+			engine/common/fs.c
+			engine/common/fs_stdio.c
+			engine/common/common.c
+			engine/common/translate.c
+			engine/common/zone.c
+			engine/qclib/hash.c
+		)
+		SET_TARGET_PROPERTIES(ftemaster PROPERTIES COMPILE_DEFINITIONS "MASTERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(ftemaster ${FTESV_LIBS})
+	ENDIF()
+
+	ADD_EXECUTABLE(httpserver
+		engine/common/fs_stdio.c
+		engine/http/httpserver.c
+		engine/http/iwebiface.c
+		engine/http/ftpserver.c
+	)
+	SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON};stricmp=strcasecmp;strnicmp=strncasecmp")
+	IF(WIN32)
+		TARGET_LINK_LIBRARIES(httpserver ${ZLIB_LIBRARIES} ws2_32)
+	ENDIF()
 
 	ADD_EXECUTABLE(fteqcc
 		engine/qclib/qcctui.c
@@ -619,6 +845,27 @@ ELSE()
 		)
 		SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
 		TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} ${PNG_LIBRARIES} shlwapi ole32 comctl32 comdlg32)
+	ELSE()
+		FIND_PACKAGE(Qt5Widgets)
+		IF (Qt5Widgets_FOUND)
+			ADD_EXECUTABLE(fteqccgui
+				engine/qclib/qccguiqt.cpp
+				engine/qclib/qccguistuff.c
+				engine/qclib/comprout.c
+				engine/qclib/hash.c
+				engine/qclib/qcc_cmdlib.c
+				engine/qclib/qcc_pr_comp.c
+				engine/qclib/qcc_pr_lex.c
+				engine/qclib/qccmain.c
+				engine/qclib/decomp.c
+				engine/qclib/packager.c
+				engine/qclib/qcd_main.c
+			)
+			TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS})
+			SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};${Qt5Widgets_COMPILE_DEFINITIONS}")
+			SET_PROPERTY(TARGET fteqccgui PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+			TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} ${Qt5Widgets_LIBRARIES} qscintilla2_qt5)
+		ENDIF()
 	ENDIF()
 ENDIF()
 
@@ -634,30 +881,21 @@ ENDIF()
 #SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 #SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
 
-#Bullet Physics library plugin
-#FIND_PACKAGE(Bullet)
-IF (${BULLET_FOUND})
-	ADD_LIBRARY(bullet MODULE
-		plugins/qvm_api.c
-		plugins/plugin.c
-		plugins/bullet/bulletplug.cpp
-	)
-	TARGET_INCLUDE_DIRECTORIES(bullet PUBLIC ${BULLET_INCLUDE_DIRS})
-	SET_TARGET_PROPERTIES(bullet PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
-	SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
-ENDIF()
-
 #ODE Physics library plugin
-#FIND_PACKAGE(ode)
-IF (${ODE_FOUND})
+FIND_PATH(LIBODE_INCLUDE_DIR ode/ode.h)
+FIND_LIBRARY(LIBODE_LIBRARY ode)
+IF (LIBODE_INCLUDE_DIR)
 	ADD_LIBRARY(ode MODULE
 		plugins/qvm_api.c
 		plugins/plugin.c
 		engine/common/com_phys_ode.c
+		engine/common/mathlib.c
 	)
 	TARGET_INCLUDE_DIRECTORIES(ode PUBLIC ${ODE_INCLUDE_DIRS})
 	SET_TARGET_PROPERTIES(ode PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;ODE_STATIC")
 	SET_TARGET_PROPERTIES(ode PROPERTIES PREFIX "fteplug_")
+	SET_TARGET_PROPERTIES(ode PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	TARGET_LINK_LIBRARIES(ode m ${LIBODE_LIBRARY})
 ENDIF()
 
 #EzQuake Hud port plugin
@@ -671,6 +909,8 @@ ENDIF()
 #)
 #SET_TARGET_PROPERTIES(ezhud PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 #SET_TARGET_PROPERTIES(ezhud PROPERTIES PREFIX "fteplug_")
+#SET_TARGET_PROPERTIES(ezhud PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+#TARGET_LINK_LIBRARIES(ezhud m)
 
 #IRC client plugin
 #ADD_LIBRARY(irc MODULE
@@ -680,8 +920,37 @@ ENDIF()
 #)
 #SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 #SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
+#SET_TARGET_PROPERTIES(irc PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+#TARGET_LINK_LIBRARIES(irc m)
 
-IF(NOT ${ANDROID})
+#ffmpeg client plugin. no proper way to detect dependancies right now, so I've gotta try the manual way.
+FIND_PATH(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)
+FIND_PATH(AVFORMAT_INCLUDE_DIR libavformat/avformat.h)
+FIND_PATH(AVUTIL_INCLUDE_DIR libavutil/avutil.h)
+FIND_PATH(AVSWSCALE_INCLUDE_DIR libswscale/swscale.h)
+IF((AVFORMAT_INCLUDE_DIR) AND (AVSWSCALE_INCLUDE_DIR))
+	FIND_LIBRARY(AVCODEC_LIBRARY avcodec)
+	FIND_LIBRARY(AVFORMAT_LIBRARY avformat)
+	FIND_LIBRARY(AVUTIL_LIBRARY avutil)
+	FIND_LIBRARY(AVSWSCALE_LIBRARY swscale)
+
+	ADD_LIBRARY(ffmpeg MODULE
+		plugins/qvm_api.c
+		plugins/plugin.c
+		plugins/avplug/avaudio.c
+		plugins/avplug/avdecode.c
+		plugins/avplug/avencode.c
+	)
+	TARGET_INCLUDE_DIRECTORIES(ffmpeg PUBLIC ${AVCODEC_INCLUDE_DIR} ${AVFORMAT_INCLUDE_DIR} ${AVUTIL_INCLUDE_DIR} ${AVSWSCALE_INCLUDE_DIR})
+	SET_TARGET_PROPERTIES(ffmpeg PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	TARGET_LINK_LIBRARIES(ffmpeg m ${AVFORMAT_LIBRARY} ${AVCODEC_LIBRARY} ${AVUTIL_LIBRARY} ${AVSWSCALE_LIBRARY})
+	SET_TARGET_PROPERTIES(ffmpeg PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+	SET_TARGET_PROPERTIES(ffmpeg PROPERTIES PREFIX "fteplug_")
+ELSE()
+	MESSAGE(WARNING "ffmpeg library NOT available. Quake shouldn't be playing fmv anyway.")
+ENDIF()
+
+IF(NOT ANDROID)
 	#XMPP/jabber client plugin
 	ADD_LIBRARY(xmpp MODULE
 		plugins/qvm_api.c
@@ -695,7 +964,11 @@ IF(NOT ${ANDROID})
 	)
 	SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 	SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
+	SET_TARGET_PROPERTIES(xmpp PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	IF(${WIN32})
+	ELSE()
+		TARGET_LINK_LIBRARIES(xmpp m resolv)
+	ENDIF()
 ENDIF()
 
-#ffmpeg plugin
 #cef plugin

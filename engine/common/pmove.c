@@ -76,7 +76,7 @@ void PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 	float	backoff;
 	float	change;
 	int		i;
-	
+
 	backoff = DotProduct (in, normal) * overbounce;
 
 	for (i=0 ; i<3 ; i++)
@@ -171,7 +171,7 @@ static trace_t	PM_PlayerTracePortals(vec3_t start, vec3_t end, unsigned int soli
 				trace_t exit;
 				int i, tmp;
 				VectorAdd(from, move, end);
-				
+
 				//if we follow the portal, then we basically need to restart from the other side.
 				exit = PM_PlayerTrace (from, end, MASK_PLAYERSOLID);
 
@@ -530,7 +530,7 @@ void PM_Friction (void)
 			//id quirk: this is a tracebox, NOT a traceline, yet still starts BELOW the player.
 			start[2] = pmove.origin[2] + pmove.player_mins[2];
 			stop[2] = start[2] - 34;
-			if (movevars_dpflags & MOVEFLAG_QWEDGEBOX)	//quirky qw behaviour uses a tracebox, which 
+			if (movevars_dpflags & MOVEFLAG_QWEDGEBOX)	//quirky qw behaviour uses a tracebox, which
 				trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
 			else
 			{
@@ -721,7 +721,7 @@ void PM_FlyMove (void)
 	}
 
 	PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
-	
+
 	PM_StepSlideMove (false);
 }
 
@@ -850,7 +850,7 @@ void PM_AirMove (void)
 	else
 	{
 		int blocked;
-		
+
 		// not on ground, so little effect on velocity
 		PM_AirAccelerate (wishdir, wishspeed, movevars.accelerate);
 

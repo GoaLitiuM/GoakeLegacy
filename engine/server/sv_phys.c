@@ -61,6 +61,7 @@ cvar_t	sv_gameplayfix_bouncedownslopes		= CVARD( "sv_gameplayfix_grenadebouncedo
 #if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)
 cvar_t	sv_gameplayfix_spawnbeforethinks	= CVARD( "sv_gameplayfix_spawnbeforethinks", "0", "Fixes an issue where player thinks (including Pre+Post) can be called before PutClientInServer. Unfortunately at least one mod depends upon PreThink being called first in order to correctly determine spawn positions.");
 #endif
+cvar_t	dpcompat_noretouchground	= CVARD( "dpcompat_noretouchground", "0", "Prevents entities that are already standing on an entity from touching the same entity again.");
 cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 cvar_t	sv_sound_land		 = CVAR( "sv_sound_land", "demon/dland2.wav");
 cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	"sv_stepheight", CVAR_SERVERINFO, "If empty, the value "STRINGIFY(PM_DEFAULTSTEPHEIGHT)" will be used instead. This is the size of the step you can step up or down.");
@@ -74,6 +75,7 @@ cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = CVARAF("pm_airstep", "", "sv_jumpstep", CVAR_SERVERINFO);
 cvar_t	pm_stepdown			 = CVARF("pm_stepdown", "", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
+cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", "edgefriction", CVAR_SERVERINFO, "Default value of 2");	//alternative name (without prefix) for compat with dp
 
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)
@@ -97,6 +99,7 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_stepdown,			cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_bouncedownslopes,	cvargroup_serverphysics);
+	Cvar_Register (&dpcompat_noretouchground,			cvargroup_serverphysics);
 
 #if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)
 	Cvar_Register (&sv_gameplayfix_spawnbeforethinks,	cvargroup_serverphysics);
@@ -449,6 +452,12 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 		if (!trace.ent)
 			Host_Error ("SV_FlyMove: !trace.ent");
 
+		if (dpcompat_noretouchground.ival)
+		{	//note: also sets onground AFTER the touch event.
+			if (!((int)ent->v->flags&FL_ONGROUND) || ent->v->groundentity!=EDICT_TO_PROG(w->progs, trace.ent))
+				WPhys_Impact (w, ent, &trace);
+		}
+
 		if (-DotProduct(gravitydir, trace.plane.normal) > 0.7)
 		{
 			blocked |= 1;		// floor
@@ -468,7 +477,8 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 //
 // run the impact function
 //
-		WPhys_Impact (w, ent, &trace);
+		if (!dpcompat_noretouchground.ival)
+			WPhys_Impact (w, ent, &trace);
 		if (ED_ISFREE(ent))
 			break;		// removed by the impact function
 
@@ -992,7 +1002,7 @@ qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove)
 
 	// its blocking us. this is probably a problem.
 
-		//corpses 
+		//corpses
 		if (check->v->mins[0] == check->v->maxs[0])
 		{
 			World_LinkEdict (w, check, false);
@@ -2467,7 +2477,7 @@ qboolean SV_Physics (void)
 	//keep gravity tracking the cvar properly
 	movevars.gravity = sv_gravity.value;
 
-	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE 
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE
 #ifdef VM_LUA
 		&& svs.gametype != GT_LUA
 #endif
@@ -2683,5 +2693,6 @@ void SV_SetMoveVars(void)
 	movevars.stepheight			= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
 	movevars.watersinkspeed		= *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction		= *pm_flyfriction.string?pm_flyfriction.value:4;
+	//movevars.edgefriction		= *pm_edgefriction.string?pm_edgefriction.value:2;
 }
 #endif

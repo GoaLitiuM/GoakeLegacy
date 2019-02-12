@@ -541,7 +541,7 @@ void CompleteCommand (qboolean force, int direction)
 	Key_UpdateCompletionDesc();
 }
 
-int Con_Navigate(console_t *con, char *line)
+int Con_Navigate(console_t *con, const char *line)
 {
 	if (con->backshader)
 	{
@@ -558,7 +558,7 @@ int Con_Navigate(console_t *con, char *line)
 }
 
 //lines typed at the main console enter here
-int Con_ExecuteLine(console_t *con, char *line)
+int Con_ExecuteLine(console_t *con, const char *line)
 {
 	qboolean waschat = false;
 	char *deutf8 = NULL;
@@ -598,7 +598,7 @@ int Con_ExecuteLine(console_t *con, char *line)
 		Cbuf_AddText (line, RESTRICT_LOCAL);
 	else
 	{
-		char *exec = NULL;
+		const char *exec = NULL;
 		if (line[0] == '\\' || line[0] == '/')
 			exec = line+1;	// skip the slash
 		else if (cl_chatmode.value == 2 && Cmd_IsCommand(line))
@@ -1043,6 +1043,12 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		return;
 	}
 #endif
+	c = Info_ValueForKey(info, "playaudio");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nplay \"%s\"\n", c), RESTRICT_LOCAL);
+		return;
+	}
 	c = Info_ValueForKey(info, "desc");
 	if (*c)
 	{
@@ -1128,6 +1134,19 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 	{
 		if (con->selstartline)
 		{
+			if (con->userline)
+			{
+				if (con->flags & CONF_BACKSELECTION)
+				{
+					con->userline = con->selendline;
+					con->useroffset = con->selendoffset;
+				}
+				else
+				{
+					con->userline = con->selstartline;
+					con->useroffset = con->selstartoffset;
+				}
+			}
 			if (con->selstartline == con->selendline && con->selendoffset <= con->selstartoffset+1)
 			{
 				con->flags &= ~CONF_KEEPSELECTION;
@@ -1135,7 +1154,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 					;
 				else
 				{
-					buffer = Con_CopyConsole(con, false, true);
+					buffer = Con_CopyConsole(con, false, true, false);
 					if (buffer)
 					{
 						Key_HandleConsoleLink(con, buffer);
@@ -1146,21 +1165,8 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 			else
 			{
 				con->flags |= CONF_KEEPSELECTION;
-				if (con->userdata)
-				{
-					if (con->flags & CONF_BACKSELECTION)
-					{
-						con->userline = con->selendline;
-						con->useroffset = con->selendoffset;
-					}
-					else
-					{
-						con->userline = con->selstartline;
-						con->useroffset = con->selstartoffset;
-					}
-				}
 
-				buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+				buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
 				if (buffer)
 				{
 					Sys_SaveClipboard(CBT_SELECTION,  buffer);
@@ -1175,7 +1181,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 		con->buttonsdown = CB_NONE;
 		if (abs(con->mousedown[0] - con->mousecursor[0]) < 5 && abs(con->mousedown[1] - con->mousecursor[1]) < 5)
 		{
-			buffer = Con_CopyConsole(con, false, false);
+			buffer = Con_CopyConsole(con, false, false, false);
 			Con_Footerf(con, false, "");
 			if (!buffer)
 				return;
@@ -1208,7 +1214,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 	if (key == K_MOUSE2 && con->buttonsdown == CB_COPY)
 	{
 		con->buttonsdown = CB_NONE;
-		buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+		buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
 		if (!buffer)
 			return;
 		Sys_SaveClipboard(CBT_CLIPBOARD,  buffer);
@@ -1236,6 +1242,111 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 	}
 #endif
 }
+
+const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
+{
+	static const struct
+	{
+		const char *pattern;
+		const char *repl;
+	} emoji[] =
+	{
+		//https://www.webpagefx.com/tools/emoji-cheat-sheet/
+//		{":)",				"\xE2\x98\xBA"},
+
+#ifdef QUAKEHUD
+		{":sg:",			"\xEE\x84\x82"},
+		{":ssg:",			"\xEE\x84\x83"},
+		{":ng:",			"\xEE\x84\x84"},
+		{":sng:",			"\xEE\x84\x85"},
+		{":gl:",			"\xEE\x84\x86"},
+		{":rl:",			"\xEE\x84\x87"},
+		{":lg:",			"\xEE\x84\x88"},
+
+		{":sg2:",			"\xEE\x84\x92"},
+		{":ssg2:",			"\xEE\x84\x93"},
+		{":ng2:",			"\xEE\x84\x94"},
+		{":sng2:",			"\xEE\x84\x95"},
+		{":gl2:",			"\xEE\x84\x96"},
+		{":rl2:",			"\xEE\x84\x97"},
+		{":lg2:",			"\xEE\x84\x98"},
+
+		{":shells:",		"\xEE\x84\xA0"},
+		{":nails:",			"\xEE\x84\xA1"},
+		{":rocket:",		"\xEE\x84\xA2"},
+		{":cells:",			"\xEE\x84\xA3"},
+		{":ga:",			"\xEE\x84\xA4"},
+		{":ya:",			"\xEE\x84\xA5"},
+		{":ra:",			"\xEE\x84\xA6"},
+
+		{":key1:",			"\xEE\x84\xB0"},
+		{":key2:",			"\xEE\x84\xB1"},
+		{":ring:",			"\xEE\x84\xB2"},
+		{":pent:",			"\xEE\x84\xB3"},
+		{":suit:",			"\xEE\x84\xB4"},
+		{":quad:",			"\xEE\x84\xB5"},
+		{":sigil1:",		"\xEE\x84\xB6"},
+		{":sigil2:",		"\xEE\x84\xB7"},
+		{":sigil3:",		"\xEE\x84\xB8"},
+		{":sigil4:",		"\xEE\x84\xB9"},
+
+		{":face1:",			"\xEE\x85\x80"},
+		{":face_p1:",		"\xEE\x85\x81"},
+		{":face2:",			"\xEE\x85\x82"},
+		{":face_p2:",		"\xEE\x85\x83"},
+		{":face3:",			"\xEE\x85\x84"},
+		{":face_p3:",		"\xEE\x85\x85"},
+		{":face4:",			"\xEE\x85\x86"},
+		{":face_p4:",		"\xEE\x85\x87"},
+		{":face5:",			"\xEE\x85\x88"},
+		{":face_p5:",		"\xEE\x85\x89"},
+		{":face_invis:",	"\xEE\x85\x8A"},
+		{":face_invul2:",	"\xEE\x85\x8B"},
+		{":face_inv2:",		"\xEE\x85\x8C"},
+		{":face_quad:",		"\xEE\x85\x8D"},
+#endif
+	};
+	char *estart = strchr(in, ':');
+	size_t i;
+	char *out = buffer, *outend = buffer+buffersize-1;
+	if (!estart)
+		return in;
+	for(; estart; )
+	{
+		if (out + (estart-in) >= outend)
+			break; //not enough space
+		memcpy(out, in, estart-in);
+		out += estart-in;
+		in = estart;
+
+		for (i = 0; i < countof(emoji); i++)
+		{
+			if (!strncmp(in, emoji[i].pattern, strlen(emoji[i].pattern)))
+				break;	//its this one!
+		}
+		if (i < countof(emoji))
+		{
+			if (out + strlen(emoji[i].repl) >= outend)
+			{
+				in = "";	//no half-emoji
+				break;
+			}
+			in += strlen(emoji[i].pattern);
+			memcpy(out, emoji[i].repl, strlen(emoji[i].repl));
+			out += strlen(emoji[i].repl);
+			estart = strchr(in, ':');
+		}
+		else
+		{
+			estart = strchr(in+1, ':');
+		}
+	}
+	while (*in && out < outend)
+		*out++ = *in++;
+	*out = 0;
+	return buffer;
+}
+
 //if the referenced (trailing) chevron is doubled up, then it doesn't act as part of any markup and should be ignored for such things.
 static qboolean utf_specialchevron(unsigned char *start, unsigned char *chev)
 {
@@ -1456,7 +1567,7 @@ qboolean Key_EntryLine(console_t *con, unsigned char **line, int lineoffset, int
 	{
 		if (con && (con->flags & CONF_KEEPSELECTION))
 		{	//copy selected text to the system clipboard
-			char *buffer = Con_CopyConsole(con, true, false);
+			char *buffer = Con_CopyConsole(con, true, false, true);
 			if (buffer)
 			{
 				Sys_SaveClipboard(CBT_CLIPBOARD,  buffer);
@@ -1579,16 +1690,16 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 	if ((unicode >= '0' && unicode <= '9') || unicode == '.' || key < 0)
 		key = 0;
 
+	if (key == K_TAB && !(con->flags & CONF_ISWINDOW) && ctrl&&shift)
+	{	// cycle consoles with ctrl+shift+tab.
+		// (ctrl+tab forces tab completion,
+		//	shift+tab controls completion cycle,
+		//  so it has to be both.)
+		Con_CycleConsole();
+		return true;
+	}
 	if (con->redirect)
 	{
-		if (key == K_TAB)
-		{	// command completion
-			if (ctrl || shift)
-			{
-				Con_CycleConsole();
-				return true;
-			}
-		}
 		if (key == K_MOUSE1 || key == K_MOUSE2)
 			;
 		else if (con->redirect(con, unicode, key))
@@ -1614,7 +1725,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		{
 			if (key == K_MOUSE2 && !(con->flags & CONF_ISWINDOW))
 			{
-				if (con->close && !con->close(con, true))
+				if (con->close && !con->close(con, false))
 					return true;
 				Con_Destroy (con);
 			}
@@ -1666,7 +1777,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 						Con_ExpandConsoleSelection(con);
 						con->flags |= CONF_KEEPSELECTION;
 
-						buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+						buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
 						if (buffer)
 						{
 							Sys_SaveClipboard(CBT_SELECTION,  buffer);
@@ -1789,16 +1900,16 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 	
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)
 	{	// backslash text are commands, else chat
-		int oldl = edit_line;
+		char demoji[8192];
+		const char *txt = Key_Demoji(demoji, sizeof(demoji), key_lines[edit_line]);
 
 #ifndef FTE_TARGET_WEB
 		if (keydown[K_LALT] || keydown[K_RALT])
 			Cbuf_AddText("\nvid_toggle\n", RESTRICT_LOCAL);
 #endif
 
-		if ((con_commandmatch && !strchr(key_lines[edit_line], ' ')) || shift)
+		if ((con_commandmatch && !strchr(txt, ' ')) || shift)
 		{	//if that isn't actually a command, and we can actually complete it to something, then lets try to complete it.
-			char *txt = key_lines[edit_line];
 			if (*txt == '/')
 				txt++;
 
@@ -1814,7 +1925,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 
 		if (con->linebuffered)
 		{
-			if (con->linebuffered(con, key_lines[oldl]) != 2)
+			if (con->linebuffered(con, txt) != 2)
 			{
 				edit_line = (edit_line + 1) & (CON_EDIT_LINES_MASK);
 				history_line = edit_line;
@@ -1843,12 +1954,6 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 
 	if (key == K_TAB)
 	{	// command completion
-		if (ctrl&&shift)
-		{
-			Con_CycleConsole();
-			return true;
-		}
-
 		if (con->commandcompletion)
 			CompleteCommand (ctrl, shift?-1:1);
 		return true;
@@ -1952,8 +2057,11 @@ void Key_Message (int key, int unicode)
 	{
 		if (chat_buffer && chat_buffer[0])
 		{	//send it straight into the command.
-			char *line = chat_buffer;
+			const char *line = chat_buffer;
 			char deutf8[8192];
+			char demoji[8192];
+			line = Key_Demoji(demoji, sizeof(demoji), line);
+
 			if (com_parseutf8.ival <= 0)
 			{
 				unsigned int unicode;
@@ -2155,7 +2263,7 @@ const char *Key_KeynumToString (int keynum, int modifier)
 Key_SetBinding
 ===================
 */
-void Key_SetBinding (int keynum, int modifier, char *binding, int level)
+void Key_SetBinding (int keynum, int modifier, const char *binding, int level)
 {
 	char	*newc;
 	int		l;
@@ -2313,18 +2421,19 @@ void Key_Bind_f (void)
 	int			i, c, b, modifier;
 	char		cmd[1024];
 	int bindmap = 0;
-
+	int level = Cmd_ExecLevel;
+	qboolean isbindlevel = !strcmp("bindlevel", Cmd_Argv(0));
 	if (!strcmp("in_bind", Cmd_Argv(0)))
 	{
 		bindmap = atoi(Cmd_Argv(1));
-		Cmd_ShiftArgs(1, Cmd_ExecLevel==RESTRICT_LOCAL);
+		Cmd_ShiftArgs(1, level==RESTRICT_LOCAL);
 	}
 	
 	c = Cmd_Argc();
 
-	if (c < 2)
+	if (c < 2+isbindlevel)
 	{
-		Con_Printf ("bind <key> [command] : attach a command to a key\n");
+		Con_Printf ("%s <key> %s[command] : attach a command to a key\n", Cmd_Argv(0), isbindlevel?"<level> ":"");
 		return;
 	}
 	b = Key_StringToKeynum (Cmd_Argv(1), &modifier);
@@ -2334,6 +2443,25 @@ void Key_Bind_f (void)
 			Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
 		return;
 	}
+	if (isbindlevel)
+	{
+		level = atoi(Cmd_Argv(2));
+		if (Cmd_IsInsecure())
+			level = Cmd_ExecLevel;
+		else
+		{
+			if (level > RESTRICT_MAX)
+				level = RESTRICT_INSECURE;
+			else
+			{
+				if (level < RESTRICT_MIN)
+					level = RESTRICT_MIN;
+				if (level > Cmd_ExecLevel)
+					level = Cmd_ExecLevel;	//clamp exec levels, so we don't get more rights than we should.
+			}
+		}
+	}
+
 	if (bindmap)
 	{
 		if (bindmap <= 0 || bindmap > KEY_MODIFIER_ALTBINDMAP)
@@ -2351,7 +2479,7 @@ void Key_Bind_f (void)
 		modifier = (bindmap-1) | KEY_MODIFIER_ALTBINDMAP;
 	}
 
-	if (c == 2)
+	if (c == 2+isbindlevel)
 	{
 		if (modifier == ~0)	//modifier unspecified. default to no modifier
 			modifier = 0;
@@ -2374,73 +2502,23 @@ void Key_Bind_f (void)
 		return;
 	}
 
-	if (c > 3)
+	if (c > 3+isbindlevel)
 	{
-		Cmd_ShiftArgs(1, Cmd_ExecLevel==RESTRICT_LOCAL);
-		Key_SetBinding (b, modifier, Cmd_Args(), Cmd_ExecLevel);
+		Cmd_ShiftArgs(1+isbindlevel, level==RESTRICT_LOCAL);
+		Key_SetBinding (b, modifier, Cmd_Args(), level);
 		return;
 	}
 	
 // copy the rest of the command line
 	cmd[0] = 0;		// start out with a null string
-	for (i=2 ; i< c ; i++)
+	for (i=2+isbindlevel ; i< c ; i++)
 	{
 		Q_strncatz (cmd, Cmd_Argv(i), sizeof(cmd));
 		if (i != (c-1))
 			Q_strncatz (cmd, " ", sizeof(cmd));
 	}
 
-	Key_SetBinding (b, modifier, cmd, Cmd_ExecLevel);
-}
-
-void Key_BindLevel_f (void)
-{
-	int			i, c, b, modifier;
-	char		cmd[1024];
-	
-	c = Cmd_Argc();
-
-	if (c != 2 && c != 4)
-	{
-		Con_Printf ("%s <key> [<level> <command>] : attach a command to a key for a specific level of access\n", Cmd_Argv(0));
-		return;
-	}
-	b = Key_StringToKeynum (Cmd_Argv(1), &modifier);
-	if (b==-1)
-	{
-		if (cl_warncmd.ival)
-			Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
-		return;
-	}
-
-	if (modifier == ~0)	//modifier unspecified. default to no modifier
-		modifier = 0;
-
-	if (c == 2)
-	{
-		if (keybindings[b][modifier])
-			Con_Printf ("\"%s\" (%i)= \"%s\"\n", Cmd_Argv(1), bindcmdlevel[b][modifier], keybindings[b][modifier] );
-		else
-			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );
-		return;
-	}
-
-	if (Cmd_IsInsecure())
-	{
-		Con_Printf("Server attempted usage of %s\n", Cmd_Argv(0));
-		return;
-	}
-
-// copy the rest of the command line
-	cmd[0] = 0;		// start out with a null string
-	for (i=3 ; i< c ; i++)
-	{
-		Q_strncatz (cmd, Cmd_Argv(i), sizeof(cmd));
-		if (i != (c-1))
-			Q_strncatz (cmd, " ", sizeof(cmd));
-	}
-
-	Key_SetBinding (b, modifier, cmd, atoi(Cmd_Argv(2)));
+	Key_SetBinding (b, modifier, cmd, level);
 }
 
 /*
@@ -2519,7 +2597,7 @@ void Key_Init (void)
 	key_linepos = 0;
 
 	key_dest_mask = kdm_game;
-	key_dest_absolutemouse = kdm_centerprint | kdm_console | kdm_editor | kdm_cwindows | kdm_emenu;
+	key_dest_absolutemouse = kdm_centerprint | kdm_console | kdm_cwindows | kdm_emenu;
 
 //
 // init ascii characters in console mode
@@ -2605,7 +2683,7 @@ void Key_Init (void)
 //
 	Cmd_AddCommandAD ("bind",Key_Bind_f, Key_Bind_c, NULL);
 	Cmd_AddCommand ("in_bind",Key_Bind_f);
-	Cmd_AddCommand ("bindlevel",Key_BindLevel_f);
+	Cmd_AddCommand ("bindlevel",Key_Bind_f);
 	Cmd_AddCommandAD ("unbind",Key_Unbind_f, Key_Bind_c, NULL);
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
 
@@ -2620,15 +2698,6 @@ qboolean Key_MouseShouldBeFree(void)
 	//if true, the input code is expected to return mouse cursor positions rather than deltas
 	extern cvar_t cl_prydoncursor;
 	if (key_dest_absolutemouse & key_dest_mask)
-		return true;
-
-	if (Key_Dest_Has(kdm_editor))
-		return true;
-
-//	if (!vid.activeapp)
-//		return true;
-
-	if (Key_Dest_Has(kdm_emenu))
 		return true;
 
 #ifdef VM_UI
@@ -2759,7 +2828,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		if (!down)
 		{
 #ifdef MENU_DAT
-			if (Key_Dest_Has(kdm_gmenu) && !Key_Dest_Has(kdm_editor|kdm_console|kdm_cwindows))
+			if (Key_Dest_Has(kdm_gmenu) && !Key_Dest_Has(kdm_console|kdm_cwindows))
 				MP_Keyup (key, unicode, devid);
 #endif
 #ifdef MENU_NATIVECODE
@@ -2787,10 +2856,6 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			if (!cls.state && !Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
 				M_ToggleMenu_f ();
 		}
-#ifdef TEXTEDITOR
-		else if (Key_Dest_Has(kdm_editor))
-			Editor_Key (key, unicode);
-#endif
 		else if (Key_Dest_Has(kdm_emenu))
 			M_Keydown (key, unicode);
 #ifdef MENU_NATIVECODE
@@ -2841,7 +2906,13 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	{
 		if (Key_Dest_Has(kdm_console|kdm_cwindows))
 		{
-			console_t *con = Key_Dest_Has(kdm_console)?con_current:con_curwindow;
+			console_t *con;
+			if (Key_Dest_Has(kdm_console))
+				con = con_current;
+			else if (Key_Dest_Has(kdm_cwindows))
+				con = con_curwindow;
+			else
+				con = NULL;
 			if (con_mouseover && key >= K_MOUSE1 && key <= K_MWHEELDOWN)
 				con = con_mouseover;
 			if (con_curwindow && con_curwindow != con)
@@ -2932,13 +3003,6 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	if (Media_PlayingFullScreen())
 	{
 		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
-		return;
-	}
-#endif
-#ifdef TEXTEDITOR
-	if (Key_Dest_Has(kdm_editor))
-	{
-		Editor_Key (key, unicode);
 		return;
 	}
 #endif

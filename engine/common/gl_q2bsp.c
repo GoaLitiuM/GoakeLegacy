@@ -102,10 +102,8 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s)
 
 		for (j=0 ; j<2 ; j++)
 		{
-			val = v->position[0] * tex->vecs[j][0] +
-				v->position[1] * tex->vecs[j][1] +
-				v->position[2] * tex->vecs[j][2] +
-				tex->vecs[j][3];
+			//doubles should replicate win32/x87 compiler 80-bit precision better. We have to hope that win64 compilers use the same precision.
+			val = DotProduct_Double(v->position, tex->vecs[j]) + tex->vecs[j][3];
 			if (val < mins[j])
 				mins[j] = val;
 			if (val > maxs[j])
@@ -254,18 +252,24 @@ typedef struct
 	q2cbrushside_t *brushside;
 } q2cbrush_t;
 
+#ifdef Q2BSPS
 typedef struct
 {
 	int		numareaportals;
 	int		firstareaportal;
-	int		floodnum;			// if two areas have equal floodnums, they are connected
-	int		floodvalid;
 } q2carea_t;
-
+#endif
+#ifdef Q3BSPS
 typedef struct
 {
 	int			numareaportals[MAX_CM_AREAS];
 } q3carea_t;
+#endif
+typedef struct
+{
+	int		floodnum;			// if two areas have equal floodnums, they are connected
+	int		floodvalid;			// flags the area as having been visited (sequence numbers matching prv->floodvalid)
+} careaflood_t;
 
 typedef struct
 {
@@ -353,10 +357,22 @@ typedef struct cminfo_s
 	q3dvis_t		*q3phs;
 
 	int				numareas;
-	q2carea_t		q2areas[MAX_Q2MAP_AREAS];
+	int				floodvalid;
+	careaflood_t	areaflood[MAX_CM_AREAS];
+#ifdef Q3BSPS
+	//q3's areas are simple bidirectional area1/area2 pairs. refcounted (so two areas can have two doors/openings)
 	q3carea_t		q3areas[MAX_CM_AREAS];
-	int				numareaportals;
-	q2dareaportal_t	areaportals[MAX_Q2MAP_AREAPORTALS];
+#endif
+#ifdef Q2BSPS
+	//q2's areas have a list of portals that open into other areas.
+	q2carea_t	*q2areas;	//indexes into q2areaportals for flooding
+	size_t			numq2areaportals;
+	q2dareaportal_t	*q2areaportals;
+
+	//and this is the state that is actually changed. booleans.
+	qbyte			q2portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, really it should be a qboolean
+#endif
+
 
 	//list of mesh surfaces within the leaf
 	q3cmesh_t	cmeshes[MAX_CM_PATCHES];
@@ -374,10 +390,7 @@ typedef struct cminfo_s
 	int			maxleafpatches;
 	//FIXME: remove the above
 
-	int			floodvalid;
-	qbyte		portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, really it should be a qboolean
-
-	int			mapisq3;
+	qboolean			mapisq3;
 
 
 
@@ -1525,7 +1538,7 @@ Mod_LoadFaces
 =================
 */
 #ifndef SERVERONLY
-static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean lightofsisdouble)
+static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean lightofsisdouble, lightmapoverrides_t *overrides)
 {
 	dsface_t		*in;
 	msurface_t 	*out;
@@ -1536,13 +1549,18 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 	unsigned short lmshift, lmscale;
 	char buf[64];
 
-	lmscale = atoi(Mod_ParseWorldspawnKey(mod, "lightmap_scale", buf, sizeof(buf)));
-	if (!lmscale)
-		lmshift = LMSHIFT_DEFAULT;
+	if (overrides->offsets)
+		lmshift = overrides->defaultshift;
 	else
 	{
-		for(lmshift = 0; lmscale > 1; lmshift++)
-			lmscale >>= 1;
+		lmscale = atoi(Mod_ParseWorldspawnKey(mod, "lightmap_scale", buf, sizeof(buf)));
+		if (!lmscale)
+			lmshift = LMSHIFT_DEFAULT;
+		else
+		{
+			for(lmshift = 0; lmscale > 1; lmshift++)
+				lmscale >>= 1;
+		}
 	}
 
 	in = (void *)(mod_base + l->fileofs);
@@ -1589,14 +1607,25 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 		}
 #endif
 
-		out->lmshift = lmshift;
+		if (overrides->shifts)
+			out->lmshift = overrides->shifts[surfnum];
+		else
+			out->lmshift = lmshift;
 		CalcSurfaceExtents (mod, out);
+		if (overrides->extents)
+		{
+			out->extents[0] = overrides->extents[surfnum*2+0];
+			out->extents[1] = overrides->extents[surfnum*2+1];
+		}
 
 	// lighting info
 
 		for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 			out->styles[i] = in->styles[i];
-		i = LittleLong(in->lightofs);
+		if (overrides->offsets)
+			i = overrides->offsets[surfnum];
+		else
+			i = LittleLong(in->lightofs);
 		if (i == -1)
 			out->samples = NULL;
 		else if (lightofsisdouble)
@@ -1616,6 +1645,11 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 			}
 		}
 
+		if (overrides->extents)
+		{
+			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
+				out->styles[i] = overrides->extents[surfnum*4+i];
+		}
 	}
 
 	return true;
@@ -1964,7 +1998,7 @@ static qboolean CModQ2_LoadAreas (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
-	q2carea_t		*out;
+	q2carea_t	*out;
 	q2darea_t 	*in;
 	int			count;
 
@@ -1982,15 +2016,13 @@ static qboolean CModQ2_LoadAreas (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = prv->q2areas;
+	out = prv->q2areas = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);;
 	prv->numareas = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
 		out->numareaportals = LittleLong (in->numareaportals);
 		out->firstareaportal = LittleLong (in->firstareaportal);
-		out->floodvalid = 0;
-		out->floodnum = 0;
 	}
 
 	return true;
@@ -2023,8 +2055,8 @@ static qboolean CModQ2_LoadAreaPortals (model_t *mod, qbyte *mod_base, lump_t *l
 		return false;
 	}
 
-	out = prv->areaportals;
-	prv->numareaportals = count;
+	out = prv->q2areaportals = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
+	prv->numq2areaportals = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -3533,10 +3565,11 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
 
 	loadmodel->lightmaps.merge = 0;
-	if (!samples)
-		return;
 
 	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
+
+	if (!samples)
+		return;
 
 	loadmodel->lightmaps.fmt = LM_RGB8;
 
@@ -4400,48 +4433,52 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			break;
 #ifndef SERVERONLY
 		default:
-		// load into heap
-			noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
-			if (header.version == BSPVERSION_Q2W)
-				/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, mod_base, &header.lumps[19]);
-			noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
-			noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
-			if (noerrors)
-				Mod_LoadLighting							(mod, bspx, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, NULL);
-			noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
-			noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);
-			if (noerrors)
-				Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
-			noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], header.version == BSPVERSION_Q2W);
-			noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
-			noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[Q2LUMP_BRUSHES]);
-			noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[Q2LUMP_LEAFBRUSHES]);
-			noerrors = noerrors && CModQ2_LoadLeafs			(mod, mod_base, &header.lumps[Q2LUMP_LEAFS]);
-			noerrors = noerrors && CModQ2_LoadNodes			(mod, mod_base, &header.lumps[Q2LUMP_NODES]);
-			noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[Q2LUMP_MODELS]);
-			noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[Q2LUMP_AREAS]);
-			noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
-
-			if (!noerrors)
 			{
-				return NULL;
-			}
+				lightmapoverrides_t overrides = {0};
+				overrides.defaultshift = LMSHIFT_DEFAULT;
+				// load into heap
+				noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
+				if (header.version == BSPVERSION_Q2W)
+					/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, mod_base, &header.lumps[19]);
+				noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
+				noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
+				if (noerrors)
+					Mod_LoadLighting							(mod, bspx, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, &overrides);
+				noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
+				noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
+				noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);
+				if (noerrors)
+					Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
+				noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], header.version == BSPVERSION_Q2W, &overrides);
+				noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
+				noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
+				noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);
+				noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[Q2LUMP_BRUSHES]);
+				noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[Q2LUMP_LEAFBRUSHES]);
+				noerrors = noerrors && CModQ2_LoadLeafs			(mod, mod_base, &header.lumps[Q2LUMP_LEAFS]);
+				noerrors = noerrors && CModQ2_LoadNodes			(mod, mod_base, &header.lumps[Q2LUMP_NODES]);
+				noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[Q2LUMP_MODELS]);
+				noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[Q2LUMP_AREAS]);
+				noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
+
+				if (!noerrors)
+				{
+					return NULL;
+				}
 #ifndef CLIENTONLY
-			mod->funcs.FatPVS				= Q23BSP_FatPVS;
-			mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
-			mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
+				mod->funcs.FatPVS				= Q23BSP_FatPVS;
+				mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
+				mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
 #endif
-			mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
-			mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
-			mod->funcs.MarkLights			= Q2BSP_MarkLights;
-			mod->funcs.ClusterPVS			= CM_ClusterPVS;
-			mod->funcs.ClusterForPoint		= CM_PointCluster;
-			mod->funcs.PointContents		= Q2BSP_PointContents;
-			mod->funcs.NativeTrace			= CM_NativeTrace;
-			mod->funcs.NativeContents		= CM_NativeContents;
+				mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
+				mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
+				mod->funcs.MarkLights			= Q2BSP_MarkLights;
+				mod->funcs.ClusterPVS			= CM_ClusterPVS;
+				mod->funcs.ClusterForPoint		= CM_PointCluster;
+				mod->funcs.PointContents		= Q2BSP_PointContents;
+				mod->funcs.NativeTrace			= CM_NativeTrace;
+				mod->funcs.NativeContents		= CM_NativeContents;
+			}
 			break;
 #endif
 		}
@@ -4450,10 +4487,20 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 	BSPX_LoadEnvmaps(mod, bspx, mod_base);
 
+#ifdef Q3BSPS
+	{
+		int x, y;
+		for (x = 0; x < prv->numareas; x++)
+			for (y = 0; y < prv->numareas; y++)
+				prv->q3areas[x].numareaportals[y] = map_autoopenportals.ival;
+	}
+#endif
+#ifdef Q2BSPS
 	if (map_autoopenportals.value)
-		memset (prv->portalopen, 1, sizeof(prv->portalopen));	//open them all. Used for progs that havn't got a clue.
+		memset (prv->q2portalopen, 1, sizeof(prv->q2portalopen));	//open them all. Used for progs that havn't got a clue.
 	else
-		memset (prv->portalopen, 0, sizeof(prv->portalopen));	//make them start closed.
+		memset (prv->q2portalopen, 0, sizeof(prv->q2portalopen));	//make them start closed.
+#endif
 	FloodAreaConnections (prv);
 
 	mod->checksum = mod->checksum2 = *checksum;
@@ -6485,36 +6532,45 @@ AREAPORTALS
 ===============================================================================
 */
 
-static void FloodArea_r (cminfo_t	*prv, q2carea_t *area, int floodnum)
+static void FloodArea_r (cminfo_t	*prv, size_t areaidx, int floodnum)
 {
-	int		i;
+	size_t		i;
 
-	if (area->floodvalid == prv->floodvalid)
+	careaflood_t *flood = &prv->areaflood[areaidx];
+	if (flood->floodvalid == prv->floodvalid)
 	{
-		if (area->floodnum == floodnum)
+		if (flood->floodnum == floodnum)
 			return;
 		Con_Printf ("FloodArea_r: reflooded\n");
 		return;
 	}
 
-	area->floodnum = floodnum;
-	area->floodvalid = prv->floodvalid;
-	if (prv->mapisq3)
+	flood->floodnum = floodnum;
+	flood->floodvalid = prv->floodvalid;
+	switch(prv->mapisq3)
 	{
+	case true:
+#ifdef Q3BSPS
 		for (i=0 ; i<prv->numareas ; i++)
 		{
-			if (prv->q3areas[area - prv->q2areas].numareaportals[i]>0)
-				FloodArea_r (prv, &prv->q2areas[i], floodnum);
+			if (prv->q3areas[areaidx].numareaportals[i]>0)
+				FloodArea_r (prv, i, floodnum);
 		}
-	}
-	else
-	{
-		q2dareaportal_t	*p = &prv->areaportals[area->firstareaportal];
-		for (i=0 ; i<area->numareaportals ; i++, p++)
+#endif
+		break;
+	case false:
+#ifdef Q2BSPS
 		{
-			if (prv->portalopen[p->portalnum])
-				FloodArea_r (prv, &prv->q2areas[p->otherarea], floodnum);
+			q2carea_t *area = &prv->q2areas[areaidx];
+			q2dareaportal_t	*p = &prv->q2areaportals[area->firstareaportal];
+			for (i=0 ; i<area->numareaportals ; i++, p++)
+			{
+				if (prv->q2portalopen[p->portalnum])
+					FloodArea_r (prv, p->otherarea, floodnum);
+			}
 		}
+#endif
+		break;
 	}
 }
 
@@ -6527,8 +6583,7 @@ FloodAreaConnections
 */
 static void	FloodAreaConnections (cminfo_t	*prv)
 {
-	int		i;
-	q2carea_t	*area;
+	size_t		i;
 	int		floodnum;
 
 	// all current floods are now invalid
@@ -6538,15 +6593,14 @@ static void	FloodAreaConnections (cminfo_t	*prv)
 	// area 0 is not used
 	for (i=0 ; i<prv->numareas ; i++)
 	{
-		area = &prv->q2areas[i];
-		if (area->floodvalid == prv->floodvalid)
+		if (prv->areaflood[i].floodvalid == prv->floodvalid)
 			continue;		// already flooded into
 		floodnum++;
-		FloodArea_r (prv, area, floodnum);
+		FloodArea_r (prv, i, floodnum);
 	}
-
 }
 
+#ifdef Q2BSPS
 void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean open)
 {
 	cminfo_t	*prv;
@@ -6555,17 +6609,19 @@ void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean ope
 	prv = (cminfo_t*)mod->meshinfo;
 	if (prv->mapisq3)
 		return;
-	if (portalnum > prv->numareaportals)
+	if (portalnum > prv->numq2areaportals)
 		Host_Error ("areaportal > numareaportals");
 
-	if (prv->portalopen[portalnum] == open)
+	if (prv->q2portalopen[portalnum] == open)
 		return;
-	prv->portalopen[portalnum] = open;
+	prv->q2portalopen[portalnum] = open;
 	FloodAreaConnections (prv);
 
 	return;
 }
+#endif
 
+#ifdef Q3BSPS
 void	CMQ3_SetAreaPortalState (model_t *mod, unsigned int area1, unsigned int area2, qboolean open)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
@@ -6589,6 +6645,7 @@ void	CMQ3_SetAreaPortalState (model_t *mod, unsigned int area1, unsigned int are
 
 	FloodAreaConnections(prv);
 }
+#endif
 
 qboolean	VARGS CM_AreasConnected (model_t *mod, unsigned int area1, unsigned int area2)
 {
@@ -6602,7 +6659,7 @@ qboolean	VARGS CM_AreasConnected (model_t *mod, unsigned int area1, unsigned int
 	if (area1 > prv->numareas || area2 > prv->numareas)
 		Host_Error ("area > numareas");
 
-	if (prv->q2areas[area1].floodnum == prv->q2areas[area2].floodnum)
+	if (prv->areaflood[area1].floodnum == prv->areaflood[area2].floodnum)
 		return true;
 	return false;
 }
@@ -6637,10 +6694,10 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area, qboolean merge)
 		if (!merge)
 			memset (buffer, 0, bytes);
 
-		floodnum = prv->q2areas[area].floodnum;
+		floodnum = prv->areaflood[area].floodnum;
 		for (i=0 ; i<prv->numareas ; i++)
 		{
-			if (prv->q2areas[i].floodnum == floodnum || !area)
+			if (prv->areaflood[i].floodnum == floodnum || !area)
 				buffer[i>>3] |= 1<<(i&7);
 		}
 	}
@@ -6661,17 +6718,20 @@ size_t CM_WritePortalState (model_t *mod, void **data)
 
 	if (mod->type == mod_brush && (mod->fromgame == fg_quake2 || mod->fromgame == fg_quake3))
 	{
+		switch(prv->mapisq3)
+		{
 #ifdef Q3BSPS
-		if (prv->mapisq3)
-		{	//endian issues. oh well.
+		case true:
+			//endian issues. oh well.
 			*data = prv->q3areas;
 			return sizeof(prv->q3areas);
-		}
-		else
 #endif
-		{
-			*data = prv->portalopen;
-			return sizeof(prv->portalopen);
+#ifdef Q2BSPS
+		case false:
+			*data = prv->q2portalopen;
+			return sizeof(prv->q2portalopen);
+#endif
+		default: break;
 		}
 	}
 	*data = NULL;
@@ -6692,9 +6752,10 @@ qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize)
 
 	if (mod->type == mod_brush && (mod->fromgame == fg_quake2 || mod->fromgame == fg_quake3))
 	{
-#ifdef Q3BSPS
-		if (prv->mapisq3)
+		switch(prv->mapisq3)
 		{
+#ifdef Q3BSPS
+		case 1:
 			if (ptrsize < sizeof(prv->q3areas))
 				Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->q3areas),(unsigned int)ptrsize);
 			else
@@ -6702,21 +6763,24 @@ qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize)
 				memcpy(prv->q3areas, ptr, sizeof(prv->q3areas));
 
 				FloodAreaConnections (prv);
-				return sizeof(prv->portalopen);
+				return sizeof(prv->q3areas);
 			}
-		}
-		else
+			break;
 #endif
-		{
-			if (ptrsize < sizeof(prv->portalopen))
-				Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->portalopen),(unsigned int)ptrsize);
+#ifdef Q2BSPS
+		case 0:
+			if (ptrsize < sizeof(prv->q2portalopen))
+				Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->q2portalopen),(unsigned int)ptrsize);
 			else
 			{
-				memcpy(prv->portalopen, ptr, sizeof(prv->portalopen));
+				memcpy(prv->q2portalopen, ptr, sizeof(prv->q2portalopen));
 
 				FloodAreaConnections (prv);
-				return sizeof(prv->portalopen);
+				return sizeof(prv->q2portalopen);
 			}
+			break;
+#endif
+		default: break;
 		}
 	}
 	return 0;

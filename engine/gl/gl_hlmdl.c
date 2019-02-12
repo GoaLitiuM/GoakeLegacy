@@ -269,7 +269,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 
 	if (header->version != 10)
 	{
-		Con_Printf(CON_ERROR "Cannot load model %s - unknown version %i\n", mod->name, header->version);
+		Con_Printf(CON_ERROR "Cannot load halflife model %s - unknown version %i\n", mod->name, header->version);
 		return false;
 	}
 
@@ -320,10 +320,34 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	for(i = 0; i < texheader->numtextures; i++)
 	{
 		Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "%s/%s", mod->name, COM_SkipPath(tex[i].name));
-		memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
-		shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
-		shaders[i].w = tex[i].w;
-		shaders[i].h = tex[i].h;
+
+		/* handle the special textures - eukara */
+		if (tex[i].flags)
+		{
+			char *shader;
+			if (tex[i].flags & HLMDLFL_FULLBRIGHT)
+			{
+				if (tex[i].flags & HLMDLFL_CHROME)
+					shader = HLSHADER_FULLBRIGHTCHROME;
+				else
+					shader = HLSHADER_FULLBRIGHT;
+			}
+			else if (tex[i].flags & HLMDLFL_CHROME)
+				shader = HLSHADER_CHROME;
+			else
+				shader = "";
+			shaders[i].shader = R_RegisterShader(shaders[i].name, SUF_NONE, shader);
+			shaders[i].shader->defaulttextures->base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
+			shaders[i].shader->width = tex[i].w;
+			shaders[i].shader->height = tex[i].h;
+		}
+		else
+		{
+			memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
+			shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
+			shaders[i].w = tex[i].w;
+			shaders[i].h = tex[i].h;
+		}
 	}
 
 	model->numskinrefs = texheader->skinrefs;
@@ -595,14 +619,14 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 	if(frame1 >= sequence->numframes)
 	{
 		if (sequence->loop)
-			frame1 %= sequence->numframes-1;
+			frame1 %= sequence->numframes;
 		else
 			frame1 = sequence->numframes-1;
 	}
 	if(frame2 >= sequence->numframes)
 	{
 		if (sequence->loop)
-			frame2 %= sequence->numframes-1;
+			frame2 %= sequence->numframes;
 		else
 			frame2 = sequence->numframes-1;
 	}
@@ -962,7 +986,7 @@ qboolean HLMDL_Trace		(model_t *model, int hulloverride, framestate_t *framestat
 
 	memset (trace, 0, sizeof(trace_t));
 	trace->fraction = trace->truefraction = 1;
-	if (!(against & FTECONTENTS_BODY))
+	if (!(against & FTECONTENTS_BODY) || !framestate)
 		return false;
 
 	if (framestate->bonestate && framestate->skeltype == SKEL_ABSOLUTE)

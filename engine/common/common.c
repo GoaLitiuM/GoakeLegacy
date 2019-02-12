@@ -25,6 +25,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <ctype.h>
 #include <errno.h>
 
+#ifndef HAVE_CLIENT
+double		host_frametime;
+double		realtime;				// without any filtering or bounding
+qboolean	host_initialized;		// true if into command execution (compatability)
+quakeparms_t host_parms;
+int			host_hunklevel;
+#endif
+
+
 //by adding 'extern' to one definition of a function in a translation unit, then the definition in that TU is NOT considered an inline definition. meaning non-inlined references in other TUs can link to it instead of their own if needed.
 fte_inlinebody conchar_t *Font_Decode(conchar_t *start, unsigned int *codeflags, unsigned int *codepoint);
 fte_inlinebody float M_SRGBToLinear(float x, float mag);
@@ -84,7 +93,7 @@ glibc SUCKS. 64bit glibc is depending upon glibc 2.14 because of some implementa
 or something.
 anyway, the actual interface is the same. the old version might be slower, but when updating glibc generally results in also installing systemd, requiring the new version is NOT an option.
 */
-#if defined(__GNUC__) && defined(__LP64__) && defined(__linux__) && !defined(FTE_SDL)
+#if defined(__GNUC__) && defined(__amd64__) && defined(__linux__) && !defined(FTE_SDL)
 	#include <features.h>       /* for glibc version */
 	#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
 		__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
@@ -103,6 +112,12 @@ static char	*safeargvs[] =
 static const char	*largv[MAX_NUM_ARGVS + countof(safeargvs) + 1];
 static char	*argvdummy = " ";
 
+#ifdef CRAZYDEBUGGING
+cvar_t	developer = CVAR("developer","1");
+#else
+cvar_t	developer = CVARD("developer","0", "Enables the spewing of additional developer/debugging messages. 2 will give even more spam, much of it unwanted.");
+#endif
+
 cvar_t	registered = CVARD("registered","0","Set if quake's pak1.pak is available");
 cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
 cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
@@ -111,7 +126,7 @@ cvar_t	fs_gamename = CVARAFD("com_fullgamename", NULL, "fs_gamename", CVAR_NOSET
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_protocolversion = CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
-#ifndef NOLEGACY
+#if !defined(NOLEGACY) && defined(HAVE_CLIENT)
 cvar_t	com_parseezquake = CVARD("com_parseezquake", "0", "Treat chevron chars from configs as a per-character flag. You should use this only for compat with nquake's configs.");
 #endif
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
@@ -1119,46 +1134,7 @@ int COM_EncodeSize(vec3_t mins, vec3_t maxs)
 	return solid;
 }
 
-static unsigned int MSG_ReadEntity(void)
-{
-	unsigned int num;
-	num = MSG_ReadShort();
-	if (num & 0x8000)
-	{
-		num = (num & 0x7fff) << 8;
-		num |= MSG_ReadByte();
-	}
-	return num;
-}
-//we use the high bit of the entity number to state that this is a large entity.
-#ifndef CLIENTONLY
-unsigned int MSGSV_ReadEntity(client_t *fromclient)
-{
-	unsigned int num;
-	if (fromclient->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-		num = MSG_ReadEntity();
-	else
-		num = (unsigned short)(short)MSG_ReadEntity();
-	if (num >= sv.world.max_edicts)
-	{
-		Con_Printf("client %s sent invalid entity\n", fromclient->name);
-		fromclient->drop = true;
-		return 0;
-	}
-	return num;
-}
-#endif
-#ifndef SERVERONLY
-unsigned int MSGCL_ReadEntity(void)
-{
-	unsigned int num;
-	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-		num = MSG_ReadEntity();
-	else
-		num = (unsigned short)(short)MSG_ReadShort();
-	return num;
-}
-#endif
+#if defined(HAVE_CLIENT) || defined(HAVE_SERVER)
 void MSG_WriteEntity(sizebuf_t *sb, unsigned int entnum)
 {
 	if (entnum > MAX_EDICTS)
@@ -1172,6 +1148,48 @@ void MSG_WriteEntity(sizebuf_t *sb, unsigned int entnum)
 	else
 		MSG_WriteShort(sb, entnum);
 }
+static unsigned int MSG_ReadBigEntity(void)
+{
+	unsigned int num;
+	num = MSG_ReadShort();
+	if (num & 0x8000)
+	{
+		num = (num & 0x7fff) << 8;
+		num |= MSG_ReadByte();
+	}
+	return num;
+}
+#endif
+
+//we use the high bit of the entity number to state that this is a large entity.
+#ifdef HAVE_SERVER
+unsigned int MSGSV_ReadEntity(client_t *fromclient)
+{
+	unsigned int num;
+	if (fromclient->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		num = MSG_ReadBigEntity();
+	else
+		num = (unsigned short)(short)MSG_ReadShort();
+	if (num >= sv.world.max_edicts)
+	{
+		Con_Printf("client %s sent invalid entity\n", fromclient->name);
+		fromclient->drop = true;
+		return 0;
+	}
+	return num;
+}
+#endif
+#ifdef HAVE_CLIENT
+unsigned int MSGCL_ReadEntity(void)
+{
+	unsigned int num;
+	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		num = MSG_ReadBigEntity();
+	else
+		num = (unsigned short)(short)MSG_ReadShort();
+	return num;
+}
+#endif
 
 void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 {
@@ -1181,8 +1199,8 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 // send the movement message
 //
 	bits = 0;
-#ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKE2)
+#if defined(Q2CLIENT) && defined(HAVE_CLIENT)
+	if (cls_state && cls.protocol == CP_QUAKE2)
 	{
 		unsigned char buttons = 0;
 		if (cmd->angles[0] != from->angles[0])
@@ -1715,7 +1733,7 @@ vec3_t	bytedirs[Q2NUMVERTEXNORMALS] =
 #include "../client/q2anorms.h"
 };
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 void MSG_ReadDir (vec3_t dir)
 {
 	int		b;
@@ -1774,7 +1792,7 @@ float MSG_ReadAngle (void)
 	case 1:
 		return MSG_ReadChar() * (360.0/256);
 	default:
-		Host_Error("Bad angle size\n");
+		Sys_Error("Bad angle size\n");
 		return 0;
 	}
 }
@@ -2259,7 +2277,7 @@ qboolean COM_RequireExtension(char *path, const char *extension, int maxlen)
 //3 invalid unicode char
 //4 invalid utf-16 lead/high surrogate
 //5 invalid utf-16 tail/low surrogate
-unsigned int utf8_decode(int *error, const void *in, char **out)
+unsigned int utf8_decode(int *error, const void *in, char const**out)
 {
 	//uc is the output unicode char
 	unsigned int uc = 0xfffdu;	//replacement character
@@ -2375,7 +2393,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 		uc = *str;
 	}
 
-	*out = (void*)(str + l);
+	*out = (const void*)(str + l);
 
 	if (!*error)
 	{
@@ -2384,7 +2402,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 		{
 #if 1
 			//cesu-8
-			char *lowend;
+			const char *lowend;
 			unsigned int lowsur = utf8_decode(error, str + l, &lowend);
 			if (*error == 4)
 			{
@@ -2409,7 +2427,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 	return uc;
 }
 
-unsigned int unicode_decode(int *error, const void *in, char **out, qboolean markup)
+unsigned int unicode_decode(int *error, const void *in, char const**out, qboolean markup)
 {
 	unsigned int charcode;
 	if (markup && ((char*)in)[0] == '^' && ((char*)in)[1] == 'U' && ishexcode(((char*)in)[2]) && ishexcode(((char*)in)[3]) && ishexcode(((char*)in)[4]) && ishexcode(((char*)in)[5]))
@@ -2636,7 +2654,7 @@ unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean marku
 	int chars = 0;
 	for(chars = 0; in < end && *in; chars+=1)
 	{
-		unicode_decode(&error, in, (char**)&in, markup);
+		unicode_decode(&error, in, &in, markup);
 
 		if (in > end)
 			break;	//exceeded buffer size uncleanly
@@ -2655,7 +2673,7 @@ unsigned int unicode_byteofsfromcharofs(const char *str, unsigned int charofs, q
 		if (chars >= charofs)
 			return in - str;
 
-		unicode_decode(&error, in, (char**)&in, markup);
+		unicode_decode(&error, in, &in, markup);
 	}
 	return in - str;
 }
@@ -2667,7 +2685,7 @@ unsigned int unicode_charofsfrombyteofs(const char *str, unsigned int byteofs, q
 	int chars = 0;
 	for(chars = 0; str < end && *str; chars+=1)
 	{
-		unicode_decode(&error, str, (char**)&str, markup);
+		unicode_decode(&error, str, &str, markup);
 
 		if (str > end)
 			break;	//exceeded buffer size uncleanly
@@ -2722,7 +2740,7 @@ size_t unicode_strtoupper(const char *in, char *out, size_t outsize, qboolean ma
 
 	while(*in)
 	{
-		c = unicode_decode(&error, in, (char**)&in, markup);
+		c = unicode_decode(&error, in, &in, markup);
 		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
 			c = towupper(c & 0x7f) + (c & 0xff80);
 		else
@@ -2746,7 +2764,7 @@ size_t unicode_strtolower(const char *in, char *out, size_t outsize, qboolean ma
 
 	while(*in)
 	{
-		c = unicode_decode(&error, in, (char**)&in, markup);
+		c = unicode_decode(&error, in, &in, markup);
 		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
 			c = towlower(c & 0x7f) + (c & 0xff80);
 		else
@@ -3274,7 +3292,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 		if ((*str & 0x80) && utf8 > 0)
 		{	//check for utf-8
 			int decodeerror;
-			char *end;
+			const char *end;
 			uc = utf8_decode(&decodeerror, str, &end);
 			if (decodeerror && !(utf8 & 2))
 			{
@@ -4790,7 +4808,7 @@ static void COM_Version_f (void)
 {
 	Con_Printf("\n");
 	Con_Printf("^&F0%s\n", FULLENGINENAME);
-	Con_Printf("%s\n", ENGINEWEBSITE);
+	Con_Printf("^[%s\\url\\%s^]\n", ENGINEWEBSITE, ENGINEWEBSITE);
 	Con_Printf("%s\n", version_string());
 
 	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
@@ -4799,7 +4817,7 @@ static void COM_Version_f (void)
 		Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
 #endif
 #ifdef CONFIG_FILE_NAME
-	Con_Printf("Build config: %s\n\n", STRINGIFY(CONFIG_FILE_NAME));
+	Con_Printf("Build config: %s\n\n", COM_SkipPath(STRINGIFY(CONFIG_FILE_NAME)));
 #endif
 
 #ifdef _DEBUG
@@ -5150,8 +5168,8 @@ static void COM_ErrorMe_f(void)
 #ifdef LOADERTHREAD
 static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue);
 cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling the main thread.");
-cvar_t worker_count = CVARFCD("worker_count", "", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
-cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
+static cvar_t worker_count = CVARFCD("worker_count", "", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
+static cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
 
 #define WORKERTHREADS 16	//max
 /*multithreading worker thread stuff*/
@@ -5720,7 +5738,9 @@ void COM_Init (void)
 	COM_InitWorkerThread();
 #endif
 
+#ifdef PACKAGEMANAGER
 	Cmd_AddCommandD("pkg", PM_Command_f,		"Provides a way to install / list / disable / purge packages via the console.");
+#endif
 	Cmd_AddCommandD("version", COM_Version_f,	"Reports engine revision and optional compile-time settings.");	//prints the pak or whatever where this file can be found.
 
 #ifdef _DEBUG
@@ -5730,6 +5750,7 @@ void COM_Init (void)
 #endif
 	COM_InitFilesystem ();
 
+	Cvar_Register (&developer, "Debugging");
 	Cvar_Register (&sys_platform, "Gamecode");
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");
@@ -5737,13 +5758,11 @@ void COM_Init (void)
 	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
-#ifndef NOLEGACY
+#if !defined(NOLEGACY) && defined(HAVE_CLIENT)
 	Cvar_Register (&com_parseezquake, NULL);
 #endif
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;
-
-	Cvar_Register (&r_meshpitch, "Gamecode");
 
 	TranslateInit();
 
@@ -5882,7 +5901,7 @@ unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 {
 #ifndef NOLEGACY
 	static const struct {
-		char *name;
+		const char *name;
 		unsigned int gpl2;
 		unsigned int id11;
 		unsigned int id12;
@@ -6429,7 +6448,7 @@ static qboolean InfoBuf_EncodeString_Internal(const char *n, size_t s, char *out
 
 		for (c = n; c < n+s; c++)
 		{
-			base64_cur |= *(unsigned char*)c<<(16-	base64_bits);//first byte fills highest bits
+			base64_cur |= *(const unsigned char*)c<<(16-	base64_bits);//first byte fills highest bits
 			base64_bits += 8;
 
 			if (base64_bits == 24)
@@ -7115,7 +7134,7 @@ void Info_Print (const char *s, const char *lineprefix)
 	}
 }*/
 
-
+#if defined(HAVE_CLIENT) || defined(HAVE_SERVER)
 static qbyte chktbl[1024 + 4] = {
 0x78,0xd2,0x94,0xe3,0x41,0xec,0xd6,0xd5,0xcb,0xfc,0xdb,0x8a,0x4b,0xcc,0x85,0x01,
 0x23,0xd2,0xe5,0xf2,0x29,0xa7,0x45,0x94,0x4a,0x62,0xe3,0xa5,0x6f,0x3f,0xe1,0x7a,
@@ -7351,6 +7370,7 @@ qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence)
 }
 
 #endif
+#endif
 
 #ifdef _WIN32
 // don't use these functions in MSVC8
@@ -7465,3 +7485,220 @@ void COM_TimeOfDay(date_t *date)
 	strftime( date->str, 128,
 		"%a %b %d, %H:%M:%S %Y", newtime);
 }
+
+
+
+
+
+/*
+================
+Con_Printf
+
+Handles cursor positioning, line wrapping, etc
+================
+*/
+#define	MAXPRINTMSG	4096
+// FIXME: make a buffer size safe vsprintf?
+void SV_FlushRedirect (void);
+#ifndef HAVE_CLIENT
+
+vfsfile_t *con_pipe;
+#ifdef HAVE_SERVER
+vfsfile_t *Con_POpen(char *conname)
+{
+	if (!conname || !*conname)
+	{
+		if (con_pipe)
+			VFS_CLOSE(con_pipe);
+		con_pipe = VFSPIPE_Open(2, false);
+		return con_pipe;
+	}
+	return NULL;
+}
+#endif
+
+static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
+{
+	Con_Printf("%s", (char*)data);
+	BZ_Free(data);
+}
+void VARGS Con_Printf (const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (!Sys_IsMainThread())
+	{
+		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		return;
+	}
+
+#ifdef HAVE_SERVER
+	// add to redirected message
+	if (sv_redirected)
+	{
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
+			SV_FlushRedirect ();
+		strcat (sv_redirected_buf, msg);
+		if (sv_redirected != -1)
+			return;
+	}
+#endif
+
+	Sys_Printf ("%s", msg);	// also echo to debugging console
+	Con_Log(msg); // log to console
+
+	if (con_pipe)
+		VFS_PUTS(con_pipe, msg);
+}
+void Con_TPrintf (translation_t stringnum, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+	const char *fmt;
+
+	if (!Sys_IsMainThread())
+	{	//shouldn't be redirected anyway...
+		fmt = langtext(stringnum,com_language);
+		va_start (argptr,stringnum);
+		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+		va_end (argptr);
+		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		return;
+	}
+
+#ifdef HAVE_SERVER
+	// add to redirected message
+	if (sv_redirected)
+	{
+		fmt = langtext(stringnum,sv_redirectedlang);
+		va_start (argptr,stringnum);
+		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+		va_end (argptr);
+
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
+			SV_FlushRedirect ();
+		strcat (sv_redirected_buf, msg);
+		return;
+	}
+#endif
+
+	fmt = langtext(stringnum,com_language);
+
+	va_start (argptr,stringnum);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	Sys_Printf ("%s", msg);	// also echo to debugging console
+	Con_Log(msg); // log to console
+
+	if (con_pipe)
+		VFS_PUTS(con_pipe, msg);
+}
+/*
+================
+Con_DPrintf
+
+A Con_Printf that only shows up if the "developer" cvar is set
+================
+*/
+static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
+{
+	Con_DLPrintf(a, "%s", (char*)data);
+	BZ_Free(data);
+}
+void Con_DPrintf (const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+	extern cvar_t log_developer;
+
+	if (!developer.value && !log_developer.value)
+		return;
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (!Sys_IsMainThread())
+	{
+		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		return;
+	}
+
+#ifdef HAVE_SERVER
+	// add to redirected message
+	if (sv_redirected)
+	{
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
+			SV_FlushRedirect ();
+		strcat (sv_redirected_buf, msg);
+		if (sv_redirected != -1)
+			return;
+	}
+#endif
+
+	if (developer.value)
+		Sys_Printf ("%s", msg);	// also echo to debugging console
+
+	if (log_developer.value)
+		Con_Log(msg); // log to console
+}
+void Con_DLPrintf (int level, const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+	extern cvar_t log_developer;
+
+	if (developer.ival < level && !log_developer.value)
+		return;
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (!Sys_IsMainThread())
+	{
+		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), level, 0);
+		return;
+	}
+
+#ifdef HAVE_SERVER
+	// add to redirected message
+	if (sv_redirected)
+	{
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
+			SV_FlushRedirect ();
+		strcat (sv_redirected_buf, msg);
+		if (sv_redirected != -1)
+			return;
+	}
+#endif
+
+	if (developer.ival >= level)
+		Sys_Printf ("%s", msg);	// also echo to debugging console
+
+	if (log_developer.value)
+		Con_Log(msg); // log to console
+}
+
+//for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
+void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (developerlevel)
+		Con_DLPrintf (developerlevel, "%s", msg);
+	else
+		Con_Printf("%s", msg);
+}
+#endif

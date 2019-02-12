@@ -68,6 +68,7 @@ extern vec3_t vec3_origin;
 
 #define FloatInterpolate(a, bness, b, c) ((c) = (a) + (b - a)*bness)
 
+#define DotProduct_Double(x,y) ((double)(x)[0]*(double)(y)[0]+(double)(x)[1]*(double)(y)[1]+(double)(x)[2]*(double)(y)[2])	//cast to doubles, to try to replicate x87 precision in 64bit sse builds etc. there'll still be a precision difference though.
 #define DotProduct(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2])
 #define DotProduct2(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1])
 #define DotProduct4(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2]+(x)[3]*(y)[3])
@@ -203,7 +204,7 @@ fixed16_t	Mul16_30 (fixed16_t multiplier, fixed16_t multiplicand);
 int			Q_log2 (int val);
 void		R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3]);
 void		R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4]);
-void		QDECL R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
+void		QDECL R_ConcatTransforms (const matrix3x4 in1, const matrix3x4 in2, matrix3x4 out);
 void		R_ConcatTransformsAxis (float in1[3][3], float in2[3][4], float out[3][4]);
 void		RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
 void		RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result);

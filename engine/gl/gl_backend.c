@@ -429,8 +429,6 @@ void GL_SelectTexture(int target)
 	shaderstate.currenttmu = target;
 	if (qglActiveTextureARB)
 		qglActiveTextureARB(target + mtexid0);
-	else if (qglSelectTextureSGIS)
-		qglSelectTextureSGIS(target + mtexid0);
 }
 
 void GL_SelectVBO(int vbo)
@@ -675,6 +673,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				{
 					shaderstate.sha_attr &= ~(1u<<i);
 					qglDisableVertexAttribArray(i);
+					qglVertexAttrib4f(VATTR_COLOUR, 1, 1, 1, 1);
 					continue;
 				}
 				GL_SelectVBO(shaderstate.pendingcolourvbo);
@@ -1079,16 +1078,19 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo)
 
 	if (!TEXVALID(shadowmap[id]))
 	{
-		shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, 0);
-		qglGenTextures(1, &shadowmap[id]->num);
-		GL_MTBind(0, GL_TEXTURE_2D, shadowmap[id]);
+		uploadfmt_t encoding = PTI_DEPTH16;
+		texid_t tex = shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, 0);
+		qglGenTextures(1, &tex->num);
+		GL_MTBind(0, GL_TEXTURE_2D, tex);
 #ifdef SHADOWDBG_COLOURNOTDEPTH
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 #else
-		if (gl_config.gles)
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
+		if (qglTexStorage2D)
+			qglTexStorage2D(GL_TEXTURE_2D, 1, gl_config.formatinfo[encoding].sizedformat, w, h);
+		else if (gl_config.formatinfo[encoding].type)
+			qglTexImage2D				(GL_TEXTURE_2D, 0, gl_config.formatinfo[encoding].sizedformat, w, h, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	NULL);
 		else
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
+			qglCompressedTexImage2D		(GL_TEXTURE_2D, 0, gl_config.formatinfo[encoding].sizedformat, w, h, 0,	0, NULL);
 #endif
 
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1177,7 +1179,7 @@ static void T_Gen_CurrentRender(int tmu)
 	}
 	GL_MTBind(tmu, GL_TEXTURE_2D, shaderstate.temptexture);
 	if (vid.flags&VID_FP16)
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, 0, 0, vwidth, vheight, 0);
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 0, 0, vwidth, vheight, 0);
 	else if (vid.flags&VID_SRGBAWARE)
 		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, 0, 0, vwidth, vheight, 0);
 	else
@@ -1269,6 +1271,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 			t = shaderstate.curtexnums->reflectmask;
 		else if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->base))
 			t = shaderstate.curtexnums->base;
+		else
+			t = r_whiteimage;
+		break;
+	case T_GEN_DISPLACEMENT:
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->displacement))
+			t = shaderstate.curtexnums->displacement;
 		else
 			t = r_whiteimage;
 		break;
@@ -1614,7 +1622,16 @@ void GLBE_Init(void)
 
 	gl_overbright.modified = true; /*in case the d3d renderer does the same*/
 	/*lock the cvar down if the backend can't actually do it*/
-	if (!gl_config.tex_env_combine && !gl_config_nofixedfunc && gl_overbright.ival)
+	if (
+#if 1//defined(QUAKETC)
+		//TCs are expected to be using glsl and weird overbright things etc, don't take the risk.
+		(!sh_config.progs_supported)
+#else
+		//Q3 can get away with tex_env_combine for everything, if only because the content allows everything to be flattened to a single pass if needed...
+		//some shaders might screw up from our approach though...
+		(!gl_config.tex_env_combine && !gl_config_nofixedfunc)
+#endif
+		&& gl_overbright.ival)
 		Cvar_ApplyLatchFlag(&gl_overbright, "0", CVAR_RENDERERLATCH);
 	shaderstate.shaderbits = ~SBITS_ATEST_BITS;
 	BE_SendPassBlendDepthMask(0);
@@ -3121,6 +3138,47 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 		}
 		return;
 	}
+	else if (qglMultiDrawElements)
+	{	//if we're drawing via a VBO then we don't really need DrawRangeElements any more.
+		//and avoiding so many calls into the driver also gives the driver a chance to optimise the draws instead of constantly checking if anything changed.
+		static GLsizei counts[1024];
+		static const GLvoid *indicies[countof(counts)];
+		GLsizei drawcount = 0;
+		GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
+
+		for (m = 0, mesh = shaderstate.meshes[0]; m < shaderstate.meshcount; )
+		{
+			startv = mesh->vbofirstvert;
+			starti = mesh->vbofirstelement;
+
+			endv = startv+mesh->numvertexes;
+			endi = starti+mesh->numindexes;
+
+			//find consecutive surfaces
+			for (++m; m < shaderstate.meshcount; m++)
+			{
+				mesh = shaderstate.meshes[m];
+				if (endi == mesh->vbofirstelement)
+				{
+					endv = mesh->vbofirstvert+mesh->numvertexes;
+					endi = mesh->vbofirstelement+mesh->numindexes;
+				}
+				else
+				{
+					break;
+				}
+			}
+			if (drawcount == countof(counts))
+			{
+				qglMultiDrawElements(batchtype, counts, GL_INDEX_TYPE, indicies, drawcount);
+				drawcount = 0;
+			}
+			counts[drawcount] = endi-starti;
+			indicies[drawcount] = (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti;
+			drawcount++;
+		}
+		qglMultiDrawElements(batchtype, counts, GL_INDEX_TYPE, indicies, drawcount);
+	}
 	else
 	{
 		GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
@@ -3305,7 +3363,7 @@ static void DrawPass(const shaderpass_t *pass)
 }
 #endif
 
-static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, qboolean entunchanged)
+static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu_s *perm, qboolean entunchanged)
 {
 	vec4_t param4;
 	int r, g;//, b;
@@ -3317,8 +3375,8 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 	if (entunchanged)
 		return;
 
-	p = prog->permu[perm].parm;
-	for (i = prog->permu[perm].numparms; i > 0; i--, p++)
+	p = perm->parm;
+	for (i = perm->numparms; i > 0; i--, p++)
 	{
 		ph = p->handle;
 		switch(p->type)
@@ -3437,13 +3495,11 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 		case SP_M_MODEL:
 			qglUniformMatrix4fvARB(ph, 1, false, shaderstate.modelmatrix);
 			break;
-		case SP_M_ENTBONES:
-			{
-				if (sh_config.maxver>=120)
-					qglUniformMatrix3x4fv(ph, shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
-				else
-					qglUniform4fvARB(ph, shaderstate.sourcevbo->numbones*3, shaderstate.sourcevbo->bones);
-			}
+		case SP_M_ENTBONES_PACKED:
+			qglUniform4fvARB(ph, shaderstate.sourcevbo->numbones*3, shaderstate.sourcevbo->bones);
+			break;
+		case SP_M_ENTBONES_MAT3X4:
+			qglUniformMatrix3x4fv(ph, shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
 			break;
 		case SP_M_INVVIEWPROJECTION:
 			{
@@ -3460,7 +3516,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 
 		case SP_E_VLSCALE:
 #if MAXRLIGHTMAPS > 1
-			if (perm & PERMUTATION_LIGHTSTYLES)
+			if (perm->permutation & PERMUTATION_LIGHTSTYLES)
 			{
 				vec4_t colscale[MAXRLIGHTMAPS];
 				int j, s;
@@ -3512,7 +3568,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			break;
 		case SP_E_LMSCALE:
 #if MAXRLIGHTMAPS > 1
-			if (perm & PERMUTATION_LIGHTSTYLES)
+			if (perm->permutation & PERMUTATION_LIGHTSTYLES)
 			{
 				vec4_t colscale[MAXRLIGHTMAPS];
 				int j, s;
@@ -3765,8 +3821,9 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 
 	int perm;
 
+	struct programpermu_s *permu;
+
 	perm = 0;
-#if 0
 	if (shaderstate.sourcevbo->numbones)
 		perm |= PERMUTATION_SKELETAL;
 #ifdef NONSKELETALMODELS
@@ -3781,7 +3838,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.globalfog.density)
 		perm |= PERMUTATION_FOG;
-//	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl.handle && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+//	if (TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
 	if ((TEXLOADED(shaderstate.curtexnums->reflectcube) || TEXLOADED(shaderstate.curtexnums->reflectmask)))
 		perm |= PERMUTATION_REFLECTCUBEMASK;
@@ -3791,45 +3848,17 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 #endif
 
 	perm &= p->supportedpermutations;
-	if (!p->permu[perm].h.loaded)
+	permu = p->permu[perm];
+	if (!permu)
 	{
-		perm = 0;
-		if (!p->permu[perm].h.loaded)
-			return;
+		p->permu[perm] = permu = Shader_LoadPermutation(p, perm);
+		if (!permu)
+		{	//failed? copy from 0 so we don't keep re-failing
+			permu = p->permu[perm] = p->permu[0];
+		}
 	}
 
-#else
-	if (shaderstate.sourcevbo->numbones)
-	{
-		if (p->permu[perm|PERMUTATION_SKELETAL].h.loaded)
-			perm |= PERMUTATION_SKELETAL;
-		else
-			return;
-	}
-
-#ifdef NONSKELETALMODELS
-	if (p->permu[perm|PERMUTATION_FRAMEBLEND].h.loaded && shaderstate.sourcevbo->coord2.gl.addr)
-		perm |= PERMUTATION_FRAMEBLEND;
-#endif
-	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
-		perm |= PERMUTATION_BUMPMAP;
-	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
-		perm |= PERMUTATION_FULLBRIGHT;
-	if ((TEXLOADED(shaderstate.curtexnums->loweroverlay) || TEXLOADED(shaderstate.curtexnums->upperoverlay)) && p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded)
-		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
-		perm |= PERMUTATION_FOG;
-//	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl.handle && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
-//		perm |= PERMUTATION_DELUXE;
-	if ((TEXLOADED(shaderstate.curtexnums->reflectcube) || TEXLOADED(shaderstate.curtexnums->reflectmask)) && p->permu[perm|PERMUTATION_REFLECTCUBEMASK].h.loaded)
-		perm |= PERMUTATION_REFLECTCUBEMASK;
-#if MAXRLIGHTMAPS > 1
-	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
-		perm |= PERMUTATION_LIGHTSTYLES;
-#endif
-#endif
-
-	GL_SelectProgram(p->permu[perm].h.glsl.handle);
+	GL_SelectProgram(permu->h.glsl.handle);
 #ifndef FORCESTATE
 	if (shaderstate.lastuniform == shaderstate.currentprogram)
 		i = true;
@@ -3839,7 +3868,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		i = false;
 		shaderstate.lastuniform = shaderstate.currentprogram;
 	}
-	BE_Program_Set_Attributes(p, perm, i);
+	BE_Program_Set_Attributes(p, permu, i);
 
 	BE_SendPassBlendDepthMask(pass->shaderbits);
 
@@ -3880,8 +3909,8 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 		shaderstate.lastpasstmus = i;	//in case it was already lower
 	}
-	BE_EnableShaderAttributes(p->permu[perm].attrmask, shaderstate.sourcevbo->vao);
-	BE_SubmitMeshChain(p->permu[perm].h.glsl.usetesselation);
+	BE_EnableShaderAttributes(permu->attrmask, shaderstate.sourcevbo->vao);
+	BE_SubmitMeshChain(permu->h.glsl.usetesselation);
 }
 
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
@@ -4291,7 +4320,7 @@ static void BE_LegacyLighting(void)
 		}
 	}
 
-	if (TEXLOADED(shaderstate.curtexnums->bump) && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_dot3 && gl_config.arb_texture_env_combine && be_maxpasses >= 4)
+	if (TEXLOADED(shaderstate.curtexnums->bump) && sh_config.havecubemaps && gl_config.arb_texture_env_dot3 && gl_config.arb_texture_env_combine && be_maxpasses >= 4)
 	{	//we could get this down to 2 tmus by arranging for the dot3 result to be written the alpha buffer. But then we'd need to have an alpha buffer too.
 
 		if (!shaderstate.normalisationcubemap)
@@ -4575,7 +4604,7 @@ static void DrawMeshes(void)
 #endif
 		break;
 	case BEM_DEPTHDARK:
-		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright))
+		if ((shaderstate.curshader->flags & (SHADER_HASLIGHTMAP|SHADER_NODLIGHT))==SHADER_HASLIGHTMAP && !TEXVALID(shaderstate.curtexnums->fullbright))
 		{
 			if (gl_config.arb_shader_objects)
 			{
@@ -5162,7 +5191,7 @@ static qboolean GLBE_GenerateBatchTextures(batch_t *batch, shader_t *bs)
 			GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection[r_refdef.recurse]);
 
 			if ((vid.flags&VID_FP16) && sh_config.texfmt[PTI_RGBA16F])
-				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 			else if ((vid.flags&(VID_SRGBAWARE|VID_FP16)) && sh_config.texfmt[PTI_RGBA8_SRGB])
 				qglTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8_EXT, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 			else
@@ -5212,7 +5241,7 @@ static qboolean GLBE_GenerateBatchTextures(batch_t *batch, shader_t *bs)
 				shaderstate.tex_refraction[r_refdef.recurse]->height = r_refdef.pxrect.height;
 				GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction[r_refdef.recurse]);
 				if ((vid.flags&VID_FP16) && sh_config.texfmt[PTI_RGBA16F])
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 				else if ((vid.flags&(VID_SRGBAWARE|VID_FP16)) && sh_config.texfmt[PTI_RGBA16F])
 					qglTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8_EXT, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 				else
@@ -5292,7 +5321,7 @@ static qboolean GLBE_GenerateBatchTextures(batch_t *batch, shader_t *bs)
 			shaderstate.tex_ripplemap[r_refdef.recurse]->width = r_refdef.pxrect.width;
 			shaderstate.tex_ripplemap[r_refdef.recurse]->height = r_refdef.pxrect.height;
 			GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap[r_refdef.recurse]);
-			qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_HALF_FLOAT, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_HALF_FLOAT, NULL);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -5938,23 +5967,23 @@ void GLBE_DrawLightPrePass(void)
 			{
 				if (gl_config_gles)
 				{	//gles3
-					ifmt = GL_RGBA32F_ARB;
+					ifmt = GL_RGBA32F;
 					dfmt = GL_RGBA;
 					dtype = GL_FLOAT;
 				}
 				else
-					ifmt = GL_RGBA32F_ARB;
+					ifmt = GL_RGBA32F;
 			}
 			else if (!strcmp(var->string, "rgba16f"))
 			{
 				if (gl_config_gles)
 				{	//gles3
-					ifmt = GL_RGBA16F_ARB;
+					ifmt = GL_RGBA16F;
 					dfmt = GL_RGBA;
 					dtype = GL_HALF_FLOAT;
 				}
 				else
-					ifmt = GL_RGBA16F_ARB;
+					ifmt = GL_RGBA16F;
 			}
 //			else if (!strcmp(var->string, "rgba8s"))
 //				ifmt = GL_RGBA8_SNORM;

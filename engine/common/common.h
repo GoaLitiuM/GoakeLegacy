@@ -129,16 +129,16 @@ typedef enum {false, true}	qboolean;
 #define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
 
-#ifdef SERVERONLY
-#define cls_state 0
-#else
+#ifdef HAVE_CLIENT
 #define cls_state cls.state
+#else
+#define cls_state 0
 #endif
 
-#ifdef CLIENTONLY
-#define sv_state 0
-#else
+#ifdef HAVE_SERVER
 #define sv_state sv.state
+#else
+#define sv_state 0
 #endif
 
 struct netprim_s
@@ -164,13 +164,13 @@ typedef struct sizebuf_s
 {
 	qboolean	allowoverflow;	// if false, do a Sys_Error
 	qboolean	overflowed;		// set to true if the buffer size failed
-	qbyte	*data;
-	int		maxsize;
-	int		cursize;
-	int packing;
-	int currentbit;
+	qbyte		*data;
+	int			maxsize;	//storage size of data
+	int			cursize;	//assigned size of data
+	sbpacking_t	packing;	//required for q3
+	int			currentbit; //ignored for rawbytes
 
-	struct netprim_s prim;
+	struct netprim_s prim;	//for unsized write/read coord/angles
 } sizebuf_t;
 
 void SZ_Clear (sizebuf_t *buf);
@@ -405,7 +405,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 #define PFS_CENTERED		16	//flag used by console prints (text should remain centered)
 #define PFS_NONOTIFY		32	//flag used by console prints (text won't be visible other than by looking at the console)
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
-unsigned int utf8_decode(int *error, const void *in, char **out);
+unsigned int utf8_decode(int *error, const void *in, char const**out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
 unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
 unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
@@ -420,7 +420,7 @@ void COM_BiDi_Shutdown(void);
 unsigned int unicode_byteofsfromcharofs(const char *str, unsigned int charofs, qboolean markup);
 unsigned int unicode_charofsfrombyteofs(const char *str, unsigned int byteofs, qboolean markup);
 unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
-unsigned int unicode_decode(int *error, const void *in, char **out, qboolean markup);
+unsigned int unicode_decode(int *error, const void *in, char const**out, qboolean markup);
 size_t unicode_strtolower(const char *in, char *out, size_t outsize, qboolean markup);
 size_t unicode_strtoupper(const char *in, char *out, size_t outsize, qboolean markup);
 unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean markup);
@@ -566,7 +566,7 @@ void VARGS VFS_PRINTF(vfsfile_t *vf, const char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_BINARYPATH,	//for dlls and stuff
-	FS_ROOT,		//./ (the root basepath or root homepath.)
+	FS_ROOT,		//./ (effective -homedir if enabled, otherwise effective -basedir arg)
 	FS_SYSTEM,		//a system path. absolute paths are explicitly allowed and expected, but not required.
 
 	//after this point, all types must be relative to a gamedir
@@ -851,8 +851,10 @@ void Con_Log (const char *s);
 void Log_Logfile_f (void);
 void Log_Init(void);
 void Log_ShutDown(void);
+#ifdef IPLOG
 void IPLog_Add(const char *ip, const char *name);	//for associating player ip addresses with names.
 qboolean IPLog_Merge_File(const char *fname);
+#endif
 qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize);
 
 

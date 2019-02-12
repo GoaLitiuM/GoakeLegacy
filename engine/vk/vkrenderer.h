@@ -28,7 +28,7 @@
 #endif
 
 #define VK_NO_PROTOTYPES
-#include "../vulkan/vulkan.h"
+#include <../vulkan/vulkan.h>
 
 #if defined(_MSC_VER) && !defined(UINT64_MAX)
 #define UINT64_MAX _UI64_MAX
@@ -51,6 +51,12 @@
 #endif
 #define VKInstArchFuncs VKInstWin32Funcs VKInstXLibFuncs VKInstXCBFuncs VKInstWaylandFuncs
 
+#ifdef VK_EXT_debug_utils
+#define VKDebugFuncs	\
+	VKFunc(SetDebugUtilsObjectNameEXT)
+#else
+#define VKDebugFuncs
+#endif
 
 //funcs needed for creating an instance
 #define VKInstFuncs \
@@ -61,7 +67,6 @@
 //funcs specific to an instance
 #define VKInst2Funcs \
 	VKFunc(EnumeratePhysicalDevices)				\
-	VKFunc(EnumeratePhysicalDeviceGroupsKHX)		\
 	VKFunc(EnumerateDeviceExtensionProperties)		\
 	VKFunc(GetPhysicalDeviceProperties)				\
 	VKFunc(GetPhysicalDeviceQueueFamilyProperties)	\
@@ -75,6 +80,7 @@
 	VKFunc(DestroySurfaceKHR)						\
 	VKFunc(CreateDevice)							\
 	VKFunc(DestroyInstance)							\
+	VKDebugFuncs									\
 	VKInstArchFuncs
 
 //funcs specific to a device
@@ -169,7 +175,6 @@
 	VKFunc(CreateImageView)				\
 	VKFunc(DestroyImageView)
 
-
 //all vulkan funcs
 #define VKFuncs \
 	VKInstFuncs		\
@@ -191,8 +196,8 @@
 
 #define vkallocationcb NULL
 #ifdef _DEBUG
-#define VkAssert(f) do {VkResult err = f; if (err) Sys_Error("%s == %i", #f, err); } while(0)
-#define VkWarnAssert(f) do {VkResult err = f; if (err) Con_Printf("%s == %i\n", #f, err); } while(0)
+#define VkAssert(f) do {VkResult err = f; if (err) Sys_Error("%s == %s", #f, VK_VKErrorToString(err)); } while(0)
+#define VkWarnAssert(f) do {VkResult err = f; if (err) Con_Printf("%s == %s\n", #f, VK_VKErrorToString(err)); } while(0)
 #else
 #define VkAssert(f) f
 #define VkWarnAssert(f) f
@@ -298,7 +303,7 @@ extern struct vulkaninfo_s
 
 	VkPipelineCache pipelinecache;
 
-	struct vk_fencework 
+	struct vk_fencework
 	{
 		VkFence fence;
 		struct vk_fencework *next;
@@ -429,7 +434,8 @@ void VK_R_BloomShutdown(void);
 qboolean R_CanBloom(void);
 
 struct programshared_s;
-qboolean VK_LoadGLSL(struct programshared_s *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
+struct programpermu_s;
+qboolean VK_LoadGLSL(struct programshared_s *prog, struct programpermu_s *permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 
 VkCommandBuffer VK_AllocFrameCBuf(void);
 void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStageFlags semwaitstagemask, VkSemaphore semsignal, VkFence fencesignal, struct vkframe *presentframe, struct vk_fencework *fencedwork);
@@ -475,6 +481,7 @@ void VKBE_RT_Begin(struct vk_rendertarg *targ);
 void VKBE_RT_End(struct vk_rendertarg *targ);
 void VKBE_RT_Destroy(struct vk_rendertarg *targ);
 
+char *VK_VKErrorToString(VkResult err);	//helper for converting vulkan error codes to strings, if we get something unexpected.
 
 qboolean VK_AllocatePoolMemory(uint32_t pooltype, VkDeviceSize memsize, VkDeviceSize poolalignment, vk_poolmem_t *mem);
 void VK_ReleasePoolMemory(vk_poolmem_t *mem);
@@ -488,7 +495,7 @@ struct stagingbuf
 	size_t size;
 	VkBufferUsageFlags usage;
 };
-vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, uploadfmt_t encoding, unsigned int type, qboolean rendertarget);
+vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, uploadfmt_t encoding, unsigned int type, qboolean rendertarget, const char *debugname);
 void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, VkImageLayout old_image_layout, VkAccessFlags srcaccess, VkPipelineStageFlagBits srcstagemask, VkImageLayout new_image_layout, VkAccessFlags dstaccess, VkPipelineStageFlagBits dststagemask);
 void VK_CreateSampler(unsigned int flags, vk_image_t *img);
 void *VKBE_CreateStagingBuffer(struct stagingbuf *n, size_t size, VkBufferUsageFlags usage);

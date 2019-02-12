@@ -12,6 +12,10 @@
 #include "winquake.h"
 #endif
 
+#if (defined(HAVE_CLIENT) || defined(HAVE_SERVER)) && defined(WEBCLIENT)
+	#define MANIFESTDOWNLOADS
+#endif
+
 void FS_BeginManifestUpdates(void);
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
 static void COM_InitHomedir(ftemanifest_t *man);
@@ -810,9 +814,11 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			|| !Q_strcasecmp(link, "txt") || !Q_strcasecmp(link, "log")
 			|| !Q_strcasecmp(link, "ent") || !Q_strcasecmp(link, "rtlights")
 			|| !Q_strcasecmp(link, "glsl") || !Q_strcasecmp(link, "hlsl")
-			|| !Q_strcasecmp(link, "shader") || !Q_strcasecmp(link, "framegroups"))
+			|| !Q_strcasecmp(link, "shader") || !Q_strcasecmp(link, "framegroups")
+			|| !Q_strcasecmp(link, "vmt")
+			)
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Text Editor\\edit\\%s", name);
-		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx"))
+		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf"))
 		{
 			//FIXME: image replacements are getting in the way here.
 			Q_snprintfz(link, sizeof(link), "\\tiprawimg\\%s\\tip\\(note: image replacement rules are context-dependant, including base path, sub path, extension, or complete replacement via a shader)", name);
@@ -825,6 +831,8 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		}
 		else if (!Q_strcasecmp(link, "roq") || !Q_strcasecmp(link, "cin") || !Q_strcasecmp(link, "avi") || !Q_strcasecmp(link, "mp4") || !Q_strcasecmp(link, "mkv"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Play Film\\film\\%s", name);
+		else if (!Q_strcasecmp(link, "wav") || !Q_strcasecmp(link, "ogg") || !Q_strcasecmp(link, "mp3") || !Q_strcasecmp(link, "opus") || !Q_strcasecmp(link, "flac"))
+			Q_snprintfz(link, sizeof(link), "\\tip\\Play Audio\\playaudio\\%s", name);
 		else
 		{
 			colour = "^3";	//nothing
@@ -2610,7 +2618,9 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 		BZ_Free(buffer);
 	}
 
+#ifdef PACKAGEMANAGER
 	PM_LoadPackages(oldpaths, purepath, logicalpaths, search, loadstuff, 0x80000000, -1);
+#endif
 
 	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
 	{
@@ -2657,7 +2667,9 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 	//now load ones from the manifest
 	FS_AddManifestPackages(oldpaths, purepath, logicalpaths, search, loadstuff);
 
+#ifdef PACKAGEMANAGER
 	PM_LoadPackages(oldpaths, purepath, logicalpaths, search, loadstuff, 0x0, 1000-1);
+#endif
 
 	//now load the random ones
 	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
@@ -2674,7 +2686,9 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 		}
 	}
 
+#ifdef PACKAGEMANAGER
 	PM_LoadPackages(oldpaths, purepath, logicalpaths, search, loadstuff, 1000, 0x7ffffffe);
+#endif
 }
 
 static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *logicalpath, searchpathfuncs_t *handle, const char *prefix, unsigned int flags, unsigned int loadstuff)
@@ -3053,7 +3067,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
 }
 
-#if defined(NOLEGACY) || defined(SERVERONLY)
+#if defined(NOLEGACY) || !defined(HAVE_CLIENT)
 	#define ZFIXHACK
 #elif defined(ANDROID) //on android, these numbers seem to be generating major weirdness, so disable these.
 	#define ZFIXHACK
@@ -3066,7 +3080,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*quake requires a few settings for compatibility*/
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
 #define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8"
-#define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
+#define QCFG "set con_stayhidden 0\nset com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
 #define NQCFG "//-nohome\ncfg_save_auto 1\n" QCFG "sv_nqplayerphysics 1\ncl_loopbackprotocol auto\ncl_sbar 1\nplug_sbar 0\nsv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\n"
 //nehahra has to be weird with its extra cvars, and buggy fullbrights.
@@ -3263,6 +3277,7 @@ qboolean FS_GenCachedPakName(const char *pname, const char *crc, char *local, in
 	return true;
 }
 
+#ifdef HAVE_CLIENT
 #if 0
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags)
 {
@@ -3507,7 +3522,7 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 {
 	qboolean pureflush;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	//if we're the server, we can't be impure.
 	if (sv.state)
 		return;
@@ -3539,7 +3554,7 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 
 	if (pureflush)
 	{
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 		Shader_NeedReload(true);
 #endif
 		Mod_ClearAll();
@@ -3547,7 +3562,6 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 	}
 }
 
-#ifndef SERVERONLY
 int FS_PureOkay(void)
 {
 	qboolean ret = true;
@@ -3625,6 +3639,7 @@ int FS_PureOkay(void)
 }
 #endif
 
+#ifdef Q3CLIENT
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
 {	//this is for q3 compatibility.
 
@@ -3663,6 +3678,7 @@ char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
 
 	return buffer;
 }
+#endif
 
 /*
 ================
@@ -4010,7 +4026,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	if (next || i != orderkey)//some path changed. make sure the fs cache is flushed.
 		FS_FlushFSHashReally(false);
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	Shader_NeedReload(true);
 #endif
 //	Mod_ClearAll();
@@ -4091,7 +4107,7 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 	return false;
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) 
 {	//'stolen' from microsoft's knowledge base.
 	//required to work around microsoft being annoying.
@@ -4135,7 +4151,7 @@ int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType);
 
 qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	wchar_t resultpath[MAX_OSPATH];
 	wchar_t title[MAX_OSPATH];
 	BROWSEINFOW bi;
@@ -4301,7 +4317,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			return true;
 	}
 
-#if !defined(NPFTE) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
+#if !defined(NPFTE) && defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
 	if (allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
 	{
 		if (Sys_DoDirectoryPrompt(basepath, basepathlen, poshname, gamename))
@@ -4407,7 +4423,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		}
 	}
 
-#if !defined(NPFTE) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
+#if !defined(NPFTE) && defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
 	if (allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
 	{
 		if (Sys_DoDirectoryPrompt(basepath, basepathlen, poshname, gamename))
@@ -4454,7 +4470,9 @@ void FS_Shutdown(void)
 	if (!fs_thread_mutex)
 		return;
 
+#ifdef PACKAGEMANAGER
 	PM_ManifestPackage(NULL, false);
+#endif
 	FS_FreePaths();
 	Sys_DestroyMutex(fs_thread_mutex);
 	fs_thread_mutex = NULL;
@@ -4655,7 +4673,7 @@ static void FS_AppendManifestGameArguments(ftemanifest_t *man)
 	}
 }
 
-#ifdef WEBCLIENT
+#ifdef MANIFESTDOWNLOADS
 static char *FS_RelativeURL(char *base, char *file, char *buffer, int bufferlen)
 {
 	//fixme: cope with windows paths
@@ -4837,7 +4855,11 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 
 		if (fspdl_extracttype == X_UNZIP || fspdl_extracttype == X_MULTIUNZIP)	//if zip...
 		{	//archive
+#ifdef PACKAGE_PK3
 			searchpathfuncs_t *archive = FSZIP_LoadArchive(VFSOS_Open(fspdl_temppath, "rb"), NULL, dl->url, dl->url, "");
+#else
+			searchpathfuncs_t *archive = NULL;
+#endif
 			if (archive)
 			{
 				flocation_t loc;
@@ -5291,10 +5313,22 @@ ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, q
 	//hopefully this will be used for TCs.
 	if (!man && game == -1)
 	{
+		char exename[MAX_QPATH];
+		COM_StripAllExtensions(COM_SkipPath(com_argv[0]), exename, sizeof(exename));
+		//take away any amd64/x86/x86_64 postfix, so that people can have multiple cpu arch binaries sharing a single fmf
+		if (strlen(exename) > strlen(ARCH_CPU_POSTFIX) && !strcmp(exename+strlen(exename)-strlen(ARCH_CPU_POSTFIX), ARCH_CPU_POSTFIX))
+			exename[strlen(exename)-strlen(ARCH_CPU_POSTFIX)] = 0;
+		//and then the trailing _ (before said postfix)
+		if (exename[strlen(exename)] == '_')
+			exename[strlen(exename)] = 0;
+		//and hopefully we now have something consistent that we can try to use.
+
+		f = VFSOS_Open(va("%s%s.fmf", newbasedir, exename), "rb");
 #ifdef BRANDING_NAME
-		f = VFSOS_Open(va("%s"STRINGIFY(BRANDING_NAME)".fmf", newbasedir), "rb");
 		if (!f)
+			f = VFSOS_Open(va("%s"STRINGIFY(BRANDING_NAME)".fmf", newbasedir), "rb");
 #endif
+		if (!f)
 			f = VFSOS_Open(va("%sdefault.fmf", newbasedir), "rb");
 		if (f)
 		{
@@ -5400,17 +5434,20 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	qboolean reloadconfigs = false;
 	qboolean builtingame = false;
 	flocation_t loc;
-	qboolean allowvidrestart = true;
 
+#ifdef HAVE_CLIENT
+	qboolean allowvidrestart = true;
 	char *vidfile[] = {"gfx.wad", "gfx/conback.lmp",	//misc stuff
 		"gfx/palette.lmp", "pics/colormap.pcx"};		//palettes
 	searchpathfuncs_t *vidpath[countof(vidfile)];
+#endif
 
 	//if any of these files change location, the configs will be re-execed.
 	//note that we reuse path handles if they're still valid, so we can just check the pointer to see if it got unloaded/replaced.
 	char *conffile[] = {"quake.rc", "hexen.rc", "default.cfg", "server.cfg"};
 	searchpathfuncs_t *confpath[countof(conffile)];
 
+#ifdef HAVE_CLIENT
 	for (i = 0; i < countof(vidfile); i++)
 	{
 		if (allowvidrestart)
@@ -5421,6 +5458,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		else
 			vidpath[i] = NULL;
 	}
+#endif
 
 	if (allowreloadconfigs && fs_noreexec.ival)
 		allowreloadconfigs = false;
@@ -5584,7 +5622,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		{
 			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), man->security != MANIFEST_SECURITY_INSTALLER) && FS_FixPath(realpath, sizeof(realpath)) && FS_DirHasAPackage(realpath, man))
 				Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			else
 			{
 				Z_Free(man->updatefile);
@@ -5598,7 +5636,9 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	{
 		if (strcmp(com_gamepath, newbasedir))
 		{
+#ifdef PACKAGEMANAGER
 			PM_Shutdown();
+#endif
 			Q_strncpyz (com_gamepath, newbasedir, sizeof(com_gamepath));
 		}
 	}
@@ -5648,7 +5688,9 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 	if (Sys_LockMutex(fs_thread_mutex))
 	{
+#ifdef HAVE_CLIENT
 		qboolean vidrestart = false;
+#endif
 
 		FS_ReloadPackFilesFlags(~0);
 
@@ -5656,14 +5698,14 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 		FS_BeginManifestUpdates();
 
-#ifdef WEBCLIENT
+#ifdef MANIFESTDOWNLOADS
 		if (curpackagedownload && fs_loadedcommand)
 			allowreloadconfigs = false;
 #endif
 
 		COM_CheckRegistered();
 
-
+#ifdef HAVE_CLIENT
 		if (qrenderer != QR_NONE && allowvidrestart)
 		{
 			for (i = 0; i < countof(vidfile); i++)
@@ -5676,6 +5718,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				}
 			}
 		}
+#endif
 
 		if (allowreloadconfigs)
 		{
@@ -5698,28 +5741,30 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
 				Cvar_ForceSet(&pm_downloads_url, pm_downloads_url.enginevalue);
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
+#ifdef HAVE_CLIENT
 				vidrestart = false;
+#endif
 
 				if (isDedicated)
 				{
-	#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 					SV_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
-	#endif
+#endif
 				}
 				else
 				{
-	#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 					CL_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
-	#endif
+#endif
 				}
 			}
+#ifdef HAVE_CLIENT
 			else if (vidrestart)
 			{
-#ifndef SERVERONLY
 				Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
-#endif
 				vidrestart = false;
 			}
+#endif
 			if (fs_loadedcommand)
 			{
 				Cbuf_AddText(fs_loadedcommand, RESTRICT_INSECURE);
@@ -5727,19 +5772,19 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				fs_loadedcommand = NULL;
 			}
 		}
+#ifdef HAVE_CLIENT
 		if (vidrestart)
 		{
-#ifndef SERVERONLY
 			Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
-#endif
 			vidrestart = false;
 		}
+#endif
 
 		//rebuild the cache now, should be safe to waste some cycles on it
 		COM_FlushFSCache(false, true);
 	}
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	Validation_FlushFileList();	//prevent previous hacks from making a difference.
 #endif
 
@@ -6035,13 +6080,15 @@ static void FS_ChangeGame_f(void)
 				if (!Q_strcasecmp(gamemode_info[i].argname+1, arg))
 				{
 					Con_Printf("Switching to %s\n", gamemode_info[i].argname+1);
+#ifdef PACKAGEMANAGER
 					PM_Shutdown();
+#endif
 					FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, i), true, true);
 					return;
 				}
 			}
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			if (!Host_RunFile(arg, strlen(arg), NULL))
 				Con_Printf("Game unknown\n");
 #endif
@@ -6419,13 +6466,20 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "PAK", FSPAK_LoadArchive, true);
 #endif
 #endif
-	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);
+	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);	//used for git repos or whatever, to make packaging easier
 #ifdef PACKAGE_PK3
-	FS_RegisterFileSystemType(NULL, "pk3", FSZIP_LoadArchive, true);
-	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);
-	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);
-	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);
+	FS_RegisterFileSystemType(NULL, "pk3", FSZIP_LoadArchive, true);	//quake3's extension for zips
+	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);	//quake4's extension for zips...
+#ifdef Q2CLIENT
+	FS_RegisterFileSystemType(NULL, "pkz", FSZIP_LoadArchive, true);	//q2pro uses a different extension
+	FS_RegisterFileSystemType(NULL, "pkx", FSZIP_LoadArchive, true);	//q2xp naturally uses a different extension too... you'll be glad to know that yq2 uses pk3 instead. yay consistency - every engine uses something different!
+#endif
+	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);	//android package
+	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);	//regular zip file (don't automatically read from these, because it gets messy)
 	FS_RegisterFileSystemType(NULL, "exe", FSZIP_LoadArchive, false);	//for self-extracting zips.
+#endif
+#ifdef PACKAGE_VPK
+	FS_RegisterFileSystemType(NULL, "vpk", FSVPK_LoadArchive, true);
 #endif
 #ifdef PACKAGE_DOOMWAD
 	FS_RegisterFileSystemType(NULL, "wad", FSDWD_LoadArchive, true);

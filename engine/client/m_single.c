@@ -241,7 +241,18 @@ void M_Menu_Save_f (void)
 	menu->remove = M_Menu_LoadSave_UnloadShaders;
 	menu->reset	 = M_Menu_LoadSave_UnloadShaders;
 	
-	MC_AddCenterPicture (menu, 4, 24, "gfx/p_save.lmp");	
+	switch(M_GameType())
+	{
+#ifdef Q2CLIENT
+	case MGT_QUAKE2:
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_save_game.pcx");
+		break;
+#endif
+	default:
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_save.lmp");
+		break;
+	}
+
 	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, 32, NULL, false);	
 
 	M_ScanSaves ();
@@ -256,7 +267,7 @@ void M_Menu_Save_f (void)
 			menu->selecteditem = op;
 	}
 
-	MC_AddCustom(menu, 192, 60-16, NULL, 0)->draw = M_Menu_LoadSave_Preview_Draw;
+	MC_AddCustom(menu, 192, 60-16, NULL, 0, NULL)->draw = M_Menu_LoadSave_Preview_Draw;
 }
 void M_Menu_Load_f (void)
 {
@@ -271,8 +282,18 @@ void M_Menu_Load_f (void)
 	menu->data = menu+1;
 	menu->remove = M_Menu_LoadSave_UnloadShaders;
 	menu->reset	 = M_Menu_LoadSave_UnloadShaders;
-	
-	MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");	
+
+	switch(M_GameType())
+	{
+#ifdef Q2CLIENT
+	case MGT_QUAKE2:
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_load_game.pcx");
+		break;
+#endif
+	default:
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");
+		break;
+	}
 
 	M_ScanSaves ();
 
@@ -293,7 +314,7 @@ void M_Menu_Load_f (void)
 	if (menu->selecteditem)
 		menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, menu->selecteditem->common.posy, NULL, false);	
 
-	MC_AddCustom(menu, 192, 60-16, NULL, 0)->draw = M_Menu_LoadSave_Preview_Draw;
+	MC_AddCustom(menu, 192, 60-16, NULL, 0, NULL)->draw = M_Menu_LoadSave_Preview_Draw;
 }
 
 
@@ -1087,7 +1108,7 @@ void M_Menu_Demos_f (void)
 	MC_AddWhiteText(menu, 24, 170, 8, "Choose a Demo", false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
-	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
+	info->list = MC_AddCustom(menu, 0, 32, NULL, 0, NULL);
 	info->list->draw = M_DemoDraw;
 	info->list->key = M_DemoKey;
 
@@ -1151,7 +1172,7 @@ void M_Menu_MediaFiles_f (void)
 	MC_AddWhiteText(menu, 24, 170, 8, "Media List", false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
-	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
+	info->list = MC_AddCustom(menu, 0, 32, NULL, 0, NULL);
 	info->list->draw = M_DemoDraw;
 	info->list->key = M_DemoKey;
 

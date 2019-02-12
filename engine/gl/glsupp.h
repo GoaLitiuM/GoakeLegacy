@@ -4,14 +4,14 @@
 
 //contains the extra things that would otherwise be found in glext.h
 
-typedef void (APIENTRY *qlpMTex2FUNC) (GLenum, GLfloat, GLfloat);
-typedef void (APIENTRY *qlpMTex3FUNC) (GLenum, GLfloat, GLfloat, GLfloat);
+//typedef void (APIENTRY *qlpMTex2FUNC) (GLenum, GLfloat, GLfloat);
+//typedef void (APIENTRY *qlpMTex3FUNC) (GLenum, GLfloat, GLfloat, GLfloat);
 typedef void (APIENTRY *qlpSelTexFUNC) (GLenum);
 
 extern qlpSelTexFUNC	qglActiveTextureARB;
 extern qlpSelTexFUNC	qglClientActiveTextureARB;
-extern qlpMTex3FUNC		qglMultiTexCoord3fARB;
-extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
+//extern qlpMTex3FUNC		qglMultiTexCoord3fARB;
+//extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 
 //This stuff is normally supplied in the <GL/glext.h> header file. I don't actually have one of them, so it's here instead.
 #if 0	//change to 1 if you do actually have the file in question - and its up to date.
@@ -35,6 +35,12 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 //#ifndef GL_VERSION_1_2
 #define GL_CLAMP_TO_EDGE                  0x812F
 //#endif
+
+
+#ifndef GL_MAX_ARRAY_TEXTURE_LAYERS
+#define GL_MAX_ARRAY_TEXTURE_LAYERS       0x88FF	/*opengl 3.0*/
+#endif
+
 
 // Added to make morphos and mingw32 crosscompilers to work
 /*
@@ -886,9 +892,13 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_TEXTURE_MAX_LEVEL 0x813d 
 #endif
 
-#ifndef GL_RGBA16F_ARB
-#define GL_RGBA16F_ARB                      0x881A
-#define GL_RGBA32F_ARB                      0x8814
+#ifndef GL_RGBA16F
+#define GL_RGBA16F                      0x881A
+#define GL_RGBA32F                      0x8814
+#endif
+#ifndef GL_R16F
+#define GL_R16F                           0x822D
+#define GL_R32F                           0x822E
 #endif
 
 #ifndef GL_RED

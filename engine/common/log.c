@@ -28,6 +28,10 @@ cvar_t		log_dosformat = CVARF("log_dosformat", "0", CVAR_NOTFROMSERVER);
 #endif
 qboolean	log_newline[LOG_TYPES];
 
+#ifdef IPLOG
+cvar_t		iplog_autodump = CVARFD("ipautodump", "1", CVAR_NOTFROMSERVER, "Enables dumping the 'iplog.txt' file, which contains a log of usernames seen for a given IP, which is useful for detecting fake-nicks.");
+#endif
+
 static char log_dir[MAX_OSPATH];
 static enum fs_relative log_root = FS_GAMEONLY;
 
@@ -335,6 +339,7 @@ void SV_Fraglogfile_f (void)
 }
 */
 
+#ifdef IPLOG
 /*for fuck sake, why can people still not write simple files. proquake is writing binary files as text ones. this function is to try to deal with that fuckup*/
 static size_t IPLog_Read_Fucked(qbyte *file, size_t *offset, size_t totalsize, qbyte *out, size_t outsize)
 {
@@ -356,7 +361,7 @@ static size_t IPLog_Read_Fucked(qbyte *file, size_t *offset, size_t totalsize, q
 	}
 	return read;
 }
-/*need to make sure any 13 bytes followed by 10s don't bug out when read back in *sigh* */
+/*need to make sure any 13 bytes are followed by 10s so that we don't bug out when read back in *sigh* */
 static size_t IPLog_Write_Fucked(vfsfile_t *file, qbyte *out, size_t outsize)
 {
 	qbyte tmp[64];
@@ -515,7 +520,7 @@ static void IPLog_Identify_f(void)
 		//treading carefully here, to avoid dns name lookups weirding everything out.
 		IPLog_Identify(&adr, &mask, "Identity of %s", NET_AdrToStringMasked(clean, sizeof(clean), &adr, &mask));
 	}
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	else if (sv.active)
 	{	//if server is active, walk players to see if there's a name match to get their address and guess an address mask
 		client_t *cl;
@@ -532,7 +537,7 @@ static void IPLog_Identify_f(void)
 		}
 	}
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	else if (cls.state >= ca_connected)
 	{	//else if client is active, walk players to see if there's a name match, to get their address+mask if known via nq hacks
 		int slot;
@@ -623,8 +628,9 @@ static void IPLog_Merge_f(void)
 	if (!IPLog_Merge_File(fname))
 		Con_Printf("unable to read %s\n", fname);
 }
+#endif
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT	//requires UI prompts
 struct certlog_s
 {
 	link_t l;
@@ -756,7 +762,7 @@ static void CertLog_Add_Prompted(void *vctx, int button)
 		CertLog_Write();
 	}
 	else
-		CL_Disconnect();
+		CL_Disconnect("Server certificate rejected");
 
 	certlog_curprompt = NULL;
 }
@@ -791,7 +797,9 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize)
 
 void Log_ShutDown(void)
 {
-	IPLog_Dump("iplog.txt");
+#ifdef IPLOG
+	if (iplog_autodump.ival)
+		IPLog_Dump("iplog.txt");
 //	IPLog_Dump("iplog.dat");
 
 	while(iplog_num > 0)
@@ -802,6 +810,7 @@ void Log_ShutDown(void)
 	BZ_Free(iplog_entries);
 	iplog_entries = NULL;
 	iplog_max = iplog_num = 0;
+#endif
 }
 
 void Log_Init(void)
@@ -824,9 +833,12 @@ void Log_Init(void)
 
 	Cmd_AddCommand("logfile", Log_Logfile_f);
 
-	Cmd_AddCommand("identify", IPLog_Identify_f);
+#ifdef IPLOG
+	Cmd_AddCommandD("identify", IPLog_Identify_f, "Looks up a player's ip to see if they're using a different name");
 	Cmd_AddCommand("ipmerge", IPLog_Merge_f);
 	Cmd_AddCommand("ipdump", IPLog_Dump_f);
+	Cvar_Register (&iplog_autodump, CONLOGGROUP);
+#endif
 
 	// cmd line options, debug options
 #ifdef CRAZYDEBUGGING
@@ -837,7 +849,7 @@ void Log_Init(void)
 	if (COM_CheckParm("-condebug"))
 		Cvar_ForceSet(&log_enable[LOG_CONSOLE], "1");
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	ClearLink(&certlog);
 	Cmd_AddCommand("dtls_untrustall", CertLog_UntrustAll_f);
 	Cmd_AddCommand("dtls_importtrust", CertLog_Import_f);

@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 typedef struct playerview_s playerview_t;
 
 extern	float		scr_con_current;
-extern	float		scr_conlines;		// lines of console to display
+extern	float		scr_con_target;		// lines of console to display
 
 extern	int			sb_lines;
 
@@ -85,6 +85,7 @@ enum fs_relative;
 
 typedef enum uploadfmt
 {
+//NOTE: these values are exposed to native plugins but not QC.
 	PTI_INVALID,
 
 	//these formats are specified as direct byte access (listed in byte order, aka big-endian 0xrrggbbaa order)
@@ -108,6 +109,8 @@ typedef enum uploadfmt
 	PTI_R8_SNORM,
 	PTI_RG8_SNORM,	//might be useful for normalmaps
 	//floating point formats
+	PTI_R16F,
+	PTI_R32F,
 	PTI_RGBA16F,
 	PTI_RGBA32F,
 	//packed/misaligned formats: these are specified in native endian order (high bits listed first because that's how things are represented in hex), so may need byte swapping...
@@ -231,7 +234,7 @@ typedef enum uploadfmt
 #define PTI_EMULATED 	TF_INVALID:case TF_BGR24_FLIP:case TF_MIP4_R8:case TF_MIP4_SOLID8:case TF_MIP4_8PAL24:case TF_MIP4_8PAL24_T255:case TF_SOLID8:case TF_TRANS8:case TF_TRANS8_FULLBRIGHT:case TF_HEIGHT8:case TF_HEIGHT8PAL:case TF_H2_T7G1:case TF_H2_TRANS8_0:case TF_H2_T4A4:case TF_8PAL24:case TF_8PAL32:case PTI_LLLX8:case PTI_LLLA8
 } uploadfmt_t;
 
-qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt);
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta);
 
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud);
 
@@ -257,6 +260,7 @@ void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
 void Font_Transform(float vx, float vy, int *px, int *py);
 int Font_CharHeight(void);
+float Font_CharVHeight(struct font_s *font);
 float Font_CharScaleHeight(void);
 int Font_CharWidth(unsigned int charflags, unsigned int codepoint);
 float Font_CharScaleWidth(unsigned int charflags, unsigned int codepoint);
@@ -322,4 +326,4 @@ fte_inline float M_LinearToSRGB(float x, float mag)
 
 void R_NetgraphInit(void);
 void R_NetGraph (void);
-void R_FrameTimeGraph (int frametime);
+void R_FrameTimeGraph (float frametime);

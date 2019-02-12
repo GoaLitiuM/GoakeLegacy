@@ -63,7 +63,7 @@ crosses a waterline.
 =============================================================================
 */
 
-int needcleanup;
+static int needcleanup;
 
 //int		fatbytes;
 
@@ -106,9 +106,9 @@ void SV_ExpandNackFrames(client_t *client, int require)
 // because there can be a lot of nails, there is a special
 // network protocol for them
 #define	MAX_NAILS	32
-edict_t	*nails[MAX_NAILS];
-int		numnails;
-int		nailcount = 0;
+static edict_t	*nails[MAX_NAILS];
+static int		numnails;
+static int		nailcount = 0;
 extern	int	sv_nailmodel, sv_supernailmodel, sv_playermodel;
 
 #ifdef SERVER_DEMO_PLAYBACK
@@ -328,7 +328,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 			{
 				if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED))
 				{	//while the entity has NOREMOVE, only remove it if the remove is a resend
-					if ((int)EDICT_NUM_PB(svprogfuncs, en)->xv->pvsflags & PVSF_NOREMOVE)
+					if ((int)EDICT_NUM_PB(svprogfuncs, entnum)->xv->pvsflags & PVSF_NOREMOVE)
 						continue;
 				}
 				if (msg->cursize + 5 >= msg->maxsize)
@@ -450,7 +450,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 		if (client->pendingcsqcbits[entnum] & (SENDFLAGS_PRESENT|SENDFLAGS_REMOVED))
 		{
 			if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED))
-			{	//while the entity has NOREMOVE, only remove it if the remove is a resend
+			{	//while the original entity has NOREMOVE, only remove it if the remove is a resend
 				if ((int)EDICT_NUM_PB(svprogfuncs, entnum)->xv->pvsflags & PVSF_NOREMOVE)
 					continue;
 			}
@@ -1480,81 +1480,84 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 	outno = 0;
 	outmax = frame->maxresend;
 
-	/*start writing the packet*/
-	MSG_WriteByte (msg, svcfte_updateentities);
-	if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
+	if (msg->cursize + 52 <= msg->maxsize)
 	{
-		MSG_WriteShort(msg, client->last_sequence&0xffff);
-	}
-//	Con_Printf("Gen sequence %i\n", sequence);
-	MSG_WriteFloat(msg, sv.world.physicstime);
-
-	if (client->pendingdeltabits[0] & UF_REMOVE)
-	{
-		SV_EmitDeltaEntIndex(msg, 0, true, true);
-		resend[outno].bits = UF_REMOVE;
-		resend[outno].flags = 0;
-		resend[outno++].entnum = 0;
-
-		client->pendingdeltabits[0] &= ~UF_REMOVE;
-	}
-	for(j = 1; j < client->sentents.num_entities; j++)
-	{
-		bits = client->pendingdeltabits[j];
-		if (!(bits & ~UF_RESET2))	//skip while there's nothing to send (skip reset2 if there's no other changes, its only to reduce chances of the client getting 'new' entities containing just an origin)*/
-			continue;
-		if (msg->cursize + 50 > msg->maxsize)
+		/*start writing the packet*/
+		MSG_WriteByte (msg, svcfte_updateentities);
+		if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 		{
-			overflow = true;
-			break; /*give up if it gets full. FIXME: bone data is HUGE.*/
+			MSG_WriteShort(msg, client->last_sequence&0xffff);
 		}
-		if (outno >= outmax)
-		{	//expand the frames. may need some copying...
-			SV_ExpandNackFrames(client, outno+1);
-			break;
-		}
+	//	Con_Printf("Gen sequence %i\n", sequence);
+		MSG_WriteFloat(msg, sv.world.physicstime);
 
-		if (bits & UF_REMOVE)
-		{	//if reset is set, then reset was set eroneously.
-			SV_EmitDeltaEntIndex(msg, j, true, true);
+		if (client->pendingdeltabits[0] & UF_REMOVE)
+		{
+			SV_EmitDeltaEntIndex(msg, 0, true, true);
 			resend[outno].bits = UF_REMOVE;
-//			Con_Printf("REMOVE %i @ %i\n", j, sequence);
+			resend[outno].flags = 0;
+			resend[outno++].entnum = 0;
+
+			client->pendingdeltabits[0] &= ~UF_REMOVE;
 		}
-		else if (client->sentents.entities[j].number) /*only send a new copy of the ent if they actually have one already*/
+		for(j = 1; j < client->sentents.num_entities; j++)
 		{
-			//if we didn't reach the end in the last packet, start at that point to avoid spam
-			//player slots are exempt from this, so they are in every packet (strictly speaking only the local player 'needs' this, but its nice to have it for high-priority targets too)
-			if (j < client->nextdeltaindex && j > svs.allocated_client_slots)
+			bits = client->pendingdeltabits[j];
+			if (!(bits & ~UF_RESET2))	//skip while there's nothing to send (skip reset2 if there's no other changes, its only to reduce chances of the client getting 'new' entities containing just an origin)*/
 				continue;
-
-			if (bits & UF_RESET2)
+			if (msg->cursize + 52 > msg->maxsize)
 			{
-				/*if reset2, then this is the second packet sent to the client and should have a forced reset (but which isn't tracked)*/
-				resend[outno].bits = bits & ~UF_RESET2;
-				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM_PB(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
-//				Con_Printf("RESET2 %i @ %i\n", j, sequence);
+				overflow = true;
+				break; /*give up if it gets full. FIXME: bone data is HUGE.*/
 			}
-			else if (bits & UF_RESET)
-			{
-				/*flag the entity for the next packet, so we always get two resets when it appears, to reduce the effects of packetloss on seeing rockets etc*/
-				client->pendingdeltabits[j] = UF_RESET2;
-				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM_PB(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
-				resend[outno].bits = UF_RESET;
-//				Con_Printf("RESET %i @ %i\n", j, sequence);
+			if (outno >= outmax)
+			{	//expand the frames. may need some copying...
+				SV_ExpandNackFrames(client, outno+1);
+				break;
 			}
-			else
-				resend[outno].bits = bits;
 
-			SV_EmitDeltaEntIndex(msg, j, false, true);
-			SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg, client->fteprotocolextensions2, client->sentents.bonedata);
+			if (bits & UF_REMOVE)
+			{	//if reset is set, then reset was set eroneously.
+				SV_EmitDeltaEntIndex(msg, j, true, true);
+				resend[outno].bits = UF_REMOVE;
+	//			Con_Printf("REMOVE %i @ %i\n", j, sequence);
+			}
+			else if (client->sentents.entities[j].number) /*only send a new copy of the ent if they actually have one already*/
+			{
+				//if we didn't reach the end in the last packet, start at that point to avoid spam
+				//player slots are exempt from this, so they are in every packet (strictly speaking only the local player 'needs' this, but its nice to have it for high-priority targets too)
+				if (j < client->nextdeltaindex && j > svs.allocated_client_slots)
+					continue;
+
+				if (bits & UF_RESET2)
+				{
+					/*if reset2, then this is the second packet sent to the client and should have a forced reset (but which isn't tracked)*/
+					resend[outno].bits = bits & ~UF_RESET2;
+					bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM_PB(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
+	//				Con_Printf("RESET2 %i @ %i\n", j, sequence);
+				}
+				else if (bits & UF_RESET)
+				{
+					/*flag the entity for the next packet, so we always get two resets when it appears, to reduce the effects of packetloss on seeing rockets etc*/
+					client->pendingdeltabits[j] = UF_RESET2;
+					bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM_PB(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
+					resend[outno].bits = UF_RESET;
+	//				Con_Printf("RESET %i @ %i\n", j, sequence);
+				}
+				else
+					resend[outno].bits = bits;
+
+				SV_EmitDeltaEntIndex(msg, j, false, true);
+				SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg, client->fteprotocolextensions2, client->sentents.bonedata);
+			}
+
+			client->pendingdeltabits[j] = 0;
+
+			resend[outno].flags = 0;
+			resend[outno++].entnum = j;
 		}
-
-		client->pendingdeltabits[j] = 0;
-
-		resend[outno].flags = 0;
-		resend[outno++].entnum = j;
+		MSG_WriteShort(msg, 0);
 	}
-	MSG_WriteShort(msg, 0);
 
 	if (j == client->sentents.num_entities) //looks like we sent them all
 		client->nextdeltaindex = 0;	//start afresh with the next packet.
@@ -1564,6 +1567,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 	frame->numresend = outno;
 	frame->sequence = sequence;
 
+	frame->laggedtime = sv.time;
 	for (i = 0; i < to->num_entities; i++)
 	{
 		n = &to->entities[i];
@@ -1582,9 +1586,10 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 			age = sv.time - sv.world.physicstime;
 		age = bound(0, age, 0.1);
 
-		VectorMA(n->origin, (sv.time - cl->localtime)/8.0, n->u.q1.velocity, frame->playerpositions[j]);
+		VectorMA(n->origin, (sv.time - cl->localtime)/8.0, n->u.q1.velocity, frame->laggedplayer[j].origin);
+		VectorCopy(n->angles, frame->laggedplayer[j].angles);
 		//FIXME: add framestate_t info.
-		frame->playerpresent[j] = true;
+		frame->laggedplayer[j].present = true;
 	}
 
 	return overflow;
@@ -2762,13 +2767,14 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				clst.lastcmd = NULL;
 				clst.velocity = NULL;
 				clst.localtime = sv.time;
-				VectorCopy(clst.origin, frame->playerpositions[j]);
+				VectorCopy(clst.origin, frame->laggedplayer[j].origin);
 			}
 			else
 			{
-				VectorMA(clst.origin, (sv.time - clst.localtime), clst.velocity, frame->playerpositions[j]);
+				VectorMA(clst.origin, (sv.time - clst.localtime), clst.velocity, frame->laggedplayer[j].origin);
 			}
-			frame->playerpresent[j] = true;
+			VectorCopy(clst.angles, frame->laggedplayer[j].angles);
+			frame->laggedplayer[j].present = true;
 			SV_WritePlayerToClient(msg, &clst);
 		}
 
@@ -2983,7 +2989,7 @@ typedef struct gibfilter_s {
 	int minframe;
 	int maxframe;
 } gibfilter_t;
-gibfilter_t *gibfilter;
+static gibfilter_t *gibfilter;
 void SV_GibFilterPurge(void)
 {
 	gibfilter_t *gf;
@@ -3499,43 +3505,50 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 	int pvsflags;
 	int limit;
 	int c, maxc = cameras?cameras->numents:0;
+	client_t *seat;
 
 	//this entity is watching from outside themselves. The client is tricked into thinking that they themselves are in the view ent, and a new dummy ent (the old them) must be spawned.
-	if (client->viewent && ISQWCLIENT(client))
+	if (clent && ISQWCLIENT(client))
 	{
+		for (seat = client; seat; seat = seat->controlled)
+		{
+			edict_t *clent = seat->edict;
+			if (!client->viewent)
+				continue;
 //FIXME: this hack needs cleaning up
 #ifdef DEPTHOPTIMISE
-		distances[0] = 0;
+			distances[pack->num_entities] = 0;
 #endif
-		state = &pack->entities[pack->num_entities];
-		pack->num_entities++;
+			state = &pack->entities[pack->num_entities];
+			pack->num_entities++;
 
-		SV_Snapshot_BuildStateQ1(state, clent, client, pack);
+			SV_Snapshot_BuildStateQ1(state, clent, seat, pack);
 
-		state->number = client - svs.clients + 1;
+			state->number = seat - svs.clients + 1;
 
-		//yeah, I doubt anyone will need this
-		if (progstype == PROG_QW)
-		{
-			if ((int)clent->v->effects & QWEF_FLAG1)
+			//yeah, I doubt anyone will need this
+			if (progstype == PROG_QW)
 			{
-				memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
-				state = &pack->entities[pack->num_entities];
-				pack->num_entities++;
-				state->modelindex = SV_ModelIndex("progs/flag.mdl");
-				state->frame = 0;
-				state->number++;	//yeek
-				state->skinnum = 0;
-			}
-			else if ((int)clent->v->effects & QWEF_FLAG2)
-			{
-				memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
-				state = &pack->entities[pack->num_entities];
-				pack->num_entities++;
-				state->modelindex = SV_ModelIndex("progs/flag.mdl");
-				state->frame = 0;
-				state->number++;	//yeek
-				state->skinnum = 1;
+				if ((int)clent->v->effects & QWEF_FLAG1)
+				{
+					memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
+					state = &pack->entities[pack->num_entities];
+					pack->num_entities++;
+					state->modelindex = SV_ModelIndex("progs/flag.mdl");
+					state->frame = 0;
+					state->number++;	//yeek
+					state->skinnum = 0;
+				}
+				else if ((int)clent->v->effects & QWEF_FLAG2)
+				{
+					memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
+					state = &pack->entities[pack->num_entities];
+					pack->num_entities++;
+					state->modelindex = SV_ModelIndex("progs/flag.mdl");
+					state->frame = 0;
+					state->number++;	//yeek
+					state->skinnum = 1;
+				}
 			}
 		}
 	}
@@ -3881,9 +3894,7 @@ svc_playerinfo messages
 */
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs)
 {
-#ifdef NQPROT
-	int		e;
-#endif
+	int i;
 	packet_entities_t	*pack;
 	edict_t	*clent;
 	client_frame_t	*frame;
@@ -3893,7 +3904,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 	// this is the frame we are creating
 	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];
-	memset(frame->playerpresent, 0, sizeof(frame->playerpresent));
+	for (i = 0; i < sv.allocated_client_slots; i++)
+		frame->laggedplayer[i].present = 0;
 
 	// find the client's PVS
 	if (ignorepvs)
@@ -3977,6 +3989,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			SVDP_EmitEntitiesUpdate(client, frame, pack, msg);
 		else
 		{
+			int e;
 			for (e = 0; e < pack->num_entities; e++)
 			{
 				if (pack->entities[e].number > sv.allocated_client_slots)

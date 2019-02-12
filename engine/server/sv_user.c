@@ -77,8 +77,6 @@ cvar_t cmd_gamecodelevel	= CVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
 cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "0", "sv_nomsec", 0, SV_NQPhysicsUpdate, "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
-cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
-								 "edgefriction", 0);
 
 #ifndef NOLEGACY
 cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
@@ -112,6 +110,7 @@ extern cvar_t	pm_stepdown;
 extern cvar_t	pm_walljump;
 extern cvar_t	pm_watersinkspeed;
 extern cvar_t	pm_flyfriction;
+extern cvar_t	pm_edgefriction;
 cvar_t sv_pushplayers = CVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
@@ -195,7 +194,7 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 	if (client->realip_status == 1)
 	{
 		msg = va("\xff\xff\xff\xff%c %i", A2A_PING, client->realip_ping);
-		NET_SendPacket(NS_SERVER, strlen(msg), msg, &client->realip);
+		NET_SendPacket(svs.sockets, strlen(msg), msg, &client->realip);
 	}
 	else
 	{
@@ -349,7 +348,7 @@ void SV_New_f (void)
 		for (split = host_client; split; split = split->controlled)
 		{
 			playernum = split - svs.clients;// NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
-			if (sv.state == ss_cinematic)
+			if (ISQ2CLIENT(host_client) && sv.state == ss_cinematic)
 				playernum = -1;
 			ClientReliableWrite_Byte (host_client, playernum);
 
@@ -391,9 +390,6 @@ void SV_New_f (void)
 				if (split->spectator)
 				playernum |= 128;
 
-			if (sv.state == ss_cinematic)
-				playernum = -1;
-
 			split->state = cs_connected;
 			split->connection_started = realtime;
 		#ifdef SVRANKING
@@ -403,6 +399,8 @@ void SV_New_f (void)
 
 			if (ISQ2CLIENT(host_client))
 			{
+				if (sv.state == ss_cinematic)
+					playernum = -1;
 				ClientReliableWrite_Short (host_client, playernum);
 				break;
 			}
@@ -461,6 +459,16 @@ void SV_New_f (void)
 	SV_CheckRealIP(host_client, false);
 
 	SV_LogPlayer(host_client, "new (QW)");
+
+	if (sv.state == ss_cinematic)
+	{
+		char tmp[1024];
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString(&host_client->netchan.message, va("\nplayfilm %s\n", COM_QuotedString(svs.name, tmp, sizeof(tmp), false)));
+		host_client->prespawn_stage = PRESPAWN_INVALID;
+		host_client->prespawn_idx = 0;
+		return;
+	}
 
 	host_client->prespawn_stage = PRESPAWN_SERVERINFO;
 	host_client->prespawn_idx = 0;
@@ -664,7 +672,7 @@ void SVNQ_New_f (void)
 	}
 	COM_FileBase(sv.modelname, mapname, sizeof(mapname));
 
-	
+
 	if (op != host_client->protocol)
 		SV_ClientProtocolExtensionsChanged(host_client);
 
@@ -716,6 +724,16 @@ void SVNQ_New_f (void)
 		//it is annoying to have prints about unknown commands however, hence the above pext checks (which are unfortunate).
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
+	}
+
+	if (sv.state == ss_cinematic)
+	{
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString(&host_client->netchan.message, va("\nplayfilm %s\n", COM_QuotedString(svs.name, message, sizeof(message), false)));
+		host_client->prespawn_stage = PRESPAWN_INVALID;
+		host_client->prespawn_idx = 0;
+		host_client->netchan.nqunreliableonly = 2;
+		return;
 	}
 
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
@@ -2242,6 +2260,7 @@ void SV_Begin_f (void)
 
 //=============================================================================
 
+#ifdef NQPROT
 //dp downloads are a 2-stream system
 //the server->client stream is as you'd expect. except that its unreliable rather than reliable
 //the client->server stream contains no actual data.
@@ -2349,6 +2368,7 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 		host_client->downloadsize = 0;
 	}
 }
+#endif
 
 static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum, int chunks)
 {
@@ -2378,7 +2398,7 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 			host_client->downloadcount = chunknum*DLBLOCKSIZE;
 	}
 
-	
+
 	while (!error && chunks > 0)
 	{
 		if ((host_client->datagram.cursize + DLBLOCKSIZE+5+50 > host_client->datagram.maxsize) || (host_client->datagram.cursize + DLBLOCKSIZE+5 > 1400))
@@ -2546,7 +2566,7 @@ void VARGS OutofBandPrintf(netadr_t *where, char *fmt, ...)
 	vsnprintf (send+5, sizeof(send)-5, fmt, argptr);
 	va_end (argptr);
 
-	NET_SendPacket (NS_SERVER, strlen(send)+1, send, where);
+	NET_SendPacket (svs.sockets, strlen(send)+1, send, where);
 }
 
 /*
@@ -3178,7 +3198,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 		{
 			if (!allow_download_anymap.value && !Q_strncasecmp(name, "maps/", 5))
 			{
-				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
+				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name);
 				return DLERR_PERMISSIONS;
 			}
 		}
@@ -3221,7 +3241,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 		{	//if its in a pak file, don't allow downloads if we don't allow the contents of paks to be sent.
 			if (!allow_download_pakcontents.value)
 			{
-				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
+				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name);
 				return DLERR_PERMISSIONS;
 			}
 		}
@@ -4082,7 +4102,7 @@ static void SV_UpdateSeats(client_t *controller)
 {
 	client_t *cl;
 	int curclients;
-	
+
 	if (controller->protocol == SCP_QUAKE2)
 		return;	//wait for the clientinfo stuff instead.
 
@@ -4960,9 +4980,9 @@ void Cmd_SetPos_f(void)
 	if (!svprogfuncs)
 		return;
 
-	if (Cmd_Argc() != 4)
+	if (Cmd_Argc() != 4 && Cmd_Argc() != 7)
 	{
-		SV_ClientPrintf(host_client, PRINT_HIGH, "setpos %f %f %f\n", sv_player->v->origin[0], sv_player->v->origin[1], sv_player->v->origin[2]);
+		SV_ClientPrintf(host_client, PRINT_HIGH, "setpos %f %f %f %f %f %f\n", sv_player->v->origin[0], sv_player->v->origin[1], sv_player->v->origin[2], sv_player->v->v_angle[0], sv_player->v->v_angle[1], sv_player->v->v_angle[2]);
 		return;
 	}
 	SV_LogPlayer(host_client, "setpos cheat");
@@ -4979,6 +4999,14 @@ void Cmd_SetPos_f(void)
 	sv_player->v->origin[1] = atof(Cmd_Argv(2));
 	sv_player->v->origin[2] = atof(Cmd_Argv(3));
 	World_LinkEdict (&sv.world, (wedict_t*)sv_player, false);
+
+	if (Cmd_Argc() > 4)
+	{
+		sv_player->v->angles[0] = atof(Cmd_Argv(4));
+		sv_player->v->angles[1] = atof(Cmd_Argv(5));
+		sv_player->v->angles[2] = atof(Cmd_Argv(6));
+		sv_player->v->fixangle = true;
+	}
 }
 
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
@@ -5485,14 +5513,6 @@ void SV_DisableClientsCSQC(void)
 }
 
 void SV_UserCmdMVDList_f (void);
-static void SV_STFU_f(void)
-{
-	char *msg;
-	SV_ClientPrintf(host_client, 255, "stfu\n");
-	msg = "cl_antilag 0\n";
-	ClientReliableWrite_Begin(host_client, svc_stufftext, 2+strlen(msg));
-	ClientReliableWrite_String(host_client, msg);
-}
 
 #ifdef NQPROT
 static void SVNQ_Spawn_f (void)
@@ -5975,9 +5995,6 @@ ucmd_t ucmds[] =
 	{"spawn", SVQW_Spawn_f, true},
 	{"begin", SV_Begin_f, true},
 
-	/*ezquake warning*/
-	{"al", SV_STFU_f, true},	//can probably be removed now.
-
 	{"drop", SV_Drop_f},
 	{"disconnect", SV_Drop_f},
 	{"pings", SV_Pings_f},
@@ -6178,7 +6195,7 @@ void SV_ExecuteUserCommand (const char *s, qboolean fromQC)
 	Cmd_ExecLevel=1;
 
 	if (!fromQC && host_client->controlled)	//now see if it's meant to be from a slave client
-	{	//'cmd 2 say hi' should 
+	{	//'cmd 2 say hi' should
 		char *a=Cmd_Argv(0), *e;
 		int pnum = strtoul(a, &e, 10);
 
@@ -6770,7 +6787,7 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 
 	case MOVETYPE_WALLWALK:
 		return PM_WALLWALK;
-	
+
 	case MOVETYPE_6DOF:
 		return PM_6DOF;
 
@@ -6969,6 +6986,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.slidyslopes = (pm_slidyslopes.value!=0);
 		movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
+		movevars.edgefriction = *pm_edgefriction.string?pm_edgefriction.value:2;
 		movevars.coordsize = host_client->netchan.netprim.coordsize;
 
 		for (i=0 ; i<3 ; i++)
@@ -7022,7 +7040,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			}
 			sv_player->xv->light_level = lev * 255;
 		}
-		else	
+		else
 			sv_player->xv->light_level = 128;	//don't know, some dummy value.
 	}
 #endif
@@ -7206,6 +7224,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
+	movevars.edgefriction = *pm_edgefriction.string?pm_edgefriction.value:2;
 	movevars.coordsize = host_client->netchan.netprim.coordsize;
 
 // should already be folded into host_client->maxspeed
@@ -7599,6 +7618,8 @@ done:
 	rname = MSG_ReadString();
 	if (i)
 		fname = va("CSEv_%s_%s", rname, args);
+	else if (strchr(rname, '_'))	//this is awkward, as not forcing an underscore would allow people to mis-call things with lingering data (the alternative is to block underscores entirely).
+		fname = va("CSEv_%s_", rname);
 	else
 		fname = va("CSEv_%s", rname);
 	f = PR_FindFunction(svprogfuncs, fname, PR_ANY);
@@ -7610,6 +7631,8 @@ done:
 		else
 			rname = va("Cmd_%s", rname);
 		f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
+		if (f)
+			SV_ClientPrintf(host_client, PRINT_HIGH, "the name \"%s\" is deprecated\n", rname);
 	}
 #endif
 	if (host_client->drop)
@@ -7642,7 +7665,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 	vec3_t o;
 	int		checksumIndex;
 	qbyte	checksum, calculatedChecksum;
-	int		seq_hash, i;
+	int		seq_hash;
 
 	// calc ping time
 	if (cl->frameunion.frames)
@@ -7679,14 +7702,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 #ifdef warningmsg
 #pragma warningmsg("FIXME: make antilag optionally support non-player ents too")
 #endif
-			for (i = 0; i < sv.allocated_client_slots; i++)
-			{
-				cl->laggedents[i].present = frame->playerpresent[i];
-				if (cl->laggedents[i].present)
-					VectorCopy(frame->playerpositions[i], cl->laggedents[i].laggedpos);
-			}
 			cl->laggedents_count = sv.allocated_client_slots;
-
+			memcpy(cl->laggedents, frame->laggedplayer, sizeof(*cl->laggedents)*cl->laggedents_count);
+			cl->laggedents_time = frame->laggedtime;
 			cl->laggedents_frac = !*sv_antilag_frac.string?1:sv_antilag_frac.value;
 		}
 		else
@@ -8429,7 +8447,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			case SCP_DARKPLACES7:
 				break;
 			}
-				
+
 			SVNQ_ReadClientMove (&cl->lastcmd, forceangle16);
 //			cmd = host_client->lastcmd;
 //			SV_ClientThink();
@@ -8540,8 +8558,6 @@ void SV_UserInit (void)
 #ifndef NOLEGACY
 	Cvar_Register (&sv_brokenmovetypes, "Backwards compatability");
 #endif
-
-	Cvar_Register (&sv_edgefriction, "netquake compatability");
 }
 
 
@@ -8641,7 +8657,7 @@ static void SV_UserFriction (void)
 	trace = World_Move (&sv.world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)sv_player);
 
 	if (trace.fraction == 1.0)
-		friction = sv_friction.value*sv_edgefriction.value;
+		friction = sv_friction.value*pm_edgefriction.value;
 	else
 		friction = sv_friction.value;
 

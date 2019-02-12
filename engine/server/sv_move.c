@@ -32,7 +32,7 @@ is not a staircase.
 
 =============
 */
-int c_yes, c_no;
+//int c_yes, c_no;
 
 hull_t *Q1BSP_ChooseHull(model_t *model, int hullnum, vec3_t mins, vec3_t maxs, vec3_t offset);
 
@@ -92,11 +92,11 @@ qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up)
 				goto realcheck;
 		}
 
-	c_yes++;
+//	c_yes++;
 	return true;		// we got out easy
 
 realcheck:
-	c_no++;
+//	c_no++;
 //
 // check it for real...
 //
@@ -128,7 +128,7 @@ realcheck:
 				return false;
 		}
 
-	c_yes++;
+//	c_yes++;
 	return true;
 }
 
@@ -159,17 +159,18 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 		axis = eaxis;
 	}
 
-#ifndef CLIENTONLY
-	if (progstype != PROG_H2 || world != &sv.world)
-#endif
-		eflags &= ~FLH2_NOZ|FLH2_HUNTFACE;
-
-// try the move	
+// try the move
 	VectorCopy (ent->v->origin, oldorg);
 	VectorAdd (ent->v->origin, move, neworg);
 
 // flying monsters don't step up
-	if ((eflags & (FL_SWIM | FL_FLY)) && !(eflags & (FLH2_NOZ|FLH2_HUNTFACE)))
+	if ((eflags & (FL_SWIM | FL_FLY))
+#if defined(HEXEN2) && defined(HAVE_SERVER)
+			//hexen2 has some extra logic for FLH2_HUNTFACE, but its buggy and thus never used.
+			//it would be nice to redefine the NOZ flag to instead force noenemy here, but that's not hexen2-compatible and FLH2_NOZ is bound to conflict with some quake mod.
+			&& (world != &sv.world || progstype != PROG_H2 || !(eflags & (FLH2_NOZ|FLH2_HUNTFACE)))
+#endif
+			)
 	{
 	// try one move with vertical motion, then one without
 		for (i=0 ; i<2 ; i++)
@@ -182,8 +183,6 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 				{
 					VectorSubtract(ent->v->origin, ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->origin, end);
 					dz = DotProduct(end, axis[2]);
-					if (eflags & FLH2_HUNTFACE) /*get the ent's origin_z to match its victims face*/
-						dz += ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->view_ofs[2];
 					if (dz > 40)
 						VectorMA(neworg, -8, axis[2], neworg);
 					if (dz < 30)
@@ -193,7 +192,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 			trace = World_Move (world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
 			if (set_move_trace)
 				set_move_trace(world->progs, &trace);
-	
+
 			if (trace.fraction == 1)
 			{
 				if ( (eflags & FL_SWIM) && !(World_PointContents(world, trace.endpos) & FTECONTENTS_FLUID))
@@ -204,11 +203,11 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 					World_LinkEdict (world, ent, true);
 				return true;
 			}
-			
+
 			if (noenemy || !enemy->entnum)
 				break;
 		}
-		
+
 		return false;
 	}
 
@@ -629,7 +628,9 @@ qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist)
 
 
 #ifdef ENGINE_ROUTING
-cvar_t route_shownodes = CVAR("route_shownodes", "0");
+#ifndef SERVERONLY
+static cvar_t route_shownodes = CVAR("route_shownodes", "0");
+#endif
 
 #define LF_EDGE			0x00000001
 #define LF_JUMP			0x00000002
@@ -648,7 +649,7 @@ struct waypointnetwork_s
 		vec3_t pos;
 		int linkflags;
 	} *displaynode;
-	int displaynodes;
+	size_t displaynodes;
 
 	struct waypoint_s
 	{
@@ -660,7 +661,7 @@ struct waypointnetwork_s
 			float linkcost;//might be much lower in the case of teleports, or expensive if someone wanted it to be a lower priority link.
 			int linkflags; //LF_*
 		} *neighbour;
-		int neighbours;
+		size_t neighbours;
 	} waypoints[1];
 };
 void WayNet_Done(struct waypointnetwork_s *net)
@@ -814,8 +815,8 @@ int WayNet_FindNearestNode(struct waypointnetwork_s *net, vec3_t pos)
 struct routecalc_s
 {
 	world_t *world;
-	int spawncount;	//so we don't confuse stuff if the map gets restarted.
 	wedict_t *ed;
+	int spawncount;	//so we don't confuse stuff if the map gets restarted.
 //	float spawnid;	//so the route fails if the ent is removed.
 	func_t callback;
 

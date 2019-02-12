@@ -122,7 +122,9 @@ typedef struct q2trace_s
 #define	MOVE_NORMAL		0
 #define	MOVE_NOMONSTERS	(1<<0)
 #define	MOVE_MISSILE	(1<<1)
-#define MOVE_WORLDONLY	(MOVE_NOMONSTERS|MOVE_MISSILE)
+#ifndef NOLEGACY
+#define MOVE_WORLDONLY	(MOVE_NOMONSTERS|MOVE_MISSILE) //use MOVE_OTHERONLY instead
+#endif
 #define	MOVE_HITMODEL	(1<<2)
 #define MOVE_RESERVED	(1<<3)			//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
 #define MOVE_TRIGGERS	(1<<4)			//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
@@ -172,7 +174,8 @@ typedef struct wedict_s wedict_t;
 typedef struct
 {
 	qboolean present;
-	vec3_t laggedpos;
+	vec3_t origin;
+	vec3_t angles;
 } laggedentinfo_t;
 
 #ifdef USERBE
@@ -192,7 +195,7 @@ typedef struct
 	void (QDECL *RunFrame)(struct world_s *world, double frametime, double gravity);
 	void (QDECL *PushCommand)(struct world_s *world, rbecommandqueue_t *cmd);
 //	void (QDECL *ExpandBodyAABB)(struct world_s *world, rbebody_t *bodyptr, float *mins, float *maxs);	//expands an aabb to include the size of the body.
-//	void (QDECL *Trace) ();
+	void (QDECL *Trace) (struct world_s *world, wedict_t *ed, vec3_t start, vec3_t end, trace_t *trace);
 } rigidbodyengine_t;
 #endif
 
@@ -204,6 +207,7 @@ struct world_s
 	qboolean (QDECL *Event_ContentsTransition) (struct world_s *w, wedict_t *ent, int oldwatertype, int newwatertype);
 	model_t *(QDECL *Get_CModel)(struct world_s *w, int modelindex);
 	void (QDECL *Get_FrameState)(struct world_s *w, wedict_t *s, framestate_t *fstate);
+	void (QDECL *Event_Backdate)(struct world_s *w, wedict_t *s, float timestamp);	//called for MOVE_LAGGED+MOVE_HITMODEL traces
 
 	unsigned int	keydestmask;	//menu:kdm_menu, csqc:kdm_game, server:0
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
@@ -239,7 +243,8 @@ struct world_s
 	qbyte		*lastcheckpvs;		// for monster ai
 
 	/*antilag*/
-	float lagentsfrac;
+	float	lagentsfrac;
+	float	lagentstime;
 	laggedentinfo_t *lagents;
 	unsigned int maxlagents;
 

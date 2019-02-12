@@ -1,6 +1,9 @@
 #include "qcc.h"
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 #include <time.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 void QCC_Canonicalize(char *fullname, size_t fullnamesize, const char *newfile, const char *base);
 
 //package formats:
@@ -59,15 +62,15 @@ texa0
 
 struct pkgctx_s
 {
-	void (*messagecallback)(void *userctx, char *message, ...);
+	void (*messagecallback)(void *userctx, const char *message, ...);
 	void *userctx;
 
 	char *listfile;
 
 	pbool test;
 	pbool readoldpacks;
-	char gamepath[MAX_PATH];
-	char sourcepath[MAX_PATH];
+	char gamepath[MAX_OSPATH];
+	char sourcepath[MAX_OSPATH];
 	time_t buildtime;
 
 	//skips the file if its listed in one of these packages, unless the modification time on disk is newer.
@@ -341,7 +344,7 @@ static void PKG_ReplaceString(char *str, char *find, char *newpart)
 }
 static void PKG_CreateOutput(struct pkgctx_s *ctx, struct dataset_s *s, const char *code, const char *filename, pbool diff)
 {
-	char path[MAX_PATH];
+	char path[MAX_OSPATH];
 	char date[64];
 	struct output_s *o;
 	for (o = s->outputs; o; o = o->next)
@@ -424,6 +427,7 @@ static void PKG_ParseOutput(struct pkgctx_s *ctx, pbool diff)
 	}
 }
 
+#ifdef _WIN32
 static void PKG_AddOldPack(struct pkgctx_s *ctx, const char *fname)
 {
 	struct oldpack_s *pack;
@@ -435,16 +439,17 @@ static void PKG_AddOldPack(struct pkgctx_s *ctx, const char *fname)
 	pack->next = ctx->oldpacks;
 	ctx->oldpacks = pack;
 }
+#endif
 static void PKG_ParseOldPack(struct pkgctx_s *ctx)
 {
-	char token[MAX_PATH];
-	char oldpack[MAX_PATH];
+	char token[MAX_OSPATH];
 
 	if (!PKG_GetStringToken(ctx, token, sizeof(token)))
 		return;
 
 #ifdef _WIN32
 	{
+		char oldpack[MAX_OSPATH];
 		WIN32_FIND_DATA fd;
 		HANDLE h;
 		QCC_Canonicalize(oldpack, sizeof(oldpack), token, ctx->gamepath);
@@ -591,6 +596,7 @@ static void PKG_ParseRule(struct pkgctx_s *ctx)
 	r->next = ctx->rules;
 	ctx->rules = r;
 }
+#ifdef _WIN32
 static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char *fname, time_t mtime)
 {
 	struct file_s *f;
@@ -612,6 +618,7 @@ static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char
 	f->next = c->files;
 	c->files = f;
 }
+#endif
 static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const char *fname)
 {
 #ifdef _WIN32
@@ -958,11 +965,11 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 				while(fgets(commandline, sizeof(commandline), p))
 					ctx->messagecallback(ctx->userctx, "%s", commandline);
 				if (feof(p))
-					ctx->messagecallback(ctx->userctx, "Process returned %d\n", _pclose( p ));
+					ctx->messagecallback(ctx->userctx, "Process returned %d\n", pclose( p ));
 				else
 				{
-					printf( "Error: Failed to read the pipe to the end.\n");
-					_pclose(p);
+					fprintf(stderr, "Error: Failed to read the pipe to the end.\n");
+					pclose(p);
 				}
 			}
 #endif
@@ -982,7 +989,11 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 			fclose(f);
 			*fsize = size;
 
+#ifdef _WIN32
 			_unlink(tempname);
+#else
+			unlink(tempname);
+#endif
 			return data;
 		}
 	}
@@ -1008,7 +1019,6 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 #define misint64(ptr,ofs,data) do{misint((ptr),(ofs),(data));misint((ptr),(ofs)+4,((quint64_t)(data))>>32);}while(0)
 	qofs_t num=0;
 	pbool pak = false;
-	int startofs = 0;
 
 	struct file_s *f;
 	char centralheader[46+sizeof(f->write.name)];
@@ -1042,7 +1052,7 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 
 	if (out->usediffs && !directoryonly)
 	{
-		char newname[MAX_PATH];
+		char newname[MAX_OSPATH];
 		memcpy(newname, out->filename, sizeof(newname));
 		if (ext)
 		{
@@ -1284,6 +1294,7 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 	fclose(outf);
 }
 
+/*
 #include <sys/stat.h>
 static time_t PKG_GetFileTime(const char *filename)
 {
@@ -1291,6 +1302,7 @@ static time_t PKG_GetFileTime(const char *filename)
 	if (stat(filename, &s) != -1)
 		return s.st_mtime;
 }
+*/
 
 static void PKG_ReadPackContents(struct pkgctx_s *ctx, struct oldpack_s *old)
 {
@@ -1557,7 +1569,7 @@ void Packager_WriteDataset(struct pkgctx_s *ctx, char *setname)
 			PKG_WriteDataset(ctx, dataset);
 	}
 }
-struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, char *message, ...), void *userctx)
+struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, const char *message, ...), void *userctx)
 {
 	struct pkgctx_s *ctx;
 	ctx = malloc(sizeof(*ctx));
@@ -1583,7 +1595,7 @@ void Packager_ParseText(struct pkgctx_s *ctx, char *scripttext)
 			PKG_ParseOutput(ctx, true);
 		else if (!strcmp(cmd, "inputdir"))
 		{
-			char old[MAX_PATH];
+			char old[MAX_OSPATH];
 			memcpy(old, ctx->sourcepath, sizeof(old));
 			if (PKG_GetStringToken(ctx, cmd, sizeof(cmd)))
 			{

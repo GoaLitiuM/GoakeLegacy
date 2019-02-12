@@ -315,6 +315,7 @@ typedef struct dlight_s
 	int		key;				// so entities can reuse same entry
 	vec3_t	origin;
 	vec3_t	axis[3];
+	vec3_t	angles;				//used only for reflection, to avoid things getting rounded/cycled.
 	vec3_t	rotation;			//cubemap/spotlight rotation
 	float	radius;
 	float	die;				// stop lighting after this time
@@ -330,6 +331,7 @@ typedef struct dlight_s
 
 	unsigned int flags;
 	char	cubemapname[64];
+	char	*customstyle;
 
 	int coronaocclusionquery;
 	unsigned int coronaocclusionresult;
@@ -539,7 +541,6 @@ typedef struct
 #ifdef NQPROT
 	int signon;
 #endif
-	int language;
 
 	colourised_t *colourised;
 	qboolean	nqexpectingstatusresponse;
@@ -780,7 +781,7 @@ typedef struct
 	double		last_servermessage;
 
 	//list of ent frames that still need to be acked.
-	int numackframes;
+	unsigned int numackframes;
 	int ackframes[64];
 
 #ifdef Q2CLIENT
@@ -1049,9 +1050,9 @@ extern	static_entity_t		*cl_static_entities;
 extern	unsigned int	cl_max_static_entities;
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		*cl_dlights;
-extern	unsigned int	cl_maxdlights;
+extern	size_t cl_maxdlights;
 
-extern int rtlights_first, rtlights_max;
+extern size_t rtlights_first, rtlights_max;
 extern int cl_baselines_count;
 
 extern	qboolean	nomaster;
@@ -1068,6 +1069,7 @@ dlight_t *CL_AllocDlight (int key);
 dlight_t *CL_AllocSlight (void);	//allocates a static light
 dlight_t *CL_NewDlight (int key, const vec3_t origin, float radius, float time, float r, float g, float b);
 dlight_t *CL_NewDlightCube (int key, const vec3_t origin, vec3_t angles, float radius, float time, vec3_t colours);
+void CL_CloneDlight(dlight_t *dl, dlight_t *src);	//copies one light to another safely
 void	CL_DecayLights (void);
 
 void CLQW_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits);
@@ -1079,7 +1081,7 @@ void CL_CheckServerPacks(void);
 
 void CL_EstablishConnection (char *host);
 
-void CL_Disconnect (void);
+void CL_Disconnect (const char *reason);
 void CL_Disconnect_f (void);
 void CL_Reconnect_f (void);
 void CL_NextDemo (void);
@@ -1150,6 +1152,9 @@ extern	float in_sensitivityscale;
 void CL_MakeActive(char *gamename);
 void CL_UpdateWindowTitle(void);
 
+#ifdef QUAKESTATS
+const char *IN_GetPreselectedViewmodelName(unsigned int pnum);
+#endif
 void CL_InitInput (void);
 void CL_SendCmd (double frametime, qboolean mainloop);
 void CL_SendMove (usercmd_t *cmd);
@@ -1265,7 +1270,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result);
 //
 #define NET_TIMINGS 256
 #define NET_TIMINGSMASK 255
-extern int	packet_latency[NET_TIMINGS];
+extern float	packet_latency[NET_TIMINGS];
 int CL_CalcNet (float scale);
 void CL_CalcNet2 (float *pings, float *pings_min, float *pings_max, float *pingms_stddev, float *pingfr, int *pingfr_min, int *pingfr_max, float *dropped, float *choked, float *invalid);
 void CL_ClearParseState(void);
@@ -1277,6 +1282,7 @@ void CLNQ_ParseServerMessage (void);
 #ifdef Q2CLIENT
 void CLQ2_ParseServerMessage (void);
 #endif
+void CL_ShowTrafficUsage(float x, float y);
 void CL_NewTranslation (int slot);
 
 int CL_IsDownloading(const char *localname);
@@ -1305,7 +1311,7 @@ qboolean CL_CheckBaselines (int size);
 void V_StartPitchDrift (playerview_t *pv);
 void V_StopPitchDrift (playerview_t *pv);
 
-void V_RenderView (void);
+void V_RenderView (qboolean no2d);
 void V_Register (void);
 void V_ParseDamage (playerview_t *pv);
 void V_SetContentsColor (int contents);
@@ -1616,6 +1622,8 @@ void Editor_Draw(void);
 void Editor_Init(void);
 struct pubprogfuncs_s;
 void Editor_ProgsKilled(struct pubprogfuncs_s *dead);
+#else
+#define editormodal false
 #endif
 
 void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale);

@@ -399,10 +399,22 @@ void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct global
 
 void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int keymap = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	int bindmap = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
 	int modifier = (prinst->callargc > 2)?G_FLOAT(OFS_PARM2):0;
-	char *binding = Key_GetBinding(MP_TranslateQCtoFTECodes(G_FLOAT(OFS_PARM0)), keymap, modifier);
+	char *binding = Key_GetBinding(MP_TranslateQCtoFTECodes(G_FLOAT(OFS_PARM0)), bindmap, modifier);
 	RETURN_TSTRING(binding);
+}
+void QCBUILTIN PF_cl_setkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int keynum = MP_TranslateQCtoFTECodes(G_FLOAT(OFS_PARM0));
+	const char *binding = PR_GetStringOfs(prinst, OFS_PARM1);
+	int bindmap = (prinst->callargc > 2)?G_FLOAT(OFS_PARM2):0;
+	int modifier = (prinst->callargc > 3)?G_FLOAT(OFS_PARM3):~0;
+
+	if (bindmap > 0 && bindmap <= KEY_MODIFIER_ALTBINDMAP)
+		modifier = (bindmap-1) | KEY_MODIFIER_ALTBINDMAP;	//ignore the modifier if we're setting into a bindmap...
+
+	Key_SetBinding(keynum, modifier, binding, RESTRICT_INSECURE);
 }
 
 void QCBUILTIN PF_cl_stringtokeynum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -695,14 +707,15 @@ void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 }
 
-qboolean M_Vid_GetMode(int num, int *w, int *h);
+qboolean M_Vid_GetMode(qboolean forfullscreen, int num, int *w, int *h);
 //a bit pointless really
 void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float mode = G_FLOAT(OFS_PARM0);
-//	qboolean fixedmodes = (prinst->callargc >= 2)?!G_FLOAT(OFS_PARM1):false; //if true, we should return sane-sized modes suitable for a window... or the mod could make up its own, but whatever.
+	qboolean forfullscreen = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):true; //if true, we should return queried video modes... or the mod could make up its own, but whatever.
 	float *ret = G_VECTOR(OFS_RETURN);
 	int w, h;
+	float pixelheight = 0;
 
 	w=h=0;
 	if (mode == -1)
@@ -711,11 +724,11 @@ void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s 
 		Sys_GetDesktopParameters(&w, &h, &bpp, &rate);
 	}
 	else
-		M_Vid_GetMode(mode, &w, &h);
+		M_Vid_GetMode(forfullscreen, mode, &w, &h);
 
 	ret[0] = w;
 	ret[1] = h;
-	ret[2] = (w&&h)?1:0;
+	ret[2] = pixelheight?pixelheight:((w&&h)?1:0);	//pixelheight
 }
 
 #ifdef CL_MASTER
@@ -965,14 +978,104 @@ void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	S_LocalSound2(s, chan, vol);
 }
 
-void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	//IMPLEMENTME
-//	int diridx = G_FLOAT(OFS_PARM0);
-//	int propidx = G_FLOAT(OFS_PARM1);
 
-	//propidx 0 == name
-	//propidx 1 == description (contents of modinfo.txt)
+#include "fs.h"
+static struct modlist_s
+{
+	ftemanifest_t *manifest;
+	char *gamedir;
+	char *description;
+} *modlist;
+static size_t nummods;
+static qboolean modsinited;
+
+/*static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
+{
+	int i = nummods;
+	modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
+	modlist[i].manifest = man;
+	modlist[i].gamedir = man->updatefile;
+	modlist[i].description = man->formalname;
+	nummods = i+1;
+	return true;
+}*/
+static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, void *usr, searchpathfuncs_t *spath)
+{
+	char *f;
+	size_t l = strlen(fname);
+	int i, p;
+	char gamedir[MAX_QPATH];
+	if (l && fname[l-1] == '/' && l < countof(gamedir))
+	{
+		l--;
+		memcpy(gamedir, fname, l);
+		gamedir[l] = 0;
+		for (i = 0; i < nummods; i++)
+		{
+			//don't add dupes (can happen from basedir+homedir)
+			//if the gamedir was already included in one of the manifests, don't bother including it again.
+			//this generally removes id1.
+			if (modlist[i].manifest)
+			{
+				for (p = 0; p < countof(fs_manifest->gamepath); p++)
+					if (modlist[i].manifest->gamepath[p].path)
+						if (!Q_strcasecmp(modlist[i].manifest->gamepath[p].path, gamedir))
+							return true;
+			}
+			else if (modlist[i].gamedir)
+			{
+				if (!Q_strcasecmp(modlist[i].gamedir, gamedir))
+					return true;
+			}
+		}
+		f = FS_MallocFile(va("%s%s/modinfo.txt", (const char*)usr, gamedir), FS_SYSTEM, NULL);
+		if (f)
+		{
+			modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
+			modlist[i].manifest = NULL;
+			modlist[i].gamedir = Z_StrDup(gamedir);
+			modlist[i].description = f;
+			nummods = i+1;
+		}
+	}
+	return true;
+}
+static void Mods_InitModList (void)
+{
+	extern qboolean com_homepathenabled;
+
+	//FS_EnumerateKnownGames(Mods_AddManifest, NULL);
+
+	if (com_homepathenabled)
+		Sys_EnumerateFiles(com_homepath, "*", Mods_AddGamedir, com_homepath, NULL);
+	Sys_EnumerateFiles(com_gamepath, "*", Mods_AddGamedir, com_gamepath, NULL);
+}
+
+void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	size_t diridx = G_FLOAT(OFS_PARM0);
+	int propidx = G_FLOAT(OFS_PARM1);
+
+	if (!modsinited)
+	{
+		modsinited = true;
+		Mods_InitModList();
+	}
+
 	G_INT(OFS_RETURN) = 0;
+	if (diridx < nummods)
+	{
+		switch(propidx)
+		{
+		case 1:	//description (contents of modinfo.txt)
+			if (modlist[diridx].description)
+				RETURN_TSTRING(modlist[diridx].description);
+			break;
+		case 0:	//name
+			RETURN_TSTRING(modlist[diridx].gamedir);
+			break;
+		}
+	}
 }
 
 //This is consistent with vanilla quakeworld's 'packet' console command.
@@ -988,8 +1091,8 @@ void QCBUILTIN PF_cl_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		char *send = Z_Malloc(4+strlen(contents));
 		send[0] = send[1] = send[2] = send[3] = 0xff;
 		memcpy(send+4, contents, strlen(contents));
-		//FIXME: NS_CLIENT is likely to change its port randomly...
-		G_FLOAT(OFS_RETURN) = NET_SendPacket(NS_CLIENT, 4+strlen(contents), send, &to);
+		//FIXME: this is likely to change its port randomly...
+		G_FLOAT(OFS_RETURN) = NET_SendPacket(cls.sockets, 4+strlen(contents), send, &to);
 		Z_Free(send);
 	}
 }

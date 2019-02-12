@@ -213,7 +213,7 @@ void Draw_BigFontString(int x, int y, const char *text)
 	p = QBigFontWorks();
 	if (!p)
 	{
-		Draw_AltFunString(x, y, text);
+		Draw_AltFunString(x, y + (20-8)/2, text);
 		return;
 	}
 
@@ -306,7 +306,9 @@ static qboolean MI_Selectable(menuoption_t *op)
 		return true;
 	case mt_picture:
 		return false;
-	case mt_childwindow:
+	case mt_framestart:
+		return false;
+	case mt_frameend:
 		return true;
 	case mt_box:
 		return false;
@@ -329,42 +331,64 @@ static qboolean MI_Selectable(menuoption_t *op)
 
 static qboolean M_MouseMoved(menu_t *menu)
 {
+	int ypos = menu->ypos, framescroll = 0;
 	menuoption_t *option;
+	qboolean havemouseitem = false;
 //	if (menu->prev && !menu->exclusive)
 //		if (M_MouseMoved(menu->prev))
 //			return true;
+	if (bindingactive)
+		return true;
 	for(option = menu->options; option; option = option->common.next)
 	{
-		if (mousemoved && !bindingactive && !option->common.ishidden)
+		if (option->common.ishidden)
+			continue;
+
+		if (mousecursor_x > menu->xpos+option->common.posx-option->common.extracollide && mousecursor_x < menu->xpos+option->common.posx+option->common.width)
 		{
-			if (mousecursor_x > menu->xpos+option->common.posx-option->common.extracollide && mousecursor_x < menu->xpos+option->common.posx+option->common.width)
+			if (mousecursor_y > ypos+option->common.posy && mousecursor_y < ypos+option->common.posy+option->common.height)
 			{
-				if (mousecursor_y > menu->ypos+option->common.posy && mousecursor_y < menu->ypos+option->common.posy+option->common.height)
+				if (MI_Selectable(option))
 				{
-					if (MI_Selectable(option))
+					if (menu->mouseitem != option)
 					{
-						if (menu->mouseitem != option)
-						{
-/*							if (!option->common.noselectionsound && vid.activeapp)
-							{
-#ifdef HEXEN2
-								if (M_GameType() == MGT_HEXEN2)
-									S_LocalSound ("raven/menu1.wav");
-								else
-#endif
-									S_LocalSound ("misc/menu1.wav");
-							}
-*/
-							menu->mouseitem = option;
-							menu->tooltiptime = realtime + 1;
-							MenuTooltipChange(menu, menu->mouseitem->common.tooltip);
-						}
-//						if (menu->cursoritem)
-//							menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+						menu->mouseitem = option;
+						menu->tooltiptime = realtime + 1;
+						MenuTooltipChange(menu, menu->mouseitem->common.tooltip);
 					}
+					havemouseitem = true;
 				}
 			}
 		}
+
+		switch(option->common.type)
+		{
+		default:
+			break;
+		case mt_framestart:
+			ypos += framescroll;
+			framescroll = 0;
+			break;
+		case mt_frameend:
+			{
+				menuoption_t *opt2;
+				int maxy = option->frame.common.posy;
+				for (opt2 = option->common.next; opt2; opt2 = opt2->common.next)
+				{
+					if (opt2->common.posy + opt2->common.height > maxy)
+						maxy = opt2->common.posy + opt2->common.height;
+				}
+				maxy -= vid.height-8;
+				framescroll += option->frame.frac * maxy;
+				ypos -= option->frame.frac * maxy;
+			}
+			break;
+		}
+	}
+	if (!havemouseitem && menu->mouseitem)
+	{
+		menu->mouseitem = NULL;
+		MenuTooltipChange(menu, NULL);
 	}
 	return true;
 }
@@ -382,11 +406,67 @@ static void M_CheckMouseMove(void)
 		M_MouseMoved(topmenu);
 }
 
+static float M_DrawScrollbar(int x, int y, int width, int height, float frac, qboolean mgrabbed)
+{
+	float unused = 0;
+	mpic_t *pic;
+	int knob=y;
+
+	R2D_ImageColours(1,1,1,1);
+
+	pic = R2D_SafeCachePic("scrollbars/slidebg.tga");
+	if (pic && R_GetShaderSizes(pic, NULL, NULL, false)>0)
+	{
+		unused = 8*2+64;	//top+bottom are 8 pixels, knob is 64
+		R2D_ScalePic(x + width - 8, y+8, 8, height-16, pic);
+
+		pic = R2D_SafeCachePic("scrollbars/arrow_up.tga");
+		R2D_ScalePic(x + width - 8, y, 8, 8, pic);
+
+		pic = R2D_SafeCachePic("scrollbars/arrow_down.tga");
+		R2D_ScalePic(x + width - 8, y + height - 8, 8, 8, pic);
+
+		knob += 8;
+		knob += frac * (float)(height-(unused));
+
+		pic = R2D_SafeCachePic("scrollbars/slider.tga");
+		R2D_ScalePic(x + width - 8, knob, 8, 64, pic);
+	}
+	else
+	{
+		unused = width;	//top+bottom are invisible, knob is square
+		R2D_ImageColours(0.1, 0.1, 0.2, 1.0);
+		R2D_FillBlock(x, y, width, height);
+
+		knob += frac * (height-unused);
+
+		R2D_ImageColours(0.35, 0.35, 0.55, 1.0);
+		R2D_FillBlock(x, knob, width, width);
+		R2D_ImageColours(1,1,1,1);
+	}
+
+	if (mgrabbed)
+	{
+		float my;
+
+		my = mousecursor_y - y;
+		my -= unused/2;
+		my /= height-unused;
+		if (my > 1)
+			my = 1;
+		if (my < 0)
+			my = 0;
+		frac = my;
+	}
+	return frac;
+}
+
 static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 {
 	int i;
 	mpic_t *p;
 	int pw,ph;
+	int framescroll = 0;
 
 	if (option && option->common.type == mt_box && !option->common.ishidden)
 	{
@@ -394,17 +474,18 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		option = option->common.next;
 	}
 
-	if (menu == topmenu && menu->mouseitem)
+	for (; option; option = option->common.next)
 	{
-		float alphamax = 0.5, alphamin = 0.2;
-		R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
-		R2D_FillBlock(xpos+menu->mouseitem->common.posx, ypos+menu->mouseitem->common.posy, menu->mouseitem->common.width, menu->mouseitem->common.height);
-		R2D_ImageColours(1,1,1,1);
-	}
+		if (option->common.ishidden)
+			continue;
 
-	while (option)
-	{
-		if (!option->common.ishidden)
+		if (menu == topmenu && menu->mouseitem == option)
+		{
+			float alphamax = 0.5, alphamin = 0.2;
+			R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
+			R2D_FillBlock(xpos+menu->mouseitem->common.posx, ypos+menu->mouseitem->common.posy, menu->mouseitem->common.width, menu->mouseitem->common.height);
+			R2D_ImageColours(1,1,1,1);
+		}
 		switch(option->common.type)
 		{
 		case mt_menucursor:
@@ -438,7 +519,10 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		case mt_menudot:
 			i = (int)(realtime * 10)%maxdots;
 			p = R2D_SafeCachePic(va(menudotstyle, i+mindot ));
-			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, option->common.width, option->common.height, p);
+			if (R_GetShaderSizes(p, NULL, NULL, false)>0)
+				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, option->common.width, option->common.height, p);
+			else if ((int)(realtime*4)&1)
+				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy + (option->common.height-8)/2, "^a^Ue00d");
 			break;
 		case mt_picturesel:
 			p = NULL;
@@ -454,14 +538,66 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				p = R2D_SafeCachePic(option->picture.picturename);
 
 			if (R_GetShaderSizes(p, &pw, &ph, false)>0)
-				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:pw, option->common.height?option->common.height:ph, p);
+			{
+				float scale = (option->common.height?option->common.height:20.0)/ph;
+				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:(pw*scale), ph*scale, p);
+			}
 			break;
 		case mt_picture:
 			p = R2D_SafeCachePic(option->picture.picturename);
 			if (R_GetShaderSizes(p, NULL, NULL, false)>0) R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
 			break;
-		case mt_childwindow:
-			MenuDrawItems(xpos+option->common.posx, ypos+option->common.posy, ((menu_t *)option->custom.dptr)->options, (menu_t *)option->custom.dptr);
+		case mt_framestart:
+			ypos += framescroll;
+			framescroll = 0;
+			if (R2D_Flush)
+				R2D_Flush();
+			BE_Scissor(NULL);
+			break;
+		case mt_frameend:
+			{
+				srect_t srect;
+				menuoption_t *opt2;
+				extern qboolean keydown[];
+				int maxy = option->frame.common.posy;
+				option->frame.common.width = 16;
+				option->frame.common.posx = vid.width - option->frame.common.width - xpos;
+				option->frame.common.height = vid.height-8-maxy - ypos;
+				for (opt2 = option->common.next; opt2; opt2 = opt2->common.next)
+				{
+					if (opt2->common.posy + opt2->common.height > maxy)
+						maxy = opt2->common.posy + opt2->common.height;
+				}
+				maxy -= vid.height-8;
+
+				if (maxy < 0)
+				{
+					option->frame.mousedown = false;
+					option->frame.frac = 0;
+					option->frame.common.width = 0;
+					option->frame.common.height = 0;
+				}
+				else
+				{
+					if (!keydown[K_MOUSE1])
+						option->frame.mousedown = false;
+					option->frame.frac = M_DrawScrollbar(xpos+option->frame.common.posx, ypos+option->common.posy, option->frame.common.width, option->frame.common.height, option->frame.frac, option->frame.mousedown);
+
+					if (R2D_Flush)
+						R2D_Flush();
+					srect.x = 0;
+					srect.y = (float)(ypos+option->common.posy) / vid.height;
+					srect.width = 1;
+					srect.height = 1 - srect.y;
+					srect.dmin = -99999;
+					srect.dmax = 99999;
+					srect.y = (1-srect.y) - srect.height;
+					BE_Scissor(&srect);
+
+					framescroll += option->frame.frac * maxy;
+					ypos -= option->frame.frac * maxy;
+				}
+			}
 			break;
 		case mt_box:
 			Draw_TextBox(xpos+option->common.posx, ypos+option->common.posy, option->box.width, option->box.height);
@@ -556,6 +692,10 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 
 				if (menu->selecteditem == option && (int)(realtime*4) & 1)
 				{
+					vid.ime_allow = true;
+					vid.ime_position[0] = x;
+					vid.ime_position[1] = y+8;
+
 					x += strlen(option->edit.text)*8;
 					Draw_FunString(x, y, "^Ue00b");
 				}
@@ -620,7 +760,6 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 			Sys_Error("Bad item type\n");
 			break;
 		}
-		option = option->common.next;
 	}
 }
 
@@ -637,10 +776,10 @@ static void MenuDraw(menu_t *menu)
 	// draw tooltip
 	if (menu->mouseitem && menu->tooltip && realtime > menu->tooltiptime)
 	{
-		menuoption_t *option = menu->mouseitem;
+//		menuoption_t *option = menu->mouseitem;
 
-		if (omousex > menu->xpos+option->common.posx && omousex < menu->xpos+option->common.posx+option->common.width)
-			if (omousey > menu->ypos+option->common.posy && omousey < menu->ypos+option->common.posy+option->common.height)
+//		if (omousex > menu->xpos+option->common.posx && omousex < menu->xpos+option->common.posx+option->common.width)
+//			if (omousey > menu->ypos+option->common.posy && omousey < menu->ypos+option->common.posy+option->common.height)
 			{
 				int x = omousex+8;
 				int y = omousey;
@@ -766,7 +905,7 @@ menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption,
 	return n;
 }
 
-menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname)
+menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, int height, char *picname)
 {
 	char selname[MAX_QPATH];
 	menupicture_t *n;
@@ -786,6 +925,7 @@ menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
+	n->common.height = height;
 	n->picturename = (char *)(n+1);
 	strcpy(n->picturename, picname);
 
@@ -1014,15 +1154,16 @@ menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
 	return n;
 }
 
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint)
+menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint, const char *tooltip)
 {
-	menucustom_t *n = Z_Malloc(sizeof(menucustom_t));
+	menucustom_t *n = Z_Malloc(sizeof(menucustom_t) + (tooltip?strlen(tooltip)+1:0));
 	n->common.type = mt_custom;
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->dptr = dptr;
 	n->dint = dint;
+	n->common.tooltip = tooltip?strcpy((char*)(n+1), tooltip):NULL;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -1054,6 +1195,34 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *tex
 			Con_Printf("Warning: %s requires a vid_restart\n", var->name);
 	}
 #endif
+
+	n->common.next = menu->options;
+	menu->options = (menuoption_t *)n;
+	return n;
+}
+menuframe_t *MC_AddFrameStart(menu_t *menu, int y)
+{
+	menuframe_t *n = Z_Malloc(sizeof(menuframe_t));
+	n->common.type = mt_framestart;
+	n->common.iszone = true;
+	n->common.posx = 0;
+	n->common.posy = y;
+	n->common.height = 0;
+	n->common.width = 0;
+
+	n->common.next = menu->options;
+	menu->options = (menuoption_t *)n;
+	return n;
+}
+menuframe_t *MC_AddFrameEnd(menu_t *menu, int y)
+{
+	menuframe_t *n = Z_Malloc(sizeof(menuframe_t));
+	n->common.type = mt_frameend;
+	n->common.iszone = true;
+	n->common.posx = 0;
+	n->common.posy = y;
+	n->common.height = 0;
+	n->common.width = 0;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -2014,6 +2183,7 @@ void M_Menu_Main_f (void)
 	{
 		if (R_GetShaderSizes(R2D_SafeCachePic("pics/m_main_quit"), NULL, NULL, true) > 0)
 		{
+			int itemheight = 32;
 			Key_Dest_Add(kdm_emenu);
 
 			mainm = M_CreateMenu(0);
@@ -2022,19 +2192,19 @@ void M_Menu_Main_f (void)
 			MC_AddPicture(mainm, 0, 4, 38, 166, "pics/m_main_plaque");
 			MC_AddPicture(mainm, 0, 173, 36, 42, "pics/m_main_logo");
 #ifndef CLIENTONLY
-			MC_AddSelectablePicture(mainm, 68, 13, "pics/m_main_game");
+			MC_AddSelectablePicture(mainm, 68, 13, itemheight, "pics/m_main_game");
 #endif
-			MC_AddSelectablePicture(mainm, 68, 53, "pics/m_main_multiplayer");
-			MC_AddSelectablePicture(mainm, 68, 93, "pics/m_main_options");
-			MC_AddSelectablePicture(mainm, 68, 133, "pics/m_main_video");
-			MC_AddSelectablePicture(mainm, 68, 173, "pics/m_main_quit");
+			MC_AddSelectablePicture(mainm, 68, 53, itemheight, "pics/m_main_multiplayer");
+			MC_AddSelectablePicture(mainm, 68, 93, itemheight, "pics/m_main_options");
+			MC_AddSelectablePicture(mainm, 68, 133, itemheight, "pics/m_main_video");
+			MC_AddSelectablePicture(mainm, 68, 173, itemheight, "pics/m_main_quit");
 
 #ifndef CLIENTONLY
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 13,	"", "menu_single\n");
 			b->common.tooltip = "Singleplayer.";
 			mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
-			b->common.height = 32;
+			b->common.height = itemheight;
 #endif
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 53,	"", "menu_multi\n");
 			b->common.tooltip = "Multiplayer.";
@@ -2042,19 +2212,19 @@ void M_Menu_Main_f (void)
 			mainm->selecteditem = (menuoption_t *)b;
 #endif
 			b->common.width = 12*20;
-			b->common.height = 32;
+			b->common.height = itemheight;
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 93,	"", "menu_options\n");
 			b->common.tooltip = "Options.";
 			b->common.width = 12*20;
-			b->common.height = 32;
+			b->common.height = itemheight;
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 133,	"", "menu_video\n");
 			b->common.tooltip = "Video Options.";
 			b->common.width = 12*20;
-			b->common.height = 32;
+			b->common.height = itemheight;
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 173,	"", "menu_quit\n");
 			b->common.tooltip = "Quit to DOS.";
 			b->common.width = 12*20;
-			b->common.height = 32;
+			b->common.height = itemheight;
 
 			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 42, mainm->selecteditem->common.posy);
 		}
@@ -2206,6 +2376,8 @@ void M_Menu_Main_f (void)
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options",		"menu_options\n");	y += 20;
 		y = M_Main_AddExtraOptions(mainm, y);
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit",			"menu_quit\n");		y += 20;
+
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 36);
 	}
 
 	if (!m_preset_chosen.ival)

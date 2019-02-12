@@ -257,9 +257,8 @@ typedef enum	//highest has priority
 	kdm_nmenu		= 0,
 #endif
 	kdm_emenu		= 1u<<5,	//engine's menus
-	kdm_editor		= 1u<<6,
-	kdm_console		= 1u<<7,
-	kdm_cwindows	= 1u<<8,
+	kdm_console		= 1u<<6,
+	kdm_cwindows	= 1u<<7,
 } keydestmask_t;
 
 //unsigned int Key_Dest_Get(void);	//returns highest priority destination
@@ -303,7 +302,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 void Key_Init (void);
 void IN_WriteButtons(vfsfile_t *f, qboolean all);
 void Key_WriteBindings (struct vfsfile_s *f);
-void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
+void Key_SetBinding (int keynum, int modifier, const char *binding, int cmdlevel);
 void Key_ClearStates (void);
 qboolean Key_Centerprint(int key, int unicode, unsigned int devid);
 void Key_Unbindall_f (void);	//aka: Key_Shutdown
@@ -316,6 +315,8 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode);
 struct console_s;
 qboolean Key_GetConsoleSelectionBox(struct console_s *con, int *sx, int *sy, int *ex, int *ey);
 qboolean Key_MouseShouldBeFree(void);
+
+const char *Key_Demoji(char *buffer, size_t buffersize, const char *in);	//strips out :smile: stuff.
 #endif
 #endif
 

@@ -59,6 +59,7 @@ qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize);
 #endif
 model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose);
 static void Mod_PrintFormats_f(void);
+static void Mod_ShowEnt_f(void);
 static void Mod_SaveEntFile_f(void);
 
 #ifdef MAP_DOOM
@@ -140,22 +141,38 @@ static void Mod_BatchList_f(void)
 			{
 				for (batch = mod->batches[i]; batch; batch = batch->next)
 				{
+					char editname[MAX_QPATH];
+					char *body = Shader_GetShaderBody(batch->texture->shader, editname, sizeof(editname));
+					if (!body)
+						body = "SHADER NOT KNOWN";
+					else
+					{
+						char *cr;
+						while ((cr = strchr(body, '\r')))
+							*cr = ' ';
+					}
+					Con_Printf("  ^[%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^]", batch->texture->shader->name, batch->texture->shader->name, batch->texture->shader->usageflags, body);
+
 #if MAXRLIGHTMAPS > 1
 					if (batch->lightmap[3] >= 0)
-						Con_Printf("  %s lm=(%i:%i %i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->lightmap[3], batch->lmlightstyle[3], batch->maxmeshes);
+						Con_Printf("^2 lm=(%i:%i %i:%i %i:%i %i:%i)", batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->lightmap[3], batch->lmlightstyle[3]);
 					else if (batch->lightmap[2] >= 0)
-						Con_Printf("  %s lm=(%i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->maxmeshes);
+						Con_Printf("^2 lm=(%i:%i %i:%i %i:%i)", batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2]);
 					else if (batch->lightmap[1] >= 0)
-						Con_Printf("  %s lm=(%i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->maxmeshes);
+						Con_Printf("^2 lm=(%i:%i %i:%i)", batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1]);
 					else
 						if (batch->lightmap[1] >= 0)
 #else
 						if (batch->lmlightstyle[0] != 255)
 #endif
-						Con_Printf("  %s lm=(%i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->maxmeshes);
+						Con_Printf("^2 lm=(%i:%i)", batch->lightmap[0], batch->lmlightstyle[0]);
 					else
-						Con_Printf("  %s lm=%i surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes);
+						Con_Printf("^2 lm=%i", batch->lightmap[0]);
 					count++;
+
+					if (batch->envmap)
+						Con_Printf("^3 envmap=%s", batch->envmap->ident);
+					Con_Printf(" surfs=%u\n", batch->maxmeshes);
 				}
 			}
 			Con_Printf("^h(%u batches, lm %i*%i, lux %s)\n", count, mod->lightmaps.width, mod->lightmaps.height, mod->lightmaps.deluxemapping?"true":"false");
@@ -172,6 +189,7 @@ static void Mod_TextureList_f(void)
 	int count = 0;
 	char *body;
 	char editname[MAX_OSPATH];
+	int preview = (Cmd_Argc()==1)?8:atoi(Cmd_Argv(1));
 	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
 	{
 		if (shownmodelname)
@@ -206,10 +224,17 @@ static void Mod_TextureList_f(void)
 						*cr = ' ';
 				}
 
+				if (preview)
+				{
+					if (*editname)
+						Con_Printf("^[\\edit\\%s\\img\\%s\\imgtype\\%i\\s\\%i\\tip\\{%s^]", editname, tx->name, tx->shader->usageflags, preview, body);
+					else
+						Con_Printf("^[\\img\\%s\\imgtype\\%i\\s\\%i\\tip\\{%s^]", tx->shader->name, tx->shader->usageflags, preview, body);
+				}
 				if (*editname)
-					Con_Printf("  ^[^7%s\\edit\\%s\\tipimg\\%s\\tip\\{%s^]\n", tx->name, editname, tx->name, body);
+					Con_Printf("  ^[%s\\edit\\%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^]\n", tx->name, editname, tx->name, tx->shader->usageflags, body);
 				else
-					Con_Printf("  ^[^7%s\\tipimg\\%s\\tip\\{%s^]\n", tx->name, tx->name, body);
+					Con_Printf("  ^[%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^]\n", tx->name, tx->shader->name, tx->shader->usageflags, body);
 				count++;
 			}
 		}
@@ -776,7 +801,9 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_loadentfiles, NULL);
 		Cvar_Register(&mod_loadentfiles_dir, NULL);
 		Cvar_Register(&temp_lit2support, NULL);
-		Cmd_AddCommand("sv_saveentfile", Mod_SaveEntFile_f);
+		Cvar_Register (&r_meshpitch, "Gamecode");
+		Cmd_AddCommandD("sv_saveentfile", Mod_SaveEntFile_f, "Dumps a copy of the map's entities to disk, so that it can be edited and used as a replacement for slightly customised maps.");
+		Cmd_AddCommandD("mod_showent", Mod_ShowEnt_f, "Allows you to quickly search through a map's entities.");
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);
 
 #ifndef SERVERONLY
@@ -1756,14 +1783,46 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 	}
 
 #ifndef SERVERONLY
+#if 0//def Q2BSPS //Q2XP's alternative to lit files, for higher res lightmaps (that seem to have light coming from the wrong directions...)
+	if (loadmodel->fromgame == fg_quake2 && overrides && !interleaveddeluxe)
+	{
+		char litname[MAX_QPATH];
+		size_t litsize;
+		qbyte *xplm;
+		COM_StripExtension(loadmodel->name, litname, sizeof(litname));
+		Q_strncatz(litname, ".xplm", sizeof(litname));
+		xplm = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
+
+		if (litdata)
+		{
+			int scale;
+			size_t numsurfs = LittleLong(*(int *)&xplm[0]);
+			unsigned int *offsets = (unsigned int*)(xplm+4);
+			scale = xplm[(numsurfs+1)*4];
+
+			for (overrides->defaultshift=0; scale && !(scale&1); scale>>=1)
+				overrides->defaultshift++;
+			if (scale == 1)
+			{	//its a supported shift
+				litdata = xplm+(numsurfs+1)*4+1;
+				samples = (litsize-(numsurfs+1)*4+1)/3;
+				overrides->offsets = offsets;
+			}
+		}
+	}
+#endif
 	if (!expdata && !litdata && r_loadlits.value)
 	{
-		char *litnames[] = {
-			"%s.lit2",
-			"%s.hdr",
-			"%s.lit",
-			"lits/%s.lit2",
-			"lits/%s.lit"
+		struct
+		{
+			char *pattern;
+			int type;
+		} litnames[] = {
+			{"%s.lit2",2},
+			{"%s.hdr",1},
+			{"%s.lit",0},
+			{"lits/%s.lit2",2},
+			{"lits/%s.lit",0},
 		};
 		char litbasep[MAX_QPATH];
 		char litbase[MAX_QPATH];
@@ -1777,14 +1836,14 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 
 		COM_StripExtension(loadmodel->name, litbasep, sizeof(litbasep));
 		COM_FileBase(loadmodel->name, litbase, sizeof(litbase));
-		for (i = 0; i < sizeof(litnames)/sizeof(litnames[0]); i++)
+		for (i = 0; i < countof(litnames); i++)
 		{
-			if (temp_lit2support.ival && !(i & 1))
+			if (!temp_lit2support.ival && litnames[i].type==2)
 				continue;
-			if (strchr(litnames[i], '/'))
-				Q_snprintfz(litname, sizeof(litname), litnames[i], litbase);
+			if (strchr(litnames[i].pattern, '/'))
+				Q_snprintfz(litname, sizeof(litname), litnames[i].pattern, litbase);
 			else
-				Q_snprintfz(litname, sizeof(litname), litnames[i], litbasep);
+				Q_snprintfz(litname, sizeof(litname), litnames[i].pattern, litbasep);
 			depth = COM_FDepthFile(litname, false);
 			if (depth < bestdepth)
 			{
@@ -1794,10 +1853,10 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		if (best >= 0)
 		{
-			if (strchr(litnames[best], '/'))
-				Q_snprintfz(litname, sizeof(litname), litnames[best], litbase);
+			if (strchr(litnames[best].pattern, '/'))
+				Q_snprintfz(litname, sizeof(litname), litnames[best].pattern, litbase);
 			else
-				Q_snprintfz(litname, sizeof(litname), litnames[best], litbasep);
+				Q_snprintfz(litname, sizeof(litname), litnames[best].pattern, litbasep);
 			litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
 		}
 		else
@@ -1825,7 +1884,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 					litdata += 8;	//header+version
 			}
 			else if (litver == 0x10001)
-			{
+			{	//hdr lighting, e5bgr9 format
 				if (l->filelen && samples*4 != (litsize-8))
 					Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
 				else	
@@ -1997,23 +2056,26 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 #endif
 
 #ifdef RUNTIMELIGHTING
-	if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
-	{
-		writelitfile = !litdata;
-		numlightdata = l->filelen;
-		lightmodel = loadmodel;
-		relitsurface = 0;
-	}
-	else if (!lightmodel && r_deluxemapping_cvar.value>1 && r_deluxemapping && !luxdata
+	if ((loadmodel->type == mod_brush && loadmodel->fromgame == fg_quake) || loadmodel->type == mod_heightmap)
+	{	//we only support a couple of formats. :(
+		if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
+		{
+			writelitfile = !litdata;
+			numlightdata = l->filelen;
+			lightmodel = loadmodel;
+			relitsurface = 0;
+		}
+		else if (!lightmodel && r_deluxemapping_cvar.value>1 && r_deluxemapping && !luxdata
 #ifdef RTLIGHTS
-		&& !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0)
+			&& !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0)
 #endif
-		)
-	{	//if deluxemapping is on, generate missing lux files a little more often, but don't bother if we have rtlights on anyway.
-		writelitfile = false;
-		numlightdata = l->filelen;
-		lightmodel = loadmodel;
-		relitsurface = 0;
+			)
+		{	//if deluxemapping is on, generate missing lux files a little more often, but don't bother if we have rtlights on anyway.
+			writelitfile = false;
+			numlightdata = l->filelen;
+			lightmodel = loadmodel;
+			relitsurface = 0;
+		}
 	}
 
 	/*if we're relighting, make sure there's the proper lit data to be updated*/
@@ -2092,6 +2154,8 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		else
 			loadmodel->lightdata = expdata;
+
+		//FIXME: no desaturation/gamma logic.
 		return;
 	}
 	else if (litdata)
@@ -2168,6 +2232,54 @@ const char *Mod_ParseWorldspawnKey(model_t *mod, const char *key, char *buffer, 
 		}
 	}
 	return "";	//err...
+}
+
+static void Mod_ShowEnt_f(void)
+{
+	model_t *mod = NULL;
+	size_t idx = atoi(Cmd_Argv(1));
+	char *n = Cmd_Argv(2);
+
+	if (*n)
+		mod = Mod_ForName(n, MLV_WARN);
+#ifndef CLIENTONLY
+	if (sv.state && !mod)
+		mod = sv.world.worldmodel;
+#endif
+#ifndef SERVERONLY
+	if (cls.state && !mod)
+		mod = cl.worldmodel;
+#endif
+	if (mod && mod->loadstate == MLS_LOADING)
+		COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+	if (!mod || mod->loadstate != MLS_LOADED)
+	{
+		Con_Printf("Map not loaded\n");
+		return;
+	}
+
+	if (!mod->numentityinfo)
+		Mod_ParseEntities(mod);
+	if (!idx && strcmp(Cmd_Argv(1), "0"))
+	{
+		char *match = Cmd_Argv(1);
+		unsigned count = 0;
+		for (idx = 0; idx < mod->numentityinfo; idx++)
+		{
+			if (strstr(mod->entityinfo[idx].keyvals, match))
+			{
+				Con_Printf("{\t//%u\n%s\n}\n", (unsigned)idx, mod->entityinfo[idx].keyvals);
+				count++;
+			}
+		}
+		Con_Printf("%u of %u ents match\n", (unsigned)count, (unsigned)mod->numentityinfo);
+	}
+	else if (idx >= mod->numentityinfo)
+		Con_Printf("Invalid entity index (max %u).\n", (unsigned)mod->numentityinfo);
+	else if (!mod->entityinfo[idx].keyvals)
+		Con_Printf("Entity index was cleared...\n");
+	else
+		Con_Printf("{\n%s\n}\n", mod->entityinfo[idx].keyvals);
 }
 
 static void Mod_SaveEntFile_f(void)
@@ -3450,7 +3562,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 		loadmodel->textures[i] = tx;
 
-		memcpy (tx->name, mt->name, sizeof(tx->name));
+		Q_strncpyz(tx->name, mt->name, min(sizeof(mt->name)+1, sizeof(tx->name)));
 		tx->width = mt->width;
 		tx->height = mt->height;
 
@@ -4947,7 +5059,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 					mod->textures[a]->shader = R_RegisterShader_Lightmap(va("%s#BUMPMODELSPACE", mod->textures[a]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader, IF_WORLDTEX);
 
-					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
+					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (va("%s#VERTEXLIT", mod->textures[a+mod->numtexinfo]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader, IF_WORLDTEX);
 				}
 			}
@@ -4958,7 +5070,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 					mod->textures[a]->shader = R_RegisterShader_Lightmap(mod->textures[a]->name);
 					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader, IF_WORLDTEX);
 
-					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
+					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (va("%s#VERTEXLIT", mod->textures[a+mod->numtexinfo]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader, IF_WORLDTEX);
 				}
 			}

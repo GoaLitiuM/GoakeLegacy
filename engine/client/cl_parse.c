@@ -43,6 +43,12 @@ static int cl_dp_csqc_progscrc;
 static int cl_dp_serverextension_download;
 #endif
 
+//tracks which svcs are using what data (per second)
+static size_t packetusage_saved[256];
+static size_t packetusage_pending[256];
+static double packetusageflushtime;
+static const double packetusage_interval=10;
+
 #ifdef AVAIL_ZLIB
 #ifndef ZEXPORT
 	#define ZEXPORT VARGS
@@ -51,7 +57,7 @@ static int cl_dp_serverextension_download;
 #endif
 
 
-static char *svc_qwstrings[] =
+static const char *svc_qwstrings[] =
 {
 	"svc_bad",
 	"svc_nop",
@@ -182,7 +188,7 @@ static char *svc_qwstrings[] =
 };
 
 #ifdef NQPROT
-static char *svc_nqstrings[] =
+static const char *svc_nqstrings[] =
 {
 	"nqsvc_bad",
 	"nqsvc_nop",
@@ -322,7 +328,7 @@ void CL_Parse_Disconnected(void)
 
 //=============================================================================
 
-int packet_latency[NET_TIMINGS];
+float packet_latency[NET_TIMINGS];
 
 int CL_CalcNet (float scale)
 {
@@ -1666,7 +1672,7 @@ void CL_RequestNextDownload (void)
 				}
 	#endif
 				SCR_SetLoadingStage(LS_NONE);
-				CL_Disconnect();
+				CL_Disconnect("Game Content differs from server");
 				return;
 			}
 		}
@@ -6029,7 +6035,8 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 
 			if (con_separatechat.ival == 1)
 			{
-				Con_PrintCon(&con_main, fullchatmessage, con_main.parseflags|PFS_NONOTIFY);
+				console_t *c = Con_GetMain();
+				Con_PrintCon(c, fullchatmessage, c->parseflags|PFS_NONOTIFY);
 				return;
 			}
 		}
@@ -6585,7 +6592,7 @@ static void CL_ParsePrecache(void)
 	}
 }
 
-static void Con_HexDump(qbyte *packet, size_t len)
+static void Con_HexDump(qbyte *packet, size_t len, size_t badoffset)
 {
 	int i;
 	int pos;
@@ -6598,6 +6605,8 @@ static void Con_HexDump(qbyte *packet, size_t len)
 		{
 			if (pos >= len)
 				Con_Printf(" - ");
+			else if (pos == badoffset)
+				Con_Printf("^b^1%2x ", packet[pos]);
 			else
 				Con_Printf("%2x ", packet[pos]);
 			pos++;
@@ -6608,9 +6617,19 @@ static void Con_HexDump(qbyte *packet, size_t len)
 			if (pos >= len)
 				Con_Printf("X");
 			else if (packet[pos] == 0 || packet[pos] == '\t' || packet[pos] == '\r' || packet[pos] == '\n')
-				Con_Printf(".");
+			{
+				if (pos == badoffset)
+					Con_Printf("^b^1.");
+				else
+					Con_Printf(".");
+			}
 			else
-				Con_Printf("%c", packet[pos]);
+			{
+				if (pos == badoffset)
+					Con_Printf("^b^1%c", packet[pos]);
+				else
+					Con_Printf("%c", packet[pos]);
+			}
 			pos++;
 		}
 		Con_Printf("\n");
@@ -6619,7 +6638,7 @@ static void Con_HexDump(qbyte *packet, size_t len)
 }
 void CL_DumpPacket(void)
 {
-	Con_HexDump(net_message.data, net_message.cursize);
+	Con_HexDump(net_message.data, net_message.cursize, msg_readcount-1);
 }
 
 static void CL_ParsePortalState(void)
@@ -6688,6 +6707,7 @@ void CLQW_ParseServerMessage (void)
 	qboolean	csqcpacket = false;
 	inframe_t	*inf;
 	extern vec3_t demoangles;
+	unsigned int cmdstart;
 
 	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
@@ -6738,6 +6758,13 @@ void CLQW_ParseServerMessage (void)
 		}
 	}
 
+	if (realtime > packetusageflushtime)
+	{
+		memcpy(packetusage_saved, packetusage_pending, sizeof(packetusage_saved));
+		memset(packetusage_pending, 0, sizeof(packetusage_pending));
+		packetusageflushtime = realtime + packetusage_interval;
+	}
+
 //
 // parse the message
 //
@@ -6750,6 +6777,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 		}
 
+		cmdstart = msg_readcount;
 		cmd = MSG_ReadByte ();
 
 		if (cmd == svcfte_choosesplitclient)
@@ -7254,6 +7282,8 @@ void CLQW_ParseServerMessage (void)
 			Con_Printf("Unable to parse gamecode packet\n");
 			break;
 		}
+
+		packetusage_pending[cmd] += msg_readcount-cmdstart;
 	}
 }
 
@@ -7429,7 +7459,7 @@ isilegible:
 		case svcq2_reconnect:	//8. this is actually kinda weird to have
 			Con_TPrintf ("reconnecting...\n");
 #if 1
-			CL_Disconnect();
+			CL_Disconnect("Reconnect request");
 			CL_BeginServerReconnect();
 			return;
 #else
@@ -7789,7 +7819,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_disconnect:
-			CL_Disconnect();
+			CL_Disconnect("Server disconnected");
 			return;
 
 		case svc_centerprint:
@@ -8269,3 +8299,62 @@ void CLNQ_ParseServerMessage (void)
 }
 #endif
 
+struct sortedsvcs_s
+{
+	const char *name;
+	size_t bytes;
+};
+static QDECL int sorttraffic(const void *l, const void *r)
+{
+	const struct sortedsvcs_s *a=l, *b=r;
+
+	if (a->bytes==b->bytes)
+		return 0;
+	if (a->bytes>b->bytes)
+		return -1;
+	return 1;
+}
+void CL_ShowTrafficUsage(float x, float y)
+{
+	const char **svcnames, *n;
+	size_t svccount, i, j=0;
+	size_t total;
+	struct sortedsvcs_s sorted[256];
+	switch(cls.protocol)
+	{
+#ifdef NQPROT
+	case CP_NETQUAKE:
+		svcnames = svc_nqstrings;
+		svccount = countof(svc_nqstrings);
+		break;
+#endif
+	case CP_QUAKEWORLD:
+		svcnames = svc_qwstrings;
+		svccount = countof(svc_qwstrings);
+		break;
+	default:
+		return;	//panic!
+	}
+	total = 0;
+	for (i = 0; i < 256; i++)
+		total += packetusage_saved[i];
+	for (i = 0; i < 256; i++)
+	{
+		if (!packetusage_saved[i])
+			continue;	//don't show if there's no point.
+		if (i < svccount)
+			n = svcnames[i];
+		else
+			n = va("svc %u", (unsigned)i);
+		sorted[j].name = n;
+		sorted[j].bytes = packetusage_saved[i];
+		j++;
+	}
+	qsort(sorted, j, sizeof(*sorted), sorttraffic);
+
+	for (i = 0; i < j; i++)
+	{
+		Draw_FunString(x, y, va("%22s:%5.1f%% (%.0f/s)", sorted[i].name, (100.0*sorted[i].bytes)/total, (sorted[i].bytes/packetusage_interval)));
+		y+=8;
+	}
+}

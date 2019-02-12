@@ -1,5 +1,5 @@
 !!cvardf r_glsl_ascii_mono=0
-!!samps 1
+!!samps screen=0
 
 //derived from https://www.shadertoy.com/view/lssGDj
 
@@ -30,11 +30,11 @@ float character(float n, vec2 p)
 void main(void)
 {
 	vec2 uv = floor(texcoord.xy * e_sourcesize); //in pixels.
-	vec3 col = texture2D(s_t0, (floor(uv/8.0)*8.0+4.0)/e_sourcesize.xy).rgb;	
+	vec3 col = texture2D(s_screen, (floor(uv/8.0)*8.0+4.0)/e_sourcesize.xy).rgb;	
 
 	float gray = 0.3 * col.r + 0.59 * col.g + 0.11 * col.b;
 
-	if (r_glsl_ascii_mono != 0.0)
+	if (float(r_glsl_ascii_mono) != 0.0)
 		gray = gray = pow(gray, 0.7);	//quake is just too dark otherwise.
 	else
 		gray = gray = pow(gray, 0.45);	//col*char is FAR too dark otherwise, and much of the colour will come from the col term anyway.
@@ -50,7 +50,7 @@ void main(void)
 	if (gray > 0.8) n = 11512810.0; // #
 
 	vec2 p = mod(uv/4.0, 2.0) - vec2(1.0);
-	if (r_glsl_ascii_mono != 0.0)
+	if (float(r_glsl_ascii_mono) != 0.0)
 		col = vec3(character(n, p));
 	else
 		col = col*character(n, p);	//note that this is kinda cheating.

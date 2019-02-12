@@ -549,7 +549,6 @@ void CLQ3_ParseGameState(void)
 	cl.maxpitch = 90;
 
 	ccs.lastServerCommandNum = MSG_ReadLong();
-	ccs.currentServerCommandNum = ccs.lastServerCommandNum;
 
 	for(;;)
 	{
@@ -1028,7 +1027,7 @@ void CLQ3_SendAuthPacket(netadr_t *gameserver)
 				}
 				MSG_WriteByte(&msg, 0);
 
-				NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, &authaddr);
+				NET_SendPacket (cls.sockets, msg.cursize, msg.data, &authaddr);
 			}
 			else
 				Con_Printf("    failed\n");
@@ -1040,7 +1039,6 @@ void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)
 {
 	char infostr[1024];
 	char data[2048];
-	char adrbuf[MAX_ADR_SIZE];
 	sizebuf_t msg;
 	static const char *nonq3[] = {"challenge", "qport", "protocol", "ip", "chat", NULL};
 
@@ -1054,7 +1052,7 @@ void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)
 	msg.overflowed = msg.allowoverflow = 0;
 	msg.maxsize = sizeof(data);
 	MSG_WriteLong(&msg, -1);
-	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", challenge, qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), &net_local_cl_ipadr), infostr));
+	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i%s\"", challenge, qport, PROTOCOL_VERSION_Q3, infostr));
 #ifdef HUFFNETWORK
 	Huff_EncryptPacket(&msg, 12);
 	if (!Huff_CompressionCRC(HUFFCRC_QUAKE3))
@@ -1063,7 +1061,7 @@ void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)
 		return;
 	}
 #endif
-	NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, to);
+	NET_SendPacket (cls.sockets, msg.cursize, msg.data, to);
 }
 #endif
 

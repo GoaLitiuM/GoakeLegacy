@@ -17,6 +17,13 @@
 //this is for testing
 #define WRITEASM
 
+#ifndef MAX_QPATH
+#define MAX_QPATH 128
+#endif
+#ifndef MAX_OSPATH
+#define MAX_OSPATH 1024
+#endif
+
 #ifdef __MINGW32_VERSION
 #define MINGW
 #endif
@@ -687,7 +694,7 @@ extern int optres_locals_overlapping;
 extern int optres_logicops;
 extern int optres_inlines;
 
-pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, char **parms);
+pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, const char **parms);
 
 void QCC_PR_PrintStatement (QCC_statement_t *s);
 
@@ -704,7 +711,6 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s *args, int numargs);
 char *QCC_PR_ParseName (void);
-CompilerConstant_t *QCC_PR_DefineName(char *name);
 struct QCC_typeparam_s *QCC_PR_FindStructMember(QCC_type_t *t, const char *membername, unsigned int *out_ofs);
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 
@@ -823,6 +829,7 @@ enum {
 	WARN_COMPATIBILITYHACK,		//work around old defs.qc or invalid dpextensions.qc
 	WARN_REDECLARATIONMISMATCH,
 	WARN_PARAMWITHNONAME,
+	WARN_ARGUMENTCHECK,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -1046,7 +1053,7 @@ void QCC_PR_ParseInitializerDef(QCC_def_t *def, unsigned int flags);
 void QCC_PR_FinaliseFunctions(void);
 
 
-pbool QCC_main (int argc, char **argv);	//as part of the quake engine
+pbool QCC_main (int argc, const char **argv);	//as part of the quake engine
 void QCC_ContinueCompile(void);
 void PostCompile(void);
 pbool PreCompile(void);
@@ -1148,7 +1155,7 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 
 
 struct pkgctx_s;
-struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, char *message, ...), void *userctx);
+struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, const char *message, ...), void *userctx);
 void			Packager_ParseFile(struct pkgctx_s *ctx, char *scriptfilename);
 void			Packager_ParseText(struct pkgctx_s *ctx, char *scripttext);
 void			Packager_WriteDataset(struct pkgctx_s *ctx, char *setname);
@@ -1187,6 +1194,7 @@ static void inline QCC_PR_Expect (const char *string)
 }
 #endif
 
+CompilerConstant_t *QCC_PR_DefineName(const char *name);
 void editbadfile(const char *fname, int line);
 char *TypeName(QCC_type_t *type, char *buffer, int buffersize);
 void QCC_PR_AddIncludePath(const char *newinc);
@@ -1202,10 +1210,12 @@ extern void (*pHash_RemoveData)(hashtable_t *table, const char *name, void *data
 //when originally running from a .dat, we load up all the functions and work from those rather than actual files.
 //(these get re-written into the resulting .dat)
 typedef struct qcc_cachedsourcefile_s vfile_t;
+void QCC_CloseAllVFiles(void);
 vfile_t *QCC_FindVFile(const char *name);
 vfile_t *QCC_AddVFile(const char *name, void *data, size_t size);
 void QCC_CatVFile(vfile_t *, const char *fmt, ...);
 void QCC_InsertVFile(vfile_t *, size_t pos, const char *fmt, ...);
+char *ReadProgsCopyright(char *buf, size_t bufsize);
 
 //void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile);
 

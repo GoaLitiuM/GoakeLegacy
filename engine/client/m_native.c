@@ -46,11 +46,11 @@ static void MN_RegisterCvar(const char *cvarname, const char *defaulttext, unsig
 {
 	Cvar_Get2(cvarname, defaulttext, flags, description, NULL);
 }
-void Cmd_DeleteAlias(const char *name);
 static void MN_RegisterCommand(const char *commandname, const char *description)
 {
-	Cmd_DeleteAlias(commandname);	//menuqc has no real way to register commands, so it has a nasty habit of creating loads of weird awkward aliases.
-	Cmd_AddCommandD(commandname, NULL, description);
+	if (!Cmd_Exists(commandname)) {
+		Cmd_AddCommandD(commandname, NULL, description);
+	}
 }
 static int MN_GetServerState(void)
 {
@@ -60,12 +60,15 @@ static int MN_GetServerState(void)
 		return 1;
 	return 2;
 }
-static int MN_GetClientState(void)
+static int MN_GetClientState(char const ** disconnect_reason)
 {
+	extern cvar_t cl_disconnectreason;
+	*disconnect_reason = NULL;
 	if (cls.state >= ca_active)
 		return 2;
 	if (cls.state != ca_disconnected)
 		return 1;
+	*disconnect_reason = (const char*)cl_disconnectreason.string;
 	return 0;
 }
 static void MN_fclose(vfsfile_t *f)
@@ -87,7 +90,7 @@ static void MN_DrawQuad(const vec2_t position[4], const vec2_t texcoords[4], sha
 	if (!pic)
 		pic = rgba[3]==1?shader_draw_fill:shader_draw_fill_trans;
 	R2D_ImageColours(rgba[0], rgba[1], rgba[2], rgba[3]);
-	R2D_Image2dQuad(position, texcoords, pic);
+	R2D_Image2dQuad(position, texcoords, NULL, pic);
 	r2d_be_flags = 0;
 }
 static float MN_DrawString(const vec2_t position, const char *text, struct font_s *font, float height, const vec4_t rgba, unsigned int be_flags)
@@ -341,6 +344,7 @@ qboolean MN_Init(void)
 		VFS_GETS,
 		VFS_PRINTF,
 		COM_EnumerateFiles,
+		FS_NativePath,
 
 		// Drawing stuff
 		MN_DrawSetClipArea,
@@ -401,7 +405,7 @@ qboolean MN_Init(void)
 			break;
 
 		if (host_parms.binarydir && !strchr(gamepath, '/') && !strchr(gamepath, '\\'))
-			libmenu = Sys_LoadLibrary(va("%smenu_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, host_parms.binarydir, gamepath), funcs);
+			libmenu = Sys_LoadLibrary(va("%smenu_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, host_parms.binarydir), funcs);
 		if (libmenu)
 			break;
 

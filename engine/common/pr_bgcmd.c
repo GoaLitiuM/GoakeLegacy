@@ -17,6 +17,7 @@ static char *cvargroup_progs = "Progs variables";
 cvar_t utf8_enable = CVARD("utf8_enable", "0", "When 1, changes the qc builtins to act upon codepoints instead of bytes. Do not use unless com_parseutf8 is also set.");
 cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1", "When 0, setorigin et al will not link the entity into the collision nodes (which is faster, especially if you have a lot of non-solid entities. When 1, allows entities to freely switch between .solid values (except for SOLID_BSP) without relinking. A lot of DP mods assume a value of 1 and will bug out otherwise, while 0 will restore a bugs present in various mods.");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods. It is better for mods to use FL_FINDABLE_NONSOLID instead.");
+cvar_t sv_gameplayfix_droptofloorstartsolid = CVARD("sv_gameplayfix_droptofloorstartsolid", "0", "When droptofloor fails, this causes a second attemp, but with traceline instead.");
 cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
 #ifndef NOLEGACY
 cvar_t dpcompat_strcat_limit = CVARD("dpcompat_strcat_limit", "", "When set, cripples strcat (and related function) string lengths to the value specified.\nSet to 16383 to replicate DP's limit, otherwise leave as 0 to avoid limits.");
@@ -73,6 +74,7 @@ void PF_Common_RegisterCvars(void)
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_nolinknonsolid, cvargroup_progs);
+	Cvar_Register (&sv_gameplayfix_droptofloorstartsolid, cvargroup_progs);
 	Cvar_Register (&dpcompat_findradiusarealinks, cvargroup_progs);
 #ifndef NOLEGACY
 	Cvar_Register (&dpcompat_strcat_limit, cvargroup_progs);
@@ -182,12 +184,13 @@ static int debuggerstacky;
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	#include <windows.h>
 	void INS_UpdateGrabs(int fullscreen, int activeapp);
+#else
+	#include <unistd.h>
 #endif
 
-int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *error, pbool fatal);
+int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, int firststatement, char *error, pbool fatal);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	extern int				isPlugin;
 	if (isPlugin >= 2)
 	{
@@ -197,14 +200,20 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 		Sys_SendKeyEvents();
 #endif
 		debuggerresume = -1;
-		printf("qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
+		fprintf(stdout, "qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
 		fflush(stdout);
+#ifdef _WIN32
 #ifndef SERVERONLY
 		INS_UpdateGrabs(false, false);
 #endif
+#endif
 		while(debuggerresume == -1 && !wantquit)
 		{
+#ifdef _WIN32
 			Sleep(10);
+#else
+			usleep(10*1000);
+#endif
 #ifdef SERVERONLY
 			SV_GetConsoleCommands();
 #else
@@ -212,7 +221,6 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 #endif
 		}
 	}
-#endif
 }
 extern cvar_t pr_sourcedir;
 pubprogfuncs_t *debuggerinstance;
@@ -371,9 +379,9 @@ qboolean QCExternalDebuggerCommand(char *text)
 	return true;
 }
 
-int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal)
+int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, int firststatement, char *reason, pbool fatal)
 {
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
+//#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	if (isPlugin >= 2)
 	{
 		if (wantquit)
@@ -395,8 +403,10 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 #endif
 		debuggerresume = -1;
 		debuggerresumeline = *line;
+#ifdef _WIN32
 		if (debuggerwnd)
 			SetForegroundWindow((HWND)debuggerwnd);
+#endif
 		if (reason)
 		{
 			char tmpbuffer[8192];
@@ -415,18 +425,28 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		}
 		while(debuggerresume == -1 && !wantquit)
 		{
+#ifdef _WIN32
 			Sleep(10);
+#else
+			usleep(10*1000);
+#endif
 			SV_GetConsoleCommands();
 		}
 #else
+#ifdef _WIN32
 		INS_UpdateGrabs(false, false);
+#endif
 		if (reason)
 			Con_Footerf(NULL, false, "^bDebugging: %s", reason);
 		else
 			Con_Footerf(NULL, false, "^bDebugging");
 		while(debuggerresume == -1 && !wantquit)
 		{
+#ifdef _WIN32
 			Sleep(10);
+#else
+			usleep(10*1000);
+#endif
 			Sys_SendKeyEvents();
 
 			if (qrenderer)
@@ -453,10 +473,10 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			return DEBUG_TRACE_ABORT;
 		return debuggerresume;
 	}
-#endif
+//#endif
 
 #ifdef TEXTEDITOR
-	return QCLibEditor(prinst, filename, line, statement, reason, fatal);
+	return QCLibEditor(prinst, filename, line, statement, firststatement, reason, fatal);
 #else
 	if (fatal)
 		return DEBUG_TRACE_ABORT;
@@ -1404,7 +1424,7 @@ cvar_t *PF_Cvar_FindOrGet(const char *var_name)
 
 		var = Cvar_Get(var_name, def, 0, "Implicit QC variables");
 		if (var)
-			Con_Printf("^3Created QC Cvar %s\n", var_name);
+			Con_DPrintf("^3Created QC Cvar %s\n", var_name);
 		else
 			Con_Printf(CON_ERROR"Unable to create QC Cvar %s\n", var_name);
 	}
@@ -1640,10 +1660,10 @@ typedef struct
 		char	*stringdata;
 	};
 } pf_hashentry_t;
-pf_hashtab_t *pf_hashtab;
-size_t pf_hash_maxtables;
-pf_hashtab_t pf_peristanthashtab;	//persists over map changes.
-pf_hashtab_t pf_reverthashtab;		//pf_peristanthashtab as it was at map start, for map restarts.
+static pf_hashtab_t *pf_hashtab;
+static size_t pf_hash_maxtables;
+static pf_hashtab_t pf_peristanthashtab;	//persists over map changes.
+//static pf_hashtab_t pf_reverthashtab;		//pf_peristanthashtab as it was at map start, for map restarts.
 static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
 {
 	idx -= 1;
@@ -1664,7 +1684,7 @@ static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
 	else
 		PR_BIError(prinst, "PF_hash_findtab: invalid hash table\n");
 	return NULL;
-};
+}
 
 void QCBUILTIN PF_hash_getkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1734,10 +1754,10 @@ void QCBUILTIN PF_hash_get (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 			}
 			else
 				memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
+			return;
 		}
-		else
-			memcpy(G_VECTOR(OFS_RETURN), dflt, sizeof(vec3_t));
 	}
+	memcpy(G_VECTOR(OFS_RETURN), dflt, sizeof(vec3_t));
 }
 void QCBUILTIN PF_hash_getcb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1904,10 +1924,10 @@ typedef struct {
 	size_t bufferlen;
 	size_t len;
 	size_t ofs;
-	int accessmode;
 	pubprogfuncs_t *prinst;
+	long accessmode;
 } pf_fopen_files_t;
-pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
+static pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
 
 //returns false if the file is denied.
 //fallbackread can be NULL, if the qc is not allowed to read that (original) file at all.
@@ -2318,7 +2338,7 @@ static int PF_fwrite_internal (pubprogfuncs_t *prinst, int fnum, const char *msg
 	}
 }
 
-static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *msg, size_t len)
+static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *buf, size_t len)
 {
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
@@ -2347,7 +2367,7 @@ static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *msg, size_
 		if (pf_fopen_files[fnum].ofs + len > pf_fopen_files[fnum].len)
 			len = pf_fopen_files[fnum].len - pf_fopen_files[fnum].ofs;
 
-		memcpy(msg, pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, len);
+		memcpy(buf, pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, len);
 		pf_fopen_files[fnum].ofs+=len;
 		return len;
 	}
@@ -2373,20 +2393,20 @@ void QCBUILTIN PF_fwrite (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 		return;
 	}
 
-	G_INT(OFS_PARM1) = PF_fwrite_internal (prinst, fnum, prinst->stringtable + ptr, size);
+	G_INT(OFS_RETURN) = PF_fwrite_internal (prinst, fnum, prinst->stringtable + ptr, size);
 }
 void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
 	int ptr = G_INT(OFS_PARM1);
 	int size = G_INT(OFS_PARM2);
-	if (ptr < 0 || size < 0 || ptr+size >= prinst->stringtablesize)
+	if (ptr <= 0 || size < 0 || (unsigned)ptr+(unsigned)size >= (unsigned)prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_fread: invalid ptr / size\n");
 		return;
 	}
 
-	G_INT(OFS_PARM1) = PF_fread_internal (prinst, fnum, prinst->stringtable + ptr, size);
+	G_INT(OFS_RETURN) = PF_fread_internal (prinst, fnum, prinst->stringtable + ptr, size);
 }
 void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3391,7 +3411,7 @@ void QCBUILTIN PF_chr2str (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int err;
-	char *next;
+	const char *next;
 	const char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
 	int ofs = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):0;
 
@@ -5290,7 +5310,25 @@ void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	VectorCopy (ent->v->origin, start);
 	trace = World_Move (world, start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
 
-	if (trace.fraction == 1 || trace.allsolid)
+	if (trace.allsolid && sv_gameplayfix_droptofloorstartsolid.ival && gravitydir[2] == -1)
+	{
+		//try again but with a traceline, something is better than nothing.
+		vec3_t offset;
+		VectorAvg(ent->v->maxs, ent->v->mins, offset);
+		offset[2] = ent->v->mins[2];
+		VectorAdd(start, offset, start);
+		VectorAdd(end, offset, end);
+		trace = World_Move (world, start, vec3_origin, vec3_origin, end, MOVE_NORMAL, ent);
+		if (trace.fraction < 1)
+		{
+			VectorSubtract (trace.endpos, offset, ent->v->origin);
+			World_LinkEdict (world, ent, false);
+			ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
+			ent->v->groundentity = EDICT_TO_PROG(prinst, trace.ent);
+			G_FLOAT(OFS_RETURN) = 1;
+		}
+	}
+	else if (trace.fraction == 1 || trace.allsolid)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
@@ -6306,14 +6344,14 @@ void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *
 {
 	wedict_t*e				= G_WEDICT(prinst, OFS_PARM0);
 	float	*force			= G_VECTOR(OFS_PARM1);
-	float	*relative_ofs	= G_VECTOR(OFS_PARM2);
+	float	*impactpos		= G_VECTOR(OFS_PARM2);	//world coord of impact.
 	world_t *world = prinst->parms->user;
 	rbecommandqueue_t cmd;
 
 	cmd.command = RBECMD_FORCE;
 	cmd.edict = e;
 	VectorCopy(force, cmd.v1);
-	VectorCopy(relative_ofs, cmd.v2);
+	VectorCopy(impactpos, cmd.v2);
 
 	if (world->rbe)
 		world->rbe->PushCommand(world, &cmd);

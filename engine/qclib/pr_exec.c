@@ -92,7 +92,6 @@
 
 //=============================================================================
 
-char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax);
 /*
 =================
 PR_PrintStatement
@@ -181,6 +180,8 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 	*out = 0;
 	outlen--;
 
+	if ((unsigned)statementnum >= current_progstate->progs->numstatements)
+		return;
 	switch(current_progstate->structtype)
 	{
 	case PST_DEFAULT:
@@ -1365,7 +1366,7 @@ static const char *lastfile = NULL;
 			lastfile = file;
 
 			faultline = lastline;
-			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline!=-1)?&lastline:NULL), &statement, fault, fatal);
+			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline!=-1)?&lastline:NULL), &statement, f->first_statement, fault, fatal);
 
 //			if (pn != prinst.pr_typecurrent)
 
@@ -1604,7 +1605,7 @@ static casecmprange_t casecmprange[] =
 static int PR_NoDebugVM(progfuncs_t *fte_restrict progfuncs)
 {
 	char stack[4*1024];
-	int ofs;
+	size_t ofs;
 	strcpy(stack, "This platform does not support QC debugging\nStack Trace:");
 	ofs = strlen(stack);
 	PR_SaveCallStack (progfuncs, stack, &ofs, sizeof(stack));

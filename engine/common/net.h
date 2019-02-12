@@ -131,14 +131,14 @@ void		SVNET_RegisterCvars(void);
 void		NET_InitClient (qboolean loopbackonly);
 void		NET_CloseClient(void);
 void		NET_InitServer (void);
-qboolean	NET_WasSpecialPacket(netsrc_t netsrc);
+qboolean	NET_WasSpecialPacket(struct ftenet_connections_s *col);
 void		NET_CloseServer (void);
 void		UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
 qboolean	NET_GetRates(struct ftenet_connections_s *collection, float *pi, float *po, float *bi, float *bo);
 qboolean	NET_UpdateRates(struct ftenet_connections_s *collection, qboolean inbound, size_t size);	//for demos to not be weird
-int			NET_GetPacket (netsrc_t netsrc, int firstsock);
-neterr_t	NET_SendPacket (netsrc_t socket, int length, const void *data, netadr_t *to);
+int			NET_GetPacket (struct ftenet_connections_s *col, int firstsock);
+neterr_t	NET_SendPacket (struct ftenet_connections_s *col, int length, const void *data, netadr_t *to);
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
@@ -176,6 +176,12 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask);
 
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot);
+
+enum certprops_e
+{
+	QCERT_PEERFINGERPRINT
+};
+size_t NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
 
 #ifdef HAVE_DTLS
 qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to);

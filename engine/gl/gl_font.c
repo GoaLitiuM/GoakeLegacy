@@ -84,6 +84,7 @@ typedef unsigned int FT_Pixel_Mode; //for consistency even without freetype supp
 #define FT_PIXEL_MODE_RGBA_SA (100)	//RGBA, straight alpha. not in freetype.
 #define FT_PIXEL_MODE_RGBA (101)	//RGBA, premultiplied alpha. not in freetype.
 
+#ifdef QUAKEHUD
 static const char *imgs[] =
 {
 	//0xe10X
@@ -188,6 +189,7 @@ static const char *imgs[] =
 	"e16e",
 	"e16f"
 };
+#endif
 
 #define FONT_MAXCHARS 0x110000 //as defined by UTF-16, and thus applied to all unicode because UTF-16 is the crappy limited one.
 #define FONTBLOCKS ((FONT_MAXCHARS+FONTBLOCKSIZE-1)/FONTBLOCKSIZE)
@@ -288,7 +290,8 @@ typedef struct font_s
 		//texture/screen pixel sizes.
 		unsigned char bmw;
 		unsigned char bmh;
-		//unsigned short pad;
+		unsigned short flags;
+#define CHARF_FORCEWHITE (1u<<0)	//coloured emoji should not be tinted.
 
 		//screen offsets.
 		short top;
@@ -643,6 +646,7 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 		fontplanes.oldestchar = c;
 	fontplanes.newestchar = c;
 	c->nextchar = NULL;
+	c->flags = 0;
 
 	c->texplane = fontplanes.activeplane;
 	c->bmx = fontplanes.planerowx+pad;
@@ -748,6 +752,8 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
 			out += PLANEWIDTH*4;
 		}
+
+		c->flags = CHARF_FORCEWHITE;	//private glyph colours
 	}
 	else if ((unsigned int)pixelmode == FT_PIXEL_MODE_RGBA)
 	{	//bgra srgb font, already premultiplied
@@ -774,6 +780,8 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
 			out += PLANEWIDTH*4;
 		}
+
+		c->flags = CHARF_FORCEWHITE;	//private glyph colours
 	}
 	fontplanes.planechanged = true;
 	return c;
@@ -976,6 +984,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 	}
 #endif
 
+#ifdef QUAKEHUD
 	if (charidx >= 0xe100 && charidx <= 0xe1ff)
 	{
 		qpic_t *wadimg;
@@ -1029,6 +1038,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 			c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA_SA, img, nw, nh, 64*4);
 			if (c)
 			{
+				c->flags = CHARF_FORCEWHITE;	//private glyph colours
 				c->left = 0;
 				c->top = f->charheight - nh;
 				c->advance = nw;
@@ -1036,6 +1046,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 			}
 		}
 	}
+#endif
 	/*make tab invisible*/
 	if (charidx == '\t' || charidx == '\n')
 	{
@@ -1195,6 +1206,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 						c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA, out, gw, gh, gw*4); 
 					if (c)
 					{
+						c->flags = 0;	//private glyph colours
 						c->advance = gw;
 						c->left = 0;
 						c->top = 0;
@@ -1750,15 +1762,26 @@ static texid_t Font_LoadFallbackConchars(void)
 		Font_CopyGlyph('[', 128, lump);
 		Font_CopyGlyph('-', 129, lump);
 		Font_CopyGlyph(']', 130, lump);
-		Font_CopyGlyph('o', 131, lump);
+		Font_CopyGlyph('|', 131, lump);
+		Font_CopyGlyph('>', 13, lump);
 	}
 	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	BZ_Free(lump);
 	return tex;
 }
 
+enum fontfmt_e
+{
+	FMT_AUTO,		//freetype, or quake
+	FMT_QUAKE,		//first is default
+	FMT_ISO88591,	//latin-1 (first 256 chars of unicode too, c1 glyphs are usually invisible)
+	FMT_WINDOWS1252,//variation of latin-1 with extra glyphs
+	FMT_KOI8U,		//image is 16*16 koi8-u codepage.
+	FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
+};
+
 /*loads a fallback image. not allowed to fail (use syserror if needed)*/
-static texid_t Font_LoadDefaultConchars(void)
+static texid_t Font_LoadDefaultConchars(enum fontfmt_e *fmt)
 {
 	texid_t tex;
 	tex = Font_LoadReplacementConchars();
@@ -1774,13 +1797,19 @@ static texid_t Font_LoadDefaultConchars(void)
 	if (tex && tex->status == TEX_LOADING)
 		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
 	if (TEXLOADED(tex))
+	{
+		*fmt = FMT_ISO88591;
 		return tex;
+	}
 #endif
 	tex = Font_LoadFallbackConchars();
 	if (tex && tex->status == TEX_LOADING)
 		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
 	if (TEXLOADED(tex))
+	{
+		*fmt = FMT_QUAKE;
 		return tex;
+	}
 	Sys_Error("Unable to load any conchars\n");
 }
 
@@ -1838,15 +1867,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 	char facename[MAX_QPATH*12];
 	struct charcache_s *c;
 	float aspect = 1;
-	enum
-	{
-		FMT_AUTO,		//freetype, or quake
-		FMT_QUAKE,		//first is default
-		FMT_ISO88591,	//latin-1 (first 256 chars of unicode too, c1 glyphs are usually invisible)
-		FMT_WINDOWS1252,//variation of latin-1 with extra glyphs
-		FMT_KOI8U,		//image is 16*16 koi8-u codepage.
-		FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
-	} fmt = FMT_AUTO;
+	enum fontfmt_e fmt = FMT_AUTO;
 
 	Q_strncpyz(facename, fontfilename, sizeof(facename));
 
@@ -2155,7 +2176,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 	{
 		if (!TEXLOADED(fontplanes.defaultfont))
 		{
-			fontplanes.defaultfont = Font_LoadDefaultConchars();
+			fontplanes.defaultfont = Font_LoadDefaultConchars(&fmt);
 		}
 
 #ifdef HEXEN2
@@ -2366,13 +2387,17 @@ void Font_EndString(struct font_s *font)
 //	Font_Flush();
 //	curfont = NULL;
 
-	R2D_Flush = Font_Flush;
+	R2D_Flush = font_foremesh.numindexes?Font_Flush:NULL;
 }
 
 //obtains the font's row height (each row of chars should be drawn using this increment)
 int Font_CharHeight(void)
 {
 	return curfont->charheight;
+}
+float Font_CharVHeight(struct font_s *font)
+{
+	return ((float)font->charheight * vid.height)/vid.rotpixelheight;
 }
 
 //obtains the font's row height (each row of chars should be drawn using this increment)
@@ -2857,10 +2882,20 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 	font_coord[v+3][0] = sx;
 	font_coord[v+3][1] = sy+sh;
 
-	*(int*)font_forecoloura[v+0] = *(int*)font_forecolour;
-	*(int*)font_forecoloura[v+1] = *(int*)font_forecolour;
-	*(int*)font_forecoloura[v+2] = *(int*)font_forecolour;
-	*(int*)font_forecoloura[v+3] = *(int*)font_forecolour;
+	if (c->flags&CHARF_FORCEWHITE)
+	{
+		*(int*)font_forecoloura[v+0] =
+		*(int*)font_forecoloura[v+1] =
+		*(int*)font_forecoloura[v+2] =
+		*(int*)font_forecoloura[v+3] = 0xffffffff;
+	}
+	else
+	{
+		*(int*)font_forecoloura[v+0] =
+		*(int*)font_forecoloura[v+1] =
+		*(int*)font_forecoloura[v+2] =
+		*(int*)font_forecoloura[v+3] = *(int*)font_forecolour;
+	}
 
 	if (font_colourmask & CON_NONCLEARBG)
 	{
