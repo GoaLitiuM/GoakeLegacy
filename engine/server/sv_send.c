@@ -2255,8 +2255,6 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 	statsf[STAT_MOVEVARS_WALLFRICTION]					= sv_wallfriction.value;
 	statsf[STAT_MOVEVARS_MOVEMENTSTYLE]				= sv_movementstyle.ival;
 	statsf[STAT_MOVEVARS_JUMPBOOST]					= sv_jumpvelocity.value;
-	statsf[STAT_JUMPTIME] 					= ent->xv->jump_time;
-	statsi[STAT_JUMPCOUNT] 					= ent->xv->jump_count;
 #endif
 
 		SV_UpdateQCStats(ent, statsi, statss, statsf);

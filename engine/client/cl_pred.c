@@ -777,10 +777,14 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	int pmtype;
 	qboolean onground = plstate->onground;
 	qboolean jumpheld = plstate->jump_held;
+	float jumptime = plstate->jump_time;
+	int jumpcount = plstate->jump_count;
 	vec3_t vel;
 	VectorCopy(plstate->velocity, vel);
 	memset(plstate, 0, sizeof(*plstate));
 	plstate->jump_held = jumpheld;
+	plstate->jump_time = jumptime;
+	plstate->jump_count = jumpcount;
 
 	switch(state->u.q1.pmovetype)
 	{
@@ -1215,9 +1219,6 @@ void CL_PredictMovePNum (int seat)
 	oldphysent = pmove.numphysent;
 	CL_SetSolidPlayers();
 	pmove.skipent = trackent;
-
-	tostate->jump_time = cl.players[pv->playernum].statsf[STAT_JUMPTIME];
-	tostate->jump_count = cl.players[pv->playernum].statsf[STAT_JUMPCOUNT];
 
 	//just in case we don't run any prediction
 	VectorCopy(tostate->gravitydir, pmove.gravitydir);
