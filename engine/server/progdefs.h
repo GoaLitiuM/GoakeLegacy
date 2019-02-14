@@ -356,7 +356,9 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(baselerpfrac,"See basebone")	/*FTE_CSQC_BASEFRAME*/\
 	HALFLIFEMODEL_FIELDS	\
 	comfieldfloat(drawmask, "Matces the bitmask passed to the addentities builtin, to easily submit entities to the renderer. Not otherwise meaningful.")	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
-	comfieldfunction(predraw, ".float()","Called as part of the addentities builtin. Returns one of the PREDRAW_ constants. This gives you a chance to interpolate or animate entities as desired.")	/*If present, is called just before it's drawn.*/	
+	comfieldfunction(predraw, ".float()","Called as part of the addentities builtin. Returns one of the PREDRAW_ constants. This gives you a chance to interpolate or animate entities as desired.")	/*If present, is called just before it's drawn.*/ \
+	comfieldfloat(jump_time, NULL) \
+	comfieldint(jump_count, NULL)
 
 typedef struct stdentvars_s //standard = standard for qw
 {

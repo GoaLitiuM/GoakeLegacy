@@ -3589,6 +3589,9 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	VectorCopy(ent->v->velocity, pmove.velocity);
 	VectorCopy(ent->v->maxs, pmove.player_maxs);
 	VectorCopy(ent->v->mins, pmove.player_mins);
+	
+	pmove.jump_time = ent->v->jump_time;
+	pmove.jump_count = ent->v->jump_count;
 
 	CL_SetSolidEntities();
 
@@ -3600,6 +3603,9 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
 	}
+	
+	ent->v->jump_time = pmove.jump_time;
+	ent->v->jump_count = pmove.jump_count;
 
 	VectorCopy(pmove.angles, ent->v->angles);
 	ent->v->angles[0] *= r_meshpitch.value * 1/3.0f;	//FIXME
