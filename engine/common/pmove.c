@@ -476,14 +476,12 @@ usedown:
 		pmove.velocity[0] *= scale;
 		pmove.velocity[1] *= scale;
 	}
-	
-	if (blocked2 == 0 && blocked && pmove.velocity[2] > 0)
+
+	// kill jump velocity when jumping against stairs
+	if (blocked == 2 && blocked2 == 0 && pmove.velocity[2] > 0)
 	{
 		if (pmove.jump_count <= 1)
-		{
-			// kill jump velocity when hitting stairs
 			pmove.velocity[2] = 0;
-		}
 	}
 
 	return blocked;
