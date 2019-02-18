@@ -1174,16 +1174,15 @@ static void PM_CheckJump (void)
 	if (!pmove.onground)
 		return;		// in air, so no effect
 
-	if (pmove.jump_held && !pmove.jump_msec)
+	if (pmove.jump_held/* && !pmove.jump_msec*/)
 		return;		// don't pogo stick
 
 	// double jumping mechanism, give a boost to jump velocity when player has jumped recently
 	float jumpvelocity = movevars.jumpvelocity;
 	if (pmove.jump_count == 1)
 		jumpvelocity += movevars.jumpboost;
-		
-	if (pmove.jump_time == 0)
-		pmove.jump_time += frametime;
+
+	pmove.jump_time = 0;
 	pmove.jump_count++;
 
 	// check for jump bug
@@ -1208,7 +1207,7 @@ static void PM_CheckJump (void)
 
 	pmove.jump_held = true;		// don't jump again until released
 
-	pmove.jump_msec = pmove.cmd.msec;
+	//pmove.jump_msec = pmove.cmd.msec;
 }
 
 /*
@@ -1494,22 +1493,28 @@ void PM_PlayerMove (float gamespeed)
 			pmove.waterjumptime = 0;
 	}
 
+	/*
 	if (pmove.jump_msec)
 	{
 		pmove.jump_msec += pmove.cmd.msec;
 		if (pmove.jump_msec > 50)
 			pmove.jump_msec = 0;
 	}
+	*/
 
-	if (pmove.jump_time > 0)
+	if (pmove.jump_count != 0)
 	{
-		pmove.jump_time += frametime; 
+		pmove.jump_time += frametime;
 		if (pmove.jump_time >= 0.400)
 		{
 			pmove.jump_time = 0;
 			pmove.jump_count = 0;
 		}
 	}
+
+	pmove.jump_msec = pmove.jump_time * 1000;
+	if (pmove.jump_msec > 50)
+		pmove.jump_msec = 0;
 
 	PM_CheckJump ();
 
