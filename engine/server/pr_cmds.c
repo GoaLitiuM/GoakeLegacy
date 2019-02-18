@@ -9809,6 +9809,9 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		pmove.waterjumptime = ent->v->teleport_time - sv.time;
 	else
 		pmove.waterjumptime = ent->v->teleport_time;
+		
+	pmove.jump_time = ent->v->jump_time;
+	pmove.jump_count = ent->v->jump_count;
 
 //set up the movement command
 	msecs = pr_global_struct->input_timelength*1000 + 0.5f;
@@ -9878,6 +9881,9 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 			pmove.cmd.msec = msecs;
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
+		
+		ent->v->jump_time = pmove.jump_time;
+		ent->v->jump_count = pmove.jump_count;
 
 		if (client)
 			client->jump_held = pmove.jump_held;
