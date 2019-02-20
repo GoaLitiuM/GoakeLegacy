@@ -2,3 +2,8 @@ build*/
 thirdparty/*/*
 !thirdparty/thirdparty.txt
 out/
+gw/csprogsvers/
+gw/csprogs.dat
+gw/progs.dat
+gw/menu.dat
+*.lno

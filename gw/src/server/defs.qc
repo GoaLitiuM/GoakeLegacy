@@ -1,0 +1,14 @@
+#define writeFloat WriteFloat
+#define writeByte WriteByte
+void writeVector(float to, vector vec)
+{
+    WriteCoord(to, vec_x);
+    WriteCoord(to, vec_y);
+    WriteCoord(to, vec_z);
+}
+void writeVectorFloat(float to, vector vec)
+{
+    writeFloat(to, vec_x);
+    writeFloat(to, vec_y);
+    writeFloat(to, vec_z);
+}

@@ -1,0 +1,11 @@
+#pragma progs_dat "../menu.dat"
+#pragma target fte
+#define MENU
+//#includelist
+
+#include "menudefs.qc"
+
+// include last
+#include <menu/main.qc>
+
+//#endlist

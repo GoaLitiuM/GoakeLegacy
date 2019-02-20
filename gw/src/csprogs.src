@@ -1,0 +1,25 @@
+#pragma progs_dat "../csprogs.dat"
+#pragma target fte
+#define CSQC
+//#includelist
+
+#include "csdefs.qc"
+
+#include <client/defs.qc>
+#include <common/defs.qc>
+#include <common/ruleset.qc>
+#include <common/precache.qc>
+#include <common/math.qc>
+#include <common/weapons.qc>
+#include <common/player.qc>
+#include <common/teleport.qc>
+#include <common/entities.qc>
+
+#include <client/misc.qc>
+#include <client/hud.qc>
+#include <client/player.qc>
+
+// include last
+#include <client/main.qc>
+
+//#endlist
