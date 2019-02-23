@@ -5,12 +5,12 @@
 #define DISTRIBUTION			"Goake"					//should be kept short. 3 or 4 letters is good, with no spaces.
 #define DISTRIBUTIONLONG		"GoaLitiuM"						//think of this as your company name. It isn't shown too often, so can be quite long.
 #define FULLENGINENAME			"Goake"					//nominally user-visible name.
-//#define ENGINEWEBSITE			""								//for shameless self-promotion purposes.
+#define ENGINEWEBSITE			""								//for shameless self-promotion purposes.
 //#define BRANDING_ICON			"fte_eukara.ico"				//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
 #define GAME_CFGFILE			"config"						//name of the configuration filename used for loading and saving
 #define GAME_VER_MAJOR			0
 #define GAME_VER_MINOR			1
-#define GAME_VER_EXTRA			" movetest"						//please include the extra space at the beginning
+#define GAME_VER_EXTRA			""						//please include the extra space at the beginning
 
 //filesystem rebranding
 #define GAME_SHORTNAME			"gw"			//short alphanumeric description
