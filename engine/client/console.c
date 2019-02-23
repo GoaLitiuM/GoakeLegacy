@@ -2795,7 +2795,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		y = Con_DrawConsoleLines(con_current, l, sx, ex, y, top, selactive, selsx, selex, selsy, seley, 0);
 
-		if (!haveprogress && lines == vid.height)
+		if (!haveprogress/* && lines == vid.height*/)
 		{
 			char *version = version_string();
 			int i;
