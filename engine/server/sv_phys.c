@@ -2727,6 +2727,9 @@ void SV_SetMoveVars(void)
 	movevars.aircontrol			= sv_aircontrol.value;
 	movevars.airstopaccelerate	= sv_airstopaccelerate.value;
 	movevars.movementstyle		= sv_movementstyle.value;
+	movevars.slidefix			= pm_slidefix.value;
+	movevars.slidyslopes		= pm_slidyslopes.value;
+	movevars.airstep			= pm_airstep.value;
 	movevars.jumpfix			= pm_jumpfix.value;
 }
 #endif

@@ -4940,6 +4940,8 @@ float SV_Frame (void)
 
 // toggle the log buffer if full
 	SV_CheckLog ();
+	
+	SV_SetMoveVars();
 
 // get packets
 	isidle = !SV_ReadPackets (&delay);
