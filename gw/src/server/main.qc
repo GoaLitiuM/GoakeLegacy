@@ -18,7 +18,11 @@ void CheckSpawn(void() func)
 		func();
 };
 
-void ClientKill() = {};
+void ClientKill()
+{
+	// just respawn the client for now
+	PlayerSpawn();
+};
 
 void ClientConnect(float csqcactive) = {};
 
