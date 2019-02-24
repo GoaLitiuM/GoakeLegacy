@@ -134,6 +134,7 @@ typedef struct {
 	float airstopaccelerate;
 	int movementstyle;
 	qboolean jumpfix;
+	float autojump;
 
 	qbyte coordsize;
 

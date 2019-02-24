@@ -1172,8 +1172,11 @@ static void PM_CheckJump (void)
 	if (!pmove.onground)
 		return;		// in air, so no effect
 
-	if (pmove.jump_held/* && !pmove.jump_msec*/)
-		return;		// don't pogo stick
+	// auto jumping
+	if (movevars.autojump > 0 && pmove.jump_held && pmove.jump_time > 0 && pmove.jump_time < movevars.autojump)
+		return;
+	else if (movevars.autojump <= 0 && pmove.jump_held)
+		return;
 
 	// double jumping mechanism, give a boost to jump velocity when player has jumped recently
 	float jumpvelocity = movevars.jumpvelocity;

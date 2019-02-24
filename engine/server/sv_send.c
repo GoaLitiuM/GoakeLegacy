@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_edgefriction;
 extern cvar_t  dpcompat_stats;
-extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_jumpboost, sv_maxairstrafespeed, pm_jumpfix, pm_airstep, pm_slidyslopes, pm_slidefix, sv_stepheight;
+extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_jumpboost, sv_maxairstrafespeed, pm_jumpfix, pm_airstep, pm_slidyslopes, pm_slidefix, sv_stepheight, sv_autojump;
 
 /*
 =============================================================================
@@ -2260,6 +2260,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 	statsf[STAT_MOVEVARS_MOVEMENTSTYLE]				= sv_movementstyle.ival;
 	statsf[STAT_MOVEVARS_JUMPBOOST]					= sv_jumpvelocity.value;
 	statsf[STAT_MOVEVARS_JUMPFIX]						= pm_jumpfix.value;
+	statsf[STAT_MOVEVARS_AUTOJUMP]					= sv_autojump.value;
 #endif
 
 		SV_UpdateQCStats(ent, statsi, statss, statsf);
