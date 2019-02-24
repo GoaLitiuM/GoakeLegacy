@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_edgefriction;
 extern cvar_t  dpcompat_stats;
-extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_jumpboost, sv_maxairstrafespeed, pm_jumpfix;
+extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_jumpboost, sv_maxairstrafespeed, pm_jumpfix, pm_airstep, pm_slidyslopes, pm_slidefix, sv_stepheight;
 
 /*
 =============================================================================
@@ -2247,14 +2247,19 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 	//statsf[STAT_MOVEVARS_EDGEFRICTION]					= pm_edgefriction.value;
 	statsf[STAT_MOVEVARS_EDGEFRICTION]					= sv_edgefriction.value;
 	statsf[STAT_MOVEVARS_MAXAIRSPEED]					= sv_maxairspeed.value;
-	statsf[STAT_MOVEVARS_STEPHEIGHT]					= /**sv_stepheight.string?sv_stepheight.value:*/PM_DEFAULTSTEPHEIGHT;
+	statsf[STAT_MOVEVARS_STEPHEIGHT]					= sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
 	statsf[STAT_MOVEVARS_AIRACCEL_QW]					= 1;		//we're a quakeworld engine...
 	statsf[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION]	= 0;
 
 	//statsf[STAT_MOVEVARS_MAXVELOCITY]					= sv_maxvelocity.value;
+	statsf[STAT_MOVEVARS_AIRSTEP]					= pm_airstep.value;
+	statsf[STAT_MOVEVARS_SLIDYSLOPES]					= pm_slidyslopes.value;
+	statsf[STAT_MOVEVARS_SLIDEFIX]					= pm_slidefix.value;
+
 	statsf[STAT_MOVEVARS_WALLFRICTION]					= sv_wallfriction.value;
 	statsf[STAT_MOVEVARS_MOVEMENTSTYLE]				= sv_movementstyle.ival;
 	statsf[STAT_MOVEVARS_JUMPBOOST]					= sv_jumpvelocity.value;
+	statsf[STAT_MOVEVARS_JUMPFIX]						= pm_jumpfix.value;
 #endif
 
 		SV_UpdateQCStats(ent, statsi, statss, statsf);
