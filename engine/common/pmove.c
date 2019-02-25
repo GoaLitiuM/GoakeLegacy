@@ -431,7 +431,7 @@ int PM_StepSlideMove (qboolean in_air)
 	if ((in_air || movevars.slidefix) && originalvel[2] < 0)
 		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
-	int blocked2 = PM_SlideMove ();
+	PM_SlideMove ();
 	
 // press down the stepheight
 	VectorMA (pmove.origin, stepsize, pmove.gravitydir, dest);
@@ -475,13 +475,6 @@ usedown:
 		//FIXME gravitydir
 		pmove.velocity[0] *= scale;
 		pmove.velocity[1] *= scale;
-	}
-
-	// kill jump velocity when jumping against stairs
-	if (blocked == 2 && blocked2 == 0 && pmove.velocity[2] > 0)
-	{
-		if (pmove.jump_count <= 1)
-			pmove.velocity[2] = 0;
 	}
 
 	return blocked;
@@ -1208,6 +1201,26 @@ static void PM_CheckJump (void)
 		if (pmove.velocity[2] < jumpvelocity)
 			pmove.velocity[2] = pmove.velocity[2] * (1 - movevars.ktjump)
 				+ jumpvelocity * movevars.ktjump;
+	}
+	
+	// check if we are about to step into stairs
+	vec3_t orig, vel;
+	VectorCopy(pmove.origin, orig);
+	VectorCopy(pmove.velocity, vel);
+	
+	pmove.velocity[2] *= 0.5;
+	for (int i=0; i<3; i++)
+		pmove.origin[i] += frametime * 2 * pmove.velocity[i];
+	int blocked = PM_StepSlideMove(false);
+	
+	VectorCopy(orig, pmove.origin);
+	VectorCopy(vel, pmove.velocity);
+	
+	// kill jump velocity for first jump after a step is hit
+	if (blocked & BLOCKED_STEP && pmove.jump_count == 1)
+	{
+		pmove.velocity[2] = 0;
+		pmove.onground = true;
 	}
 
 	pmove.jump_held = true;		// don't jump again until released
