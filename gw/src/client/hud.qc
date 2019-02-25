@@ -26,7 +26,7 @@ void DrawHud(float width, float height, bool in_menu)
 		local float top = (height*0.2);
 
 		drawstring([left, top + row*spacing, 0], "Connected players", char_size, '1 1 1', 1, 0);
-		drawstring([left+200, top + row*spacing, 0], "Ping", char_size, '1 1 1', 1, 0);
+		drawstring([left+200, top + row*spacing, 0], "Ping/PL", char_size, '1 1 1', 1, 0);
 		row++;
 
 		drawstring([left, top + row*spacing, 0], "-----------------------------------------", char_size, '1 1 1', 1, 0);
@@ -36,12 +36,14 @@ void DrawHud(float width, float height, bool in_menu)
 		{
 			local string player_name = getplayerkeyvalue(i, "name");
 			local string player_ping = getplayerkeyvalue(i, "ping");
+			local string player_pl = getplayerkeyvalue(i, "pl");
 
 			if (!player_name)
-				break;
+				continue;
 
 			drawstring([left, top + row*spacing, 0], strcat("  ", player_name), char_size, '1 1 1', 1, 0);
 			drawstring([left+200	, top + row*spacing, 0], player_ping, char_size, '1 1 1', 1, 0);
+			drawstring([left+230	, top + row*spacing, 0], player_pl, char_size, '1 1 1', 1, 0);
 			row++;
 		}
 	}
