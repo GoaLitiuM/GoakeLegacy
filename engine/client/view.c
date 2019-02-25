@@ -1257,6 +1257,18 @@ restart:
 			*y = CalcFov(afov, w, h);
 		}
 		break;
+
+	case 4:	//wide 4:3, to match vanilla more closely.
+		if (w/4 < h/3)
+		{	//don't bug out if they're running on a tall screen
+			mode = 3;
+			goto restart;
+		}
+		*y = tan(afov * M_PI / 360.0) * (3.0 / 4.0);
+		*x = *y * w / h;
+		*x = atan(*x) * (360.0 / M_PI);
+		*y = atan(*y) * (360.0 / M_PI);
+		break;
 	}
 }
 void V_ApplyAFov(playerview_t *pv)

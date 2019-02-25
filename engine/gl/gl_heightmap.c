@@ -2239,12 +2239,7 @@ void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, struct hmw
 			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 		}
 		if (cl_numstrisvert+9*9 > cl_maxstrisvert)
-		{
-			cl_maxstrisvert+=9*9+64;
-			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-		}
+			cl_stris_ExpandVerts(cl_numstrisvert+9*9+64);
 
 		firstv = t->numvert;
 		for (y = 0; y < 9; y++)
@@ -2286,12 +2281,7 @@ void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, struct hmw
 			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 		}
 		if (cl_numstrisvert+4 > cl_maxstrisvert)
-		{
-			cl_maxstrisvert+=64;
-			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-		}
+			cl_stris_ExpandVerts(cl_numstrisvert+64);
 
 		{
 			VectorSet(cl_strisvertv[cl_numstrisvert], mins[0], mins[1], w->maxheight);
@@ -6819,6 +6809,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	brush.numplanes = numfaces;
 	brush.planes = planes;
 	brush.faces = faces;
+	brush.patch = NULL;
 	if (numfaces)
 	{
 		nb = Terr_Brush_Insert(mod, hm, &brush);
@@ -7575,7 +7566,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 						p = 4;	//we just managed to read an entire plane instead of 3 points.
 					break;
 				}
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				entities = COM_ParseTokenOut(entities, "()", token, sizeof(token), NULL);
 			}
 			if (p < 3)
 			{

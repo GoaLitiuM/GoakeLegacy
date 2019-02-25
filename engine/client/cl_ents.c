@@ -2229,13 +2229,7 @@ void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float
 	}
 
 	if (cl_numstrisvert + latsteps*lngsteps > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + latsteps*lngsteps;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert + latsteps*lngsteps);
 	if (cl_maxstrisidx < cl_numstrisidx+latsteps*(lngsteps-1)*6)
 	{
 		cl_maxstrisidx = cl_numstrisidx+latsteps*(lngsteps-1)*6 + 64;
@@ -2360,13 +2354,7 @@ void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboo
 		}
 
 		if (cl_numstrisvert + sides*2 > cl_maxstrisvert)
-		{
-			cl_maxstrisvert = cl_numstrisvert + sides*2;
-
-			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-		}
+			cl_stris_ExpandVerts(cl_numstrisvert + sides*2);
 		if (cl_maxstrisidx < cl_numstrisidx+sides*6)
 		{
 			cl_maxstrisidx = cl_numstrisidx+sides*6 + 64;
@@ -2453,13 +2441,7 @@ void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, flo
 		t->flags = flags;
 	}
 	if (cl_numstrisvert + 2 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + 2;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert + 2);
 	if (cl_maxstrisidx < cl_numstrisidx+2)
 	{
 		cl_maxstrisidx = cl_numstrisidx+2;
@@ -2519,12 +2501,7 @@ void CLQ1_AddSpriteQuad(shader_t *shader, vec3_t mid, float radius)
 		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 	}
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64);
 
 	{
 		VectorMA(mid, radius, vright,     cl_strisvertv[cl_numstrisvert]);
@@ -2591,12 +2568,7 @@ void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qbo
 		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 	}
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64);
 
 	{
 		vec3_t tmp = {0,0.04,0.96};
@@ -2688,13 +2660,8 @@ void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *mat
 
 
 	if (cl_numstrisvert + 8 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + 8 + 1024;
+		cl_stris_ExpandVerts(cl_numstrisvert + 8 + 1024);
 
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
 	if (cl_maxstrisidx < cl_numstrisidx+6*6)
 	{
 		cl_maxstrisidx = cl_numstrisidx + 6*6 + 1024;
@@ -2958,13 +2925,7 @@ static void CL_AddDecal_Callback(void *vctx, vec3_t *fte_restrict points, size_t
 
 	
 	if (cl_numstrisvert + numpoints > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + numpoints;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert + numpoints);
 	if (cl_maxstrisidx < cl_numstrisidx+numpoints)
 	{
 		cl_maxstrisidx = cl_numstrisidx+numpoints + 64;
@@ -3896,7 +3857,9 @@ void CL_LinkPacketEntities (void)
 	int trailef, trailidx;
 	int modelflags;
 	struct itemtimer_s	*timer, **timerlink;
-	float timestep = host_frametime;
+	float timestep = cl.time-cl.lastlinktime;
+	cl.lastlinktime = cl.time;
+	timestep = bound(0, timestep, 0.1);
 
 	pack = cl.currentpackentities;
 	if (!pack)
@@ -5593,6 +5556,7 @@ void CL_SetSolidEntities (void)
 	packet_entities_t	*pak;
 	entity_state_t		*state;
 	physent_t			*pent;
+	model_t				*mod;
 
 	memset(&pmove.physents[0], 0, sizeof(physent_t));
 	pmove.physents[0].model = cl.worldmodel;
@@ -5614,18 +5578,20 @@ void CL_SetSolidEntities (void)
 		{	/*bsp model size*/
 			if (state->modelindex <= 0)
 				continue;
-			if (!cl.model_precache[state->modelindex])
+			mod = cl.model_precache[state->modelindex];
+			if (!mod)
 				continue;
 			/*vanilla protocols have no 'solid' information. all entities get assigned ES_SOLID_BSP, even if its not actually solid.
 			so we need to make sure that item pickups are not erroneously considered solid, but doors etc are.
-			yes, this probably means that externally loaded models will be predicted non-solid - you'll need to upgrade your network protocol for the gamecode to be able to specify solidity.
+			normally, ONLY inline models are considered solid when we have no solid info.
+			monsters will always be non-solid, too.
 			*/
-			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) && !((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->funcs.NativeTrace))
+			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) && mod->numsubmodels <= 1)
 				continue;
 	
 			pent = &pmove.physents[pmove.numphysent];
 			memset(pent, 0, sizeof(physent_t));
-			pent->model = cl.model_precache[state->modelindex];
+			pent->model = mod;
 			if (pent->model->loadstate != MLS_LOADED)
 				continue;
 			VectorCopy (state->angles, pent->angles);

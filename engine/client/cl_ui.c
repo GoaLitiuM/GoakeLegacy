@@ -467,12 +467,7 @@ void VQ3_AddPoly(shader_t *s, int num, q3polyvert_t *verts)
 	}
 
 	if (cl_maxstrisvert < cl_numstrisvert+num)
-	{
-		cl_maxstrisvert = cl_numstrisvert+num + 64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert+num + 64);
 	if (cl_maxstrisidx < cl_numstrisidx+(num-2)*3)
 	{
 		cl_maxstrisidx = cl_numstrisidx+(num-2)*3 + 64;
@@ -1641,7 +1636,7 @@ void UI_Start (void)
 
 	ui_width = vid.width;
 	ui_height = vid.height;
-	uivm = VM_Create("vm/ui", com_nogamedirnativecode.ival?NULL:UI_SystemCallsNative, UI_SystemCallsVM);
+	uivm = VM_Create("ui", com_nogamedirnativecode.ival?NULL:UI_SystemCallsNative, "vm/ui", UI_SystemCallsVM);
 	if (uivm)
 	{
 		apiversion = VM_Call(uivm, UI_GETAPIVERSION, 6);

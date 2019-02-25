@@ -286,14 +286,14 @@ static plugin_t *Plug_Load(const char *file, int type)
 	if (!newplug->vm && (type & PLUG_NATIVE) && !Q_strncasecmp(file, "fteplug_", 8) && !Q_strcasecmp(ARCH_DL_POSTFIX+1, COM_FileExtension(file, temp, sizeof(temp))))
 	{
 		COM_StripExtension(file, temp, sizeof(temp));
-		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL);
+		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
 	}
 	if (!newplug->vm && (type & PLUG_NATIVE))
-		newplug->vm = VM_Create(va("fteplug_%s_", file), Plug_SystemCallsNative, NULL);
+		newplug->vm = VM_Create(va("fteplug_%s_", file), Plug_SystemCallsNative, NULL, NULL);
 	if (!newplug->vm && (type & PLUG_NATIVE))
-		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL);
+		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL, NULL);
 	if (!newplug->vm && (type & PLUG_QVM))
-		newplug->vm = VM_Create(file, NULL, Plug_SystemCallsVM);
+		newplug->vm = VM_Create(NULL, NULL, file, Plug_SystemCallsVM);
 	if (!newplug->vm && (type & PLUG_NATIVE))
 	{
 		unsigned int u;
@@ -2156,12 +2156,12 @@ void Plug_CloseAll_f(void)
 
 int QDECL Plug_List_Print(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath)
 {
-plugin_t *plug;
+	plugin_t *plug;
 	char plugname[MAX_QPATH];
 	//lots of awkward logic so we hide modules for other cpus.
 	size_t nl = strlen(fname);
 	size_t u;
-	const char *knownarch[] =
+	static const char *knownarch[] =
 	{
 		"x32", "x64", "amd64", "x86",	//various x86 ABIs
 		"arm", "arm64", "armhf",		//various arm ABIs

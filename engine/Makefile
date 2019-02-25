@@ -569,13 +569,14 @@ ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
 else
-	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing
+	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing #-Wcast-align
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
 
 SDL_INCLUDES=
 #-I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL
-BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I. -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) -I./libs/freetype2/include -I./libs/freetype2/include/freetype $(BOTLIB_CFLAGS) $(SVNREVISION)
+BASE_INCLUDES=-I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I. -I$(LIBS_DIR) 
+BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) $(BASE_INCLUDES) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) -I./libs/freetype2/include -I./libs/freetype2/include/freetype $(BOTLIB_CFLAGS) $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -1263,6 +1264,8 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	BASELDFLAGS+=-lcomctl32
 	EXEPOSTFIX=.exe
 
+	QTV_LDFLAGS=-lws2_32 -lwinmm
+
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
 	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lws2_32 -lwinmm
@@ -1607,10 +1610,10 @@ ifeq ($(FTE_TARGET),web)
 	JSLIBS=--js-library web/ftejslib.js -s LEGACY_GL_EMULATION=0
 	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) -s ERROR_ON_UNDEFINED_SYMBOLS=1
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-	DEBUG_CFLAGS=-g -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-	RELEASE_LDFLAGS=-s ASM_JS=1 -O3	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS)
-#	RELEASE_LDFLAGS=-s ASM_JS=0 -O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
-	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS) -s SAFE_HEAP=1 -s ALIASING_FUNCTION_POINTERS=0 -s ASSERTIONS=2
+	DEBUG_CFLAGS=-g4 -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
+	RELEASE_LDFLAGS=-O3	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS) -s NO_FILESYSTEM=1
+#	RELEASE_LDFLAGS=-O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
+	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS) -s SAFE_HEAP=1 -s ALIASING_FUNCTION_POINTERS=0 -s ASSERTIONS=2 -s NO_FILESYSTEM=1
 	CC?=emcc
 	CXX?=emcc
 	#BASELDFLAGS=
@@ -2069,14 +2072,14 @@ web-rel:
 	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js
-	@gzip -f $(RELEASE_DIR)/ftewebgl.js.mem
+	@gzip -f $(RELEASE_DIR)/ftewebgl.wasm
 
 web-dbg:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="$(EMCC)"
 	cp $(BASE_DIR)/web/fteshell.html $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js
-	@gzip -f $(DEBUG_DIR)/ftewebgl.js.map
+	@gzip -f $(DEBUG_DIR)/ftewebgl.wasm
 
 #################################################
 #android
@@ -2233,21 +2236,46 @@ libs-$(ARCH)/libBulletDynamics.a:
 makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
 
 HTTP_OBJECTS=http/httpserver.c http/iwebiface.c common/fs_stdio.c http/ftpserver.c
-$(RELEASE_DIR)/httpserver$(BITS): $(HTTP_OBJECTS)
-	$(CC) -o $(RELEASE_DIR)/httpserver$(BITS) -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSERVER -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -DNO_PNG $(HTTP_OBJECTS)
-httpserver: $(RELEASE_DIR)/httpserver$(BITS)
+$(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX): $(HTTP_OBJECTS)
+	$(CC) -o $@ -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSERVER -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -DNO_PNG $(HTTP_OBJECTS)
+httpserver: $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX)
 
 IQM_OBJECTS=../iqm/iqm.cpp
-$(RELEASE_DIR)/iqm$(BITS): $(IQM_OBJECTS)
-	$(CC) -o $(RELEASE_DIR)/iqm$(BITS) $(IQM_OBJECTS) -lstdc++ -lm
-iqm: $(RELEASE_DIR)/iqm$(BITS)
+$(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
+	$(CC) -o $@ $(IQM_OBJECTS) -lstdc++ -lm
+iqm-rel: $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX)
+iqm: iqm-rel
 
 MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/cvar.c common/cmd.c common/sha1.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
-$(RELEASE_DIR)/ftemaster$(BITS): $(MASTER_OBJECTS)
-	$(CC) -o $(RELEASE_DIR)/master$(BITS) $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl
-master: $(RELEASE_DIR)/ftemaster$(BITS)
+$(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
+	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl
+master-rel: $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
+master: master-rel
 
-utils: httpserver iqm master
+QTV_OBJECTS=	\
+	netchan.c	\
+	parse.c		\
+	msg.c		\
+	qw.c		\
+	source.c	\
+	bsp.c		\
+	rcon.c		\
+	mdfour.c	\
+	crc.c		\
+	control.c	\
+	forward.c	\
+	pmove.c		\
+	menu.c		\
+	httpsv.c	\
+	sha1.c		\
+	libqtvc/glibc_sucks.c
+$(RELEASE_DIR)/qtv$(BITS)$(EXEPOSTFIX): $(QTV_OBJECTS)
+	$(CC) -o $@ $? -lstdc++ -lm $(BASE_INCLUDES) $(QTV_LDFLAGS)
+qtv-rel:
+	$(MAKE) $(RELEASE_DIR)/qtv$(BITS)$(EXEPOSTFIX) VPATH="$(BASE_DIR)/../fteqtv:$(VPATH)"
+qtv: qtv-rel
+
+utils: httpserver iqm master qtv-rel
 
 prefix ?= /usr/local
 exec_prefix ?= $(prefix)

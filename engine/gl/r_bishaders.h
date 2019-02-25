@@ -2958,6 +2958,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvardf r_tessellation_level=5\n"
 "!!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube\n"
 "!!samps =EIGHTBIT paletted 1\n"
+//!!permu VC -- adds rgba vertex colour multipliers
+//!!permu SPECULAR -- auto-added when gl_specular>0
+//!!permu OFFSETMAPPING -- auto-added when r_glsl_offsetmapping is set
+//!!permu NONORMALS -- states that there's no normals available, which affects lighting.
 
 "#include \"sys/defs.h\"\n"
 
@@ -2972,7 +2976,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 
-
+"#ifdef NONORMALS //lots of things need normals to work properly. make sure nothing breaks simply because they added an extra texture.\n"
+"#undef BUMP\n"
+"#undef SPECULAR\n"
+"#undef OFFSETMAPPING\n"
+"#undef REFLECTCUBEMASK\n"
+"#endif\n"
 
 
 
@@ -2982,7 +2991,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/skeletal.h\"\n"
 
 "affine varying vec2 tc;\n"
-"varying vec3 light;\n"
+"varying vec4 light;\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
@@ -2996,8 +3005,22 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "void main ()\n"
 "{\n"
+"light.rgba = vec4(e_light_ambient, 1.0);\n"
+
+"#ifdef NONORMALS\n"
+"vec3 n, w;\n"
+"gl_Position = skeletaltransform_w(w);\n"
+"n = vec3(0.0);\n"
+"#else\n"
 "vec3 n, s, t, w;\n"
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
+"n = normalize(n);\n"
+"float d = dot(n,e_light_dir);\n"
+"if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
+"d = 0.0; //this avoids the dark side going below the ambient level.\n"
+"light.rgb += (d*e_light_mul);\n"
+"#endif\n"
+
 "#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, s.xyz);\n"
@@ -3012,10 +3035,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "tc = v_texcoord;\n"
 
-"float d = dot(n,e_light_dir);\n"
-"if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
-"d = 0.0; //this avoids the dark side going below the ambient level.\n"
-"light = e_light_ambient + (d*e_light_mul);\n"
+"#ifdef VC\n"
+"light *= v_colour;\n"
+"#endif\n"
 
 //FIXME: Software rendering imitation should possibly push out normals by half a pixel or something to approximate software's over-estimation of distant model sizes (small models are drawn using JUST their verticies using the nearest pixel, which results in larger meshes)
 
@@ -3044,8 +3066,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "out vec3 t_normal[];\n"
 "affine in vec2 tc[];\n"
 "affine out vec2 t_tc[];\n"
-"in vec3 light[];\n"
-"out vec3 t_light[];\n"
+"in vec4 light[];\n"
+"out vec4 t_light[];\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "in vec3 eyevector[];\n"
 "out vec3 t_eyevector[];\n"
@@ -3093,8 +3115,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "in vec3 t_normal[];\n"
 "affine in vec2 t_tc[];\n"
 "affine out vec2 tc;\n"
-"in vec3 t_light[];\n"
-"out vec3 light;\n"
+"in vec4 t_light[];\n"
+"out vec4 light;\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "in vec3 t_eyevector[];\n"
 "out vec3 eyevector;\n"
@@ -3157,7 +3179,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "affine varying vec2 tc;\n"
-"varying vec3 light;\n"
+"varying vec4 light;\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
@@ -3176,7 +3198,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef EIGHTBIT\n"
-"vec3 lightlev = light;\n"
+"vec3 lightlev = light.rgb;\n"
 //FIXME: with this extra flag, half the permutations are redundant.
 "lightlev *= 0.5; //counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.\n"
 "float pal = texture2D(s_paletted, tc).r; //the palette index. hopefully not interpolated.\n"
@@ -3184,7 +3206,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "col.r = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.r)).r; //do 3 lookups. this is to cope with lit files, would be a waste to not support those.\n"
 "col.g = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.g)).g; //its not very softwarey, but re-palettizing is ugly.\n"
 "col.b = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.b)).b; //without lits, it should be identical.\n"
-"col.a = (pal<1.0)?1.0:0.0;\n"
+"col.a = (pal<1.0)?light.a:0.0;\n"
 "#else\n"
 "col = texture2D(s_diffuse, tc);\n"
 "#ifdef UPPER\n"
@@ -3214,8 +3236,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;\n"
 "#endif\n"
 
-"col.rgb *= light;\n"
-"col *= e_colourident;\n"
+"col *= light * e_colourident;\n"
 
 "#ifdef FULLBRIGHT\n"
 "vec4 fb = texture2D(s_fullbright, tc);\n"
@@ -4476,6 +4497,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "defaultskybox",
 "!!permu FOG\n"
 "!!samps reflectcube\n"
+"!!cvardf r_skyfog=0.5\n"
 "#include \"sys/defs.h\"\n"
 "#include \"sys/fog.h\"\n"
 
@@ -4494,7 +4516,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main ()\n"
 "{\n"
 "vec4 skybox = textureCube(s_reflectcube, pos);\n"
-"gl_FragColor = vec4(fog3(skybox.rgb), 1.0);\n"
+"gl_FragColor = vec4(mix(skybox.rgb, fog3(skybox.rgb), float(r_skyfog)), 1.0);\n"
 "}\n"
 "#endif\n"
 },
@@ -6913,7 +6935,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ts *= (texture2D(s_lightmap, lm0) * e_lmscale).rgb;\n"
 "#endif\n"
 
-"gl_FragColor = fog4(vec4(ts, USEALPHA) * e_colourident);\n"
+"gl_FragColor = fog4blend(vec4(ts, USEALPHA) * e_colourident);\n"
 "}\n"
 "#endif\n"
 },
@@ -10452,9 +10474,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "terrain",
 "!!permu FOG\n"
 //t0-t3 are the diffusemaps, t4 is the blend factors
-"!!samps 5\n"
-"!!samps =PCF 6\n"
-"!!samps =CUBE 7\n"
+"!!samps 4\n"
+"!!samps mix=4\n"
+"!!samps =PCF shadowmap\n"
+"!!samps =CUBE projectionmap\n"
 
 //light levels
 
@@ -10547,7 +10570,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main (void)\n"
 "{\n"
 "vec4 r;\n"
-"vec4 m = texture2D(s_t4, lm);\n"
+"vec4 m = texture2D(s_mix, lm);\n"
 
 "r  = texture2D(s_t0, tc)*m.r;\n"
 "r += texture2D(s_t1, tc)*m.g;\n"
@@ -10581,13 +10604,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "colorscale *= 1.0-(dot(spot,spot));\n"
 "#endif\n"
 "#ifdef PCF\n"
-"colorscale *= ShadowmapFilter(s_t5, vtexprojcoord);\n"
+"colorscale *= ShadowmapFilter(s_shadowmap, vtexprojcoord);\n"
 "#endif\n"
 
 "r.rgb *= colorscale * l_lightcolour;\n"
 
 "#ifdef CUBE\n"
-"r.rgb *= textureCube(s_t6, vtexprojcoord.xyz).rgb;\n"
+"r.rgb *= textureCube(s_projectionmap, vtexprojcoord.xyz).rgb;\n"
 "#endif\n"
 
 "gl_FragColor = fog4additive(r);\n"
@@ -10908,7 +10931,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvardf r_glsl_pcf\n"
 "!!cvardf r_tessellation_level=5\n"
-"!!samps shadowmap diffuse normalmap specular upper lower reflectcube reflectmask projectionmap\n"
+"!!samps diffuse normalmap specular upper lower reflectcube reflectmask\n"
+"!!samps =PCF shadowmap\n"
+"!!samps =CUBE projectionmap\n"
 
 "#include \"sys/defs.h\"\n"
 

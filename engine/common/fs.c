@@ -807,7 +807,9 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			Q_snprintfz(link, sizeof(link), "\\tip\\Change Map\\map\\%s", name+5);
 			colour = "^4";	//disconnects
 		}
-		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") || !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") || !Q_strcasecmp(link, "md5anim") || !Q_strcasecmp(link, "gltf") || !Q_strcasecmp(link, "glb") || !Q_strcasecmp(link, "ase") || !Q_strcasecmp(link, "lwo"))
+		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") ||
+				 !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") ||
+				 !Q_strcasecmp(link, "md5anim") || !Q_strcasecmp(link, "gltf") || !Q_strcasecmp(link, "glb") || !Q_strcasecmp(link, "ase") || !Q_strcasecmp(link, "lwo"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Model Viewer\\modelviewer\\%s", name);
 		else if (!Q_strcasecmp(link, "qc") || !Q_strcasecmp(link, "src") || !Q_strcasecmp(link, "qh") || !Q_strcasecmp(link, "h") || !Q_strcasecmp(link, "c")
 			|| !Q_strcasecmp(link, "cfg") || !Q_strcasecmp(link, "rc")
@@ -818,7 +820,9 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			|| !Q_strcasecmp(link, "vmt")
 			)
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Text Editor\\edit\\%s", name);
-		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf"))
+		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "ico") ||
+				 !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf") || !Q_strcasecmp(link, "psd") ||
+				 !Q_strcasecmp(link, "pbm") || !Q_strcasecmp(link, "ppm") || !Q_strcasecmp(link, "pgm") || !Q_strcasecmp(link, "pam") || !Q_strcasecmp(link, "pfm") || !Q_strcasecmp(link, "hdr") )
 		{
 			//FIXME: image replacements are getting in the way here.
 			Q_snprintfz(link, sizeof(link), "\\tiprawimg\\%s\\tip\\(note: image replacement rules are context-dependant, including base path, sub path, extension, or complete replacement via a shader)", name);
@@ -1082,6 +1086,7 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 	fs_hash_files++;
 }
 
+#ifndef FTE_TARGET_WEB
 static void FS_RebuildFSHash(qboolean domutex)
 {
 	int depth = 1;
@@ -1130,6 +1135,7 @@ static void FS_RebuildFSHash(qboolean domutex)
 
 	Con_DPrintf("%i unique files, %i duplicates\n", fs_hash_files, fs_hash_dups);
 }
+#endif
 
 static void FS_RebuildFSHash_Update(const char *fname)
 {
@@ -1764,7 +1770,6 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 				last = fs_manifest->gamepath[i].path;
 				if (*last == '*')
 					last++;
-				break;
 			}
 		}
 		if (!last)
@@ -1951,14 +1956,15 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 		if (vfs || !(*mode == 'w' || *mode == 'a'))
 			return vfs;
 		//fall through
-	case FS_PUBGAMEONLY:
+	case FS_PUBGAMEONLY:		//used for $gamedir/downloads
+	case FS_BASEGAMEONLY:		//used for fte/configs/*
+	case FS_PUBBASEGAMEONLY:	//used for qw/skins/*
 		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
 			return NULL;
 		if (*mode == 'w')
 			COM_CreatePath(fullname);
 		return VFSOS_Open(fullname, mode);
 	case FS_GAME:	//load from paks in preference to system paths. overwriting be damned.
-	case FS_PUBBASEGAMEONLY:	//load from paks in preference to system paths. overwriting be damned.
 		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
 			return NULL;
 		break;
@@ -1980,18 +1986,6 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 				return vfs;
 		}
 		if (!try_snprintf(fullname, sizeof(fullname), "%s%s", com_gamepath, filename))
-			return NULL;
-		return VFSOS_Open(fullname, mode);
-	case FS_BASEGAMEONLY:		//always bypass packs+pure.
-		if (com_homepathenabled)
-		{
-			if (!try_snprintf(fullname, sizeof(fullname), "%sfte/%s", com_homepath, filename))
-				return NULL;
-			vfs = VFSOS_Open(fullname, mode);
-			if (vfs)
-				return vfs;
-		}
-		if (!try_snprintf(fullname, sizeof(fullname), "%sfte/%s", com_gamepath, filename))
 			return NULL;
 		return VFSOS_Open(fullname, mode);
 	default:
@@ -2546,7 +2540,13 @@ static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath
 		if (palen > ptlen && (fs_manifest->package[i].path[ptlen] == '/' || fs_manifest->package[i].path[ptlen] == '\\' )&& !strncmp(purepath, fs_manifest->package[i].path, ptlen))
 		{
 			Q_snprintfz(qhash, sizeof(qhash), "%#x", fs_manifest->package[i].crc);
-			FS_AddHashedPackage(oldpaths,purepath,logicalpaths,search,loadstuff, fs_manifest->package[i].path,fs_manifest->package[i].crcknown?qhash:NULL,fs_manifest->package[i].prefix, SPF_COPYPROTECTED|(fs_manifest->security==MANIFEST_SECURITY_NOT?SPF_UNTRUSTED:0));
+			FS_AddHashedPackage(oldpaths,purepath,logicalpaths,search,loadstuff, fs_manifest->package[i].path,fs_manifest->package[i].crcknown?qhash:NULL,fs_manifest->package[i].prefix, SPF_COPYPROTECTED|
+#ifdef FTE_TARGET_WEB
+					0	//web targets consider manifest packages as trusted, because they're about as trusted as the engine/html that goes with it.
+#else
+					(fs_manifest->security==MANIFEST_SECURITY_NOT?SPF_UNTRUSTED:0)
+#endif
+					);
 		}
 	}
 }
@@ -4075,7 +4075,16 @@ static void FS_ReloadPackFiles_f(void)
 		FS_BeginManifestUpdates();
 }
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+#ifdef NOSTDIO
+qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
+{
+	return false;
+}
+qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
+{
+	return false;
+}
+#elif defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 #include "winquake.h"
 #ifdef MINGW
 #define byte BYTE	//some versions of mingw headers are broken slightly. this lets it compile.
@@ -4514,7 +4523,7 @@ static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 }
 
 //false stops the search (and returns that value to FS_DirHasGame)
-int FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *subdir)
+int QDECL FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *subdir)
 {
 	return false;
 }
@@ -6197,7 +6206,6 @@ void FS_ArbitraryFile_c(int argn, const char *partial, struct xcommandargcomplet
 static void COM_InitHomedir(ftemanifest_t *man)
 {
 	int i;
-	char *ev;
 	qboolean usehome;
 
 	//FIXME: this should come from the manifest, as fte_GAME or something
@@ -6243,7 +6251,7 @@ static void COM_InitHomedir(ftemanifest_t *man)
 
 		if (!*com_homepath)
 		{
-			ev = getenv("USERPROFILE");
+			char *ev = getenv("USERPROFILE");
 			if (ev)
 				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Documents/My Games/%s/", ev, HOMESUBDIR);
 		}
@@ -6307,60 +6315,62 @@ static void COM_InitHomedir(ftemanifest_t *man)
 		}
 #endif
 	}
-#else
-	//on unix, we use environment settings.
-	//if $HOME/.fte/ exists then we use that because of legacy reasons.
-	//but if it doesn't exist then we use $XDG_DATA_HOME/.fte instead
-	//we used to use $HOME/.#HOMESUBDIR/ but this is now only used if it actually exists AND the new path doesn't.
-	//new installs use $XDG_DATA_HOME/#HOMESUBDIR/ instead
-
-	ev = getenv("FTEHOME");
-	if (ev && *ev)
+#elif !defined(NOSTDIO)
 	{
-		if (ev[strlen(ev)-1] == '/')
-			Q_strncpyz(com_homepath, ev, sizeof(com_homepath));
-		else
-			Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/", ev);
-		usehome = true; // always use home on unix unless told not to
-		ev = NULL;
-	}
-	else
-		ev = getenv("HOME");
-	if (ev && *ev)
-	{
-		const char *xdghome;
-		char oldhome[MAX_OSPATH];
-		char newhome[MAX_OSPATH];
-		struct stat s;
+		//on unix, we use environment settings.
+		//if $HOME/.fte/ exists then we use that because of legacy reasons.
+		//but if it doesn't exist then we use $XDG_DATA_HOME/.fte instead
+		//we used to use $HOME/.#HOMESUBDIR/ but this is now only used if it actually exists AND the new path doesn't.
+		//new installs use $XDG_DATA_HOME/#HOMESUBDIR/ instead
 
-		xdghome = getenv("XDG_DATA_HOME");
-		if (!xdghome || !*xdghome)
-			xdghome = va("%s/.local/share", ev);
-		if (man && man->installation)
+		char *ev = getenv("FTEHOME");
+		if (ev && *ev)
 		{
-			if (xdghome[strlen(xdghome)-1] == '/')
-				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s%s/", xdghome, *man->installation?man->installation:HOMESUBDIR);
-			else
-				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/%s/", xdghome, *man->installation?man->installation:HOMESUBDIR);
-		}
-		else
-		{
-			if (xdghome[strlen(xdghome)-1] == '/')
-				Q_snprintfz(newhome, sizeof(newhome), "%s%s/", xdghome, HOMESUBDIR);
-			else
-				Q_snprintfz(newhome, sizeof(newhome), "%s/%s/", xdghome, HOMESUBDIR);
-
 			if (ev[strlen(ev)-1] == '/')
-				Q_snprintfz(oldhome, sizeof(oldhome), "%s.%s/", ev, HOMESUBDIR);
+				Q_strncpyz(com_homepath, ev, sizeof(com_homepath));
 			else
-				Q_snprintfz(oldhome, sizeof(oldhome), "%s/.%s/", ev, HOMESUBDIR);
-
-			if (stat(newhome, &s) == -1 && stat(oldhome, &s) != -1)
-				Q_strncpyz(com_homepath, oldhome, sizeof(com_homepath));
-			else
-				Q_strncpyz(com_homepath, newhome, sizeof(com_homepath));
+				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/", ev);
+			usehome = true; // always use home on unix unless told not to
+			ev = NULL;
 		}
-		usehome = true; // always use home on unix unless told not to
+		else
+			ev = getenv("HOME");
+		if (ev && *ev)
+		{
+			const char *xdghome;
+			char oldhome[MAX_OSPATH];
+			char newhome[MAX_OSPATH];
+			struct stat s;
+
+			xdghome = getenv("XDG_DATA_HOME");
+			if (!xdghome || !*xdghome)
+				xdghome = va("%s/.local/share", ev);
+			if (man && man->installation)
+			{
+				if (xdghome[strlen(xdghome)-1] == '/')
+					Q_snprintfz(com_homepath, sizeof(com_homepath), "%s%s/", xdghome, *man->installation?man->installation:HOMESUBDIR);
+				else
+					Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/%s/", xdghome, *man->installation?man->installation:HOMESUBDIR);
+			}
+			else
+			{
+				if (xdghome[strlen(xdghome)-1] == '/')
+					Q_snprintfz(newhome, sizeof(newhome), "%s%s/", xdghome, HOMESUBDIR);
+				else
+					Q_snprintfz(newhome, sizeof(newhome), "%s/%s/", xdghome, HOMESUBDIR);
+
+				if (ev[strlen(ev)-1] == '/')
+					Q_snprintfz(oldhome, sizeof(oldhome), "%s.%s/", ev, HOMESUBDIR);
+				else
+					Q_snprintfz(oldhome, sizeof(oldhome), "%s/.%s/", ev, HOMESUBDIR);
+
+				if (stat(newhome, &s) == -1 && stat(oldhome, &s) != -1)
+					Q_strncpyz(com_homepath, oldhome, sizeof(com_homepath));
+				else
+					Q_strncpyz(com_homepath, newhome, sizeof(com_homepath));
+			}
+			usehome = true; // always use home on unix unless told not to
+		}
 	}
 #endif
 

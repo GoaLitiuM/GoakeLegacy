@@ -67,7 +67,7 @@ static int needcleanup;
 
 //int		fatbytes;
 
-void SV_ExpandNackFrames(client_t *client, int require)
+void SV_ExpandNackFrames(client_t *client, int require, client_frame_t **currentframeptr)
 {
 	client_frame_t *newframes;
 	char *ptr;
@@ -98,6 +98,10 @@ void SV_ExpandNackFrames(client_t *client, int require)
 		newframes[i].senttime = realtime;
 	}
 	Z_Free(client->frameunion.frames);
+
+	//if you're calling this then its because you're currently generating new frame data, and its a problem if that changes from under you. fix it up for the caller (so they can't forget to do so)
+	*currentframeptr = newframes+(*currentframeptr-client->frameunion.frames);
+
 	client->frameunion.frames = newframes;
 }
 
@@ -336,8 +340,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 				if (lognum > maxlog)
 				{
-					SV_ExpandNackFrames(client, lognum+1);
-					break;
+					if (maxlog == client->max_net_ents)
+						break;
+					SV_ExpandNackFrames(client, lognum+1, &frame);
+					resend = frame->resend;
+					maxlog = frame->maxresend;
 				}
 				resend[lognum].entnum = entnum;
 				resend[lognum].bits = 0;
@@ -389,8 +396,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
-				SV_ExpandNackFrames(client, lognum+1);
-				break;
+				if (maxlog == client->max_net_ents)
+					break;
+				SV_ExpandNackFrames(client, lognum+1, &frame);
+				resend = frame->resend;
+				maxlog = frame->maxresend;
 			}
 			resend[lognum].entnum = entnum;
 			resend[lognum].bits = 0;
@@ -423,8 +433,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
-				SV_ExpandNackFrames(client, lognum+1);
-				break;
+				if (maxlog == client->max_net_ents)
+					break;
+				SV_ExpandNackFrames(client, lognum+1, &frame);
+				resend = frame->resend;
+				maxlog = frame->maxresend;
 			}
 			resend[lognum].entnum = entnum;
 			resend[lognum].bits = 0;
@@ -459,8 +472,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
-				SV_ExpandNackFrames(client, lognum+1);
-				break;
+				if (maxlog == client->max_net_ents)
+					break;
+				SV_ExpandNackFrames(client, lognum+1, &frame);
+				resend = frame->resend;
+				maxlog = frame->maxresend;
 			}
 			resend[lognum].entnum = entnum;
 			resend[lognum].bits = 0;
@@ -1512,8 +1528,11 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 			}
 			if (outno >= outmax)
 			{	//expand the frames. may need some copying...
-				SV_ExpandNackFrames(client, outno+1);
-				break;
+				if (outmax == client->max_net_ents)
+					break;
+				SV_ExpandNackFrames(client, outno+1, &frame);
+				resend = frame->resend;
+				outmax = frame->maxresend;
 			}
 
 			if (bits & UF_REMOVE)
@@ -1985,8 +2004,11 @@ void SVDP_EmitEntitiesUpdate (client_t *client, client_frame_t *frame, packet_en
 				break; /*give up if it gets full. FIXME: bone data is HUGE.*/
 			if (outno >= outmax)
 			{	//expand the frames. may need some copying...
-				SV_ExpandNackFrames(client, outno+1);
-				break;
+				if (outmax == client->max_net_ents)
+					break;
+				SV_ExpandNackFrames(client, outno+1, &frame);
+				resend = frame->resend;
+				outmax = frame->maxresend;
 			}
 
 			if (bits & E5_SERVERREMOVE)

@@ -225,6 +225,7 @@ typedef struct {
 	qboolean nofixedfunc;
 	qboolean gles;
 	qboolean webgl_ie;	//workaround ie webgl bugs/omissions.
+	qboolean blacklist_invariant; //mesa's invariant keyword is broken (for us when combined with fixed function)
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
@@ -257,7 +258,7 @@ extern gl_config_t gl_config;
 
 extern	float	gldepthmin, gldepthmax;
 
-void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis);
 qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips);
 void GL_DestroyTexture(texid_t tex);
 void GL_SetupFormats(void);
