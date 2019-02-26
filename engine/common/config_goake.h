@@ -10,7 +10,7 @@
 #define GAME_CFGFILE			"config"						//name of the configuration filename used for loading and saving
 #define GAME_VER_MAJOR			0
 #define GAME_VER_MINOR			2
-#define GAME_VER_EXTRA			""						//please include the extra space at the beginning
+#define GAME_VER_EXTRA			"a"						//please include the extra space at the beginning
 
 //filesystem rebranding
 #define GAME_SHORTNAME			"gw"			//short alphanumeric description
