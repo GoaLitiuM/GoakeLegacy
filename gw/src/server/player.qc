@@ -37,7 +37,7 @@ void PlayerSpawn()
 	self.classname = "player";
 	self.health = self.max_health = 100;
 	self.takedamage = DAMAGE_AIM;
-	self.solid = SOLID_SLIDEBOX;
+	self.solid = SOLID_CORPSE;//SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_WALK;
 	self.flags = FL_CLIENT;
 	self.fixangle = 1;
