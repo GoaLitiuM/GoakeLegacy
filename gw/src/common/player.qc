@@ -11,7 +11,7 @@ void PlayerPreTick()
 
 		if (onground && jump_released)
 		{
-            clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM);
+            clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
             self.flags = self.flags & ~FL_JUMPRELEASED;
 		}
 	}
@@ -29,11 +29,11 @@ void PlayerPostTick()
 	if ((self.last_velocity_z < -300) && onground)
 	{
 		if (self.watertype == CONTENT_WATER)
-			clientsound(self, CHAN_BODY, SND_JUMP_WATER, 1, ATTN_NORM);
+			clientsound(self, CHAN_BODY, SND_JUMP_WATER, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 		else if (self.last_velocity_z < -650)
-			clientsound(self, CHAN_VOICE, SND_LAND_HARD, 1, ATTN_NORM);
+			clientsound(self, CHAN_VOICE, SND_LAND_HARD, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 		else
-			clientsound(self, CHAN_VOICE, SND_LAND_SOFT, 1, ATTN_NORM);
+			clientsound(self, CHAN_VOICE, SND_LAND_SOFT, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 
 		self.last_velocity_z = 0;
 	}
