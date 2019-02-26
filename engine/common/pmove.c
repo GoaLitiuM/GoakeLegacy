@@ -392,23 +392,28 @@ int PM_StepSlideMove (qboolean in_air)
 
 	if (in_air)
 	{
-		// don't let us step up unless it's indeed a step we bumped in
-		// (that is, there's solid ground below)
-		float *org;
-
 		if (!(blocked & BLOCKED_STEP))
 			return blocked;
 
-		org = (-DotProduct(pmove.gravitydir, originalvel) < 0) ? pmove.origin : original;
-		VectorMA (org, movevars.stepheight, pmove.gravitydir, dest);
-		trace = PM_PlayerTrace (org, dest, MASK_PLAYERSOLID);
-		if (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
-			return blocked;
+		if (movevars.airstep == 2)
+			stepsize = movevars.stepheight; // always step up
+		else
+		{
+			// don't let us step up unless it's indeed a step we bumped in
+			// (that is, there's solid ground below)
+			float *org;
+			
+			org = (-DotProduct(pmove.gravitydir, originalvel) < 0) ? pmove.origin : original;
+			VectorMA (org, movevars.stepheight, pmove.gravitydir, dest);
+			trace = PM_PlayerTrace (org, dest, MASK_PLAYERSOLID);
+			if (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
+				return blocked;
 
-		// adjust stepsize, otherwise it would be possible to walk up a
-		// a step higher than STEPSIZE
-		//FIXME gravitydir, portals
-		stepsize = movevars.stepheight - (org[2] - trace.endpos[2]);
+			// adjust stepsize, otherwise it would be possible to walk up a
+			// a step higher than STEPSIZE
+			//FIXME gravitydir, portals
+			stepsize = movevars.stepheight - (org[2] - trace.endpos[2]);
+		}
 	}
 	else
 		stepsize = movevars.stepheight;
