@@ -881,62 +881,47 @@ void PM_AirMove (void)
 		// clamp to server defined max speed
 		if (wishspeed > movevars.maxairspeed)
 			wishspeed = movevars.maxairspeed;
+			
+		float wishspeed2 = wishspeed;
 
-		if (movevars.movementstyle == 0)
-		{
-			// QW movement
-			PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
-		}
-		else if (movevars.movementstyle == 1 || movevars.movementstyle == 3)
+		if (movevars.movementstyle == 1)
 		{
 			// CPM movement
-			float wishspeed2 = wishspeed;	
 			float accel = movevars.airaccelerate;
 			if (DotProduct(pmove.velocity, wishdir) < 0)
 				accel = movevars.airstopaccelerate;
-				
+
 			if (fabs(smove) > 0 && fmove == 0)
 			{
 				// only strafe movement
 				if (wishspeed > movevars.maxairstrafespeed)
 					wishspeed = movevars.maxairstrafespeed;
-					
+
 				accel = movevars.strafeaccelerate;
 			}
 
 			PM_Accelerate(wishdir, wishspeed, accel);
-			
-			// air control while holding forward/back buttons
-			if (smove == 0 && fabs(fmove) > 0)
-			{
-				if (movevars.movementstyle == 3)
-				{
-					// instead of slowing down when the turn angle is too steep, fallback to QW movement
-					if (wishspeed2 > movevars.maxairstrafespeed)
-						wishspeed2 = movevars.maxairstrafespeed;
-						
-					PM_AirAccelerate(wishdir, wishspeed2, movevars.strafeaccelerate);
-				}
-				
-				if (fabs(movevars.aircontrol) > 0)
-					PM_Aircontrol(wishdir, wishspeed2);
-			}
 		}
-		else if (movevars.movementstyle == 2)
+		else
 		{
-			// CPM movement without air control
-			float accel = movevars.airaccelerate;
-			if (DotProduct(pmove.velocity, wishdir) < 0)
-				accel = movevars.airstopaccelerate;
-				
-			if ((fabs(smove) > 0 && fmove == 0) || (fabs(fmove) > 0 && smove == 0))
+			if (movevars.movementstyle == 2 && (fabs(smove) > 0 && fabs(fmove) > 0))
 			{
-				// strafe values are used when only one of the movement keys are active
-				PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
+				// Q3 diagonal movement
+				float accel = movevars.airaccelerate;
+				if (DotProduct(pmove.velocity, wishdir) < 0)
+					accel = movevars.airstopaccelerate;
+				PM_Accelerate(wishdir, wishspeed, accel);
 			}
 			else
-				PM_Accelerate(wishdir, wishspeed, accel);
+			{
+				// QW movement
+				PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
+			}
 		}
+		
+		// air control while holding forward/back buttons
+		if (fabs(movevars.aircontrol) > 0 && smove == 0 && fabs(fmove) > 0)
+			PM_Aircontrol(wishdir, wishspeed2);
 
 		// add gravity
 		VectorMA(pmove.velocity, movevars.entgravity * movevars.gravity * frametime, pmove.gravitydir, pmove.velocity);
