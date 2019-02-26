@@ -6,6 +6,9 @@ void PlayerPreTick()
 
 	if (input_buttons & BUTTON_JUMP)
 	{
+		if (self.autojump > 0 && (self.jump_time == 0 || self.jump_time > self.autojump))
+			jump_released = true;
+
 		if (onground && jump_released)
 		{
             clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM);

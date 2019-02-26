@@ -58,6 +58,10 @@ void PlayerUpdate(bool isnew)
 
 float PlayerPreDraw()
 {
+    // update stats here
+    self.health = getstati(STAT_HEALTH);
+    self.autojump = getstatf(213); //STAT_MOVEVARS_AUTOJUMP
+
     if (self.entnum == player_localentnum)
     {
         self.movetype = MOVETYPE_WALK;
@@ -185,7 +189,6 @@ void PlayerPrediction()
 
                 if (fullpred)
                 {
-                    self.health = getstati(STAT_HEALTH);
                     self.fixangle = 0;
 
                     PlayerPreTick();

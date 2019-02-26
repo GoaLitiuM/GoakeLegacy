@@ -2,6 +2,8 @@
 #pragma warning disable Q207
 #pragma warning disable F319
 
+.float autojump;
+
 #define SND_JUMP "player/plyrjmp8.wav"
 #define SND_JUMP_WATER "player/h2ojump.wav"
 #define SND_LAND_SOFT "player/land.wav"
