@@ -63,6 +63,8 @@ void FixInputButtons()
 
 void PlayerPreThink()
 {
+	self.autojump = cvar("sv_autojump");
+
 	FixInputButtons();
 	PlayerPreTick();
 };
