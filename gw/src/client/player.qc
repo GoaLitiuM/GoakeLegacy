@@ -225,10 +225,14 @@ void PlayerPrediction()
     // smooth out movement in stairs
     camera_origin_old = camera_origin;
     const float step_size = 18;
-    const float step_smooth_time = 150;
-    if (self.flags & FL_ONGROUND && self.origin_z - camera_origin_old_z > 0)
+    const float step_smooth_units = 100;
+    const float step_threshold = step_size * 2;
+    float step_delta = self.origin_z - camera_origin_old_z;
+    bool smooth_step = self.flags & FL_ONGROUND != 0 && step_delta > 0 && step_delta <= step_threshold;
+
+    if (smooth_step)
     {
-        camera_origin_old_z += frametime * step_smooth_time;
+        camera_origin_old_z += frametime * step_smooth_units;
 
         if (camera_origin_old_z > self.origin_z)
             camera_origin_old_z = self.origin_z;
