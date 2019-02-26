@@ -22,62 +22,20 @@
 #define false 0
 
 // player collision box and offsets
-vector VEC_ORIGIN = '0 0 0';
-vector VEC_OFFSET_EYES = '0 0 26';
-vector VEC_HULL_MIN = '-15 -15 -24';
-vector VEC_HULL_MAX = '15 15 32';
+const vector VEC_ORIGIN = '0 0 0';
+const vector VEC_OFFSET_EYES = '0 0 26';
+const vector VEC_HULL_MIN = '-15 -15 -24';
+const vector VEC_HULL_MAX = '15 15 32';
 
 const float FL_JUMPRELEASED = 4096;
 
 // custom voice channels
 const float CHAN_VOICE2 = 4;
-/*
-// items
-float	IT_AXE					= 4096;
-float	IT_SHOTGUN				= 1;
-float	IT_SUPER_SHOTGUN		= 2;
-float	IT_NAILGUN				= 4;
-float	IT_SUPER_NAILGUN		= 8;
-float	IT_GRENADE_LAUNCHER		= 16;
-float	IT_ROCKET_LAUNCHER		= 32;
-float	IT_LIGHTNING			= 64;
-float	IT_EXTRA_WEAPON			= 128;
 
-float	IT_SHELLS				= 256;
-float	IT_NAILS				= 512;
-float	IT_ROCKETS				= 1024;
-float	IT_CELLS				= 2048;
+// legacy effects
+const float TE_EXPLOSION = 3;
 
-float	IT_ARMOR1				= 8192;
-float	IT_ARMOR2				= 16384;
-float	IT_ARMOR3				= 32768;
-float	IT_SUPERHEALTH			= 65536;
-
-float	IT_KEY1					= 131072;
-float	IT_KEY2					= 262144;
-
-float	IT_INVISIBILITY			= 524288;
-float	IT_INVULNERABILITY		= 1048576;
-float	IT_SUIT					= 2097152;
-float	IT_QUAD					= 4194304;
-
-*/
-float   TE_SPIKE                = 0;
-float   TE_SUPERSPIKE   = 1;
-float   TE_GUNSHOT              = 2;
-float   TE_EXPLOSION    = 3;
-float   TE_TAREXPLOSION = 4;
-float   TE_LIGHTNING1   = 5;
-float   TE_LIGHTNING2   = 6;
-float   TE_WIZSPIKE             = 7;
-float   TE_KNIGHTSPIKE  = 8;
-float   TE_LIGHTNING3   = 9;
-float   TE_LAVASPLASH   = 10;
-float   TE_TELEPORT             = 11;
-float   TE_BLOOD                = 12;
-float   TE_LIGHTNINGBLOOD = 13;
-
-float SVC_TEMPENTITY    = 23;
+float SVC_TEMPENTITY = 23;
 
 #define FULLSEND 0xFFFFFF
 
