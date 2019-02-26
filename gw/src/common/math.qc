@@ -16,6 +16,23 @@ vector getForwardVector(vector angles)
 	return forward;
 }
 
+vector getUpVector(vector angles)
+{
+	local vector old_forward = v_forward;
+	local vector old_right = v_right;
+	local vector old_up = v_up;
+
+	makevectors(angles);
+
+	local vector up = v_up;
+
+	v_forward = old_forward;
+	v_right = old_right;
+	v_up = old_up;
+
+	return up;
+}
+
 float abs(float value)
 {
 	if (value >= 0)

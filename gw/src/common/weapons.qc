@@ -23,18 +23,17 @@ void RocketTick() { }
 
 void ApplyRadialForceEntity(vector location, float force, float radius, entity target)
 {
-	local vector center = target.origin + ((target.mins + target.maxs) * 0.5);
+	local vector center = target.origin + ('0 0 1' * (target.maxs_z - target.mins_z) * 0.5);
 	local float distance = vlen(center - location);
 	if (distance > radius)
 		return;
 
-	local float thickness = vlen(target.mins + target.maxs) * 0.5;
-	local float multiplier = (radius-distance-thickness) / distance;
-
+	local float multiplier = (radius-distance) / distance;
 	if (multiplier < 0.0f)
 		multiplier = 0.0f;
 	else if (multiplier > 1.0f)
 		multiplier = 1.0f;
+
 	local vector direction = center - location;
 	direction = normalize(direction);
 
