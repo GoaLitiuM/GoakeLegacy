@@ -7,8 +7,13 @@ void TeleportOnTouch()
     if (!tele_target)
         return;
 
-    local vector oo = other.origin;
-    other.origin = tele_target.origin;
+    local vector offset = '0 0 27';
+    other.origin = tele_target.origin + offset;
+    setorigin(other, other.origin);
+
+    // try to snap the player to the floor
+    tracebox(other.origin, other.mins, other.maxs, other.origin - offset*2, 1, other);
+    other.origin = trace_endpos;
     setorigin(other, other.origin);
 
     local float speed = vlen(other.velocity);
