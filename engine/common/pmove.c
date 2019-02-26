@@ -882,7 +882,7 @@ void PM_AirMove (void)
 			// QW movement
 			PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
 		}
-		else if (movevars.movementstyle == 1)
+		else if (movevars.movementstyle == 1 || movevars.movementstyle == 3)
 		{
 			// CPM movement
 			float wishspeed2 = wishspeed;	
@@ -902,8 +902,20 @@ void PM_AirMove (void)
 			PM_Accelerate(wishdir, wishspeed, accel);
 			
 			// air control while holding forward/back buttons
-			if (fabs(movevars.aircontrol) > 0 && smove == 0 && fabs(fmove) > 0)
-				PM_Aircontrol(wishdir, wishspeed2);
+			if (smove == 0 && fabs(fmove) > 0)
+			{
+				if (movevars.movementstyle == 3)
+				{
+					// instead of slowing down when the turn angle is too steep, fallback to QW movement
+					if (wishspeed2 > movevars.maxairstrafespeed)
+						wishspeed2 = movevars.maxairstrafespeed;
+						
+					PM_AirAccelerate(wishdir, wishspeed2, movevars.strafeaccelerate);
+				}
+				
+				if (fabs(movevars.aircontrol) > 0)
+					PM_Aircontrol(wishdir, wishspeed2);
+			}
 		}
 		else if (movevars.movementstyle == 2)
 		{
