@@ -1179,7 +1179,7 @@ static void PM_CheckJump (void)
 
 	// double jumping mechanism, give a boost to jump velocity when player has jumped recently
 	float jumpvelocity = movevars.jumpvelocity;
-	if (pmove.jump_count == 1)
+	if (pmove.jump_count > 0 && pmove.jump_count <= movevars.extrajumps)
 		jumpvelocity += movevars.jumpboost;
 
 	pmove.jump_time = 0;

@@ -135,6 +135,7 @@ typedef struct {
 	int movementstyle;
 	qboolean jumpfix;
 	float autojump;
+	int extrajumps;
 
 	qbyte coordsize;
 

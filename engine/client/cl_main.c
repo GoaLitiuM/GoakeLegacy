@@ -2293,6 +2293,7 @@ void CL_CheckServerInfo(void)
 		movevars.movementstyle = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_movementstyle"));
 		movevars.jumpfix = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_jumpfix")) != 0);
 		movevars.autojump = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_autojump"));
+		movevars.extrajumps =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajumps"));
 	}
 	movevars.coordsize = cls.netchan.netprim.coordsize;
 
