@@ -4,6 +4,8 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 {
 	precache();
 
+	HudInit();
+
 	registercommand("+showscores");
 	registercommand("-showscores");
 }

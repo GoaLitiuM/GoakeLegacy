@@ -1,9 +1,16 @@
 bool showscores;
+int font_hud;
+
+void HudInit()
+{
+	font_hud = loadfont("", "fonts/FantasqueSansMono-Bold.ttf", "16", -1, 0, 0);
+	drawfont = font_hud;
+}
 
 void DrawHud(float width, float height, bool in_menu)
 {
-	local vector char_size = '8 8 0';
-	local int spacing = 8;
+	local vector char_size = '12 12 0';
+	local int spacing = 12;
 	local float ups = floor(vlen([camera_velocity_x, camera_velocity_y, 0]));
 
 	getinputstate(clientcommandframe);
