@@ -363,6 +363,7 @@ if not freetype.found()
 endif
 if freetype.found()
   deps += freetype
+  c_args += '-DFREETYPE_STATIC'
 else
   c_args += '-DNO_FREETYPE'
 endif
