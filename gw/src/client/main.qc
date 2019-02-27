@@ -3,10 +3,35 @@
 void CSQC_Init(float apilevel, string enginename, float engineversion)
 {
 	precache();
+
+	registercommand("+showscores");
+	registercommand("-showscores");
 }
 
 float CSQC_ConsoleCommand(string cmd)
 {
+	cmd = strtolower(strtrim(cmd));
+	local string key = "";
+
+	// commands may have the triggering key appended at the end, parse it
+	if (str2chr(cmd, 0) == '+' || str2chr(cmd, 0) == '-')
+	{
+		local int last_space = -1;
+		while (true)
+		{
+			local int ind = strstrofs(cmd, " ", last_space+1);
+			if (ind == -1)
+				break;
+
+			last_space = ind;
+		}
+		if (last_space >= 0)
+		{
+			key = substring(cmd, last_space+1, strlen(cmd)-last_space-1);
+			cmd = substring(cmd, 0, last_space);
+		}
+	}
+
 	if (cmd == "+showscores")
 		showscores = true;
 	else if (cmd == "-showscores")
