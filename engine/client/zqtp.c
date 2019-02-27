@@ -2941,7 +2941,7 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 
 void TP_CheckPickupSound (char *s, vec3_t org, int seat)
 {
-#ifndef QUAKETC
+#if !defined(QUAKETC) && defined(QUAKESTATS)
 	int entnum;
 	item_t	*item;
 	playerview_t *pv = &cl.playerview[seat];

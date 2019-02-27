@@ -2225,7 +2225,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_JUMPFIX]						= pm_jumpfix.value;
 		}
 #endif
-#ifdef GOAKE
+#if defined(GOAKE) && defined(QUAKESTATS)
 	statsf[STAT_MOVEVARS_AIRSTOPACCELERATE]			= sv_airstopaccelerate.value;
 	statsf[STAT_MOVEVARS_AIRSTRAFEACCELERATE]			= sv_strafeaccelerate.value;
 	statsf[STAT_MOVEVARS_MAXAIRSTRAFESPEED]			= sv_maxairstrafespeed.value;

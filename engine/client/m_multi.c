@@ -732,13 +732,18 @@ void M_Menu_Teamplay_f (void)
 		NULL
 	};
 
-	extern cvar_t cl_parseSay, cl_triggers, tp_forceTriggers, tp_loadlocs, cl_parseFunChars, cl_noblink, noskins;
+	extern cvar_t cl_parseSay, cl_triggers, tp_forceTriggers, tp_loadlocs, cl_parseFunChars, cl_noblink;
+#ifdef QUAKESKINS
+	extern cvar_t noskins;
+#endif
 	int y;
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Options", true),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+#ifdef QUAKESKINS
 		MB_COMBOCVAR("Skins", noskins, noskinsoptions, noskinsvalues, "Enable or disable player skin usage. No download will use skins but will not download them from the server."),
+#endif
 		MB_EDITCVARTIP("Enemy Skin", "cl_enemyskin", "Override enemy skin with this."),
 		MB_EDITCVARTIP("Team Skin", "cl_teamskin", "Override teammate skin with this."),
 		MB_EDITCVARTIP("Fake Name", "cl_fakename", "Name that appears in teamplay messages"),

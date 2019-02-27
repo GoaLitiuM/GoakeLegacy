@@ -1245,6 +1245,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 
 const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
 {
+#ifdef QUAKEHUD
 	static const struct
 	{
 		const char *pattern;
@@ -1254,7 +1255,6 @@ const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
 		//https://www.webpagefx.com/tools/emoji-cheat-sheet/
 //		{":)",				"\xE2\x98\xBA"},
 
-#ifdef QUAKEHUD
 		{":sg:",			"\xEE\x84\x82"},
 		{":ssg:",			"\xEE\x84\x83"},
 		{":ng:",			"\xEE\x84\x84"},
@@ -1304,8 +1304,8 @@ const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
 		{":face_invul2:",	"\xEE\x85\x8B"},
 		{":face_inv2:",		"\xEE\x85\x8C"},
 		{":face_quad:",		"\xEE\x85\x8D"},
-#endif
 	};
+#endif
 	char *estart = strchr(in, ':');
 	size_t i;
 	char *out = buffer, *outend = buffer+buffersize-1;
@@ -1319,6 +1319,7 @@ const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
 		out += estart-in;
 		in = estart;
 
+#ifdef QUAKEHUD
 		for (i = 0; i < countof(emoji); i++)
 		{
 			if (!strncmp(in, emoji[i].pattern, strlen(emoji[i].pattern)))
@@ -1337,6 +1338,7 @@ const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
 			estart = strchr(in, ':');
 		}
 		else
+#endif
 		{
 			estart = strchr(in+1, ':');
 		}
