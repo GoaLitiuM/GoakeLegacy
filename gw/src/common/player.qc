@@ -6,7 +6,7 @@ void PlayerPreTick()
 
 	if (input_buttons & BUTTON_JUMP)
 	{
-		if (self.autojump > 0 && (self.jump_time == 0 || self.jump_time > self.autojump))
+		if (sv_autojump > 0 && (self.jump_time == 0 || self.jump_time > sv_autojump))
 			jump_released = true;
 
 		if (onground && jump_released)

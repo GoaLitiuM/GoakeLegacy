@@ -2,8 +2,6 @@
 #pragma warning disable Q207
 #pragma warning disable F319
 
-.float autojump;
-
 #define SND_JUMP "player/plyrjmp8.wav"
 #define SND_JUMP_WATER "player/h2ojump.wav"
 #define SND_LAND_SOFT "player/land.wav"
@@ -16,6 +14,18 @@
 #define MDL_ROCKET "progs/missile.mdl"
 
 #define ENT_PLAYER_SPAWN "info_player_deathmatch"
+
+enum
+{
+    // player stats
+    STAT_HEALTH = 0,
+
+    // global stats
+    STAT_AUTOJUMP = 128,
+};
+
+// globals for global stats
+float sv_autojump;
 
 #define bool int
 #define true 1

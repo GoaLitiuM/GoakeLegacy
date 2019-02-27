@@ -14,6 +14,7 @@
 #include <common/player.qc>
 #include <common/teleport.qc>
 #include <common/entities.qc>
+#include <common/stats.qc>
 
 #include <server/player.qc>
 

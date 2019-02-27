@@ -5,6 +5,8 @@ void() main = {};
 void() worldspawn =
 {
 	precache();
+
+	RegisterStats();
 };
 
 void() SetNewParms = {};
@@ -34,7 +36,10 @@ void PutClientInServer()
 	PlayerSpawn();
 };
 
-void StartFrame() { }
+void StartFrame()
+{
+	UpdateGlobalStats();
+}
 
 void SV_RunClientCommand()
 {

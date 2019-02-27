@@ -58,9 +58,8 @@ void PlayerUpdate(bool isnew)
 
 float PlayerPreDraw()
 {
-    // update stats here
-    self.health = getstati(STAT_HEALTH);
-    self.autojump = getstatf(213); //STAT_MOVEVARS_AUTOJUMP
+    UpdatePlayerStats();
+    UpdateGlobalStats(); // this is probably not the best place to update global stats
 
     if (self.entnum == player_localentnum)
     {
