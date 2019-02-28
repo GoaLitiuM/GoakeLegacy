@@ -3058,8 +3058,8 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 						Draw_FunStringWidth (x, y, "?""?""?", 48, 2, false);
 					else
 					{
-						Draw_FunStringWidth (x, y, "^Ue080^Ue082", 48, 2, false);
-						Draw_FunStringWidth (x, y, "^Ue083", 48, 2, false);
+						Draw_FunStringWidth (x, y, "[]", 48, 2, false);
+						Draw_FunStringWidth (x, y, "|", 48, 2, false);
 					}
 				}
 			}
@@ -3082,8 +3082,8 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 						Draw_FunStringWidth (x, y, "?""?""?", 48, 2, false);
 					else
 					{
-						Draw_FunStringWidth (x, y, "^Ue080^Ue082", 48, 2, false);
-						Draw_FunStringWidth (x, y, "^Ue083", 48, 2, false);
+						Draw_FunStringWidth (x, y, "[]", 48, 2, false);
+						Draw_FunStringWidth (x, y, "|", 48, 2, false);
 					}
 				}
 			}
@@ -3099,8 +3099,8 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 						Draw_FunStringWidth (x, y, "!!!", 48, 2, false);
 					else
 					{
-						Draw_FunStringWidth (x, y, "^Ue080^Ue082", 48, 2, false);
-						Draw_FunStringWidth (x, y, "^Ue081", 48, 2, false);
+						Draw_FunStringWidth (x, y, "[]", 48, 2, false);
+						Draw_FunStringWidth (x, y, "-", 48, 2, false);
 						if (p->flags & DPF_PRESENT)
 							Draw_FunStringWidth (x, y, "-", 48, 2, false);
 					}

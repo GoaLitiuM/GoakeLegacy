@@ -642,7 +642,7 @@ void M_Menu_Audio_f (void)
 #endif
 	menubulk_t bulk[] = {
 		MB_REDTEXT("Sound Options", true),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+		MB_TEXT("[-----------]", true),
 		MB_SPACING(8),
 		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
 		MB_SPACING(4),
@@ -671,7 +671,7 @@ void M_Menu_Audio_f (void)
 
 #ifdef VOICECHAT
 		MB_REDTEXT("Voice Options", true),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+		MB_TEXT("[-----------]", true),
 		MB_COMBOCVAR("Microphone Device", snd_voip_capturedevice, (const char**)info->capdevdescs, (const char**)info->capdevnames, NULL),
 		MB_SLIDER("Voice Volume", snd_voip_play, 0, 2, 0.1, NULL),
 		MB_CHECKBOXCVAR("Microphone Test", snd_voip_test, 0),
@@ -764,7 +764,7 @@ void M_Menu_Particles_f (void)
 	int y;
 	menubulk_t bulk[] = {
 		MB_REDTEXT("Particle Options", true),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+		MB_TEXT("[--------------]", true),
 //		MB_COMBOCVAR("Particle System", r_particlesystem, psystemopts, psystemvals, "Selects particle system to use. Classic is standard Quake particles, script is FTE style scripted particles, and none disables particles entirely."),
 		MB_COMBOCVAR("Particle Set", r_particledesc, pdescopts, pdescvals, "Selects particle set to use with the scripted particle system."),
 		MB_SPACING(4),
@@ -1009,7 +1009,7 @@ void M_Menu_Preset_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Please Choose Preset", true),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+		MB_TEXT("[---------------]", true),
 		MB_CONSOLECMD("simple  (untextured)",	"fps_preset 286;menupop\n",			"Lacks textures, particles, pretty much everything."),
 		MB_CONSOLECMD("fast    (deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
 		MB_CONSOLECMD("spasm    (nq compat)",	"fps_preset spasm;menupop\n",		"Aims for visual compatibility with common NQ engines. Also affects mods slightly."),
@@ -1242,7 +1242,7 @@ void M_Menu_FPS_f (void)
 		menubulk_t bulk[] =
 		{
 			MB_REDTEXT("FPS Options", true),
-			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+			MB_TEXT("[---------]", true),
 			MB_COMBORETURN("Preset", presetname, 2, info->preset, "Select a builtin configuration of graphical settings."),
 			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
 			MB_SPACING(4),
@@ -1298,7 +1298,7 @@ void M_Menu_Render_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Rendering Options", true),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+		MB_TEXT("[---------------]", true),
 		MB_CHECKBOXCVAR("Graphics", r_graphics, 0),	//graphics on / off. Its a general dig at modern games not having any real options.
 		MB_CHECKBOXCVAR("Disable VIS", r_novis, 0),
 		MB_CHECKBOXCVAR("Fast Sky", r_fastsky, 0),
@@ -1398,7 +1398,7 @@ void M_Menu_Textures_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Texture Options", true),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+		MB_TEXT("[-------------]", true),
 		MB_CHECKBOXCVAR("Load Replacements", gl_load24bit, 0),
 		MB_CHECKBOXCVAR("Simple Texturing", r_drawflat, 0),
 		MB_COMBOCVAR("3D Filter Mode", gl_texturemode, texturefilternames, texturefiltervalues, "Chooses the texture filtering method used for 3D objects."),
@@ -1693,7 +1693,7 @@ void M_Menu_Lighting_f (void)
 		menubulk_t bulk[] =
 		{
 			MB_REDTEXT("Lighting Options", true),
-			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+			MB_TEXT("[--------------]", true),
 			MB_COMBORETURN("Lighting Mode", lightingopts, lightselect, info->lightcombo, "Selects method used for world lighting. Realtime lighting requires appropriate realtime lighting files for maps."),
 			MB_COMBORETURN("Dynamic Lighting Mode", dlightopts, dlightselect, info->dlightcombo, "Selects method used for dynamic lighting such as explosion lights and muzzle flashes."),
 #ifdef RTLIGHTS
@@ -1966,7 +1966,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	#endif
 
 	MC_AddRedText(menu, 16, 170, y, 			"     Quake Singleplayer Cheats", false); y+=8;
-	MC_AddWhiteText(menu, 16, 170, y,		"     ^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
+	MC_AddWhiteText(menu, 16, 170, y,		"     [----------------------] ", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
@@ -2080,7 +2080,7 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	#endif
 
 	MC_AddRedText(menu, 16, 170, y, 		"Quake2 Singleplayer Cheats", false); y+=8;
-	MC_AddWhiteText(menu, 16, 170, y,		"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false); y+=8;
+	MC_AddWhiteText(menu, 16, 170, y,		"[-----------------------]", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
@@ -2436,7 +2436,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 		currentmap = 0;
 
 	MC_AddRedText(menu, 16, 170, y, 		"Hexen2 Singleplayer Cheats", false); y+=8;
-	MC_AddWhiteText(menu, 16, 170, y,		"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
+	MC_AddWhiteText(menu, 16, 170, y,		"[-----------------------] ", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
@@ -2992,7 +2992,7 @@ void M_Menu_Video_f (void)
 		menubulk_t bulk[] =
 		{
 			MB_REDTEXT("Video Options", true),
-			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+			MB_TEXT("[-----------]", true),
 #ifdef ANDROID
 			MB_COMBOCVAR("Orientation", sys_orientation, orientationopts, orientationvalues, NULL),
 #else
@@ -3061,7 +3061,7 @@ void M_Menu_Video_f (void)
 	MC_AddRedText(menu, 200, y, current3dres, false); y+=8;
 
  	y+=8;
-	MC_AddRedText(menu, 0, y,								"      ^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
+	MC_AddRedText(menu, 0, y,								"      [------------------------------] ", false); y+=8;
 	y+=8;
 	info->renderer = MC_AddCombo(menu,	16, y,				"         Renderer", rendererops, i);	y+=8;
 	info->bppcombo = MC_AddCombo(menu,	16, y,				"      Color Depth", bppnames, currentbpp); y+=8;

@@ -490,13 +490,13 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		{
 		case mt_menucursor:
 			if ((int)(realtime*4)&1)
-				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
+				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, ">");
 			break;
 		case mt_text:
 			if (!option->text.text)
 			{	//blinking cursor image hack (FIXME)
 				if ((int)(realtime*4)&1)
-					Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
+					Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, ">");
 			}
 			else if (option->common.width)
 				Draw_FunStringWidth(xpos + option->common.posx, ypos+option->common.posy, option->text.text, option->common.width, option->text.rightalign, option->text.isred);
@@ -522,7 +522,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 			if (R_GetShaderSizes(p, NULL, NULL, false)>0)
 				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, option->common.width, option->common.height, p);
 			else if ((int)(realtime*4)&1)
-				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy + (option->common.height-8)/2, "^a^Ue00d");
+				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy + (option->common.height-8)/2, "^a>");
 			break;
 		case mt_picturesel:
 			p = NULL;

@@ -6141,7 +6141,7 @@ void CL_StartCinematicOrMenu(void)
 
 	Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
 
-	Con_TPrintf ("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081 %s %sInitialized ^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082\n", *fs_gamename.string?fs_gamename.string:"Nothing", com_installer?"Installer ":"");
+	Con_TPrintf ("[------ %s %sInitialized ------]\n", *fs_gamename.string?fs_gamename.string:"Nothing", com_installer?"Installer ":"");
 
 	//there might be some console command or somesuch waiting for the renderer to begin (demos or map command or whatever all need model support).
 	realtime+=1;
