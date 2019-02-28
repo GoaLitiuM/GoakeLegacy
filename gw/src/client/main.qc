@@ -77,10 +77,11 @@ float CSQC_Parse_SetAngles(vector newangles, float wasdelta)
 {
 	if (self.entnum != local_player.entnum)
 		self = local_player; // self entity is really inconsistent here
+
 	if (self.entnum == 0)
 		fixanglefix = 1; // player entity does not exist yet...
-
-	self.fixangle = 1;
+	else
+		self.fixangle = 1;
 
 	// prediction overrides fixangle requests
 	return cvar("cl_nopred") == 0;
