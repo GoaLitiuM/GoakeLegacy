@@ -17,7 +17,7 @@ void TeleportOnTouch()
     setorigin(other, other.origin);
 
     local float speed = vlen(other.velocity);
-    if (TELEPORT_MAX_VELOCITY > 0 && speed > TELEPORT_MAX_VELOCITY)
+    //if (TELEPORT_MAX_VELOCITY > 0 && speed > TELEPORT_MAX_VELOCITY)
         speed = TELEPORT_MAX_VELOCITY;
 
     other.velocity = getForwardVector(tele_target.angles) * speed;
