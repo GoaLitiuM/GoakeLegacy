@@ -902,15 +902,30 @@ void PM_AirMove (void)
 
 			PM_Accelerate(wishdir, wishspeed, accel);
 		}
+		else if (movevars.movementstyle >= 4)
+		{
+			// Q3 diagonal strafe movement
+			float accel = movevars.airaccelerate;
+			if (DotProduct(pmove.velocity, wishdir) < 0)
+				accel = movevars.airstopaccelerate;
+			PM_Accelerate(wishdir, wishspeed, accel);
+			
+			// additional QW diagonal strafing
+			PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
+		}
 		else
 		{
-			if (movevars.movementstyle == 2 && (fabs(smove) > 0 && fabs(fmove) > 0))
+			if (movevars.movementstyle >= 2 && (fabs(smove) > 0 && fabs(fmove) > 0))
 			{
-				// Q3 diagonal movement
+				// Q3 diagonal strafe movement
 				float accel = movevars.airaccelerate;
 				if (DotProduct(pmove.velocity, wishdir) < 0)
 					accel = movevars.airstopaccelerate;
 				PM_Accelerate(wishdir, wishspeed, accel);
+				
+				// additional QW diagonal strafing
+				if (movevars.movementstyle == 3)
+					PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
 			}
 			else
 			{
@@ -920,7 +935,7 @@ void PM_AirMove (void)
 		}
 		
 		// air control while holding forward/back buttons
-		if (fabs(movevars.aircontrol) > 0 && smove == 0 && fabs(fmove) > 0)
+		if (movevars.movementstyle != 4 && fabs(movevars.aircontrol) > 0 && smove == 0 && fabs(fmove) > 0)
 			PM_Aircontrol(wishdir, wishspeed2);
 
 		// add gravity
