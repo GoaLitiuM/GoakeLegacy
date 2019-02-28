@@ -1,8 +1,10 @@
 bool showscores;
 int font_hud;
+int font_engine;
 
 void HudInit()
 {
+	font_engine = loadfont("", "", "8", -1, 0, 0);
 	font_hud = loadfont("", "fonts/FantasqueSansMono-Bold.ttf", "16", -1, 0, 0);
 	drawfont = font_hud;
 }
@@ -17,11 +19,13 @@ void DrawHud(float width, float height, bool in_menu)
 
 	if (!showscores)
 	{
-		drawstring([spacing*1 + (width/2), (height*0.55)-spacing, 0], input_movevalues[0] > 0 ? "^" : "", char_size, '1 1 1', 1, 0);
-		drawstring([spacing*1 + (width/2)+spacing, (height*0.55), 0], input_movevalues[1] > 0 != 0 ? ">" : "", char_size, '1 1 1', 1, 0);
-		drawstring([spacing*1 + (width/2)-spacing, (height*0.55), 0], input_movevalues[1] < 0 != 0 ? "<" : "", char_size, '1 1 1', 1, 0);
-		drawstring([spacing*1 + (width/2), (height*0.55)+spacing, 0], input_movevalues[0] < 0 != 0 ? "v" : "", char_size, '1 1 1', 1, 0);
-		drawstring([spacing*1 + (width/2)+spacing, (height*0.55)-spacing, 0], input_buttons & BUTTON_JUMP ? "J" : "", char_size, '1 1 1', 1, 0);
+		drawfont = font_engine;
+		drawstring([spacing*1 + (width/2), (height*0.55)-spacing, 0], input_movevalues[0] > 0 ? "^" : "", '8 8 0', '1 1 1', 1, 0);
+		drawstring([spacing*1 + (width/2)+spacing, (height*0.55), 0], input_movevalues[1] > 0 != 0 ? ">" : "", '8 8 0', '1 1 1', 1, 0);
+		drawstring([spacing*1 + (width/2)-spacing, (height*0.55), 0], input_movevalues[1] < 0 != 0 ? "<" : "", '8 8 0', '1 1 1', 1, 0);
+		drawstring([spacing*1 + (width/2), (height*0.55)+spacing, 0], input_movevalues[0] < 0 != 0 ? "v" : "", '8 8 0', '1 1 1', 1, 0);
+		drawstring([spacing*1 + (width/2)+spacing, (height*0.55)-spacing, 0], input_buttons & BUTTON_JUMP ? "J" : "", '8 8 0', '1 1 1', 1, 0);
+		drawfont = font_hud;
 
 		drawstring([spacing*1 + (width/2), (height*0.55)+spacing*2, 0], ftos(ups), char_size, '1 1 1', 1, 0);
 	}
