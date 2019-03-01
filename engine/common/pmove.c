@@ -395,7 +395,7 @@ int PM_StepSlideMove (qboolean in_air)
 		if (!(blocked & BLOCKED_STEP))
 			return blocked;
 
-		if (movevars.airstep == 2)
+		if (movevars.airstep >= 2)
 			stepsize = movevars.stepheight; // always step up
 		else
 		{
@@ -472,7 +472,7 @@ usedown:
 	// copy z value from slide move
 	VectorMA(pmove.velocity, DotProduct(downvel, pmove.gravitydir)-DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=downvel
 
-	if (!pmove.onground && pmove.waterlevel < 2 && (blocked & BLOCKED_STEP)) {
+	if (movevars.airstep <= 2 && !pmove.onground && pmove.waterlevel < 2 && (blocked & BLOCKED_STEP)) {
 		float scale;
 		// in pm_airstep mode, walking up a 16 unit high step
 		// will kill 16% of horizontal velocity
