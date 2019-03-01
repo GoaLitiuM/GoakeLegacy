@@ -306,7 +306,7 @@ int PM_SlideMove (void)
 				pmove.waterjumptime = 0;
 				return blocked;
 			}
-			PM_ClipVelocity (original_velocity, planes[i], pmove.velocity, 1);
+			PM_ClipVelocity (pmove.velocity, planes[i], pmove.velocity, 1);
 			for (j=0 ; j<numplanes ; j++)
 				if (j != i)
 				{
