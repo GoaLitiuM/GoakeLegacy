@@ -19,15 +19,15 @@ entity FindRandomSpawn()
 
 float PlayerSendEntity(entity ent, float send_flags)
 {
-    writeByte(MSG_ENTITY, 1);
+	writeByte(MSG_ENTITY, 1);
 	writeVector(MSG_ENTITY, self.origin);
 	writeVector(MSG_ENTITY, self.angles);
 	writeVector(MSG_ENTITY, self.velocity);
-    writeFloat(MSG_ENTITY, self.flags);
+	writeFloat(MSG_ENTITY, self.flags);
 	writeFloat(MSG_ENTITY, self.pmove_flags);
 	writeFloat(MSG_ENTITY, self.jump_time);
 	writeFloat(MSG_ENTITY, self.jump_count);
-    return 1;
+	return 1;
 }
 
 void PlayerSpawn()
@@ -41,9 +41,9 @@ void PlayerSpawn()
 	self.movetype = MOVETYPE_WALK;
 	self.flags = FL_CLIENT;
 	self.fixangle = 1;
-    self.origin = spawn.origin;
+	self.origin = spawn.origin;
 	self.angles = spawn.angles;
-    self.view_ofs = VEC_OFFSET_EYES;
+	self.view_ofs = VEC_OFFSET_EYES;
 	self.velocity = '0 0 0';
 
 	setmodel(self, MDL_PLAYER);

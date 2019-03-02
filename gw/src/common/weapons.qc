@@ -9,11 +9,11 @@ void PlayerWeaponTick()
 		local vector forward = getForwardVector(getViewAngles());
 		local vector offset = getViewOffsets();
 
-        clientsound(self, CHAN_WEAPON, SND_WEAPON_RL, true, ATTN_NORM);
+		clientsound(self, CHAN_WEAPON, SND_WEAPON_RL, true, ATTN_NORM);
 
 		SpawnRocket(((self.origin + (forward * 16)) + offset), forward, self);
 
-        self.shoot_once = true;
+		self.shoot_once = true;
 	}
 	else if (!attack)
 		self.shoot_once = false;

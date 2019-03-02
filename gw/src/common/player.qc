@@ -1,8 +1,8 @@
 .float last_velocity_z;
 void PlayerPreTick()
 {
-    bool onground = (self.flags & FL_ONGROUND) != 0;
-    bool jump_released = (self.flags & FL_JUMPRELEASED) != 0;
+	bool onground = (self.flags & FL_ONGROUND) != 0;
+	bool jump_released = (self.flags & FL_JUMPRELEASED) != 0;
 
 	if (input_buttons & BUTTON_JUMP)
 	{
@@ -11,8 +11,8 @@ void PlayerPreTick()
 
 		if (onground && jump_released)
 		{
-            clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
-            self.flags = self.flags & ~FL_JUMPRELEASED;
+			clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
+			self.flags = self.flags & ~FL_JUMPRELEASED;
 		}
 	}
 	else
@@ -41,7 +41,7 @@ void PlayerPostTick()
 	if (!onground)
 		self.last_velocity_z = self.velocity_z;
 
-    PlayerWeaponTick();
+	PlayerWeaponTick();
 }
 
 void PlayerCustomPhysics(entity player)

@@ -42,17 +42,17 @@ float fixanglefix;
 
 vector readVector()
 {
-    local vector vec;
-    vec_x = readcoord();
-    vec_y = readcoord();
-    vec_z = readcoord();
-    return vec;
+	local vector vec;
+	vec_x = readcoord();
+	vec_y = readcoord();
+	vec_z = readcoord();
+	return vec;
 }
 vector readVectorFloat()
 {
-    local vector vec;
-    vec_x = readFloat();
-    vec_y = readFloat();
-    vec_z = readFloat();
-    return vec;
+	local vector vec;
+	vec_x = readFloat();
+	vec_y = readFloat();
+	vec_z = readFloat();
+	return vec;
 }
