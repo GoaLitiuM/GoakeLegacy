@@ -1,0 +1,11 @@
+#include <common/common.qc>
+#include <common/defs.qc>
+#include <common/ruleset.qc>
+#include <common/precache.qc>
+#include <common/math.qc>
+
+#include <common/weapons.qc>
+#include <common/player.qc>
+#include <common/teleport.qc>
+#include <common/entities.qc>
+#include <common/stats.qc>
