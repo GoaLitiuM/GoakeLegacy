@@ -952,7 +952,7 @@ void PM_AirMove (void)
 		else
 			blocked = PM_SlideMove ();
 
-		if (movevars.jumpfix && blocked & BLOCKED_FLOOR)
+		if (blocked & BLOCKED_FLOOR)
 			pmove.onground = true;
 	}
 }
@@ -1034,7 +1034,7 @@ void PM_CategorizePosition (void)
 	{
 		pmove.onground = false;
 	}
-	else if (!movevars.jumpfix || pmove.onground)
+	else
 	{
 		trace = PM_PlayerTracePortals (pmove.origin, point, MASK_PLAYERSOLID, NULL);
 		if (!trace.startsolid && (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL))
@@ -1129,7 +1129,7 @@ void PM_CategorizePosition (void)
 		}
 	}
 
-	if (movevars.jumpfix && pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
+	if (pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
 	{
 		// snap to ground so that we can't jump higher than we're supposed to
 		if (!trace.startsolid && !trace.allsolid)
@@ -1202,7 +1202,7 @@ static void PM_CheckJump (void)
 
 	// check for jump bug
 	// groundplane normal was set in the call to PM_CategorizePosition
-	if (movevars.jumpfix && -DotProduct(pmove.gravitydir, pmove.velocity) < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
+	if (-DotProduct(pmove.gravitydir, pmove.velocity) < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
 		// pmove.velocity is pointing into the ground, clip it
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
@@ -1579,7 +1579,7 @@ void PM_PlayerMove (float gamespeed)
 
 	// this is to make sure landing sound is not played twice
 	// and falling damage is calculated correctly
-	if (!movevars.jumpfix && pmove.onground && -DotProduct(pmove.gravitydir, pmove.velocity) < -300
+	if (pmove.onground && -DotProduct(pmove.gravitydir, pmove.velocity) < -300
 		&& DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);

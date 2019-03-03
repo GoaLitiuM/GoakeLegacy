@@ -63,7 +63,6 @@ cvar_t	sv_maxairstrafespeed = CVARFD("sv_maxairstrafespeed", "30", CVAR_SERVERIN
 cvar_t	sv_aircontrol		 = CVARFD("sv_aircontrol", "0", CVAR_SERVERINFO, "QW: N/A, CPM: 150");
 cvar_t	sv_airstopaccelerate = CVARFD("sv_airstopaccelerate", "2.5", CVAR_SERVERINFO, "QW: N/A, CPM: 2.5");
 cvar_t	sv_movementstyle	 = CVARFD("sv_movementstyle", "2", CVAR_SERVERINFO, "Toggles between classic movement and promode style strafe movement, value 2 enables classic forward movement");
-cvar_t	pm_jumpfix			 = CVARFD("pm_jumpfix", "0", CVAR_SERVERINFO, "Fixes the QW jump bug.");
 cvar_t	sv_autojump			 = CVARFD("sv_autojump", "0", CVAR_SERVERINFO, "Time in seconds how often to autojump while holding down the jump button. Value of 0 disables autojumping.");
 cvar_t	sv_extrajumps		 = CVARFD("sv_extrajumps", "1", CVAR_SERVERINFO, "Number of jumps affected by sv_jumpboost, 1: double jumps, 2: triple jumps, etc.");
 
@@ -117,7 +116,6 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_aircontrol,						cvargroup_serverphysics);
 	Cvar_Register (&sv_airstopaccelerate,				cvargroup_serverphysics);
 	Cvar_Register (&sv_movementstyle,					cvargroup_serverphysics);
-	Cvar_Register (&pm_jumpfix,							cvargroup_serverphysics);
 	Cvar_Register (&sv_autojump,						cvargroup_serverphysics);
 	Cvar_Register (&sv_extrajumps,						cvargroup_serverphysics);
 
@@ -2735,7 +2733,6 @@ void SV_SetMoveVars(void)
 	movevars.slidefix			= pm_slidefix.value;
 	movevars.slidyslopes		= pm_slidyslopes.value;
 	movevars.airstep			= pm_airstep.value;
-	movevars.jumpfix			= pm_jumpfix.value;
 	movevars.autojump			= sv_autojump.value;
 	movevars.extrajumps			= sv_extrajumps.value;
 }

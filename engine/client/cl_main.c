@@ -2289,11 +2289,10 @@ void CL_CheckServerInfo(void)
 		movevars.edgefriction = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_edgefriction"));
 		movevars.aircontrol = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_aircontrol"));
 		movevars.airstopaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_airstopaccelerate"));
-		movevars.strafeaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_strafeaccelerate"));
 		movevars.movementstyle = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_movementstyle"));
-		movevars.jumpfix = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_jumpfix")) != 0);
 		movevars.autojump = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_autojump"));
 		movevars.extrajumps =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajumps"));
+		movevars.strafeaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_strafeaccelerate"));
 	}
 	movevars.coordsize = cls.netchan.netprim.coordsize;
 
