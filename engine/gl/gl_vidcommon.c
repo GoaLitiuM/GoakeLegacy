@@ -58,6 +58,7 @@ const GLubyte * (APIENTRY *qglGetString) (GLenum name);
 void (APIENTRY *qglHint) (GLenum target, GLenum mode);
 GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
 void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
+void (APIENTRY *qglLineWidth) (GLfloat width);
 void (APIENTRY *qglReadPixels) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
 void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 void (APIENTRY *qglTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
@@ -1088,10 +1089,10 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (Cvar_Get("gl_blacklist_invariant", "0", CVAR_VIDEOLATCH, "gl blacklists")->ival)
 		gl_config.blacklist_invariant = true;
 	else if (gl_config.arb_shader_objects && !gl_config_nofixedfunc &&
-		strstr(gl_renderer, " Mesa ") && gl_config.glversion <= 3.1 && Cvar_Get("gl_blacklist_mesa_invariant", "1", CVAR_VIDEOLATCH, "gl blacklists")->ival)
+		(strstr(gl_renderer, " Mesa ") || strstr(gl_version, " Mesa ")) && Cvar_Get("gl_blacklist_mesa_invariant", "1", CVAR_VIDEOLATCH, "gl blacklists")->ival)
 	{
 		gl_config.blacklist_invariant = true;
-		Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword. This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it.\n");
+		Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword. This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it (but you will probably get glsl compilation errors from your driver).\n");
 	}
 
 	if (gl_config.arb_shader_objects)
@@ -3200,6 +3201,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglStencilFunc		= (void *)getglcore("glStencilFunc");
 	qglScissor			= (void *)getglcore("glScissor");
 	qglPolygonOffset	= (void *)getglext("glPolygonOffset");
+	qglLineWidth		= (void *)getglcore("glLineWidth");
 #endif
 #ifndef FTE_TARGET_WEB
 	qglAlphaFunc		= (void *)getglcore("glAlphaFunc");

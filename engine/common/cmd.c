@@ -885,7 +885,7 @@ static void Cmd_Echo_f (void)
 #else
 	t = TP_ParseFunChars(t);
 #ifndef NOLEGACY
-	Con_PrintFlags (t, (com_parseezquake.ival?PFS_EZQUAKEMARKUP:0), 0);
+	Con_PrintFlags (t, ((ezcompat_markup.ival>=2)?PFS_EZQUAKEMARKUP:0), 0);
 #else
 	Con_PrintFlags (t, 0, 0);
 #endif
@@ -1682,7 +1682,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 				}
 				buf[i] = 0;
 				bestvar = NULL;
-				if (expandcvars && (str = Cmd_ExpandCvar(buf+1+striptrailing, maxaccesslevel, accesslevel, true, &var_length)))
+				if ((str = Cmd_ExpandCvar(buf+1+striptrailing, expandcvars?maxaccesslevel:-999, accesslevel, true, &var_length)))
 					bestvar = str;
 				if (expandmacros && (str = TP_MacroString (buf+1+striptrailing, accesslevel, &var_length)))
 					bestvar = str;
@@ -1714,7 +1714,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 					data++;
 					buf[i++] = c;
 					buf[i] = 0;
-					if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, accesslevel, false, &var_length)))
+					if ((str = Cmd_ExpandCvar(buf+striptrailing, expandcvars?maxaccesslevel:-999, accesslevel, false, &var_length)))
 						bestvar = str;
 					if (expandmacros && (str = TP_MacroString (buf+striptrailing, accesslevel, &var_length)))
 						bestvar = str;

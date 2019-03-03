@@ -106,6 +106,7 @@ extern cvar_t	pm_ktjump;
 extern cvar_t	pm_slidefix;
 extern cvar_t	pm_slidyslopes;
 extern cvar_t	pm_airstep;
+extern cvar_t	pm_pground;
 extern cvar_t	pm_stepdown;
 extern cvar_t	pm_walljump;
 extern cvar_t	pm_watersinkspeed;
@@ -6981,6 +6982,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.ktjump = pm_ktjump.value;
 		movevars.slidefix = (pm_slidefix.value != 0);
 		movevars.airstep = (pm_airstep.value != 0);
+		movevars.pground = (pm_pground.value != 0);
 		movevars.stepdown = (pm_stepdown.value != 0);
 		movevars.walljump = (pm_walljump.value);
 		movevars.slidyslopes = (pm_slidyslopes.value!=0);
@@ -7154,7 +7156,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		}
 
 		{
-			float ptime = sv.world.physicstime;
+			double ptime = sv.world.physicstime;
 			sv.world.physicstime = sv.time;	//urgh, WPhys_RunThink uses the wrong time base
 			WPhys_RunThink (&sv.world, (wedict_t*)sv_player);
 			sv.world.physicstime = ptime;
@@ -7206,6 +7208,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	VectorCopy (sv_player->v->v_angle, pmove.angles);
 
 	pmove.pm_type = SV_PMTypeForClient (host_client, sv_player);
+	pmove.onground = ((int)sv_player->v->flags & FL_ONGROUND) != 0;
 	pmove.jump_held = host_client->jump_held;
 	pmove.jump_time = sv_player->xv->jump_time;
 	pmove.jump_count = sv_player->xv->jump_count;
@@ -7226,6 +7229,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.ktjump = pm_ktjump.value;
 	movevars.slidefix = (pm_slidefix.value != 0);
 	movevars.airstep = (pm_airstep.value != 0);
+	movevars.pground = (pm_pground.value != 0);
 	movevars.stepdown = (pm_stepdown.value != 0);
 	movevars.walljump = (pm_walljump.value);
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
@@ -8666,7 +8670,7 @@ static void SV_UserFriction (void)
 	trace = World_Move (&sv.world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)sv_player);
 
 	if (trace.fraction == 1.0)
-		friction = sv_friction.value*pm_edgefriction.value;
+		friction = sv_friction.value*(*pm_edgefriction.string?pm_edgefriction.value:2);
 	else
 		friction = sv_friction.value;
 
