@@ -7,7 +7,7 @@ void TeleportOnTouch()
 	if (!tele_target)
 		return;
 
-	local vector offset = '0 0 22';
+	local vector offset = '0 0 24';
 	other.origin = tele_target.origin + offset;
 	setorigin(other, other.origin);
 
