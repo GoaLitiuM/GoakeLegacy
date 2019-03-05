@@ -199,9 +199,7 @@ static qboolean KeyDown_Scan (kbutton_t *b, kbutton_t *anti, int k)
 	}
 	return true;
 }
-
-
-static qboolean KeyDown2 (kbutton_t *b, qboolean forced, kbutton_t *anti)
+static void KeyDown (kbutton_t *b, kbutton_t *anti)
 {
 	int		k;
 	char	*c;
@@ -209,10 +207,14 @@ static qboolean KeyDown2 (kbutton_t *b, qboolean forced, kbutton_t *anti)
 	c = Cmd_Argv(1);
 	if (c[0])
 		k = atoi(c);
-	if (!c[0] || forced)
+	else
 		k = -1;		// typed manually at the console for continuous down
 
-	return KeyDown_Scan(b, anti, k);
+	KeyDown_Scan(b, anti, k);
+}
+static void KeyDownForced (kbutton_t *b, kbutton_t *anti)
+{
+	KeyDown_Scan(b, anti, -1);
 }
 
 static qboolean KeyUp_Scan (kbutton_t *b, int k)
@@ -253,7 +255,7 @@ static qboolean KeyUp_Scan (kbutton_t *b, int k)
 	}
 	return true;
 }
-static qboolean KeyUp2 (kbutton_t *b, qboolean forced)
+static qboolean KeyUp (kbutton_t *b)
 {
 	int		k;
 	char	*c;
@@ -261,30 +263,25 @@ static qboolean KeyUp2 (kbutton_t *b, qboolean forced)
 	c = Cmd_Argv(1);
 	if (c[0])
 		k = atoi(c);
-	if (!c[0] || forced)
+	else
 		k = -1;
 
 	return KeyUp_Scan(b, k);
 }
-
-static qboolean KeyDown(kbutton_t *b, kbutton_t *anti)
+static qboolean KeyUpForced (kbutton_t *b)
 {
-	return KeyDown2(b, false, anti);
-}
-static qboolean KeyUp(kbutton_t *b)
-{
-	return KeyUp2(b, false);
+	return KeyUp_Scan(b, -1);
 }
 
 void QDECL cl_mouselook_callback(struct cvar_s *var, char *oldvalue)
 {
 	// emulate the old +mlook behaviour
 	if (var->ival)
-		KeyDown2(&in_mlook, true, NULL);
+		KeyDownForced(&in_mlook, NULL);
 	else
 	{
 		int pnum = CL_TargettedSplit(false);
-		KeyUp2(&in_mlook, true);
+		KeyUpForced(&in_mlook);
 		if (!(in_mlook.state[pnum] & 1) && lookspring.ival)
 			V_StartPitchDrift(&cl.playerview[pnum]);
 	}
