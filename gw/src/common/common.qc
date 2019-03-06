@@ -6,7 +6,8 @@
 #define SND_JUMP_WATER "player/h2ojump.wav"
 #define SND_LAND_SOFT "player/land.wav"
 #define SND_LAND_HARD "player/land2.wav"
-#define SND_WEAPON_RL "weapons/sgun1.wav"
+
+#define SND_WEAPON_ROCKET "weapons/sgun1.wav"
 
 #define SPR_EXPLOSION "progs/s_explod.spr"
 

@@ -7,7 +7,7 @@ int WeaponRocketFire()
 	local vector forward = getForwardVector(getViewAngles());
 	local vector offset = getViewOffsets();
 
-	clientsound(self, CHAN_WEAPON, SND_WEAPON_RL, true, ATTN_NORM);
+	clientsound(self, CHAN_WEAPON, SND_WEAPON_ROCKET, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 
 	SpawnRocket(((self.origin + (forward * 16)) + offset), forward, self);
 

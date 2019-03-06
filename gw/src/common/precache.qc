@@ -4,7 +4,8 @@ void precache_sounds()
 	precache_sound(SND_JUMP_WATER);
 	precache_sound(SND_LAND_SOFT);
 	precache_sound(SND_LAND_HARD);
-	precache_sound(SND_WEAPON_RL);
+
+	precache_sound(SND_WEAPON_ROCKET);
 };
 
 void precache_models()
