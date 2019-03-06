@@ -51,6 +51,9 @@ void PlayerUpdate(bool isnew)
 			self.fixangle = fixanglefix;
 			fixanglefix = 0;
 		}
+
+		UpdatePlayerStats(true);
+		PlayerInit();
 	}
 
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
@@ -129,6 +132,9 @@ void PlayerPrediction()
 	{
 		view_angles = view_angles_old;
 		self.fixangle = 0;
+		origin_delta = '0 0 0';
+		vel_delta = '0 0 0';
+		angles_delta = '0 0 0';
 	}
 
 	if (self.fixangle != 0)

@@ -4,6 +4,7 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 {
 	precache();
 
+	RegisterStats();
 	HudInit();
 
 	registercommand("+showscores");
@@ -43,6 +44,13 @@ float CSQC_ConsoleCommand(string cmd)
 
 void CSQC_UpdateView(float width, float height, float notmenu)
 {
+	// calculate the delay to the server for svtime
+	float ticks = stoi(infokey(world, "maxfps"));
+	if (ticks == 0)
+		ticks = 72;
+	float delay = (clientcommandframe - servercommandframe) * (1.0f/ticks);
+	svtime = time + delay;
+
 	clearscene();
 
 	setviewprop(VF_DRAWWORLD, 1);

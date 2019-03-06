@@ -9,3 +9,5 @@
 #include <common/teleport.qc>
 #include <common/entities.qc>
 #include <common/stats.qc>
+
+#include <common/weapons/rocket.qc>

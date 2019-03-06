@@ -46,24 +46,19 @@ void PlayerSpawn()
 	self.view_ofs = VEC_OFFSET_EYES;
 	self.velocity = '0 0 0';
 
+	self.weapon = WEAPON_ROCKET;
+	self.weapons = ALL_WEAPONS;
+
 	setmodel(self, MDL_PLAYER);
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
 
 	self.SendEntity = PlayerSendEntity;
-}
 
-void FixInputButtons()
-{
-	// input_buttons are defined but not used in SSQC
-	input_buttons = 0;
-	input_buttons |= self.button0 * BUTTON_ATTACK;
-	input_buttons |= self.button1 * BUTTON_USE;
-	input_buttons |= self.button2 * BUTTON_JUMP;
+	PlayerInit();
 }
 
 void PlayerPreThink()
 {
-	FixInputButtons();
 	PlayerPreTick();
 };
 
@@ -71,6 +66,5 @@ void PlayerPostThink()
 {
 	self.SendFlags = FULLSEND; // TODO: use bitmask for different types of update packets
 
-	FixInputButtons();
 	PlayerPostTick();
 };
