@@ -14,6 +14,7 @@ vector camera_velocity;
 .float watertype;
 .float fixangle;
 float fixanglefix;
+float weapon_impulse;
 
 // teleport entity
 .string targetname;

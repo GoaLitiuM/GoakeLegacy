@@ -177,3 +177,47 @@ void CSQC_WorldLoaded()
 		}
 	}
 }
+
+float CSQC_InputEvent(float evtype, float scanx, float chary, float devid)
+{
+	switch(evtype)
+	{
+	case IE_KEYDOWN:
+	{
+		// weapon impulses may get lost in some rare cases (high framerate, other impulses during the same frame...),
+		// so we handle weapon commands here in case the input_impulse misses the request.
+		local string bind = strtolower(getkeybind(scanx));
+		local int i = strstrofs(bind, "weapon ");
+		if (i >= 0)
+		{
+			i += 7; //'weapon '
+
+			local string str;
+			local int end = strstrofs(bind, ";", i);
+			if (end >= 0)
+				str = substring(bind, i, end-1-i);
+			else
+				str = substring(bind, i, 2);
+
+			local int weap = stoi(strtrim(str));
+			if (weap > 0)
+				weapon_impulse = weap;
+		}
+		break;
+	}
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+void CSQC_Input_Frame()
+{
+	if (weapon_impulse != 0)
+	{
+		input_impulse = weapon_impulse;
+		weapon_impulse = 0;
+	}
+}
