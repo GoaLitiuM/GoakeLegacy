@@ -273,6 +273,22 @@ int PM_SlideMove (void)
 			blocked |= BLOCKED_OTHER;
 
 		time_left -= time_left * trace.fraction;
+		
+		//
+		// if this is the same plane we hit before, nudge velocity
+		// out along it, which fixes some epsilon issues with
+		// non-axial planes
+		//
+		for (i = 0; i < numplanes; i++)
+		{
+			if (DotProduct(trace.plane.normal, planes[i]) > 0.99)
+			{
+				VectorAdd(trace.plane.normal, pmove.velocity, pmove.velocity);
+				break;
+			}
+		}
+		if (i < numplanes)
+			continue;
 
 	// cliped to another plane
 		if (numplanes >= MAX_CLIP_PLANES)
