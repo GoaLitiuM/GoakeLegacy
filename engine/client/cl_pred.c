@@ -26,10 +26,6 @@ cvar_t	cl_predict_smooth = CVARD("cl_lerp_smooth", "2", "If 2, will act as 1 whe
 cvar_t	cl_nopred = CVARD("cl_nopred","0", "Disables clientside movement prediction.");
 cvar_t	cl_pushlatency = CVAR("pushlatency","-999");
 
-#ifdef GOAKE
-cvar_t	cl_fullpred = CVARD("cl_fullpred", "0", "Enables full clientside prediction, including weapons and such.");
-#endif
-
 extern float	pm_airaccelerate;
 
 extern usercmd_t cl_pendingcmd[MAX_SPLITS];
@@ -1451,8 +1447,4 @@ void CL_InitPrediction (void)
 	Cvar_Register (&cl_predict_extrapolate,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_timenudge,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_smooth,	cl_predictiongroup);
-
-#ifdef GOAKE
-	Cvar_Register (&cl_fullpred,	cl_predictiongroup);
-#endif
 }
