@@ -394,7 +394,8 @@ executable(join_paths(out, 'goake'),
   include_directories: includes,
   dependencies: deps,
   c_args: [client_c_args, c_args],
-  link_args: ['/SUBSYSTEM:WINDOWS', linker_args]
+  link_args: linker_args,
+  gui_app: true
 )
 
 executable(join_paths(out, 'goake-sv'),

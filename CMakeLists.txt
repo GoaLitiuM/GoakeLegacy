@@ -471,10 +471,11 @@ SET(FTE_COMMON_FILES
 	#important headers
 	engine/common/bothdefs.h
 	engine/common/config_fteqw.h
-	engine/common/config_minimal.h
-	engine/common/config_nocompat.h
-	engine/common/config_wastes.h
-	engine/common/config_freecs.h
+	#engine/common/config_minimal.h
+	#engine/common/config_nocompat.h
+	#engine/common/config_wastes.h
+	#engine/common/config_freecs.h
+	engine/common/config_goake.h
 
 	#useless headers that I'll never search for
 	engine/client/api_menu.h

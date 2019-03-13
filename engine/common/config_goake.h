@@ -28,6 +28,7 @@
 #define RTLIGHTS
 #define RUNTIMELIGHTING			//automatic generation of .lit files
 //#define R_XFLIP					//old silly thing
+//#define GLSLONLY              //seems to be slightly buggy (teleport texture effect not working), and no noticable difference in performance
 
 //Extra misc features.
 //#define CLIENTONLY			//
