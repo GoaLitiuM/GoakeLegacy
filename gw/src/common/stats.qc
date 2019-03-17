@@ -6,11 +6,12 @@ void RegisterStats()
 	// register stats, maps fields to stats
 	RegisterFieldStat(STAT_HEALTH, EV_FLOAT, health);
 	RegisterFieldStat(STAT_CURRENT_WEAPON, EV_FLOAT, weapon);
+	//RegisterFieldStat(STAT_NEXT_WEAPON, EV_FLOAT, weapon_next);
 	RegisterFieldStat(STAT_WEAPONS, EV_INTEGER, weapons);
 	RegisterFieldStat(STAT_RELOAD_TIME, EV_FLOAT, reload_time);
 
-	for (int i=0; i<WEAPON_LAST-1; i++)
-		RegisterFieldStat(STAT_AMMO_FIRST+i, EV_INTEGER, ammo[i]);
+	for (int i=0; i<=STAT_AMMO_LAST-STAT_AMMO_NONE; i++)
+		RegisterFieldStat(STAT_AMMO_NONE+i, EV_INTEGER, ammo[i]);
 
 	// global stats are mapped to globals
 	RegisterGlobalStat(STAT_AUTOJUMP, EV_FLOAT, &sv_autojump, "sv_autojump");

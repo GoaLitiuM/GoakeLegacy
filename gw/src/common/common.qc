@@ -51,6 +51,8 @@ float SVC_TEMPENTITY = 23;
 
 void noop() {};
 
+void destroy() { remove(self); }
+
 void println(... argc)
 {
 	for (int i=0; i<argc; i++)

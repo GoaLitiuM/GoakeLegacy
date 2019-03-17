@@ -72,7 +72,7 @@ void DrawHud(float width, float height, bool in_menu)
 		local string left_str = itos(getplayerstat(playernum, STAT_HEALTH, EV_INTEGER));
 		local string right_str = itos(getplayerstat(playernum, STAT_ARMOR, EV_INTEGER));
 		local int weapon = getplayerstat(playernum, STAT_CURRENT_WEAPON, EV_INTEGER);
-		local string ammo_str = weapon == 0 ? "" : itos(getplayerstat(playernum, STAT_AMMO_FIRST + weapon - 1, EV_INTEGER));
+		local string ammo_str = weapon == 0 ? "" : itos(getplayerstat(playernum, WEAPON_AMMO_STAT(weapon), EV_INTEGER));
 		drawfont = font_hud_big;
 
 		drawstring([width * (0.5-0.10), height - TEXT_BIG_SIZE, 0], left_str, '1 1 1' * TEXT_BIG_SIZE, '1 1 1', 1, 0);

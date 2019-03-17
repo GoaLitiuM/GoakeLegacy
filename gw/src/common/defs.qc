@@ -11,13 +11,20 @@ enum
 	STAT_HEALTH,            // EV_FLOAT
 	STAT_ARMOR,             // EV_FLOAT
 	STAT_CURRENT_WEAPON,	// EV_FLOAT
+	STAT_NEXT_WEAPON,		// EV_FLOAT
 	STAT_WEAPONS,           // EV_INTEGER
 	STAT_ITEMS,             // EV_INTEGER
 	STAT_EFFECTS,           // EV_INTEGER
 	STAT_RELOAD_TIME,       // EV_FLOAT
 
 	// ammo stats
-	STAT_AMMO_FIRST = 64,   // EV_INTEGER, used with STAT_WEAPON(weapon)
+	STAT_AMMO_NONE,
+	STAT_AMMO_SHELLS,   	// EV_INTEGER
+	STAT_AMMO_NAILS, 	  	// EV_INTEGER
+	STAT_AMMO_ROCKETS,   	// EV_INTEGER
+	STAT_AMMO_CELLS,		// EV_INTEGER
+	STAT_AMMO_BOLTS, 	  	// EV_INTEGER
+	STAT_AMMO_LAST,
 
 	// global stats
 	STAT_AUTOJUMP = 128,    // EV_FLOAT
@@ -42,6 +49,27 @@ enum
 
 	WEAPON_LAST, // do not touch this
 };
+
+int WEAPON_AMMO_STAT(int weapon)
+{
+	if (weapon == WEAPON_SHOTGUN)
+		return STAT_AMMO_SHELLS;
+	else if (weapon == WEAPON_NAILGUN)
+		return STAT_AMMO_NAILS;
+	else if (weapon == WEAPON_GRENADE || weapon == WEAPON_ROCKET)
+		return STAT_AMMO_ROCKETS;
+	else if (weapon == WEAPON_LIGHTNING)
+		return STAT_AMMO_CELLS;
+	else if (weapon == WEAPON_CROSSBOW)
+		return STAT_AMMO_BOLTS;
+	else
+		return STAT_AMMO_NONE;
+}
+
+int WEAPON_AMMO_INDEX(int weapon)
+{
+	return WEAPON_AMMO_STAT(weapon) - STAT_AMMO_NONE;
+}
 
 #define WEAPON_BIT(x) (1 << x)
 #define STAT_WEAPON(x) (STAT_AMMO_FIRST + x)

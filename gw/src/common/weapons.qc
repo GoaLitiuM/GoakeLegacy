@@ -26,7 +26,7 @@ void PlayerWeaponAttack()
 	}
 
 	if (ammo_consumed != 0)
-		self.ammo[self.weapon-1] += ammo_consumed;
+		self.ammo[WEAPON_AMMO_INDEX(self.weapon)] += ammo_consumed;
 }
 
 void PlayerWeaponReload(float reloadtime)

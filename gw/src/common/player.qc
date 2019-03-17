@@ -5,24 +5,6 @@ void PlayerInit()
 
 void PlayerPreTick()
 {
-	if (input_impulse > 0 && input_impulse < WEAPON_LAST && self.weapon != input_impulse)
-	{
-		if (self.weapons & WEAPON_BIT(input_impulse))
-			self.weapon_next = input_impulse;
-		else
-			print("player does not have that weapon\n");
-	}
-
-	// player wants to switch the weapon
-	if (self.weapon_next != self.weapon && self.weapon_next >= 0)
-	{
-		if (!PlayerIsReloading())
-		{
-			self.weapon = self.weapon_next;
-			self.weapon_next = -1;
-		}
-	}
-
 	local bool onground = (self.flags & FL_ONGROUND) != 0;
 	local bool jump_released = (self.flags & FL_JUMPRELEASED) != 0;
 
@@ -46,6 +28,21 @@ void PlayerPostTick()
 {
 	if (self.health <= 0)
 		return;
+
+	if (input_impulse > 0 && input_impulse < WEAPON_LAST && self.weapon_next != input_impulse)
+	{
+		if (self.weapons & WEAPON_BIT(input_impulse))
+			self.weapon_next = input_impulse;
+		else
+			print("player does not have that weapon\n");
+	}
+
+	// player wants to switch the weapon
+	if (self.weapon_next != self.weapon)
+	{
+		if (!PlayerIsReloading())
+			self.weapon = self.weapon_next;
+	}
 
 	local bool onground = (self.flags & FL_ONGROUND) != 0;
 
