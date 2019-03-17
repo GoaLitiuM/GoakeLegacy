@@ -16,6 +16,8 @@
 
 #define ENT_PLAYER_SPAWN "info_player_deathmatch"
 
+#define CLASS_PLAYER "player"
+
 #define bool int
 #define true 1
 #define false 0
@@ -115,7 +117,7 @@ void clientsound(entity e, float chan, string samp, float vol, float atten, floa
 	local entity player = world;
 	while (1)
 	{
-		player = find(player, classname, "player");
+		player = find(player, classname, CLASS_PLAYER);
 		if (player == world)
 			break;
 

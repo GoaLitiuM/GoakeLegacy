@@ -1,6 +1,6 @@
 void TeleportOnTouch()
 {
-	if (other.classname != "player")
+	if (other.classname != CLASS_PLAYER)
 		return;
 
 	local entity tele_target = find(world, targetname, self.target);

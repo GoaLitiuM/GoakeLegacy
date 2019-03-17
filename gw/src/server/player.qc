@@ -34,7 +34,7 @@ void PlayerSpawn()
 {
 	local entity spawn = FindRandomSpawn();
 
-	self.classname = "player";
+	self.classname = CLASS_PLAYER;
 	self.health = self.max_health = 100;
 	self.takedamage = DAMAGE_AIM;
 	self.solid = SOLID_CORPSE;//SOLID_SLIDEBOX;

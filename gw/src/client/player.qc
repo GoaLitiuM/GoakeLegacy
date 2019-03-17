@@ -10,7 +10,7 @@ void PlayerUpdate(bool isnew)
 		if (self.entnum == player_localentnum)
 			local_player = self;
 
-		self.classname = "player";
+		self.classname = CLASS_PLAYER;
 		self.solid = SOLID_SLIDEBOX;
 		self.predraw = PlayerPreDraw;
 		self.drawmask = MASK_ENGINE;
