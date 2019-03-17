@@ -73,6 +73,13 @@ void CSQC_Ent_Update(float isnew)
 		PlayerUpdate(isnew != 0);
 }
 
+void CSQC_Ent_Remove()
+{
+	if (self.classname == CLASS_PLAYER)
+		PlayerRemove();
+	remove(self);
+}
+
 float CSQC_Event_Sound(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags)
 {
 	// ignore sounds emitted from local player when full prediction is enabled
