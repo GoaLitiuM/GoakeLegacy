@@ -71,3 +71,12 @@ void PlayerCustomPhysics(entity player)
 {
 	runstandardplayerphysics(player);
 }
+
+void PlayerRemove()
+{
+	self.model = 0;
+	self.solid = SOLID_NOT;
+	#ifdef CSQC
+	self.predraw = noop_predraw;
+	#endif
+}

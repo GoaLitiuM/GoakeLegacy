@@ -28,7 +28,11 @@ void ClientKill()
 
 void ClientConnect(float csqcactive) = {};
 
-void ClientDisconnect() = {};
+void ClientDisconnect()
+{
+	self.SendEntity = 0;
+	PlayerRemove();
+};
 
 // client wants to (re)spawn
 void PutClientInServer()

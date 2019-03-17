@@ -38,6 +38,8 @@ float weapon_impulse;
 .float server_jump_time;
 .float server_jump_count;
 
+float noop_predraw() { return PREDRAW_NEXT; }
+
 #define readFloat readfloat
 #define readByte readbyte
 
