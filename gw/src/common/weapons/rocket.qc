@@ -58,11 +58,14 @@ void RocketOnTouch()
 	local float radius = ROCKET_RADIUS;
 
 	if (other != world)
-		addRadialForceEntity(self.origin, force, radius, other);
+	{
+		local vector dir = normalize(other.origin - self.origin);
+		other.velocity += dir * force;
+	}
 
 	addRadialForce(self.origin, force, radius, other);
 
-	self.origin = (self.origin - (8 * normalize(self.velocity)));
+	self.origin = (self.origin - (18 * normalize(self.velocity)));
 
 #ifdef SSQC
 	writeByte(MSG_BROADCAST, SVC_TEMPENTITY);
