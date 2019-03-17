@@ -59,6 +59,11 @@ void PlayerSpawn()
 
 void PlayerPreThink()
 {
+    input_buttons = 0;
+    input_buttons |= self.button0 * BUTTON_ATTACK;
+    input_buttons |= self.button1 * BUTTON_USE;
+    input_buttons |= self.button2 * BUTTON_JUMP;
+
 	PlayerPreTick();
 };
 
