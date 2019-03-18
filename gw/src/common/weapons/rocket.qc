@@ -90,6 +90,7 @@ void SpawnRocket(vector pos, vector dir, entity player)
 	missile.touch = RocketOnTouch;
 	missile.nextthink = (time + MOVETYPE_FLY);
 	missile.think = RocketTick;
+	missile.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
 	setmodel(missile, MDL_ROCKET);
 	setsize(missile, VEC_ORIGIN, VEC_ORIGIN);
 	setorigin(missile, pos);
