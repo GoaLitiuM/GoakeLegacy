@@ -70,6 +70,15 @@ float PlayerPreDraw()
 		PlayerPrediction();
 		self.movetype = MOVETYPE_NONE; // disable physics calculation for player
 
+		if (self.beam_ent != world)
+		{
+			local entity oldself = self;
+			self = self.beam_ent;
+			if (self.predraw)
+				self.predraw();
+			self = oldself;
+		}
+
 		self.renderflags = RF_EXTERNALMODEL;
 		return PREDRAW_NEXT;
 	}

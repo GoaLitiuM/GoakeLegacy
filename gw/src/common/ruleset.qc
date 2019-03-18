@@ -4,4 +4,10 @@ const float ROCKET_SPEED = 1000;
 const float ROCKET_RADIUS = 120;
 const float ROCKET_FORCE = 490;
 
+const float LIGHTNING_RELOAD = 0.1;
+const float LIGHTNING_RANGE = 600;
+const float LIGHTNING_DPS = 100;
+const float LIGHTNING_TICKRATE = 1;
+const float LIGHTNING_FORCE = 100;
+
 const float TELEPORT_MAX_VELOCITY = 400;

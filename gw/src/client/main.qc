@@ -71,6 +71,8 @@ void CSQC_Ent_Update(float isnew)
 	local float type = readByte();
 	if (type == 1)
 		PlayerUpdate(isnew != 0);
+	else
+		error("unhandled CSQC_Ent_Update");
 }
 
 void CSQC_Ent_Remove()
@@ -78,6 +80,13 @@ void CSQC_Ent_Remove()
 	if (self.classname == CLASS_PLAYER)
 		PlayerRemove();
 	remove(self);
+}
+
+void CSQC_Parse_Event()
+{
+	local float type = readByte();
+	if (type == EVENT_LIGHTNING)
+		CreateLightningBeam();
 }
 
 float CSQC_Event_Sound(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags)

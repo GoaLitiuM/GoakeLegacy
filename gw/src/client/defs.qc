@@ -15,6 +15,7 @@ vector camera_velocity;
 .float fixangle;
 float fixanglefix;
 float weapon_impulse;
+.entity beam_ent;	// player's active lightning beam, updated in predraw
 
 // teleport entity
 .string targetname;
@@ -40,8 +41,21 @@ float weapon_impulse;
 
 float noop_predraw() { return PREDRAW_NEXT; }
 
+entity getEntity(float entitynum)
+{
+	local entity ent = nextent(world);
+	while (ent != world)
+	{
+		if (ent.entnum == entitynum)
+			break;
+		ent = nextent(ent);
+	}
+	return ent;
+}
+
 #define readFloat readfloat
 #define readByte readbyte
+#define readEntityNum readentitynum
 
 vector readVector()
 {
@@ -58,4 +72,8 @@ vector readVectorFloat()
 	vec_y = readFloat();
 	vec_z = readFloat();
 	return vec;
+}
+entity readEntity()
+{
+	return getEntity(readEntityNum());
 }

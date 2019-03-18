@@ -8,15 +8,18 @@
 #define SND_LAND_HARD "player/land2.wav"
 
 #define SND_WEAPON_ROCKET "weapons/sgun1.wav"
+#define SND_WEAPON_LIGHTNING "weapons/lhit.wav"
 
 #define SPR_EXPLOSION "progs/s_explod.spr"
 
 #define MDL_PLAYER "progs/player.mdl"
 #define MDL_ROCKET "progs/missile.mdl"
+#define MDL_BEAM "progs/bolt2.mdl"
 
 #define ENT_PLAYER_SPAWN "info_player_deathmatch"
 
 #define CLASS_PLAYER "player"
+#define CLASS_LIGHTNING "lightning"
 
 #define bool int
 #define true 1
@@ -35,6 +38,8 @@ const float CHAN_VOICE2 = 4;
 
 // legacy effects
 const float TE_EXPLOSION = 3;
+const float TE_LIGHTNING2 = 6;
+const float TE_LIGHTNINGBLOOD = 13;
 
 float SVC_TEMPENTITY = 23;
 

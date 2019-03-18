@@ -11,3 +11,4 @@
 #include <common/stats.qc>
 
 #include <common/weapons/rocket.qc>
+#include <common/weapons/lightning.qc>

@@ -76,6 +76,12 @@ int WEAPON_AMMO_INDEX(int weapon)
 #define ALL_WEAPONS (-1)
 
 int WeaponRocketFire();
+int WeaponLightningFire();
+
+enum
+{
+	EVENT_LIGHTNING = 1,
+};
 
 // globals for global stats
 float sv_autojump;
@@ -86,3 +92,4 @@ float sv_autojump;
 .float weapon_next;
 .int weapons;
 .int ammo[WEAPON_LAST-1];
+.float weapon_sound_loop_time;
