@@ -4,6 +4,7 @@
 //#includelist
 
 #include <ssdefs.qc>
+#include <qcdefs.qc>
 
 #include <server/defs.qc>
 #include <common.src>

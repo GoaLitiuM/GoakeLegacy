@@ -3,7 +3,8 @@
 #define CSQC
 //#includelist
 
-#include "csdefs.qc"
+#include <csdefs.qc>
+#include <qcdefs.qc>
 
 #include <client/defs.qc>
 #include <common.src>

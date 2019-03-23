@@ -3,7 +3,8 @@
 #define MENU
 //#includelist
 
-#include "menudefs.qc"
+#include <menudefs.qc>
+#include <qcdefs.qc>
 
 // include last
 #include <menu/main.qc>

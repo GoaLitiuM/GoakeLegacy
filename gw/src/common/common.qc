@@ -1,7 +1,3 @@
-//#pragma warning disable F210
-#pragma warning disable Q207
-#pragma warning disable F319
-
 #define SND_JUMP "player/plyrjmp8.wav"
 #define SND_JUMP_WATER "player/h2ojump.wav"
 #define SND_LAND_SOFT "player/land.wav"
@@ -21,38 +17,14 @@
 #define CLASS_PLAYER "player"
 #define CLASS_LIGHTNING "lightning"
 
-#define bool int
-#define true 1
-#define false 0
-
 // player collision box and offsets
 const vector VEC_ORIGIN = '0 0 0';
 const vector VEC_OFFSET_EYES = '0 0 26';
 const vector VEC_HULL_MIN = '-15 -15 -24';
 const vector VEC_HULL_MAX = '15 15 32';
 
-const float FL_JUMPRELEASED = 4096;
-
 // custom voice channels
 const float CHAN_VOICE2 = 4;
-
-// legacy effects
-const float TE_EXPLOSION = 3;
-const float TE_LIGHTNING2 = 6;
-const float TE_LIGHTNINGBLOOD = 13;
-
-float SVC_TEMPENTITY = 23;
-
-#define FULLSEND 0xFFFFFF
-
-// input_buttons
-#define BUTTON_ATTACK 1
-#define BUTTON_JUMP 2
-#define BUTTON_USE 4
-
-//pmove flags. seperate from flags
-#define PMF_JUMP_HELD 1
-#define PMF_LADDER 2
 
 void noop() {};
 
