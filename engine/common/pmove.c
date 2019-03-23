@@ -1220,7 +1220,7 @@ static void PM_CheckJump (void)
 	if (pmove.jump_count > 0 && pmove.jump_count <= movevars.extrajumps)
 		jumpvelocity += movevars.jumpboost;
 
-	pmove.jump_time = 0;
+	pmove.jump_time = frametime;
 	pmove.jump_count++;
 
 	// check for jump bug
@@ -1565,7 +1565,7 @@ void PM_PlayerMove (float gamespeed)
 	if (pmove.jump_count != 0)
 	{
 		pmove.jump_time += frametime;
-		if (pmove.jump_time >= 0.400)
+		if (pmove.jump_time > 0.400)
 		{
 			pmove.jump_time = 0;
 			pmove.jump_count = 0;
