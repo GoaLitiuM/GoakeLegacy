@@ -1257,7 +1257,7 @@ static void PM_CheckJump (void)
 	VectorCopy(vel, pmove.velocity);
 	
 	// kill jump velocity for first jump after a step is hit
-	if (blocked & BLOCKED_STEP && pmove.jump_count == 1)
+	if (blocked & BLOCKED_STEP && -DotProduct(pmove.gravitydir, groundplane.normal) > 0.85 && pmove.jump_count == 1)
 	{
 		pmove.velocity[2] = 0;
 		pmove.onground = true;
