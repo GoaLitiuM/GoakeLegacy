@@ -1,31 +1,39 @@
+void PlayerOnJump();
+
 void PlayerInit()
 {
 	self.weapon_next = self.weapon;
 }
 
-void PlayerPreTick()
+void PlayerRemove()
 {
-	local bool onground = (self.flags & FL_ONGROUND) != 0;
-	local bool jump_released = (self.flags & FL_JUMPRELEASED) != 0;
-
-	if (input_buttons & BUTTON_JUMP)
-	{
-		if (sv_autojump > 0 && (self.jump_time == 0 || self.jump_time > sv_autojump))
-			jump_released = true;
-
-		if (onground && jump_released)
-		{
-			clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
-			self.flags = self.flags & ~FL_JUMPRELEASED;
-		}
-	}
-	else
-		self.flags |= FL_JUMPRELEASED;
+	self.model = 0;
+	self.solid = SOLID_NOT;
+	#ifdef CSQC
+	self.predraw = noop_predraw;
+	#endif
 }
 
-.float last_velocity_z;
+float last_jump_count;
+float last_jump_time;
+float last_velocity_z;
+void PlayerPreTick()
+{
+	// needed for tracking player jumps and landing velocity
+	last_jump_count = self.jump_count;
+	last_jump_time = self.jump_time;
+	last_velocity_z = self.velocity_z;
+}
+
+void PlayerCustomPhysics()
+{
+	runstandardplayerphysics(self);
+}
+
 void PlayerPostTick()
 {
+	local bool onground = (self.flags & FL_ONGROUND) != 0;
+
 	if (self.health <= 0)
 		return;
 
@@ -44,36 +52,25 @@ void PlayerPostTick()
 			self.weapon = self.weapon_next;
 	}
 
-	local bool onground = (self.flags & FL_ONGROUND) != 0;
-
-	if ((self.last_velocity_z < -300) && onground)
+	// player landing sound
+	if (onground && last_velocity_z < -300)
 	{
 		if (self.watertype == CONTENT_WATER)
 			clientsound(self, CHAN_BODY, SND_JUMP_WATER, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
-		else if (self.last_velocity_z < -650)
+		else if (last_velocity_z < -650)
 			clientsound(self, CHAN_VOICE, SND_LAND_HARD, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 		else
 			clientsound(self, CHAN_VOICE, SND_LAND_SOFT, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
-
-		self.last_velocity_z = 0;
 	}
 
-	if (!onground)
-		self.last_velocity_z = self.velocity_z;
+	// player jump
+	if (self.jump_count > last_jump_count || (self.jump_time > 0 && self.jump_time < last_jump_time))
+		PlayerOnJump();
 
 	PlayerWeaponTick();
 }
 
-void PlayerCustomPhysics(entity player)
+void PlayerOnJump()
 {
-	runstandardplayerphysics(player);
-}
-
-void PlayerRemove()
-{
-	self.model = 0;
-	self.solid = SOLID_NOT;
-	#ifdef CSQC
-	self.predraw = noop_predraw;
-	#endif
+	clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 }

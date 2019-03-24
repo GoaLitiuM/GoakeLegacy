@@ -102,6 +102,8 @@ vector origin_delta;
 vector vel_delta;
 vector angles_delta;
 vector view_angles_old;
+int lastframe;
+float lastframe_time;
 void PlayerPrediction()
 {
 	bool fullpred = cvar("cl_fullpred") != 0;
@@ -189,6 +191,7 @@ void PlayerPrediction()
 				self.origin += origin_delta;
 				self.velocity += vel_delta;
 				self.angles += angles_delta;
+				setorigin(self, self.origin);
 				//view_angles += view_angles_delta;
 			}
 
@@ -199,6 +202,8 @@ void PlayerPrediction()
 				self.pmove_flags = oldMoveFlags;
 				//self.angles = oldAngles;
 				self.jump_time = oldJumpTime;
+				if (lastframe == clientcommandframe)
+					self.jump_time -= input_timelength;
 				self.jump_count = oldJumpCount;
 
 				if (fullpred)
@@ -216,7 +221,7 @@ void PlayerPrediction()
 				}
 			}
 
-			PlayerCustomPhysics(self);
+			PlayerCustomPhysics();
 			setorigin(self, self.origin);
 
 			// detect fixangle changes from teleports during player movement
@@ -233,6 +238,8 @@ void PlayerPrediction()
 
 			if (i == currentframe && fullpred)
 				PlayerPostTick();
+
+			lastframe_time = input_timelength;
 		}
 	}
 
@@ -275,4 +282,6 @@ void PlayerPrediction()
 	self.client_pmove_flags = self.pmove_flags;
 	self.client_jump_time = self.jump_time;
 	self.client_jump_count = self.jump_count;
+
+	lastframe = clientcommandframe;
 }

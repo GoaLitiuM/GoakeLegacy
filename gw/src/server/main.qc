@@ -47,5 +47,5 @@ void StartFrame()
 
 void SV_RunClientCommand()
 {
-	PlayerCustomPhysics(self);
+	PlayerCustomPhysics();
 }
