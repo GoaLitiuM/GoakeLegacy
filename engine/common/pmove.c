@@ -1222,6 +1222,9 @@ static void PM_CheckJump (void)
 
 	pmove.jump_time = frametime;
 	pmove.jump_count++;
+	
+	vec3_t walkvel;
+	VectorCopy(pmove.velocity, walkvel);
 
 	// check for jump bug
 	// groundplane normal was set in the call to PM_CategorizePosition
@@ -1243,24 +1246,29 @@ static void PM_CheckJump (void)
 				+ jumpvelocity * movevars.ktjump;
 	}
 	
-	// check if we are about to step into stairs
-	vec3_t orig, vel;
-	VectorCopy(pmove.origin, orig);
-	VectorCopy(pmove.velocity, vel);
-	
-	pmove.velocity[2] *= 0.5;
-	for (int i=0; i<3; i++)
-		pmove.origin[i] += frametime * 2 * pmove.velocity[i];
-	int blocked = PM_StepSlideMove(false);
-	
-	VectorCopy(orig, pmove.origin);
-	VectorCopy(vel, pmove.velocity);
-	
-	// kill jump velocity for first jump after a step is hit
-	if (blocked & BLOCKED_STEP && -DotProduct(pmove.gravitydir, groundplane.normal) > 0.85 && pmove.jump_count == 1)
+	if (pmove.jump_count == 1 && -DotProduct(pmove.gravitydir, groundplane.normal) > 0.85)
 	{
-		pmove.velocity[2] = 0;
-		pmove.onground = true;
+		// check if we are about to step into stairs
+		vec3_t orig, vel;
+		VectorCopy(pmove.origin, orig);
+		VectorCopy(pmove.velocity, vel);
+
+		for (int i=0; i<3; i++)
+			pmove.velocity[i] = walkvel[i] * 2;
+		int blocked = PM_StepSlideMove(false);
+		
+		// sometimes we hit a step without stepping up
+		int movedup = pmove.origin[2] > orig[2];
+		
+		VectorCopy(orig, pmove.origin);
+		VectorCopy(vel, pmove.velocity);
+		
+		// kill jump velocity for first jump after a step is hit
+		if (blocked & BLOCKED_STEP && movedup)
+		{
+			pmove.velocity[2] = 0;
+			pmove.onground = true;
+		}
 	}
 
 	pmove.jump_held = true;		// don't jump again until released
