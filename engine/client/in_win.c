@@ -1552,7 +1552,7 @@ void INS_RawInput_MouseRead(void)
 
 	multicursor_active[mouse->qdeviceid&7] = 0;
 
-	if (vid.activeapp)
+	if (vid.activeapp && mouseactive)
 	{
 		// movement
 		if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
@@ -1565,7 +1565,7 @@ void INS_RawInput_MouseRead(void)
 			}
 			IN_MouseMove(mouse->qdeviceid, true, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
 		}
-		else if (mouseactive)// RELATIVE
+		else // RELATIVE
 		{
 			if (in_simulatemultitouch.ival)
 			{
