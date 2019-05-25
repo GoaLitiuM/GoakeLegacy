@@ -34,25 +34,17 @@ void PlayerSpawn()
 {
 	local entity spawn = FindRandomSpawn();
 
-	self.classname = CLASS_PLAYER;
 	self.health = self.max_health = 100;
 	self.takedamage = DAMAGE_AIM;
-	self.solid = SOLID_CORPSE;//SOLID_SLIDEBOX;
-	self.movetype = MOVETYPE_WALK;
-	self.flags = FL_CLIENT;
 	self.fixangle = 1;
 	self.origin = spawn.origin;
 	self.angles = spawn.angles;
-	self.view_ofs = VEC_OFFSET_EYES;
+	self.flags = FL_CLIENT;
 	self.velocity = '0 0 0';
+	self.SendEntity = PlayerSendEntity;
 
 	self.weapon = WEAPON_ROCKET;
 	self.weapons = ALL_WEAPONS;
-
-	setmodel(self, MDL_PLAYER);
-	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
-
-	self.SendEntity = PlayerSendEntity;
 
 	PlayerInit();
 }

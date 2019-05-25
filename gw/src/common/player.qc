@@ -2,6 +2,13 @@ void PlayerOnJump();
 
 void PlayerInit()
 {
+	self.classname = CLASS_PLAYER;
+	self.solid = SOLID_SLIDEBOX;
+	self.movetype = MOVETYPE_WALK;
+
+	setmodel(self, MDL_PLAYER);
+	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
+
 	self.weapon_next = self.weapon;
 }
 
