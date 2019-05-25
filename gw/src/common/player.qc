@@ -5,6 +5,7 @@ void PlayerInit()
 	self.classname = CLASS_PLAYER;
 	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_WALK;
+	self.view_ofs = VEC_OFFSET_EYES;
 
 	setmodel(self, MDL_PLAYER);
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);

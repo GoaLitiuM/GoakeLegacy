@@ -244,7 +244,7 @@ void PlayerPrediction()
 	}
 
 	// smooth out movement in stairs
-	camera_origin_old = camera_origin;
+	camera_origin_old = camera_origin - self.view_ofs;
 	const float step_size = 18;
 	const float step_smooth_units = 100;
 	const float step_threshold = step_size * 2;
@@ -266,8 +266,9 @@ void PlayerPrediction()
 	else
 		camera_origin_old_z = self.origin_z;
 
-	camera_origin = self.origin;
+	camera_origin = self.origin + self.view_ofs;
 	camera_origin_z = camera_origin_old_z;
+	camera_origin += self.view_ofs;
 	camera_velocity = self.velocity;
 
 	addentity(self);

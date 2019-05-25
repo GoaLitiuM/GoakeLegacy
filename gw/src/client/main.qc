@@ -58,7 +58,7 @@ void CSQC_UpdateView(float width, float height, float notmenu)
 
 	addentities(MASK_ENGINE | MASK_VIEWMODEL);
 
-	setviewprop(VF_ORIGIN, camera_origin + VEC_OFFSET_EYES);
+	setviewprop(VF_ORIGIN, camera_origin);
 	setviewprop(VF_ANGLES, view_angles);
 
 	renderscene();

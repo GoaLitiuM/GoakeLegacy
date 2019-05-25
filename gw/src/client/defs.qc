@@ -13,6 +13,7 @@ vector camera_velocity;
 .float health;
 .float watertype;
 .float fixangle;
+.vector view_ofs;
 float fixanglefix;
 float weapon_impulse;
 .entity beam_ent;	// player's active lightning beam, updated in predraw

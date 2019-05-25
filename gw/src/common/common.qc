@@ -68,19 +68,6 @@ void setViewAngles(entity ent, vector ang)
 #endif
 }
 
-vector getViewOffsets()
-{
-#ifdef CSQC
-	//return view_angles;
-	// maybe?
-	//local vector origin_offset = getproperty(VF_ORIGIN); // view origin including the offset
-	return VEC_OFFSET_EYES;
-	//return origin_offset - self.origin;
-#else
-	return self.view_ofs;
-#endif
-}
-
 void setAngles(entity ent, vector ang, float fix = 0)
 {
 	ent.angles = ang;

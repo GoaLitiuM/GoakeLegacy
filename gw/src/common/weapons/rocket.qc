@@ -5,7 +5,7 @@ void RocketTick() { }
 int WeaponRocketFire()
 {
 	local vector forward = getForwardVector(getViewAngles());
-	local vector offset = getViewOffsets();
+	local vector offset = self.view_ofs;
 
 	clientsound(self, CHAN_WEAPON, SND_WEAPON_ROCKET, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 

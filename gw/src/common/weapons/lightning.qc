@@ -3,7 +3,7 @@ void SpawnLightning(vector pos, vector dir, entity player);
 int WeaponLightningFire()
 {
 	local vector forward = getForwardVector(getViewAngles());
-	local vector offset = getViewOffsets();
+	local vector offset = self.view_ofs;
 
 	if (svtime - self.weapon_sound_loop_time > 0.5)
 	{
@@ -22,18 +22,17 @@ int WeaponLightningFire()
 float BeamUpdate()
 {
 	// track the owner's position and aim
-	local vector start;
-	local vector offset = getViewOffsets();
+	local vector start = self.owner.origin;
+	local vector offset = self.owner.view_ofs;
+
 	if (self.owner == local_player)
 	{
 		//self.angles = view_angles;
 		self.angles_x = view_angles_x;
 		self.angles_y = view_angles_y;
-		start = camera_origin;
 	}
 	else
 	{
-		start = self.owner.origin;
 		// we don't know the exact aim angle of other players, so only update yaw from player model
 		self.angles_y = self.owner.angles_y;
 		//self.angles_z = self.owner.angles_z;
@@ -78,6 +77,7 @@ float BeamUpdate()
 	for (int i=0; i<segments; i++)
 	{
 		self.origin = start + forward * segment_length * i;
+		setorigin(self, self.origin);
 		addentity(self);
 	}
 
@@ -124,12 +124,15 @@ void CreateLightningBeam()
 	beam.solid = SOLID_NOT;
 	beam.movetype = MOVETYPE_NONE;
 	beam.origin = orig;
+	setorigin(beam, beam.origin);
 	beam.angles = vectoangles(normalize(end-orig));
 	beam.think = BeamDestroy;
 	beam.nextthink = time + LIGHTNING_RELOAD;
 
 	beam.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
 	beam.alpha = 0.4;
+
+	setsize(beam, VEC_ORIGIN, VEC_ORIGIN);
 
 	// local player updates its own beam
 	beam.predraw = BeamUpdate;
