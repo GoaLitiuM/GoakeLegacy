@@ -7,3 +7,5 @@ gw/csprogs.dat
 gw/progs.dat
 gw/menu.dat
 *.lno
+.vscode/
+distribute/

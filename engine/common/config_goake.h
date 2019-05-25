@@ -9,8 +9,8 @@
 //#define BRANDING_ICON			"fte_eukara.ico"				//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
 #define GAME_CFGFILE			"config"						//name of the configuration filename used for loading and saving
 #define GAME_VER_MAJOR			0
-#define GAME_VER_MINOR			2
-#define GAME_VER_EXTRA			"b"						//please include the extra space at the beginning
+#define GAME_VER_MINOR			3
+#define GAME_VER_EXTRA			""						//please include the extra space at the beginning
 
 //filesystem rebranding
 #define GAME_SHORTNAME			"gw"			//short alphanumeric description
@@ -38,9 +38,9 @@
 //#define SIDEVIEWS   4   		//enable secondary/reverse views.
 //#define MAX_SPLITS	4u
 //#define TEXTEDITOR				//my funky text editor! its awesome!
-//#define PLUGINS					//support for external plugins (like huds or fancy menus or whatever)
-#define USE_SQLITE				//sql-database-as-file support
-#define IPLOG                    //track player's ip addresses (any decent server will hide ip addresses, so this probably isn't that useful, but nq players expect its)
+#define PLUGINS					//support for external plugins (like huds or fancy menus or whatever)
+//#define USE_SQLITE				//sql-database-as-file support
+//#define IPLOG                    //track player's ip addresses (any decent server will hide ip addresses, so this probably isn't that useful, but nq players expect its)
 
 //Filesystem formats
 #define PACKAGE_PK3             //aka zips. we support utf8,zip64,spans,weakcrypto,deflate,(bzip2),symlinks. we do not support strongcrypto nor any of the other compression schemes.
@@ -65,14 +65,14 @@
 //Model formats
 #define SPRMODELS				//Quake's sprites
 #define SP2MODELS				//Quake2's models
-#define DSPMODELS				//Doom sprites!
+//#define DSPMODELS				//Doom sprites!
 #define MD1MODELS				//Quake's models.
 #define MD2MODELS				//Quake2's models
 #define MD3MODELS				//Quake3's models, also often used for q1 etc too.
 #define MD5MODELS				//Doom3 models.
-#define ZYMOTICMODELS			//nexuiz uses these, for some reason.
-#define DPMMODELS				//these keep popping up, despite being a weak format.
-#define PSKMODELS				//unreal's interchange format. Undesirable in terms of load times.
+//#define ZYMOTICMODELS			//nexuiz uses these, for some reason.
+//#define DPMMODELS				//these keep popping up, despite being a weak format.
+//#define PSKMODELS				//unreal's interchange format. Undesirable in terms of load times.
 //#define HALFLIFEMODELS			//horrible format that doesn't interact well with the rest of FTE's code. Unusable tools (due to license reasons).
 #define INTERQUAKEMODELS		//Preferred model format, at least from an idealism perspective.
 #define RAGDOLL					//ragdoll support. requires RBE support (via a plugin...).
@@ -82,7 +82,7 @@
 #define IMAGEFMT_PKM			//file format generally written by etcpack or android's etc1tool. doesn't support mips.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
 //#define IMAGEFMT_BLP          //legacy crap
-#define IMAGEFMT_BMP            //windows bmp. yuck.
+//#define IMAGEFMT_BMP            //windows bmp. yuck.
 #define IMAGEFMT_PCX            //paletted junk. required for qw player skins, q2 and a few old skyboxes.
 //#define IMAGEFMT_VTF          //hl2 image format
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)
@@ -119,7 +119,7 @@
 #define HAVE_GNUTLS				//on linux
 //#define HAVE_OPENSSL			//on linux. hardlinked, so typically set only via the makefile.
 #define HAVE_WINSSPI			//on windows
-#define FTPSERVER				//sv_ftp cvar.
+//#define FTPSERVER				//sv_ftp cvar.
 #define WEBCLIENT				//uri_get+any internal downloads etc
 #define TCPCONNECT				//support for playing over tcp sockets, instead of just udp. compatible with qizmo.
 //#define IRCCONNECT			//lame support for routing game packets via irc server. not a good idea.
@@ -130,7 +130,7 @@
 // Audio Drivers
 #define AVAIL_OPENAL
 #define AVAIL_WASAPI			//windows advanced sound api
-#define AVAIL_DSOUND
+//#define AVAIL_DSOUND
 #define HAVE_MIXER				//support non-openal audio drivers
 
 // Audio Formats

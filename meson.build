@@ -1,4 +1,4 @@
-project('goake', 'c')
+project('goake', 'c', 'cpp')
 
 win = import('windows')
 
@@ -309,6 +309,23 @@ client_c_args = [
 server_c_args = '-DSERVERONLY'
 
 
+bullet = declare_dependency(
+  include_directories: include_directories('thirdparty/bullet2/src'),
+  link_args: [
+    '../thirdparty/lib64/BulletCollision.lib',
+	  '../thirdparty/lib64/BulletDynamics.lib',
+	  '../thirdparty/lib64/LinearMath.lib',
+	  '../thirdparty/lib64/BulletSoftBody.lib',
+  ])
+if not bullet.found()
+  bullet = dependency('bullet', required: false)
+endif
+if bullet.found()
+  c_args += ['-DUSE_INTERNAL_BULLET', '-D_ALLOW_KEYWORD_MACROS']
+  common_src_files += 'plugins/bullet/bulletplug.cpp'
+  deps += bullet
+endif
+
 png = declare_dependency(
   include_directories: include_directories('thirdparty/include'),
   link_args: '../thirdparty/lib64/libpng16_static.lib')
@@ -394,6 +411,7 @@ executable(join_paths(out, 'goake'),
   include_directories: includes,
   dependencies: deps,
   c_args: [client_c_args, c_args],
+  cpp_args: [client_c_args, c_args],
   link_args: linker_args,
   gui_app: true
 )
@@ -403,6 +421,7 @@ executable(join_paths(out, 'goake-sv'),
   include_directories: includes,
   dependencies: deps,
   c_args: [server_c_args, c_args],
+  cpp_args: [server_c_args, c_args],
   link_args: linker_args
 )
 
