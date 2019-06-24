@@ -48,11 +48,6 @@ void Sys_ThreadAbort(void)
 	pthread_exit(NULL);
 }
 
-#ifdef ANDROID
-#include <jni.h>
-extern JavaVM *sys_jvm;
-#endif
-
 #if 1
 typedef struct {
 	int (*func)(void *);
@@ -63,16 +58,7 @@ static void *Sys_CreatedThread(void *v)
 	qthread_t *qthread = v;
 	qintptr_t r;
 
-#ifdef ANDROID
-	JNIEnv* env;
-	(*sys_jvm)->AttachCurrentThread(sys_jvm, &env, NULL);
-#endif
-
 	r = qthread->func(qthread->args);
-
-#ifdef ANDROID
-	(*sys_jvm)->DetachCurrentThread(sys_jvm);
-#endif
 
 	return (void*)r;
 }
@@ -93,11 +79,14 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-	if (stacksize < PTHREAD_STACK_MIN*2)
-		stacksize = PTHREAD_STACK_MIN*2;
-	if (stacksize < PTHREAD_STACK_MIN+65536*16)
-		stacksize = PTHREAD_STACK_MIN+65536*16;
-	pthread_attr_setstacksize(&attr, stacksize);
+	if (stacksize != -1)
+	{
+		if (stacksize < PTHREAD_STACK_MIN*2)
+			stacksize = PTHREAD_STACK_MIN*2;
+		if (stacksize < PTHREAD_STACK_MIN+65536*16)
+			stacksize = PTHREAD_STACK_MIN+65536*16;
+		pthread_attr_setstacksize(&attr, stacksize);
+	}
 	if (pthread_create(thread, &attr, (pfunction_t)Sys_CreatedThread, qthread))
 	{
 		free(thread);
@@ -378,7 +367,9 @@ pubsubserver_t *Sys_ForkServer(void)
 	//make sure we're fully synced, so that workers can't mess up
 	Cvar_Set(Cvar_FindVar("worker_count"), "0");
 	COM_WorkerFullSync();
+#ifdef WEBCLIENT
 	DL_DeThread();
+#endif
 #ifdef SQL
 	SQL_KillServers();	//FIXME: this is bad...
 #endif

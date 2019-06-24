@@ -770,6 +770,7 @@ void Sys_Error (const char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (text,sizeof(text)-1, error,argptr);
 	va_end (argptr);
+	COM_WorkerAbort(text);
 
 
 //    MessageBox(NULL, text, "Error", 0 /* MB_OK */ );
@@ -1832,4 +1833,10 @@ void Sys_SetAutoUpdateSetting(int newval)
 }
 #endif
 
+#ifdef WEBCLIENT
+qboolean Sys_RunInstaller(void)
+{	//not implemented
+	return false;
+}
+#endif
 #endif

@@ -74,7 +74,7 @@ int sound_started=0;
 
 cvar_t bgmvolume				= CVARAFD(	"musicvolume", "0.3", "bgmvolume", CVAR_ARCHIVE,
 											"Volume level for background music.");
-cvar_t volume					= CVARFD(	"volume", "0.7", CVAR_ARCHIVE,
+cvar_t volume					= CVARAFD(	"volume", "0.7", /*q3*/"s_volume",CVAR_ARCHIVE,
 											"Main volume level for all engine sound.");
 
 cvar_t nosound					= CVARFD(	"nosound", "0", CVAR_ARCHIVE,
@@ -158,8 +158,10 @@ cvar_t snd_voip_play			= CVARAFCD("cl_voip_play", "1", NULL, CVAR_ARCHIVE, S_Voi
 cvar_t snd_voip_ducking			= CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
 cvar_t snd_voip_micamp			= CVARAFD("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.");
 cvar_t snd_voip_codec			= CVARAFD("cl_voip_codec", "", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32). 6: pcma. 7: pcmu.");
+#ifdef HAVE_SPEEX
 cvar_t snd_voip_noisefilter		= CVARAFD("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.");
 cvar_t snd_voip_autogain		= CVARAFD("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.");
+#endif
 cvar_t snd_voip_bitrate			= CVARAFD("cl_voip_bitrate", "3000", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use.");
 #endif
 
@@ -285,13 +287,19 @@ enum
 
 	VOIP_INVALID = 16	//not currently generating audio.
 };
-#ifdef NOLEGACY
-#define VOIP_DEFAULT_CODEC VOIP_OPUS
+#if defined(HAVE_LEGACY) && defined(HAVE_OPUS) && defined(HAVE_SPEEX)
+	#define VOIP_DEFAULT_CODEC ((cls.protocol==CP_QUAKEWORLD && !(cls.fteprotocolextensions2&PEXT2_REPLACEMENTDELTAS))?VOIP_SPEEX_OLD:VOIP_OPUS)	//opus is preferred, but ezquake is still common and only supports my first attempt at voice compression so favour that for mvdsv servers.
+#elif defined(HAVE_OPUS)
+	#define VOIP_DEFAULT_CODEC VOIP_OPUS
+#elif defined(HAVE_SPEEX)
+	#define VOIP_DEFAULT_CODEC VOIP_SPEEX_OLD
 #else
-#define VOIP_DEFAULT_CODEC (cls.protocol==CP_QUAKEWORLD?VOIP_SPEEX_OLD:VOIP_OPUS)	//opus is preferred, but ezquake is still common and only supports my first attempt at voice compression so favour that for quakeworld.
+	#define VOIP_DEFAULT_CODEC VOIP_PCMA
 #endif
+
 static struct
 {
+#ifdef HAVE_SPEEX
 	struct
 	{
 		qboolean inited;
@@ -316,13 +324,16 @@ static struct
 		int curframesize;
 		int cursamplerate;
 	} speexdsp;
+#endif
 
+#ifdef HAVE_OPUS
 	struct
 	{
 		qboolean inited;
 		qboolean loaded;
 		dllhandle_t *opuslib;
 	} opus;
+#endif
 
 	unsigned char enccodec;
 	void *encoder;
@@ -354,6 +365,7 @@ static struct
 	void *cdriverctx;	/*capture driver context*/
 } s_voip;
 
+#ifdef HAVE_OPUS
 #define OPUS_APPLICATION_VOIP				2048
 #define OPUS_SET_BITRATE_REQUEST			4002
 #define OPUS_RESET_STATE					4028
@@ -396,7 +408,33 @@ static dllfunction_t qopusfuncs[] =
 };
 #endif
 
+static qboolean S_Opus_Init(void)
+{
+#ifndef OPUS_STATIC
+#ifdef _WIN32
+	char *modulename = "libopus-0" ARCH_DL_POSTFIX;
+#else
+	char *modulename = "libopus"ARCH_DL_POSTFIX".0";
+#endif
 
+	if (s_voip.opus.inited)
+		return s_voip.opus.loaded;
+	s_voip.opus.inited = true;
+
+	s_voip.opus.opuslib = Sys_LoadLibrary(modulename, qopusfuncs);
+	if (!s_voip.opus.opuslib)
+	{
+		Con_Printf("%s not found. Voice chat is not available.\n", modulename);
+		return false;
+	}
+#endif
+
+	s_voip.opus.loaded = true;
+	return s_voip.opus.loaded;
+}
+#endif
+
+#ifdef HAVE_SPEEX
 #ifdef SPEEX_STATIC
 #define qspeex_lib_get_mode speex_lib_get_mode
 #define qspeex_bits_init speex_bits_init
@@ -466,24 +504,6 @@ static dllfunction_t qspeexdspfuncs[] =
 };
 #endif
 
-#ifdef AVAIL_OPENAL
-extern snd_capture_driver_t OPENAL_Capture;
-#endif
-snd_capture_driver_t DSOUND_Capture;
-snd_capture_driver_t OSS_Capture;
-snd_capture_driver_t SDL_Capture;
-
-snd_capture_driver_t *capturedrivers[] =
-{
-	&DSOUND_Capture,
-	&SDL_Capture,
-	&OSS_Capture,
-#ifdef AVAIL_OPENAL
-	&OPENAL_Capture,
-#endif
-	NULL
-};
-
 static qboolean S_SpeexDSP_Init(void)
 {
 #ifndef SPEEX_STATIC
@@ -491,7 +511,7 @@ static qboolean S_SpeexDSP_Init(void)
 		return s_voip.speexdsp.loaded;
 	s_voip.speexdsp.inited = true;
 
-	
+
 	s_voip.speexdsp.speexdsplib = Sys_LoadLibrary("libspeexdsp", qspeexdspfuncs);
 	if (!s_voip.speexdsp.speexdsplib)
 	{
@@ -526,31 +546,25 @@ static qboolean S_Speex_Init(void)
 	s_voip.speex.loaded = true;
 	return s_voip.speex.loaded;
 }
+#endif
 
-static qboolean S_Opus_Init(void)
+#ifdef AVAIL_OPENAL
+extern snd_capture_driver_t OPENAL_Capture;
+#endif
+snd_capture_driver_t DSOUND_Capture;
+snd_capture_driver_t OSS_Capture;
+snd_capture_driver_t SDL_Capture;
+
+snd_capture_driver_t *capturedrivers[] =
 {
-#ifndef OPUS_STATIC
-#ifdef _WIN32
-	char *modulename = "libopus-0" ARCH_DL_POSTFIX;
-#else
-	char *modulename = "libopus"ARCH_DL_POSTFIX".0";
+	&DSOUND_Capture,
+	&SDL_Capture,
+	&OSS_Capture,
+#ifdef AVAIL_OPENAL
+	&OPENAL_Capture,
 #endif
-
-	if (s_voip.opus.inited)
-		return s_voip.opus.loaded;
-	s_voip.opus.inited = true;
-
-	s_voip.opus.opuslib = Sys_LoadLibrary(modulename, qopusfuncs);
-	if (!s_voip.opus.opuslib)
-	{
-		Con_Printf("%s not found. Voice chat is not available.\n", modulename);
-		return false;
-	}
-#endif
-
-	s_voip.opus.loaded = true;
-	return s_voip.opus.loaded;
-}
+	NULL
+};
 
 size_t PCMA_Decode(short *out, unsigned char *in, size_t samples)
 {
@@ -688,17 +702,21 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			//make sure old state is closed properly.
 			switch(s_voip.deccodec[sender])
 			{
+#ifdef HAVE_SPEEX
 			case VOIP_SPEEX_OLD:
 			case VOIP_SPEEX_NARROW:
 			case VOIP_SPEEX_WIDE:
 			case VOIP_SPEEX_ULTRAWIDE:
 				qspeex_decoder_destroy(s_voip.decoder[sender]);
 				break;
+#endif
 			case VOIP_RAW16:
 				break;
+#ifdef HAVE_OPUS
 			case VOIP_OPUS:
 				qopus_decoder_destroy(s_voip.decoder[sender]);
 				break;
+#endif
 			}
 			s_voip.decoder[sender] = NULL;
 			s_voip.deccodec[sender] = VOIP_INVALID;
@@ -716,6 +734,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			s_voip.decsamplerate[sender] = 8000;
 			s_voip.decframesize[sender] = 8000/20;
 			break;
+#ifdef HAVE_SPEEX
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
@@ -760,6 +779,8 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 					qspeex_bits_reset(&s_voip.speex.decbits[sender]);
 			}
 			break;
+#endif
+#ifdef HAVE_OPUS
 		case VOIP_OPUS:
 			if (!S_Opus_Init())
 				return;
@@ -787,6 +808,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			else
 				qopus_decoder_ctl(s_voip.decoder[sender], OPUS_RESET_STATE);
 			break;
+#endif
 		}
 		s_voip.deccodec[sender] = codec;
 		s_voip.decgen[sender] = gen;
@@ -812,6 +834,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		case VOIP_PCMA:
 		case VOIP_PCMU:
 			break;
+#ifdef HAVE_SPEEX
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
@@ -819,11 +842,14 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			qspeex_decode_int(s_voip.decoder[sender], NULL, decodebuf + decodesamps);
 			decodesamps += s_voip.decframesize[sender];
 			break;
+#endif
+#ifdef HAVE_OPUS
 		case VOIP_OPUS:
 			r = qopus_decode(s_voip.decoder[sender], NULL, 0, decodebuf + decodesamps, min(s_voip.decframesize[sender], sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps), false);
 			if (r > 0)
 				decodesamps += r;
 			break;
+#endif
 		}
 		s_voip.decseq[sender]++;
 	}
@@ -840,6 +866,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		default:
 			bytes = 0;
 			break;
+#ifdef HAVE_SPEEX
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
@@ -868,6 +895,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 				}
 			}
 			break;
+#endif
 		case VOIP_RAW16:
 			len = min(bytes, sizeof(decodebuf)-(sizeof(decodebuf[0])*decodesamps));
 			memcpy(decodebuf+decodesamps, start, len);
@@ -889,6 +917,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			bytes -= len;
 			start += len;
 			break;
+#ifdef HAVE_OPUS
 		case VOIP_OPUS:
 			len = bytes;
 			if (decodesamps > 0)
@@ -911,6 +940,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			bytes -= len;
 			start += len;
 			break;
+#endif
 		}
 	}
 
@@ -957,16 +987,20 @@ qboolean S_Voip_RTP_CodecOkay(const char *codec)
 {
 	switch(S_Voip_NameToId(codec))
 	{
+#ifdef HAVE_SPEEX
 	case VOIP_SPEEX_NARROW:
 	case VOIP_SPEEX_OLD:
 	case VOIP_SPEEX_WIDE:
 	case VOIP_SPEEX_ULTRAWIDE:
 		return S_Speex_Init();
+#endif
 	case VOIP_PCMA:
 	case VOIP_PCMU:
 		return true;
+#ifdef HAVE_OPUS
 	case VOIP_OPUS:
 		return S_Opus_Init();
+#endif
 	default:
 		return false;
 	}
@@ -1018,8 +1052,10 @@ static float S_Voip_Preprocess(short *start, unsigned int samples, float micamp)
 	int framesize = s_voip.encframesize;
 	while(samples >= framesize)
 	{
+#ifdef HAVE_SPEEX
 		if (s_voip.speexdsp.preproc)
 			qspeex_preprocess_run(s_voip.speexdsp.preproc, start);
+#endif
 		for (i = 0; i < framesize; i++)
 		{
 			f = start[i] * micamp;
@@ -1129,8 +1165,10 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	{
 		voipsendenable = true;
 		//if rtp streaming is enabled, hack the codec to something better supported
+#ifdef HAVE_SPEEX
 		if (voipcodec == VOIP_SPEEX_OLD)
 			voipcodec = VOIP_SPEEX_WIDE;
+#endif
 	}
 
 
@@ -1154,14 +1192,18 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		}
 		switch(s_voip.enccodec)
 		{
+#ifdef HAVE_SPEEX
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
 		case VOIP_SPEEX_ULTRAWIDE:
 			break;
+#endif
+#ifdef HAVE_OPUS
 		case VOIP_OPUS:
 			qopus_encoder_destroy(s_voip.encoder);
 			break;
+#endif
 		}
 		s_voip.encoder = NULL;
 		s_voip.enccodec = VOIP_INVALID;
@@ -1182,6 +1224,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		/*see if we can init our encoding codec...*/
 		switch(voipcodec)
 		{
+#ifdef HAVE_SPEEX
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
@@ -1218,6 +1261,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				qspeex_encoder_ctl(s_voip.encoder, SPEEX_SET_SAMPLING_RATE, &s_voip.encsamplerate);
 			}
 			break;
+#endif
 		case VOIP_PCMA:
 		case VOIP_PCMU:
 			s_voip.encsamplerate = 8000;
@@ -1227,6 +1271,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			s_voip.encsamplerate = 11025;
 			s_voip.encframesize = 256;
 			break;
+#ifdef HAVE_OPUS
 		case VOIP_OPUS:
 			if (!S_Opus_Init())
 			{
@@ -1255,9 +1300,8 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 //			opus_encoder_ctl(s_voip.encoder, OPUS_GET_LOOKAHEAD(&skip));
 //			opus_encoder_ctl(s_voip.encoder, OPUS_SET_LSB_DEPTH(16));
-
-
 			break;
+#endif
 		default:
 			Con_Printf("Unable to use that codec - not implemented\n");
 			//can't start up other coedcs, cos we're too lame.
@@ -1293,17 +1337,21 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			//reset codecs so they start with a clean slate when new audio blocks are generated.
 			switch(s_voip.enccodec)
 			{
+#ifdef HAVE_SPEEX
 			case VOIP_SPEEX_OLD:
 			case VOIP_SPEEX_NARROW:
 			case VOIP_SPEEX_WIDE:
 			case VOIP_SPEEX_ULTRAWIDE:
 				qspeex_bits_reset(&s_voip.speex.encbits);
 				break;
+#endif
 			case VOIP_RAW16:
 				break;
+#ifdef HAVE_OPUS
 			case VOIP_OPUS:
 				qopus_encoder_ctl(s_voip.encoder, OPUS_RESET_STATE);
 				break;
+#endif
 			}
 		}
 		else
@@ -1336,6 +1384,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	{
 		start = (short*)(s_voip.capturebuf + encpos);
 
+#ifdef HAVE_SPEEX
 		if (snd_voip_noisefilter.ival || snd_voip_autogain.ival)
 		{
 			if (!s_voip.speexdsp.preproc || snd_voip_noisefilter.modified || snd_voip_noisefilter.modified || s_voip.speexdsp.curframesize != s_voip.encframesize || s_voip.speexdsp.cursamplerate != s_voip.encsamplerate)
@@ -1362,9 +1411,11 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			qspeex_preprocess_state_destroy(s_voip.speexdsp.preproc);
 			s_voip.speexdsp.preproc = NULL;
 		}
+#endif
 
 		switch(s_voip.enccodec)
 		{
+#ifdef HAVE_SPEEX
 		case VOIP_SPEEX_OLD:
 			//this is from before I understood speex properly.
 			level += S_Voip_Preprocess(start, s_voip.encframesize, micamp);
@@ -1399,6 +1450,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			len = qspeex_bits_write(&s_voip.speex.encbits, outbuf+outpos, sizeof(outbuf) - outpos);
 			outpos += len;
 			break;
+#endif
 		case VOIP_RAW16:
 			len = s_voip.capturepos-encpos;	//amount of data to be eaten in this frame
 			len = min(len, sizeof(outbuf)-outpos);
@@ -1426,6 +1478,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			s_voip.encsequence++;	//increment number of packets, for packetloss detection.
 			samps+=len / 2;	//number of samplepairs eaten in this packet. for stats.
 			break;
+#ifdef HAVE_OPUS
 		case VOIP_OPUS:
 			{
 				//opus rtp only supports/allows a single chunk in each packet.
@@ -1478,6 +1531,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				}
 			}
 			break;
+#endif
 		default:
 			outbuf[outpos] = 0;
 			break;
@@ -1550,21 +1604,25 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		{
 			switch(s_voip.enccodec)
 			{
+#ifdef HAVE_SPEEX
 			case VOIP_SPEEX_NARROW:
 			case VOIP_SPEEX_WIDE:
 			case VOIP_SPEEX_ULTRAWIDE:
 			case VOIP_SPEEX_OLD:
 				NET_RTP_Transmit(initseq, inittimestamp, va("speex@%i", s_voip.encsamplerate), outbuf, outpos);
 				break;
+#endif
 			case VOIP_PCMA:
 				NET_RTP_Transmit(initseq, inittimestamp, "pcma@8000", outbuf, outpos);
 				break;
 			case VOIP_PCMU:
 				NET_RTP_Transmit(initseq, inittimestamp, "pcmu@8000", outbuf, outpos);
 				break;
+#ifdef HAVE_OPUS
 			case VOIP_OPUS:
 				NET_RTP_Transmit(initseq, inittimestamp, "opus@48000", outbuf, outpos);
 				break;
+#endif
 			}
 		}
 #endif
@@ -1598,12 +1656,17 @@ static void S_Voip_Disable_f(void)
 }
 static void S_Voip_f(void)
 {
-	int i;
+#ifdef HAVE_SPEEX
 	if (!strcmp(Cmd_Argv(1), "maxgain"))
 	{
-		i = atoi(Cmd_Argv(2));
+		int i = atoi(Cmd_Argv(2));
 		if (s_voip.speexdsp.preproc)
 			qspeex_preprocess_ctl(s_voip.speexdsp.preproc, SPEEX_PREPROCESS_SET_AGC_MAX_GAIN, &i);
+	}
+	else
+#endif
+	{
+		Con_Printf("unrecognised parameter \"%s\"\n", Cmd_Argv(1));
 	}
 }
 static void QDECL S_Voip_Play_Callback(cvar_t *var, char *oldval)
@@ -1663,8 +1726,10 @@ void S_Voip_Init(void)
 	Cvar_Register(&snd_voip_ducking,		"Voice Chat");
 	Cvar_Register(&snd_voip_micamp,		"Voice Chat");
 	Cvar_Register(&snd_voip_codec,		"Voice Chat");
+#ifdef HAVE_SPEEX
 	Cvar_Register(&snd_voip_noisefilter,		"Voice Chat");
 	Cvar_Register(&snd_voip_autogain,		"Voice Chat");
+#endif
 	Cvar_Register(&snd_voip_bitrate,		"Voice Chat");
 	Cmd_AddCommand("+voip", S_Voip_Enable_f);
 	Cmd_AddCommand("-voip", S_Voip_Disable_f);
@@ -1766,7 +1831,8 @@ extern sounddriver_t WaveOut_Output;
 sounddriver_t MacOS_AudioOutput;	//prefered on mac
 #endif
 #ifdef ANDROID
-sounddriver_t Droid_AudioOutput;	//prefered on android (java thread)
+sounddriver_t OSL_Output;			//general audio library, but android has all kinds of quirks.
+sounddriver_t Droid_AudioOutput;
 #endif
 #if defined(__MORPHOS__)
 sounddriver_t AHI_AudioOutput;		//prefered on morphos
@@ -1811,7 +1877,7 @@ static sounddriver_t *outputdrivers[] =
 	&MacOS_AudioOutput,	//prefered on mac
 #endif
 #ifdef ANDROID
-	&Droid_AudioOutput,	//prefered on android (java thread)
+	&OSL_Output,		//opensl(es)
 #endif
 #if defined(__MORPHOS__)
 	&AHI_AudioOutput,	//prefered on morphos
@@ -1965,10 +2031,7 @@ static void QDECL S_Voip_EnumeratedCaptureDevice(const char *driver, const char 
 	char nbuf[1024];
 	char dbuf[1024];
 
-	if (devicecode && (	strchr(devicecode, ' ') ||
-						strchr(devicecode, '\"')))
-		fullintname = va("\"%s:%s\"", driver, devicecode);	//it'll all get escaped anyway. but yeah, needs to be a single token or our multi-device stuff won't work properly. yes, this is a bit of a hack.
-	else if (devicecode)
+	if (devicecode)
 		fullintname = va("%s:%s", driver, devicecode);
 	else
 		fullintname = driver;
@@ -3053,7 +3116,55 @@ float S_GetSoundTime(int entnum, int entchannel)
 		{
 			if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel && sc->channel[i].sfx)
 			{
-				result = (sc->channel[i].pos>>PITCHSHIFT) / (float)snd_speed;	//the time into the sound, ignoring play rate.
+				ssamplepos_t spos = sc->GetChannelPos?sc->GetChannelPos(sc, &sc->channel[i]):(sc->channel[i].pos>>PITCHSHIFT);
+				result = spos / (float)snd_speed;	//the time into the sound, ignoring play rate.
+				break;
+			}
+		}
+		//we found one on this sound device card, ignore others.
+		if (result != -1)
+			break;
+	}
+	S_UnlockMixer();
+	return result;
+}
+float S_GetChannelLevel(int entnum, int entchannel)
+{
+	int i, j;
+	float result = -1;	//if we didn't find one
+	soundcardinfo_t *sc;
+	sfxcache_t scachebuf, *scache;
+	S_LockMixer();
+	for (sc = sndcardinfo; sc && result == -1; sc = sc->next)
+	{
+		for (i = 0; i < sc->total_chans; i++)
+		{
+			if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel && sc->channel[i].sfx)
+			{
+				ssamplepos_t spos = sc->GetChannelPos?sc->GetChannelPos(sc, &sc->channel[i]):(sc->channel[i].pos>>PITCHSHIFT);
+				scache = sc->channel[i].sfx->decoder.decodedata(sc->channel[i].sfx, &scachebuf, spos, 1);
+				if (!scache)
+					scache = sc->channel[i].sfx->decoder.buf;
+				if (scache && spos >= scache->soundoffset && spos < scache->soundoffset+scache->length)
+				{
+					spos -= scache->soundoffset;
+					spos *= scache->numchannels;
+					switch(scache->width)
+					{
+					case 1:
+						for (j = 0; j < scache->numchannels; j++)	//average the channels
+							result += abs(((signed char*)scache->data)[spos+j]);
+						result /= scache->numchannels*127.0;
+						break;
+					case 2:
+						for (j = 0; j < scache->numchannels; j++)	//average the channels
+							result += abs(((signed short*)scache->data)[spos+j]);
+						result /= scache->numchannels*32767.0;
+						break;
+					}
+				}
+				else
+					result = 0;
 				break;
 			}
 		}

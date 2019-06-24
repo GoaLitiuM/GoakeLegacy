@@ -101,9 +101,9 @@ FTE_ALIGN(4) qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 	#define HAVE_NATPMP
 #endif
 
-#if defined(HAVE_SERVER) || defined(MASTERONLY)
-	#define HAVE_HTTPSV
-#endif
+//#if !defined(HAVE_SERVER) && !defined(MASTERONLY)
+//	#undef HAVE_HTTPSV
+//#endif
 
 void NET_GetLocalAddress (int socket, netadr_t *out);
 //int TCP_OpenListenSocket (const char *localip, int port);
@@ -119,6 +119,9 @@ cvar_t	net_fakeloss			= CVARFD("net_fakeloss",			"0", CVAR_CHEAT, "Simulates pac
 static cvar_t net_dns_ipv4		= CVARD("net_dns_ipv4",				"1", "If 0, disables dns resolution of names to ipv4 addresses (removing any associated error messages). Also hides ipv4 addresses in address:port listings.");
 static cvar_t net_dns_ipv6		= CVARD("net_dns_ipv6",				"1", "If 0, disables dns resolution of names to ipv6 addresses (removing any associated error messages). Also hides ipv6 addresses in address:port listings.");
 cvar_t	net_enabled				= CVARD("net_enabled",				"1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
+#if defined(HAVE_SSL)
+cvar_t	tls_ignorecertificateerrors	= CVARFD("tls_ignorecertificateerrors", "0", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOUNSAFEEXPAND|CVAR_NOSET, "This should NEVER be set to 1!");
+#endif
 #if defined(TCPCONNECT) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 #ifdef HAVE_SERVER
 cvar_t	net_enable_qizmo		= CVARD("net_enable_qizmo",			"1", "Enables compatibility with qizmo's tcp connections serverside. Frankly, using sv_port_tcp without this is a bit pointless.");
@@ -127,6 +130,7 @@ cvar_t	net_enable_qtv			= CVARD("net_enable_qtv",			"1", "Listens for qtv proxie
 #if defined(HAVE_SSL)
 cvar_t	net_enable_tls			= CVARD("net_enable_tls",			"1", "If enabled, binary data sent to a non-tls tcp port will be interpretted as a tls handshake (enabling https or wss over the same tcp port.");
 #endif
+#ifdef HAVE_HTTPSV
 #ifdef SV_MASTER
 cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
 #else
@@ -134,6 +138,7 @@ cvar_t	net_enable_http			= CVARD("net_enable_http",			"0", "If enabled, tcp port
 #endif
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
 cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"0", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
+#endif
 #endif
 #if defined(HAVE_DTLS) && defined(HAVE_SERVER)
 static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
@@ -1023,6 +1028,14 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 
 	if (!(*s) || !addresses)
 		return result;
+
+	//EVIL HACK!
+	//updates.tth uses a known self-signed certificate (to protect against dns hijacks like fteqw.com suffered).
+	//its not meant to be used for browsers etc, and I cba to register dns stuff for it.
+	//besides, browsers/etc would just bitch about its cert, so w/e.
+	//redirect the dns to the base host without affecting http(s) hosts/certificates.
+	if (!strcmp(s, "updates.triptohell.info"))
+		s += 8;
 
 	memset (sadr, 0, sizeof(*sadr));
 
@@ -3369,7 +3382,7 @@ neterr_t FTENET_Datagram_SendPacket(ftenet_generic_connection_t *con, int length
 		if (ecode == NET_EMSGSIZE)
 			return NETERR_MTU;
 
-		if (ecode == EADDRNOTAVAIL)
+		if (ecode == NET_EADDRNOTAVAIL)
 			return NETERR_NOROUTE;	//this interface doesn't actually support that (eg: happens when ipv6 is disabled on a specific interface).
 
 		if (ecode == NET_EACCES)
@@ -3693,10 +3706,10 @@ typedef struct ftenet_tcpconnect_stream_s {
 	{
 		TCPC_UNKNOWN,		//waiting to see what they send us.
 		TCPC_QIZMO,			//'qizmo\n' handshake, followed by packets prefixed with a 16bit packet length.
+#ifdef HAVE_HTTPSV
 		TCPC_WEBSOCKETU,	//utf-8 encoded data.
 		TCPC_WEBSOCKETB,	//binary encoded data (subprotocol = 'binary')
 		TCPC_WEBSOCKETNQ,	//raw nq msg buffers with no encapsulation or handshake
-#ifdef HAVE_HTTPSV
 		TCPC_HTTPCLIENT,	//we're sending a file to this victim.
 		TCPC_WEBRTC_CLIENT,	//for brokering webrtc connections, doesn't carry any actual game data itself.
 		TCPC_WEBRTC_HOST	//for brokering webrtc connections, doesn't carry any actual game data itself.
@@ -4719,8 +4732,8 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 		return FTENET_TCPConnect_HTTPResponse(st, arg, acceptsgzip);
 	}
 }
-
-#ifdef HAVE_SSL
+#endif
+#if defined(HAVE_SSL) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 static int QDECL TLSPromoteRead (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	if (bytestoread > net_message.cursize)
@@ -4730,7 +4743,6 @@ static int QDECL TLSPromoteRead (struct vfsfile_s *file, void *buffer, int bytes
 	memmove(net_message_buffer, net_message_buffer+bytestoread, net_message.cursize);
 	return bytestoread;
 }
-#endif
 #endif
 void FTENET_TCPConnect_PrintStatus(ftenet_generic_connection_t *gcon)
 {
@@ -4750,12 +4762,12 @@ void FTENET_TCPConnect_PrintStatus(ftenet_generic_connection_t *gcon)
 		case TCPC_QIZMO:
 			Con_Printf("qizmo %s\n", adr);
 			break;
+#ifdef HAVE_HTTPSV
 		case TCPC_WEBSOCKETU:
 		case TCPC_WEBSOCKETB:
 		case TCPC_WEBSOCKETNQ:
 			Con_Printf("websocket %s\n", adr);
 			break;
-#ifdef HAVE_HTTPSV
 		case TCPC_HTTPCLIENT:
 			Con_Printf("http %s\n", adr);
 			break;
@@ -5012,13 +5024,12 @@ closesvstream:
 			net_from = st->remoteaddr;
 
 			return true;
+#ifdef HAVE_HTTPSV
 		case TCPC_WEBSOCKETU:
 		case TCPC_WEBSOCKETB:
 		case TCPC_WEBSOCKETNQ:
-#ifdef HAVE_HTTPSV
 		case TCPC_WEBRTC_HOST:
 		case TCPC_WEBRTC_CLIENT:
-#endif
 			while (st->inlen >= 2)
 			{
 				unsigned short ctrl = ((unsigned char*)st->inbuffer)[0]<<8 | ((unsigned char*)st->inbuffer)[1];
@@ -5165,7 +5176,6 @@ closesvstream:
 						Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 						goto closesvstream;
 					}
-#ifdef HAVE_HTTPSV
 #ifdef SUPPORT_RTC_ICE
 					if (st->clienttype == TCPC_WEBRTC_CLIENT && !*st->webrtc.resource)
 					{	//this is a client that's corrected directly to us via webrtc.
@@ -5204,7 +5214,6 @@ closesvstream:
 						net_message.cursize = 0;
 					}
 					else
-#endif
 #ifdef NQPROT
 						if (st->clienttype == TCPC_WEBSOCKETNQ)
 					{	//hack in an 8-byte header
@@ -5249,6 +5258,7 @@ closesvstream:
 				}
 			}
 			break;
+#endif
 		}
 	}
 
@@ -5299,7 +5309,6 @@ closesvstream:
 
 neterr_t FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, const void *data, netadr_t *to)
 {
-	neterr_t e;
 	ftenet_tcpconnect_connection_t *con = (ftenet_tcpconnect_connection_t*)gcon;
 	ftenet_tcpconnect_stream_t *st;
 
@@ -5334,6 +5343,7 @@ neterr_t FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 						}
 					}
 					break;
+#ifdef HAVE_HTTPSV
 				case TCPC_WEBSOCKETNQ:
 					if (length < 8 || ((char*)data)[0] & 0x80)
 						break;
@@ -5345,10 +5355,13 @@ neterr_t FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 					//fallthrough
 				case TCPC_WEBSOCKETU:
 				case TCPC_WEBSOCKETB:
-					e = FTENET_TCPConnect_WebSocket_Splurge(st, (st->clienttype==TCPC_WEBSOCKETU)?1:2, data, length);
-					if (e != NETERR_SENT)
-						return e;
+					{
+						neterr_t e = FTENET_TCPConnect_WebSocket_Splurge(st, (st->clienttype==TCPC_WEBSOCKETU)?1:2, data, length);
+						if (e != NETERR_SENT)
+							return e;
+					}
 					break;
+#endif
 				default:
 					break;
 				}
@@ -7877,10 +7890,13 @@ void NET_Init (void)
 #endif
 #if defined(HAVE_SSL)
 	Cvar_Register(&net_enable_tls, "networking");
+	Cvar_Register(&tls_ignorecertificateerrors, "networking");
 #endif
+#ifdef HAVE_HTTPSV
 	Cvar_Register(&net_enable_http, "networking");
 	Cvar_Register(&net_enable_websockets, "networking");
 	Cvar_Register(&net_enable_webrtcbroker, "networking");
+#endif
 #endif
 
 
@@ -7973,7 +7989,7 @@ static void QDECL SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 		FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, NP_STREAM);
 }
 cvar_t	sv_port_tcp = CVARFC("sv_port_tcp", "", CVAR_SERVERINFO, SV_Tcpport_Callback);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 cvar_t	qtv_streamport	= CVARAFCD(	"qtv_streamport", "",
 									"mvd_streamport", 0, SV_Tcpport_Callback, "Legacy cvar. Use sv_port_tcp instead.");
 #endif
@@ -8047,7 +8063,7 @@ void SVNET_RegisterCvars(void)
 #if defined(TCPCONNECT) && defined(HAVE_IPV4)
 	Cvar_Register (&sv_port_tcp,	"networking");
 	sv_port_tcp.restriction = RESTRICT_MAX;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cvar_Register (&qtv_streamport,	"networking");
 	qtv_streamport.restriction = RESTRICT_MAX;
 #endif
@@ -8118,7 +8134,7 @@ void NET_InitServer(void)
 #endif
 #if defined(TCPCONNECT) && defined(HAVE_TCP)
 		Cvar_ForceCallback(&sv_port_tcp);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		Cvar_ForceCallback(&qtv_streamport);
 #endif
 #ifdef HAVE_IPV6
@@ -8334,6 +8350,9 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 			Con_Printf("connection to \"%s\" timed out\n", tf->peer);
 			return -1;	//don't bother trying to read if we never connected.
 		case NET_ENOTCONN:
+#ifdef __unix__
+		case EPIPE:
+#endif
 			Con_Printf("connection to \"%s\" failed\n", tf->peer);
 			return -1;	//don't bother trying to read if we never connected.
 		default:

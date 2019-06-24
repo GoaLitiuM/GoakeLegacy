@@ -392,8 +392,24 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 	};
 	size_t u;
 	char stripped[64];
+	char completed[256];
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
+
+	*completed = 0;
+#ifdef HAVE_CLIENT
+	{
+		float besttime, fulltime, kills, secrets;
+		if (Log_CheckMapCompletion(NULL, name, &besttime, &fulltime, &kills, &secrets))
+		{
+			if (kills || secrets)
+				Q_snprintfz(completed, sizeof(completed), "^7 - ^2best: ^1%.1f^2, full: ^1%.1f^2 (^1%.0f^2 kills, ^1%.0f^2 secrets)", besttime, fulltime, kills, secrets);
+			else
+				Q_snprintfz(completed, sizeof(completed), "^7 - ^2best: ^1%.1f^2", besttime);
+		}
+	}
+#endif
+
 	COM_StripExtension(name+5, stripped, sizeof(stripped)); 
 	for (u = 0; u < countof(levelshots); u++)
 	{
@@ -401,11 +417,11 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 		if (COM_FCheckExists(ls))
 		{
 			Con_Printf("^[\\map\\%s\\img\\%s\\w\\64\\h\\48^]", stripped, ls);
-			Con_Printf("^[[%s]\\map\\%s\\tipimg\\%s^]\n", stripped, stripped, ls);
+			Con_Printf("^[[%s]%s\\map\\%s\\tipimg\\%s^]\n", stripped, completed, stripped, ls);
 			return true;
 		}
 	}
-	Con_Printf("^[[%s]\\map\\%s^]\n", stripped, stripped);
+	Con_Printf("^[[%s]%s\\map\\%s^]\n", stripped, completed, stripped);
 	return true;
 }
 static int QDECL ShowMapListExt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
@@ -565,7 +581,10 @@ void SV_Map_f (void)
 #ifdef Q3SERVER
 	q3singleplayer = !strcmp(Cmd_Argv(0), "spmap");
 #endif
-	flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap");
+	if ((svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM) && progstype == PROG_QW)
+		flushparms = !strcmp(Cmd_Argv(0), "spmap");	//quakeworld's map command preserves spawnparms.
+	else
+		flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap"); //[sp]map flushes in nq+h2+q2+etc
 #ifdef SAVEDGAMES
 	newunit = flushparms || (!strcmp(Cmd_Argv(0), "changelevel") && !startspot);
 	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
@@ -1910,7 +1929,10 @@ static void SV_Status_f (void)
 	#if defined(HAVE_SSL)
 		extern cvar_t net_enable_tls;
 	#endif
-	extern cvar_t net_enable_http, net_enable_webrtcbroker, net_enable_websockets, net_enable_qizmo, net_enable_qtv;
+	#ifdef HAVE_HTTPSV
+		extern cvar_t net_enable_http, net_enable_webrtcbroker, net_enable_websockets;
+	#endif
+	extern cvar_t net_enable_qizmo, net_enable_qtv;
 #endif
 #ifdef NQPROT
 	extern cvar_t sv_listen_nq, sv_listen_dp;
@@ -1990,12 +2012,14 @@ static void SV_Status_f (void)
 		if (net_enable_tls.ival)
 			Con_Printf(" TLS");
 #endif
+#ifdef HAVE_HTTPSV
 		if (net_enable_http.ival)
 			Con_Printf(" HTTP");
 		if (net_enable_webrtcbroker.ival)
 			Con_Printf(" WebRTC");
 		if (net_enable_websockets.ival)
 			Con_Printf(" WS");
+#endif
 		if (net_enable_qizmo.ival)
 			Con_Printf(" QZ");
 		if (net_enable_qtv.ival)
@@ -2980,7 +3004,7 @@ void SV_PrecacheList_f(void)
 {
 	unsigned int i;
 	char *group = Cmd_Argv(1);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (!*group || !strncmp(group, "vwep", 4))
 	{
 		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
@@ -3172,6 +3196,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommandD ("map_restart", SV_Map_f, NULL);	//from q3.
 	Cmd_AddCommand ("listmaps", SV_MapList_f);
 	Cmd_AddCommand ("maplist", SV_MapList_f);
+	Cmd_AddCommand ("maps", SV_MapList_f);
 
 	Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);
 

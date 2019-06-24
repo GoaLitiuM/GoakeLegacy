@@ -395,6 +395,7 @@ public:
 		if (c)
 			return;	//already in there.
 
+		beginResetModel();
 		c = new filenode_s();
 		c->name = strdup(filename);
 		c->parent = p;
@@ -402,6 +403,7 @@ public:
 		p->children = cpprealloc(p->children, sizeof(*p->children)*(p->numchildren+1));
 		p->children[p->numchildren] = c;
 		p->numchildren++;
+		endResetModel();
 	}
 };
 
@@ -420,7 +422,7 @@ class documentlist : public QAbstractListModel
 		int savefmt;	//encoding to save as
 		QsciDocument doc;
 		QsciLexer *l;
-	} **docs, *curdoc;
+	} **docs, *curdoc = nullptr;
 
 	class docstacklock
 	{
@@ -925,6 +927,29 @@ public:
 		return ret;
 	}
 
+	bool annotate(const char *line)
+	{
+		auto filename = line+6;
+		auto filenameend = strchr(filename, ':');
+		if (!filenameend) return false;
+		auto linenum = atoi(filenameend+1);
+		line = strchr(filenameend+1, ':')+1;
+		if (!line) return false;
+		if (strncmp(curdoc->fname, filename, filenameend-filename) || curdoc->fname[filenameend-filename])
+		{
+			auto d = FindFile(filename);
+			if (d)
+			{
+				curdoc = d;
+				s->setDocument(d->doc);
+			}
+			else
+				return false;	//some other file that we're not interested in
+		}
+
+		s->annotate(linenum-1, s->annotation(linenum) + line + "\n", 0);
+		return true;
+	}
 
 	bool saveDocument(document_s *d)
 	{
@@ -1674,11 +1699,68 @@ void GUI_DoDecompile(void *buf, size_t size)
 		c = "COPYRIGHT OWNER NOT KNOWN";	//all work is AUTOMATICALLY copyrighted under the terms of the Berne Convention in all major nations. It _IS_ copyrighted, even if there's no license etc included. Good luck guessing what rights you have.
 	if (QMessageBox::Open == QMessageBox::question(mainwnd, "Copyright", QString::asprintf("The copyright message from this progs is\n%s\n\nPlease respect the wishes and legal rights of the person who created this.", c), QMessageBox::Open|QMessageBox::Cancel, QMessageBox::Cancel))
 	{
+		extern pbool qcc_vfiles_changed;
+		extern vfile_t *qcc_vfiles;
+
 		GUIprintf("");
 
 		DecompileProgsDat(progssrcname, buf, size);
 
-//		QCC_SaveVFiles();
+		if (qcc_vfiles_changed)
+		{
+			switch (QMessageBox::question(mainwnd, "Decompile", "Save as archive?", QMessageBox::Yes|QMessageBox::SaveAll|QMessageBox::Ignore, QMessageBox::Ignore))
+			{
+			case QMessageBox::Yes:
+				{
+					QString fname = QFileDialog::getSaveFileName(mainwnd, "Output Archive", QString(), "Zips (*.zip)");
+					if (!fname.isNull())
+					{
+						int h = SafeOpenWrite(fname.toUtf8().data(), -1);
+
+						progfuncs_t funcs;
+						progexterns_t ext;
+						memset(&funcs, 0, sizeof(funcs));
+						funcs.funcs.parms = &ext;
+						memset(&ext, 0, sizeof(ext));
+						ext.ReadFile = GUIReadFile;
+						ext.FileSize = GUIFileSize;
+						ext.WriteFile = QCC_WriteFile;
+						ext.Sys_Error = Sys_Error;
+						ext.Printf = GUIprintf;
+
+						qccprogfuncs = &funcs;
+						WriteSourceFiles(qcc_vfiles, h, true, false);
+						qccprogfuncs = NULL;
+
+						SafeClose(h);
+
+						qcc_vfiles_changed = false;
+						return;
+					}
+				}
+				break;
+			case QMessageBox::SaveAll:
+				{
+					QString path = QFileDialog::getExistingDirectory(mainwnd, "Where do you want to save the decompiled code?", QString());
+					for (vfile_t *f = qcc_vfiles; f; f = f->next)
+					{
+						char nname[MAX_OSPATH];
+						int h;
+						QC_snprintfz(nname, sizeof(nname), "%s/%s", path.toUtf8().data(), f->filename);
+						h = SafeOpenWrite(f->filename, -1);
+
+						if (h >= 0)
+						{
+							SafeWrite(h, f->file, f->size);
+							SafeClose(h);
+						}
+					}
+				}
+				break;
+			default:
+				return;
+			}
+		}
 	}
 }
 
@@ -1848,7 +1930,12 @@ int GUIprintf(const char *msg, ...)
 			QString s = l.mid(0, idx);
 			l = l.mid(idx+1);
 
-			if (s.contains(": error") || s.contains(": werror") || !s.mid(0,5).compare("error", Qt::CaseInsensitive))
+			if (!s.mid(0, 6).compare("code: "))
+			{
+				mainwnd->docs.annotate(s.toUtf8().data());
+				continue;
+			}
+			else if (s.contains(": error") || s.contains(": werror") || !s.mid(0,5).compare("error", Qt::CaseInsensitive))
 				mainwnd->log.setTextColor(QColor(255, 0, 0));
 			else if (s.contains(": warning"))
 				mainwnd->log.setTextColor(QColor(128, 128, 0));
@@ -1892,7 +1979,6 @@ void documentlist::EditFile(document_s *c, const char *filename, int linenum, bo
 		if (!CreateDocument(c))
 		{
 			delete(c);
-			numdocuments--;
 			return;
 		}
 

@@ -122,18 +122,21 @@ cvar_t	registered = CVARD("registered","0","Set if quake's pak1.pak is available
 cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
 cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
 cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
-cvar_t	fs_gamename = CVARAFD("com_fullgamename", NULL, "fs_gamename", CVAR_NOSET, "The filesystem is trying to run this game");
+cvar_t	fs_gamename = CVARAD("com_fullgamename", NULL, "fs_gamename", "The filesystem is trying to run this game");
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_protocolversion = CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
-#if !defined(NOLEGACY)
+#ifdef HAVE_LEGACY
 cvar_t	ezcompat_markup = CVARD("ezcompat_markup", "1", "Attempt compatibility with ezquake's text markup.0: disabled.\n1: Handle markup ampersand markup.\n2: Handle chevron markup (only in echo commands, for config compat, because its just too unreliable otherwise).");
 #endif
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
-cvar_t	pm_downloads_url = CVARFD("pm_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
-cvar_t	pm_autoupdate = CVARFD("pm_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+cvar_t	pkg_downloads_url = CVARFD("pkg_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
+cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+#ifdef HAVE_LEGACY
+cvar_t	pm_noround = CVARD("pm_noround", "0", "Disables player prediction snapping, in a way that cannot be reliably predicted but may be needed to avoid map bugs.");
+#endif
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -3003,7 +3006,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 	return out;
 }
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 static unsigned int koi2wc (unsigned char uc)
 {
 	static const char koi2wc_table[64] =
@@ -3249,7 +3252,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 	conchar_t ext;
 	conchar_t *oldout = out;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	extern cvar_t dpcompat_console;
 	extern cvar_t ezcompat_markup;
 
@@ -3277,7 +3280,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 #endif
 
 	if (*str == 1 || *str == 2
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		|| (*str == 3 && dpcompat_console.ival)
 #endif
 		)
@@ -3577,7 +3580,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				continue;
 			}
 		}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		else if (*str == '&' && str[1] == 'c' && !(flags & PFS_NOMARKUP) && ezcompat_markup.ival)
 		{
 			// ezQuake color codes
@@ -3983,7 +3986,7 @@ skipwhite:
 //same as COM_Parse, but parses two quotes next to each other as a single quote as part of the string
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize)
 {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	extern cvar_t dpcompat_console;
 #endif
 	int		c;
@@ -3995,9 +3998,6 @@ char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qbo
 
 	len = 0;
 	token[0] = 0;
-
-	if (token == com_token)
-		COM_AssertMainThread("COM_ParseOut: com_token");
 
 	if (!data)
 		return NULL;
@@ -4053,7 +4053,7 @@ skipwhite:
 	if (c == '\"')
 	{
 		data++;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (dpcompat_console.ival)
 		{
 			while (1)
@@ -4349,7 +4349,7 @@ skipwhite:
 //maximum expansion is strlen(string)*2+4 (includes null terminator)
 const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes)
 {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	extern cvar_t dpcompat_console;
 #else
 	static const cvar_t dpcompat_console = {0};
@@ -4646,7 +4646,7 @@ void COM_ParsePlusSets (qboolean docbuf)
 			{
 #if defined(Q2CLIENT) || defined(Q2SERVER)
 				if (!strcmp("basedir", com_argv[i+1]))
-					host_parms.basedir = com_argv[i];
+					host_parms.basedir = com_argv[i+2];
 				else
 #endif
 					Cvar_Get(com_argv[i+1], com_argv[i+2], (!strcmp(com_argv[i], "+seta"))?CVAR_ARCHIVE:0, "Cvars set on commandline");
@@ -4809,7 +4809,7 @@ static void COM_Version_f (void)
 {
 	Con_Printf("\n");
 	Con_Printf("^&F0%s\n", FULLENGINENAME);
-	Con_Printf("^[%s\\url\\%s^]\n", ENGINEWEBSITE, ENGINEWEBSITE);
+	Con_Printf("^4"ENGINEWEBSITE"\n");
 	Con_Printf("%s\n", version_string());
 
 	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
@@ -4973,70 +4973,97 @@ static void COM_Version_f (void)
 	Con_Printf("zlib: %s\n", ZLIB_VERSION);
 #endif
 
-
-#ifndef SERVERONLY
-	//but print client ones only if we're not dedicated
-#ifndef AVAIL_PNGLIB
-	Con_Printf("libpng disabled\n");
-#else
-	#ifdef DYNAMIC_LIBPNG
-		Con_Printf("libPNG(dynamic) %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
-	#else
-		Con_Printf("libPNG %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
+#ifdef HAVE_CLIENT
+	Con_Printf("image formats:");
+	#ifdef IMAGEFMT_DDS
+		Con_Printf(" dds");
 	#endif
-#endif
-#ifndef AVAIL_JPEGLIB
-	Con_Printf("libjpeg disabled\n");
-#else
-	#ifdef DYNAMIC_LIBJPEG
-		Con_Printf("libjpeg(dynamic): %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
-	#else
-		Con_Printf("libjpeg: %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+	#ifdef IMAGEFMT_KTX
+		Con_Printf(" ktx");
 	#endif
-#endif
+	Con_Printf(" tga");
+	#if defined(AVAIL_PNGLIB)
+		Con_Printf(" png");
+		#ifdef DYNAMIC_LIBPNG
+				Con_Printf("^h(dynamic, %s)", PNG_LIBPNG_VER_STRING);
+		#else
+			Con_Printf("^h(%s)", PNG_LIBPNG_VER_STRING);
+		#endif
+	#else
+		Con_DPrintf(" ^h(disabled: png)");
+	#endif
+	#ifdef IMAGEFMT_BMP
+		Con_Printf(" bmp+ico");
+	#endif
+	#if defined(AVAIL_JPEGLIB)
+		Con_Printf(" jpeg");
+		#ifdef DYNAMIC_LIBJPEG
+			Con_Printf("^h(dynamic, %i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+		#else
+			Con_Printf("^h(%i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+		#endif
+	#else
+		Con_DPrintf(" ^h(disabled: jpeg)");
+	#endif
+	#ifdef IMAGEFMT_PBM
+		Con_Printf(" pfm+pbm+pgm+ppm"/*"+pam"*/);
+	#endif
+	#ifdef IMAGEFMT_PSD
+		Con_Printf(" psd");
+	#endif
+	#ifdef IMAGEFMT_HDR
+		Con_Printf(" hdr");
+	#endif
+	#ifdef IMAGEFMT_PKM
+		Con_Printf(" pkm");
+	#endif
+	#ifdef IMAGEFMT_PCX
+		Con_Printf(" pcx");
+	#endif
+	Con_Printf("\n");
 
 	Con_Printf("VoiceChat:");
-#if !defined(VOICECHAT)
-	Con_Printf(" disabled");
-#else
-	#ifdef SPEEX_STATIC
-		Con_Printf(" speex");
-		Con_DPrintf("(static)");
+	#if !defined(VOICECHAT)
+		Con_Printf(" disabled");
 	#else
-		Con_Printf(" speex(dynamic)");
+		#ifdef SPEEX_STATIC
+			Con_Printf(" speex");
+			Con_DPrintf("^h(static)");
+		#else
+			Con_Printf(" speex^h(dynamic)");
+		#endif
+		#ifdef OPUS_STATIC
+			Con_Printf(" opus");
+			Con_DPrintf("^h(static)");
+		#else
+			Con_Printf(" opus^h(dynamic)");
+		#endif
 	#endif
-	#ifdef OPUS_STATIC
-		Con_Printf(" opus");
-		Con_DPrintf("(static)");
-	#else
-		Con_Printf(" opus(dynamic)");
-	#endif
-#endif
 	Con_Printf("\n");
 
 	Con_Printf("Audio Decoders:");
-#ifndef AVAIL_OGGVORBIS
-	Con_DPrintf(" ^h(disabled: Ogg Vorbis)^7");
-#elif defined(LIBVORBISFILE_STATIC)
-	Con_Printf(" Ogg Vorbis");
-#else
-	Con_Printf(" Ogg Vorbis(dynamic)");
-#endif
-#if defined(AVAIL_MP3_ACM)
-	Con_Printf(" mp3(system)");
-#endif
+	#ifndef AVAIL_OGGVORBIS
+		Con_DPrintf(" ^h(disabled: Ogg Vorbis)^7");
+	#elif defined(LIBVORBISFILE_STATIC)
+		Con_Printf(" Ogg Vorbis");
+	#else
+		Con_Printf(" Ogg Vorbis^h(dynamic)");
+	#endif
+	#if defined(AVAIL_MP3_ACM)
+		Con_Printf(" mp3(system)");
+	#endif
 	Con_Printf("\n");
 #endif
 
 #ifdef SQL
 	Con_Printf("Databases:");
 	#ifdef USE_MYSQL
-		Con_Printf(" mySQL(dynamic)");
+		Con_Printf(" mySQL^h(dynamic)");
 	#else
 		Con_DPrintf(" ^h(disabled: mySQL)^7");
 	#endif
 	#ifdef USE_SQLITE
-		Con_Printf(" sqlite(dynamic)");
+		Con_Printf(" sqlite^h(dynamic)");
 	#else
 		Con_DPrintf(" ^h(disabled: sqlite)^7");
 	#endif
@@ -5049,19 +5076,19 @@ static void COM_Version_f (void)
 #else
 	Con_DPrintf(" ^h(disabled: mapcluster)^7");
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_SERVER
 #ifdef AVAIL_FREETYPE
 	#ifdef FREETYPE_STATIC
 		Con_Printf(" freetype2");
-		Con_DPrintf("(static)");
+		Con_DPrintf("^h(static)");
 	#else
-		Con_Printf(" freetype2(dynamic)");
+		Con_Printf(" freetype2^h(dynamic)");
 	#endif
 #else
 	Con_DPrintf(" ^h(disabled: freetype2)^7");
 #endif
 #ifdef AVAIL_OPENAL
-	Con_Printf(" openal(dynamic)");
+	Con_Printf(" openal^h(dynamic)");
 #else
 	Con_DPrintf(" ^h(disabled: openal)^7");
 #endif
@@ -5128,7 +5155,7 @@ static void COM_Version_f (void)
 	Con_Printf(" ssq1qvm");
 #endif
 #if defined(VM_LUA)
-	Con_Printf(" ssq1lua(dynamic)");
+	Con_Printf(" ssq1lua^h(dynamic)");
 #endif
 #if defined(MENU_DAT)
 	Con_Printf(" menuqc");
@@ -5139,7 +5166,7 @@ static void COM_Version_f (void)
 #if defined(CSQC_DAT)
 	Con_Printf(" csqc");
 #endif
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	Con_Printf(" ssqc");
 #endif
 	Con_Printf("\n");
@@ -5169,7 +5196,7 @@ static void COM_ErrorMe_f(void)
 #ifdef LOADERTHREAD
 static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue);
 cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling the main thread.");
-static cvar_t worker_count = CVARFCD("worker_count", "", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
+static cvar_t worker_count = CVARFCD("worker_count", "0", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
 static cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
 
 #define WORKERTHREADS 16	//max
@@ -5208,6 +5235,40 @@ qboolean COM_HasWork(void)
 			return true;
 	}
 	return false;
+}
+void COM_InsertWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
+{
+	struct com_work_s *work;
+
+	if (tg >= WG_COUNT)
+		return;
+
+	//no worker there, just do it immediately on this thread instead of pushing it to the worker.
+	if (!com_liveworkers[tg] || (tg!=WG_MAIN && com_workererror))
+	{
+		func(ctx, data, a, b);
+		return;
+	}
+
+	//build the work
+	work = Z_Malloc(sizeof(*work));
+	work->func = func;
+	work->ctx = ctx;
+	work->data = data;
+	work->a = a;
+	work->b = b;
+
+	//queue it (fifo)
+	Sys_LockConditional(com_workercondition[tg]);
+	work->next = com_work_head[tg];
+	if (!com_work_tail[tg])
+		com_work_tail[tg] = work;
+	com_work_head[tg] = work;
+
+//	Sys_Printf("%x: Queued work %p (%s)\n", thread, work->ctx, work->ctx?(char*)work->ctx:"?");
+
+	Sys_ConditionSignal(com_workercondition[tg]);
+	Sys_UnlockConditional(com_workercondition[tg]);
 }
 void COM_AddWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
 {
@@ -5759,8 +5820,9 @@ void COM_Init (void)
 	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
-#if !defined(NOLEGACY)
+#ifdef HAVE_LEGACY
 	Cvar_Register (&ezcompat_markup, NULL);
+	Cvar_Register (&pm_noround, NULL);
 #endif
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;
@@ -5900,7 +5962,7 @@ void COM_Effectinfo_Enumerate(int (*cb)(const char *pname))
 /*remaps map checksums from known non-cheat GPL maps to authentic id1 maps.*/
 unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	static const struct {
 		const char *name;
 		unsigned int gpl2;
@@ -6068,6 +6130,26 @@ void InfoSync_Add(infosync_t *sync, void *context, const char *name)
 	sync->keys[k].syncpos = 0;
 }
 
+static qboolean InfoBuf_NeedsEncoding(const char *str, size_t size)
+{
+	const char *c, *e = str+size;
+	for (c = str; c < e; c++)
+	{
+		switch((unsigned char)*c)
+		{
+		case 255:	//invalid for vanilla qw, and also used for special encoding
+		case '\\':	//abiguity with end-of-token
+		case '\"':	//parsing often sends these enclosed in quotes
+		case '\n':	//REALLY screws up parsing
+		case '\r':	//generally bad form
+		case 0:		//are we really doing this?
+		case '$':	//a number of engines like expanding things inside quotes. make sure that cannot ever happen.
+		case ';':	//in case someone manages to break out of quotes
+			return true;
+		}
+	}
+	return false;
+}
 qboolean InfoBuf_FindKey (infobuf_t *info, const char *key, size_t *idx)
 {
 	size_t k;
@@ -6106,14 +6188,18 @@ char *InfoBuf_ValueForKey (infobuf_t *info, const char *key)	//not to be used wi
 	valueindex = (valueindex+1)&3;
 	return InfoBuf_ReadKey(info, key, value[valueindex], sizeof(value[valueindex]));
 }
-const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize)	//obtains a direct pointer to temp memory
+const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize, qboolean *large)	//obtains a direct pointer to temp memory
 {
 	size_t k;
 	if (InfoBuf_FindKey(info, key, &k) && !info->keys[k].partial)
 	{
+		if (large)
+			*large = info->keys[k].large;
 		*blobsize = info->keys[k].size;
 		return info->keys[k].value;
 	}
+	if (large)
+		*large = InfoBuf_NeedsEncoding(key, strlen(key));
 	*blobsize = 0;
 	return NULL;
 }
@@ -6169,26 +6255,25 @@ char *InfoBuf_DecodeString(const char *instart, const char *inend, size_t *sz)
 	}
 	return ret;
 }
+
 static qboolean InfoBuf_IsLarge(struct infokey_s *key)
 {
+	size_t namesize;
 	if (key->partial)
-		return true;
-		//detect invalid keys/values
-	//\\ makes parsing really really messy and isn't supported by most clients (although we could do it anyway)
-	//\" requires string escapes, again compat issues.
-	//0xff bugs out vanilla.
-	//nulls are bad, too...
-	if (strchr(key->name, '\\') || strchr(key->name, '\"') || strchr(key->name, 0xff))
-		return true;
-	if (strchr(key->value, '\\') || strchr(key->value, '\"') || strchr(key->value, 0xff) || strlen(key->value) != key->size)
 		return true;
 
 	if (key->size >= 64)
-		return true;	//key length limits is a thing in vanilla qw.
-	if (strlen(key->name) >= 64)
 		return true;	//value length limits is a thing in vanilla qw.
 						//note that qw reads values up to 512, but only sets them up to 64 bytes...
 						//probably just so that people don't spot buffer overflows so easily.
+	namesize = strlen(key->name);
+	if (namesize >= 64)
+		return true;	//key length limits is a thing in vanilla qw.
+
+	if (InfoBuf_NeedsEncoding(key->name, namesize))
+		return true;
+	if (InfoBuf_NeedsEncoding(key->value, key->size))
+		return true;
 	return false;
 }
 //like InfoBuf_SetStarBlobKey, but understands partials.
@@ -6423,24 +6508,7 @@ static qboolean InfoBuf_EncodeString_Internal(const char *n, size_t s, char *out
 {
 	size_t r = 0;
 	const char *c;
-	for (c = n; c < n+s; c++)
-	{
-		if (*c == (char)255 && c == n)
-			break;
-		if (*c == '\\')	//abiguity with end-of-token
-			break;
-		if (*c == '\"')	//parsing often sends these enclosed in quotes
-			break;
-		if (*c == '\n' || *c == '\r')	//generally bad form
-			break;
-		if (*c == 0)	//are we really doing this?
-			break;
-		if (*c == '$')	//a number of engines like expanding things inside quotes. make sure that cannot ever happen.
-			break;
-		if (*c == ';')	//in case someone manages to break out of quotes
-			break;
-	}
-	if (c != n+s)
+	if (InfoBuf_NeedsEncoding(n, s))
 	{
 		unsigned int base64_cur = 0;
 		unsigned int base64_bits = 0;
@@ -6665,6 +6733,13 @@ void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname,
 			if (var && (var->flags & cvarflags))
 				continue;	//this is saved via a cvar.
 		}
+
+		//blobs over a certain size cannot safely be parsed (due to Cmd_ExecuteString and com_token having limits)
+		//so just don't write them.
+		//if someone forces a write then the blob will get truncated.
+		//note that blobs are limited im size serverside anyway, so this is probably higher than it needs to be.
+		if (info->keys[k].size > 48000)
+			continue;
 
 		key = InfoBuf_EncodeString_Malloc(key, strlen(key));
 		val = InfoBuf_EncodeString_Malloc(val, info->keys[k].size);

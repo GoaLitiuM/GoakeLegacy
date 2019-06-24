@@ -30,7 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define CHAN_ITEM   3
 #define CHAN_BODY   4
 
-extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_edgefriction;
+extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_edgefriction, sv_reliable_sound;;
 extern cvar_t  dpcompat_stats;
 extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_jumpboost, sv_maxairstrafespeed, pm_airstep, pm_slidyslopes, pm_slidefix, sv_stepheight, sv_autojump, sv_extrajumps;
 
@@ -1017,9 +1017,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	SZ_Clear (&sv.multicast);
 }
 
-void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx)
+void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx)
 {
-	qboolean reliable = false;
+	qboolean reliable = false, doreliable;
 
 	client_t	*client;
 	qbyte		*mask;
@@ -1141,7 +1141,15 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 		if (!split)
 			continue;
 
-		if (reliable)
+		doreliable = reliable;
+		if (reliableinfokey)
+		{	//allow the user to override reliable state according to a userinfo key (primarily "rsnd" right now, but hey).
+			const char *v = InfoBuf_ValueForKey(&client->userinfo, reliableinfokey);
+			if (*v)
+				doreliable = atoi(v);
+		}
+
+		if (doreliable)
 		{
 			char msgbuf[8192];
 			sizebuf_t msg = {0};
@@ -1436,14 +1444,14 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 
 	if (chflags & CF_SV_UNICAST)
 	{
-		SV_MulticastCB(origin, reliable ? MULTICAST_ONE_R_SPECS : MULTICAST_ONE_SPECS, seenmask, SV_SoundMulticast, &ctx);
+		SV_MulticastCB(origin, (reliable||sv_reliable_sound.ival) ? MULTICAST_ONE_R_SPECS : MULTICAST_ONE_SPECS, reliable?NULL:"rsnd", seenmask, SV_SoundMulticast, &ctx);
 	}
 	else
 	{
 		if (use_phs)
-			SV_MulticastCB(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, seenmask, SV_SoundMulticast, &ctx);
+			SV_MulticastCB(origin, (reliable||sv_reliable_sound.ival) ? MULTICAST_PHS_R : MULTICAST_PHS, reliable?NULL:"rsnd", seenmask, SV_SoundMulticast, &ctx);
 		else
-			SV_MulticastCB(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, SV_SoundMulticast, &ctx);
+			SV_MulticastCB(origin, (reliable||sv_reliable_sound.ival) ? MULTICAST_ALL_R : MULTICAST_ALL, reliable?NULL:"rsnd", seenmask, SV_SoundMulticast, &ctx);
 	}
 }
 
@@ -2186,7 +2194,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 //			statsfi[STAT_MOVEVARS_AIRSPEEDLIMIT_NONQW]			= 0;
 //			statsfi[STAT_MOVEVARS_AIRSTRAFEACCEL_QW]			= 0;
 //			statsfi[STAT_MOVEVARS_AIRCONTROL_POWER]				= 2;
-			statsi[STAT_MOVEFLAGS]								= 0;//MOVEFLAG_QWCOMPAT;
+			statsi [STAT_MOVEFLAGS]								= MOVEFLAG_VALID|MOVEFLAG_QWCOMPAT;
 //			statsfi[STAT_MOVEVARS_WARSOWBUNNY_AIRFORWARDACCEL]	= 0;
 //			statsfi[STAT_MOVEVARS_WARSOWBUNNY_ACCEL]			= 0;
 //			statsfi[STAT_MOVEVARS_WARSOWBUNNY_TOPSPEED]			= 0;
@@ -2615,13 +2623,15 @@ qboolean SV_SendClientDatagram (client_t *client)
 		client->edict->v->goalentity = 0;
 	}
 
-	if (client->netchan.fragmentsize)
+	if (client->netchan.pext_fragmentation)
 	{
 		if (client->netchan.remote_address.type == NA_LOOPBACK)
 			clientlimit = countof(buf);	//biiiig...
 		else
-			clientlimit = client->netchan.fragmentsize;	//try not to overflow
+			clientlimit = client->netchan.mtu;	//try not to overflow
 	}
+	else if (client->netchan.mtu)
+		clientlimit = client->netchan.mtu;
 	else if (client->protocol == SCP_NETQUAKE)
 		clientlimit = MAX_NQDATAGRAM;				//vanilla client is limited.
 	else
@@ -2836,14 +2846,14 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 	infobuf_t *info = client->infosync.keys[0].context;
 	size_t bloboffset = client->infosync.keys[0].syncpos;
 	//unsigned int seat = info - cls.userinfo;
+	qboolean large;
 	size_t blobsize;
-	const char *blobdata = InfoBuf_BlobForKey(info, key, &blobsize);
+	const char *blobdata = InfoBuf_BlobForKey(info, key, &blobsize, &large);
 	size_t sendsize;
 	size_t bufferspace;
 
 	qboolean final;
-	char enckey[2048];
-	char encval[2048];
+	sizebuf_t *buf;
 
 	if (client->protocol == SCP_QUAKE2)
 	{	//q2 gamecode is fully responsible for networking this via configstrings.
@@ -2851,83 +2861,89 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 		return false;
 	}
 
-	if (host_client->num_backbuf)
+	if (client->num_backbuf)
 		return false;
 	if (client->netchan.message.cursize >= MAX_BACKBUFLEN/2)
 		return false;	//don't bother trying to send anything.
 
-	if (!InfoBuf_EncodeString(key, strlen(key), enckey, sizeof(enckey)))
-	{
-		InfoSync_Remove(&client->infosync, 0);
-		return false;
-	}
-
-	sendsize = blobsize - bloboffset;
-	bufferspace = MAX_BACKBUFLEN - client->netchan.message.cursize;
-	bufferspace -= 7 - strlen(enckey) - 2;	//extra overhead
-	bufferspace = (bufferspace/4)*3;			//encoding overhead
-	sendsize = min(bufferspace, sendsize);
-	final = (bloboffset+sendsize >= blobsize);
-
-	if (!InfoBuf_EncodeString(blobdata+bloboffset, sendsize, encval, sizeof(encval)))
-	{
-		InfoSync_Remove(&client->infosync, 0);
-		return false;
-	}
-
-	if (final && !bloboffset && *enckey != '\xff' && *encval != '\xff')
+	if (!large)
 	{	//vanilla-compatible info.
+		if (!blobdata)
+			blobdata = "";
+
+Con_DLPrintf(2, "%s: info %u:%s\n", client->name, (info == &svs.info)?0:(unsigned int)((client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients), key);
 		if (ISNQCLIENT(client))
 		{	//except that nq never had any userinfo
 			const char *s;
 			if (info == &svs.info)
-				s = va("//svi \"%s\" \"%s\"\n", enckey, encval);
+				s = va("//svi \"%s\" \"%s\"\n", key, blobdata);
 			else
 			{
 				int playerslot = (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients;
-				s = va("//ui %i \"%s\" \"%s\"\n", playerslot, enckey, encval);
+				s = va("//ui %i \"%s\" \"%s\"\n", playerslot, key, blobdata);
 			}
-			ClientReliableWrite_Begin(client, svc_stufftext, strlen(s)+2);
-			ClientReliableWrite_String(client, s);
+			buf = ClientReliable_StartWrite(client, 2+strlen(s));
+			MSG_WriteByte(buf, svc_stufftext);
+			MSG_WriteString(buf, s);
+			ClientReliable_FinishWrite(client);
 		}
-		else
+		else if (ISQWCLIENT(client))
 		{
+			buf = ClientReliable_StartWrite(client, 2+strlen(key)+1+strlen(blobdata)+1);
 			if (info == &svs.info)
-				ClientReliableWrite_Begin(client, svc_serverinfo, 1+strlen(enckey)+1+strlen(encval)+1);
+				MSG_WriteByte(buf, svc_serverinfo);
 			else
 			{
-				ClientReliableWrite_Begin(client, svc_setinfo, 2+strlen(enckey)+1+strlen(encval)+1);
-				ClientReliableWrite_Byte(client, (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients);
+				MSG_WriteByte(buf, svc_setinfo);
+				MSG_WriteByte(buf, (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients);
 			}
-			ClientReliableWrite_String(client, enckey);
-			ClientReliableWrite_String(client, encval);
+			MSG_WriteString(buf, key);
+			MSG_WriteString(buf, blobdata);
+			ClientReliable_FinishWrite(client);
 		}
 	}
 	else if (client->fteprotocolextensions2 & PEXT2_INFOBLOBS)
 	{
-		int pl;
+		char enckey[2048];
+		unsigned int pl;
 		if (info == &svs.info)
-			pl = 255;	//colourmaps being 1-based with these being 0-based means that only 0-254 are valid players, and 255 is unused, so lets use it for serverinfo blobs.
+			pl = 0;	//players are 1-based. 0 is used for serverinfo.
 		else
-			pl = (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients;
+			pl = 1+((client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients);
 
-		ClientReliableWrite_Begin(client, svc_setinfo, 7+strlen(enckey)+1+strlen(encval)+1);
-		ClientReliableWrite_Byte(client, 255); //special meaning to say that this is a partial update
-		ClientReliableWrite_Byte(client, pl);
-		ClientReliableWrite_Long(client, (final?0x80000000:0)|bloboffset);
-		ClientReliableWrite_String(client, enckey);
-		ClientReliableWrite_String(client, encval);
-	}
-	else
-	{	//client can't receive this info, stop trying to send it.
-		InfoSync_Remove(&client->infosync, 0);
-		return true;
-	}
+		if (!InfoBuf_EncodeString(key, strlen(key), enckey, sizeof(enckey)))
+		{
+			InfoSync_Remove(&client->infosync, 0);
+			return false;
+		}
+		if (!blobdata)
+			bloboffset = 0;	//wiped or something? I dunno, don't bug out though.
 
-	if (bloboffset+sendsize == blobsize)
-		InfoSync_Remove(&client->infosync, 0);
-	else
-		client->infosync.keys[0].syncpos += sendsize;
+		sendsize = blobsize - bloboffset;
+		bufferspace = MAX_BACKBUFLEN - client->netchan.message.cursize;
+		bufferspace -= 8 + strlen(enckey) + 1;	//extra overhead
+		sendsize = min(bufferspace, sendsize);
+		final = (bloboffset+sendsize >= blobsize);
+
+Con_DLPrintf(2, "%s: blob %u:%s@%u-%u\n", client->name, pl, key, (unsigned int)bloboffset, (unsigned int)(bloboffset+sendsize));
+		buf = ClientReliable_StartWrite(client, 8+strlen(enckey)+1+sendsize);
+		MSG_WriteByte(buf, svcfte_setinfoblob);
+		MSG_WriteByte(buf, pl);
+		MSG_WriteString(buf, enckey);
+		MSG_WriteLong(buf, (final?0x80000000:0)|bloboffset);
+		MSG_WriteShort(buf, sendsize);
+		SZ_Write(buf, blobdata+bloboffset, sendsize);
+		ClientReliable_FinishWrite(client);
+
+		if (!final)
+		{
+			client->infosync.keys[0].syncpos += sendsize;
+			return true;
+		}
+	}
+	//else client can't receive this info, stop trying to send it.
+
+	InfoSync_Remove(&client->infosync, 0);
 	return true;
 }
 
@@ -2952,7 +2968,7 @@ void SV_UpdateToReliableMessages (void)
 	{
 		if ((svs.gametype == GT_Q1QVM || svs.gametype == GT_PROGS) && host_client->state == cs_spawned)
 		{
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			//DP_SV_CLIENTCOLORS
 			if (host_client->edict->xv->clientcolors != host_client->playercolor)
 			{
@@ -2968,6 +2984,26 @@ void SV_UpdateToReliableMessages (void)
 				*host_client->dp_ping = SV_CalcPing (host_client, false);
 			if (host_client->dp_pl)
 				*host_client->dp_pl = host_client->lossage;
+#endif
+
+#ifdef PEXT_VIEW2
+			j = PROG_TO_EDICTINDEX(svprogfuncs, host_client->edict->xv->clientcamera);
+			if (j)
+			{
+				if ((unsigned int)j >= svprogfuncs->edicttable_length)
+					j = i+1;
+				if (j != host_client->clientcamera)
+				{
+					if (host_client->fteprotocolextensions & PEXT_VIEW2)
+					{
+						ClientReliableWrite_Begin(host_client, svc_setview, 4);
+						ClientReliableWrite_Entity(host_client, j);
+					}
+					if (j == i+1)
+						j = 0;	//self.
+					host_client->viewent = j;
+				}
+			}
 #endif
 
 			name = PR_GetString(svprogfuncs, host_client->edict->v->netname);
@@ -3153,6 +3189,17 @@ void SV_UpdateToReliableMessages (void)
 				break;
 		}
 	}
+
+#ifdef MVD_RECORDING
+	if (sv.mvdrecording && demo.recorder.infosync.numkeys)
+	{
+		while (demo.recorder.infosync.numkeys)
+		{
+			if (!SV_SyncInfoBuf(&demo.recorder))
+				break;
+		}
+	}
+#endif
 
 	if (sv.reliable_datagram.overflowed)
 	{
@@ -3420,7 +3467,7 @@ void SV_SendClientMessages (void)
 		if (c->num_backbuf)
 		{
 			// will it fit?
-			if (c->netchan.message.cursize + c->backbuf_size[0] <
+			if (c->netchan.message.cursize + c->backbuf_size[0] <=
 				c->netchan.message.maxsize)
 			{
 
@@ -3445,7 +3492,7 @@ void SV_SendClientMessages (void)
 					memset(&c->backbuf, 0, sizeof(c->backbuf));
 					c->backbuf.data = c->backbuf_data[c->num_backbuf - 1];
 					c->backbuf.cursize = c->backbuf_size[c->num_backbuf - 1];
-					c->backbuf.maxsize = sizeof(c->backbuf_data[c->num_backbuf - 1]);
+					c->backbuf.maxsize = min(c->netchan.message.maxsize, sizeof(c->backbuf_data[c->num_backbuf-1]));
 				}
 			}
 		}
@@ -3560,6 +3607,9 @@ void SV_SendClientMessages (void)
 			c->datagram.cursize = 0;
 		}
 		c->lastoutgoingphysicstime = sv.world.physicstime;
+
+		if (c->netchan.fatal_error)
+			c->drop = true;
 	}
 #ifdef MVD_RECORDING
 	if (sv.mvdrecording)

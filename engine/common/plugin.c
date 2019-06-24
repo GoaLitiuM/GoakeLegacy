@@ -125,7 +125,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 	}
 
 	//got an empty number.
-	Con_DPrintf("%s: %i\n", name, newnum);
+	Con_DLPrintf(2, "%s: %i\n", name, newnum);
 	plugbuiltins[newnum].name = name;
 	plugbuiltins[newnum].func = bi;
 	plugbuiltins[newnum].flags = flags;
@@ -252,8 +252,8 @@ static char *Plug_CleanName(const char *file, char *out, size_t sizeof_out)
 	//"fteplug_ezhud_x86.REV.dll" gets converted into "ezhud"
 
 	//skip fteplug_
-	if (!Q_strncasecmp(file, "fteplug_", 8))
-		file += 8;
+	if (!Q_strncasecmp(file, PLUGINPREFIX, strlen(PLUGINPREFIX)))
+		file += strlen(PLUGINPREFIX);
 
 	//strip .REV.dll
 	COM_StripAllExtensions(file, out, sizeof_out);
@@ -283,15 +283,23 @@ static plugin_t *Plug_Load(const char *file, int type)
 	newplug->name = (char*)(newplug+1);
 	strcpy(newplug->name, temp);
 
-	if (!newplug->vm && (type & PLUG_NATIVE) && !Q_strncasecmp(file, "fteplug_", 8) && !Q_strcasecmp(ARCH_DL_POSTFIX+1, COM_FileExtension(file, temp, sizeof(temp))))
+	if (!newplug->vm && (type & PLUG_NATIVE) && !Q_strncasecmp(file, PLUGINPREFIX, strlen(PLUGINPREFIX)) && !Q_strcasecmp(ARCH_DL_POSTFIX+1, COM_FileExtension(file, temp, sizeof(temp))))
 	{
 		COM_StripExtension(file, temp, sizeof(temp));
 		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
 	}
+#ifndef ANDROID
 	if (!newplug->vm && (type & PLUG_NATIVE))
-		newplug->vm = VM_Create(va("fteplug_%s_", file), Plug_SystemCallsNative, NULL, NULL);
+	{
+		Q_snprintfz(temp, sizeof(temp), PLUGINPREFIX"%s_", file);
+		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
+	}
+#endif
 	if (!newplug->vm && (type & PLUG_NATIVE))
-		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL, NULL);
+	{
+		Q_snprintfz(temp, sizeof(temp), PLUGINPREFIX"%s", file);
+		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
+	}
 	if (!newplug->vm && (type & PLUG_QVM))
 		newplug->vm = VM_Create(NULL, NULL, file, Plug_SystemCallsVM);
 	if (!newplug->vm && (type & PLUG_NATIVE))
@@ -349,7 +357,7 @@ static int QDECL Plug_EnumeratedRoot (const char *name, qofs_t size, time_t mtim
 	char vmname[MAX_QPATH];
 	int len;
 	char *dot;
-	if (!strncmp(name, "fteplug_", 8))
+	if (!strncmp(name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
 		name += 8;
 	Q_strncpyz(vmname, name, sizeof(vmname));
 	len = strlen(vmname);
@@ -1524,6 +1532,28 @@ static qintptr_t VARGS Plug_UpdateInputBuffer(void *offset, quintptr_t mask, con
 	return bufferlen;
 }
 
+#if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
+qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize);
+static qintptr_t VARGS Plug_MapLog_Query(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	const char *packagename = VM_POINTER(arg[0]);
+	const char *mapname = VM_POINTER(arg[1]);
+	float *vals = VM_POINTER(arg[2]);
+	if (VM_OOB(arg[2], sizeof(*vals)*4))
+		return false;
+	if (!strncmp(packagename, "http://", 7) || !strncmp(packagename, "https://", 8))
+	{
+		char temp[MAX_OSPATH];
+		if (!FS_PathURLCache(packagename, temp, sizeof(temp)))
+			return false;
+		if (Log_CheckMapCompletion(temp, mapname, &vals[0], &vals[1], &vals[2], &vals[3]))
+			return true;
+		return false;
+	}
+	return Log_CheckMapCompletion(packagename, mapname, &vals[0], &vals[1], &vals[2], &vals[3]);
+}
+#endif
+
 #ifdef USERBE
 #include "pr_common.h"
 //functions useful for rigid body engines.
@@ -1561,7 +1591,7 @@ static void Plug_Load_f(void)
 		Con_Printf("Loads a plugin\n");
 		Con_Printf("plug_load [pluginpath]\n");
 		Con_Printf("example pluginpath: blah\n");
-		Con_Printf("will load fteplug_blah"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX" or $gamedir/plugins/blah.qvm\n");
+		Con_Printf("will load "PLUGINPREFIX"blah"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX" or $gamedir/plugins/blah.qvm\n");
 		return;
 	}
 	if (!Plug_Load(plugin, PLUG_EITHER))
@@ -1689,6 +1719,10 @@ void Plug_Initialise(qboolean fromgamedir)
 #endif
 		Plug_RegisterBuiltin("PR_GetVMInstance",		Plug_PR_GetVMInstance, PLUG_BIF_DLLONLY);
 
+#if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
+		Plug_RegisterBuiltin("MapLog_Query",			Plug_MapLog_Query, 0);
+#endif
+
 		Plug_Client_Init();
 	}
 
@@ -1701,7 +1735,7 @@ void Plug_Initialise(qboolean fromgamedir)
 		{
 			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
 			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-			Sys_EnumerateFiles(nat, "fteplug_*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+			Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
 		}
 		if (fromgamedir)
 		{
@@ -2195,7 +2229,7 @@ int QDECL Plug_List_Print(const char *fname, qofs_t fsize, time_t modtime, void 
 				if (!Q_strncasecmp(existing, parm, strlen(parm)) && !Q_strcasecmp(existing+strlen(parm), fname))
 					return true;
 			}
-			Con_Printf("^[%s%s\\type\\plug_load %s\\^]: not loaded\n", (const char*)parm, fname, plugname+((!Q_strncasecmp(plugname,"fteplug_", 8))?8:0));
+			Con_Printf("^[%s%s\\type\\plug_load %s\\^]: not loaded\n", (const char*)parm, fname, plugname+((!Q_strncasecmp(plugname,PLUGINPREFIX, strlen(PLUGINPREFIX)))?strlen(PLUGINPREFIX):0));
 		}
 	}
 	return true;
@@ -2217,14 +2251,14 @@ void Plug_List_f(void)
 	{
 		while ((mssuck=strchr(binarypath, '\\')))
 			*mssuck = '/';
-		Sys_EnumerateFiles(binarypath, "fteplug_*" ARCH_DL_POSTFIX, Plug_List_Print, binarypath, NULL);
+		Sys_EnumerateFiles(binarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, binarypath, NULL);
 	}
 	if (FS_NativePath("", FS_ROOT, rootpath, sizeof(rootpath)))
 	{
 		while ((mssuck=strchr(rootpath, '\\')))
 			*mssuck = '/';
 		if (strcmp(binarypath, rootpath))
-			Sys_EnumerateFiles(rootpath, "fteplug_*" ARCH_DL_POSTFIX, Plug_List_Print, rootpath, NULL);
+			Sys_EnumerateFiles(rootpath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, rootpath, NULL);
 	}
 
 	for (u = 0; staticplugins[u].name; u++)

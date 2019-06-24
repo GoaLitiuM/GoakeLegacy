@@ -21,17 +21,6 @@
 	#define HAVE_API_VFW
 #endif
 
-#ifdef HAVE_MEDIA_ENCODER
-	#if defined(__linux__) && !defined(ANDROID)
-		//should really include posix 2001 systems in general
-		#define HAVE_STATVFS
-	#endif
-	#ifdef HAVE_STATVFS
-		#include <sys/statvfs.h>
-	#endif
-#endif
-
-
 #ifdef _WIN32
 	#include "winquake.h"
 #endif
@@ -393,7 +382,7 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	}
 #endif
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	if (!tracknum)	//might as well require exact file
 	{
 		Q_snprintfz(trackname, sizeof(trackname), "%s", track);
@@ -2601,6 +2590,8 @@ qboolean Media_ShowFilm(void)
 	if (videoshader)
 	{
 		cin_t *cin = R_ShaderGetCinematic(videoshader);
+		if (cin && cin->playstate == CINSTATE_INVALID)
+			Media_SetState(cin, CINSTATE_PLAY);	//err... wot? must have vid_reloaded or something
 		if (cin && cin->playstate == CINSTATE_ENDED)
 		{
 			Media_StopFilm(false);
@@ -2988,33 +2979,31 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 	char filename[MAX_OSPATH];
 	ctx->frames = frame+1;
 	Q_snprintfz(filename, sizeof(filename), "%s%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
-	SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt, true);
+	if (!SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt, true))
+	{
+		Sys_Sleep(1);
+		if (!SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt, true))
+			Con_DPrintf("Error writing frame %s\n", filename);
+	}
 
-	if (capturethrottlesize.ival)
+	if (capturethrottlesize.value)
 	{
 		char base[MAX_QPATH];
 		Q_strncpyz(base, ctx->videonameprefix, sizeof(base));
-		*COM_SkipPath(base) = 0;
 		if (FS_NativePath(base, ctx->fsroot, filename, sizeof(filename)))
 		{
-			#ifdef HAVE_STATVFS
-				//posix 2001
-				struct statvfs inf;
-				if(0==statvfs(filename, &inf))
-				{
-					if (inf.f_frsize*(double)inf.f_blocks < (1024.*1024)*capturethrottlesize.value)
-						Sys_Sleep(1);
-				}
-			#elif defined(_WIN32) && !defined(FTE_SDL)
-				wchar_t ffs[MAX_OSPATH];
-				ULARGE_INTEGER freebytes;
-				if (GetDiskFreeSpaceExW(widen(ffs, sizeof(ffs), filename), &freebytes, NULL, NULL))
-					if (freebytes.QuadPart < (ULONGLONG)(1024*1024)*capturethrottlesize.value)
-						Sys_Sleep(1);
-			#else
-				Con_Printf("capturethrottlesize is unsupported in this build\n");
-				capturethrottlesize.ival = 0;
-			#endif
+			quint64_t diskfree = 0;
+			if (Sys_GetFreeDiskSpace(filename, &diskfree))
+			{
+				Con_DLPrintf(2, "Free Space: %"PRIu64", threshhold %"PRIu64"\n", diskfree, (quint64_t)(1024*1024*capturethrottlesize.value));
+				if (diskfree < (quint64_t)(1024*1024*capturethrottlesize.value))
+					Sys_Sleep(1);	//throttle
+			}
+			else
+			{
+				Con_Printf("%s: unable to query free disk space. Disabling\n", capturethrottlesize.name);
+				capturethrottlesize.ival = capturethrottlesize.value = 0;
+			}
 		}
 	}
 }
@@ -3964,7 +3953,7 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 			if (pluginencodersfunc[i])
 			{
 				currentcapture_funcs = pluginencodersfunc[i];
-				break;
+//				break;
 			}
 		}
 	}
@@ -5154,13 +5143,13 @@ void Media_Init(void)
 #endif
 
 #ifdef HAVE_MEDIA_ENCODER
-	#if defined(HAVE_API_VFW)
-		Media_RegisterEncoder(NULL, &capture_avi);
-	#endif
 	#ifdef _DEBUG
 		Media_RegisterEncoder(NULL, &capture_null);
 	#endif
 	Media_RegisterEncoder(NULL, &capture_raw);
+	#if defined(HAVE_API_VFW)
+		Media_RegisterEncoder(NULL, &capture_avi);
+	#endif
 
 	Cmd_AddCommandD("capture", Media_RecordFilm_f, "Captures realtime action to a named video file. Check the capture* cvars to control driver/codecs/rates.");
 	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "Capture a nemed demo to a named video file. Demo capturing can be performed offscreen, allowing arbitrary video sizes, or smooth captures on underpowered hardware.");
@@ -5183,7 +5172,7 @@ void Media_Init(void)
 	Cmd_AddCommand("playclip", Media_PlayVideoWindowed_f);
 	Cmd_AddCommand("playvideo", Media_PlayFilm_f);
 	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
-	Cmd_AddCommand("cinematic", Media_PlayFilm_f);
+	Cmd_AddCommand("cinematic", Media_PlayFilm_f);	//q3: name <1:hold, 2:loop>
 #endif
 
 	Cmd_AddCommand("music", Media_NamedTrack_f);

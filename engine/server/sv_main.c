@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 #include "netinc.h"
+#include "fs.h"	//for updates
 #include <sys/types.h>
 #ifndef CLIENTONLY
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+(i)*ge->edict_size)
@@ -70,6 +71,7 @@ cvar_t	fraglog_details				= CVARD("fraglog_details", "1", "Bitmask\n1: killer+ki
 
 cvar_t	zombietime					= CVARD("zombietime", "2", "Client slots will not be reused for this number of seconds.");	// seconds to sink messages
 
+cvar_t	sv_rconlim					= CVARFD("sv_rconlim", "4", CVAR_ARCHIVE, "Blocks repeated (invalid) rcon attempts.");
 cvar_t	sv_crypt_rcon				= CVARFD("sv_crypt_rcon", "", CVAR_ARCHIVE, "Controls whether the rcon password must be hashed or not. Hashed passwords also partially prevent replay attacks, but does NOT prevent malicious actors from reading the commands/results.\n0: completely insecure. ONLY allows plain-text passwords. Do not use.\n1: Mandatory hashing (recommended).\nEmpty: Allow either, whether the password is secure or not is purely the client's responsibility/fault. Only use this for comptibility with old clients.");
 cvar_t	sv_crypt_rcon_clockskew		= CVARFD("sv_timestamplen", "60", CVAR_ARCHIVE, "Limits clock skew to reduce (delayed) replay attacks");
 #ifdef SERVERONLY
@@ -81,7 +83,7 @@ extern cvar_t	password;
 #endif
 cvar_t	spectator_password			= CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
-cvar_t	allow_download				= CVARAD("allow_download", /*q3*/"sv_allowDownload", "1", "If 1, permits downloading. Set to 0 to unconditionally block *ALL* downloads.");
+cvar_t	allow_download				= CVARAD("allow_download", "1", /*q3*/"sv_allowDownload", "If 1, permits downloading. Set to 0 to unconditionally block *ALL* downloads.");
 cvar_t	allow_download_skins		= CVARD("allow_download_skins", "1", "0 blocks downloading of any file in the skins/ directory");
 cvar_t	allow_download_models		= CVARD("allow_download_models", "1", "0 blocks downloading of any file in the progs/ or models/ directory");
 cvar_t	allow_download_sounds		= CVARD("allow_download_sounds", "1", "0 blocks downloading of any file in the sound/ directory");
@@ -117,8 +119,8 @@ extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
-cvar_t sv_maxrate			= CVARCD("sv_maxrate", "50k", CvarPostfixKMG, "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
-cvar_t sv_maxdrate			= CVARAFCD("sv_maxdrate", "500k",
+cvar_t sv_maxrate			= CVARCD("sv_maxrate", "50000", CvarPostfixKMG, "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
+cvar_t sv_maxdrate			= CVARAFCD("sv_maxdrate", "500000",
 									"sv_maxdownloadrate", 0, CvarPostfixKMG, "This cvar controls the maximum number of bytes sent to each player per second while that player is downloading.\nIf this cvar is set to 0, there will be NO CAP for download rates (if the user's drate is empty/0 too, then expect really fast+abusive downloads that could potentially be considered denial of service attacks)");
 cvar_t sv_minping			= CVARFD("sv_minping", "", CVAR_SERVERINFO, "Simulate fake lag for any players with a ping under the value specified here. Value is in milliseconds.");
 
@@ -139,6 +141,7 @@ cvar_t sv_masterport			= CVAR("sv_masterport", "0");
 
 cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
 
+cvar_t	sv_reliable_sound		= CVARFD("sv_reliable_sound", "0",  0, "Causes all sounds to be sent reliably, so they will not be missed due to packetloss. However, this will cause them to be delayed somewhat, and slightly bursty. This can be overriden using the 'rsnd' userinfo setting (either forced on or forced off). Note: this does not affect sounds attached to particle effects.");
 cvar_t	sv_gamespeed		= CVARAF("sv_gamespeed", "1", "slowmo", 0);
 cvar_t	sv_csqcdebug		= CVARD("sv_csqcdebug", "0", "Inject packet size information for data directed to csqc.");
 cvar_t	sv_csqc_progname	= CVAR("sv_csqc_progname", "csprogs.dat");
@@ -339,7 +342,7 @@ void VARGS SV_Error (char *error, ...)
 
 	SV_EndRedirect();
 
-	Con_Printf ("SV_Error: %s\n",string);
+	Con_Printf (CON_ERROR"SV_Error: %s\n",string);
 
 	if (sv.state)
 		SV_FinalMessage (va("server crashed: %s\n", string));
@@ -362,8 +365,10 @@ void VARGS SV_Error (char *error, ...)
 
 	if (!isDedicated)	//dedicated servers crash...
 	{
+		extern cvar_t cl_disconnectreason;
 		extern jmp_buf 	host_abort;
 		SCR_EndLoadingPlaque();
+		Cvar_Set(&cl_disconnectreason, va("SV_Error: %s", string));
 		inerror=false;
 		longjmp (host_abort, 1);
 	}
@@ -619,6 +624,9 @@ void SV_DropClient (client_t *drop)
 			Con_TPrintf ("Client \"%s\" removed\n",drop->name);
 	}
 
+#if defined(HAVE_LEGACY) && defined(MVD_RECORDING)
+	SV_DownloadQueueClear(drop);
+#endif
 	if (drop->download)
 	{
 		VFS_CLOSE (drop->download);
@@ -974,6 +982,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 {
 	int		i;
 	char	info[EXTENDED_INFO_STRING];
+	sizebuf_t *buf;
 
 	if (!to)
 	{
@@ -1005,40 +1014,55 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		if (ping > 0xffff)
 			ping = 0xffff;
 
-		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Short(to, client->old_frags);
+		buf = ClientReliable_StartWrite(to, 4);
+			MSG_WriteByte(buf, svc_updatefrags);
+			MSG_WriteByte(buf, i);
+			MSG_WriteShort(buf, client->old_frags);
+		ClientReliable_FinishWrite(to);
 
-		ClientReliableWrite_Begin (to, svc_updateping, 4);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Short (to, ping);
+		buf = ClientReliable_StartWrite(to, 4);
+			MSG_WriteByte(buf, svc_updateping);
+			MSG_WriteByte(buf, i);
+			MSG_WriteShort(buf, ping);
+		ClientReliable_FinishWrite(to);
 
-		ClientReliableWrite_Begin (to, svc_updatepl, 3);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Byte (to, client->lossage);
+		buf = ClientReliable_StartWrite(to, 3);
+			MSG_WriteByte(buf, svc_updatepl);
+			MSG_WriteByte(buf, i);
+			MSG_WriteByte(buf, client->lossage);
+		ClientReliable_FinishWrite(to);
 
-		ClientReliableWrite_Begin (to, svc_updateentertime, 6);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Float (to, realtime - client->connection_started);
+		buf = ClientReliable_StartWrite(to, 6);
+			MSG_WriteByte(buf, svc_updateentertime);
+			MSG_WriteByte(buf, i);
+			MSG_WriteFloat(buf, realtime - client->connection_started);
+		ClientReliable_FinishWrite(to);
 
-		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, NULL, NULL);
-		ClientReliableWrite_Begin(to, svc_updateuserinfo, 7 + strlen(info));
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Long (to, client->userid);
-		ClientReliableWrite_String(to, info);
+		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, &to->infosync, &client->userinfo);
+		buf = ClientReliable_StartWrite(to, 7 + strlen(info));
+			MSG_WriteByte(buf, svc_updateuserinfo);
+			MSG_WriteByte(buf, i);
+			MSG_WriteLong(buf, client->userid);
+			MSG_WriteString(buf, info);
+		ClientReliable_FinishWrite(to);
 	}
 	else if (ISNQCLIENT(to))
 	{
 		int top, bottom, playercolor;
 		char *nam = InfoBuf_ValueForKey(&client->userinfo, "name");
 
-		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Short(to, client->old_frags);
+		buf = ClientReliable_StartWrite(to, 4);
+			MSG_WriteByte(buf, svc_updatefrags);
+			MSG_WriteByte(buf, i);
+			MSG_WriteShort(buf, client->old_frags);
+		ClientReliable_FinishWrite(to);
 
-		ClientReliableWrite_Begin(to, svc_updatename, 3 + strlen(nam));
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_String(to, nam);
+		buf = ClientReliable_StartWrite(to, 3 + strlen(nam));
+			MSG_WriteByte(buf, svc_updatename);
+			MSG_WriteByte(buf, i);
+			MSG_WriteString(buf, nam);
+		ClientReliable_FinishWrite(to);
+
 
 		top = atoi(InfoBuf_ValueForKey(&client->userinfo, "topcolor"));
 		bottom = atoi(InfoBuf_ValueForKey(&client->userinfo, "bottomcolor"));
@@ -1050,17 +1074,21 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			bottom = 13;
 		playercolor = top*16 + bottom;
 
-		ClientReliableWrite_Begin (to, svc_updatecolors, 3);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Byte (to, playercolor);
+		buf = ClientReliable_StartWrite(to, 3);
+			MSG_WriteByte(buf, svc_updatecolors);
+			MSG_WriteByte(buf, i);
+			MSG_WriteByte(buf, playercolor);
+		ClientReliable_FinishWrite(to);
 
 		if (to->fteprotocolextensions2 & PEXT2_PREDINFO)
 		{
 			char *s;
 			InfoBuf_ToString(&client->userinfo, info, sizeof(info), basicuserinfos, privateuserinfos, NULL, NULL, NULL);
 			s = va("//fui %i \"%s\"\n", i, info);
-			ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
-			ClientReliableWrite_String(to, s);
+			buf = ClientReliable_StartWrite(to, 2 + strlen(s));
+				ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
+				ClientReliableWrite_String(to, s);
+			ClientReliable_FinishWrite(to);
 		}
 	}
 }
@@ -1085,6 +1113,7 @@ char *SV_PlayerPublicAddress(client_t *cl)
 #define	STATUS_SPECTATORS				4
 #define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
 #define STATUS_SHOWTEAMS				16
+#define STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
 
 /*
 ================
@@ -1174,6 +1203,17 @@ static void SVC_Status (void)
 		else
 			slots++;
 	}
+#ifdef MVD_RECORDING
+	if (displayflags & STATUS_QTVLIST)
+	{
+		struct mvddest_s *d;
+		for (d = demo.dest; d; d = d->nextdest)
+		{
+			if (d->desttype == DEST_STREAM)
+				Con_Printf("qtv %d \"%s\" \"%s\" %d\n", d->id, d->simplename, d->filename, 0/*d->viewercount*/);
+		}
+	}
+#endif
 
 	SV_EndRedirect ();
 }
@@ -1329,6 +1369,12 @@ static void SVC_InfoQ2 (void)
 	}
 
 	Netchan_OutOfBandPrint (NS_SERVER, &net_from, "info\n%s", string);
+}
+#endif
+
+#ifdef MVD_RECORDING
+static void SVC_QTVUsers (void)
+{
 }
 #endif
 
@@ -1570,13 +1616,12 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 	{
-#ifdef PROTOCOL_VERSION_FTE
 		unsigned int mask;
 		//tell the client what fte extensions we support
-		mask = Net_PextMask(1, false);
+		mask = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
 		if (mask)
 		{
-			lng = LittleLong(PROTOCOL_VERSION_FTE);
+			lng = LittleLong(PROTOCOL_VERSION_FTE1);
 			memcpy(over, &lng, sizeof(lng));
 			over+=sizeof(lng);
 
@@ -1585,7 +1630,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			over+=sizeof(lng);
 		}
 		//tell the client what fte extensions we support
-		mask = Net_PextMask(2, false);
+		mask = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
 		if (mask)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_FTE2);
@@ -1596,7 +1641,19 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			memcpy(over, &lng, sizeof(lng));
 			over+=sizeof(lng);
 		}
-#endif
+		//tell the client what mvdsv/ezquake extensions we support
+		mask = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false);
+		if (mask)
+		{
+			lng = LittleLong(PROTOCOL_VERSION_EZQUAKE1);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+
+			lng = LittleLong(mask);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+		}
+		//report the mtu
 		if (*net_mtu.string)
 			mask = net_mtu.ival&~7;
 		else
@@ -1909,8 +1966,9 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	extern cvar_t pr_maxedicts;
 	client_t *seat;
 
-	client->fteprotocolextensions  &= Net_PextMask(1, ISNQCLIENT(client));
-	client->fteprotocolextensions2 &= Net_PextMask(2, ISNQCLIENT(client));
+	client->fteprotocolextensions  &= Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(client));
+	client->fteprotocolextensions2 &= Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(client));
+	client->ezprotocolextensions1  &= Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, ISNQCLIENT(client)) & EZPEXT1_SERVERADVERTISE;
 
 	//some gamecode can't cope with some extensions for some reasons... and I'm too lazy to fix the code to cope.
 	if (svs.gametype == GT_HALFLIFE)
@@ -2610,7 +2668,7 @@ client_t *SVC_DirectConnect(void)
 		Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
 		switch(Q_atoi(Cmd_Argv(0)))
 		{
-		case PROTOCOL_VERSION_FTE:
+		case PROTOCOL_VERSION_FTE1:
 			if (protocol == SCP_QUAKEWORLD || protocol == SCP_QUAKE2)
 			{
 				protextsupported = Q_atoi(Cmd_Argv(1));
@@ -2812,7 +2870,7 @@ client_t *SVC_DirectConnect(void)
 #ifdef PEXT_Q2BSP
 		else if (sv.world.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
 		{
-			SV_RejectMessage (protocol, "The server is using a quake 2 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
+			SV_RejectMessage (protocol, "The server is using a q2bsp-format level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
 //			Con_Printf("player %s was dropped due to incompatible client\n", name);
 //			return;
 		}
@@ -2820,7 +2878,7 @@ client_t *SVC_DirectConnect(void)
 #ifdef PEXT_Q3BSP
 		else if (sv.world.worldmodel->fromgame == fg_quake3 && !(newcl->fteprotocolextensions & PEXT_Q3BSP))
 		{
-			SV_RejectMessage (protocol, "The server is using a quake 3 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
+			SV_RejectMessage (protocol, "The server is using a q3bsp-format level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
 //			Con_Printf("player %s was dropped due to incompatible client\n", name);
 //			return;
 		}
@@ -3091,6 +3149,7 @@ client_t *SVC_DirectConnect(void)
 
 	newcl->challenge = challenge;
 	newcl->zquake_extensions = atoi(InfoBuf_ValueForKey(&newcl->userinfo, "*z_ext"));
+	InfoBuf_SetStarKey(&newcl->userinfo, "*z_ext", "");
 	if (*InfoBuf_ValueForKey(&newcl->userinfo, "*fuhquake"))	//fuhquake doesn't claim to support z_ext but does look at our z_ext serverinfo key.
 	{														//so switch on the bits that it should be sending.
 		newcl->zquake_extensions |= Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW;
@@ -3133,11 +3192,27 @@ client_t *SVC_DirectConnect(void)
 	else
 #endif
 		newcl->netchan.compresstable = NULL;
+	newcl->netchan.pext_fragmentation = mtu?true:false;
+	//this is the upper bound of the mtu, if its too high we'll get EMSGSIZE and we'll reduce it.
+	//however, if it drops below newcl->netchan.message.maxsize then we'll start to see undeliverable reliables, which means dropped clients.
+	newcl->netchan.mtu = MAX_DATAGRAM;	//vanilla qw clients are assumed to have an mtu of this size.
 	if (mtu >= 64)
-	{
-		newcl->netchan.fragmentsize = mtu;
+	{	//if we support application fragmenting, then we can send massive reliables without too much issue
+		newcl->netchan.mtu = mtu;
 		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
 	}
+	else	//otherwise we can't fragment the packets, and the only way to honour the mtu is to send less data. yay for more round-trips.
+	{
+		mtu = atoi(Info_ValueForKey (userinfo[0], "mtu"));
+		if (mtu)
+			newcl->netchan.mtu = mtu;	//locked mtu size, because not everyone has a working connection (we need icmp would-fragment responses for mtu detection)
+		else						//if its not set then use some 'safe' fallback.
+			mtu = MAX_BACKBUFLEN;	//MAX_BACKBUFLEN of 1200 is < ipv6 required segment size so should always work for reliables.
+		//enforce some boundaries
+		mtu = bound(512-8, mtu, sizeof(newcl->netchan.message_buf));
+		newcl->netchan.message.maxsize = mtu;
+	}
+	Con_DLPrintf(2, "MTU size: %i - %i\n", newcl->netchan.message.maxsize, newcl->netchan.mtu);
 
 	newcl->protocol = protocol;
 #ifdef NQPROT
@@ -3333,6 +3408,11 @@ client_t *SVC_DirectConnect(void)
 
 	newcl->controller = NULL;
 
+#ifdef PEXT_CSQC
+	if (sv.csqcchecksum && !(newcl->fteprotocolextensions & PEXT_CSQC) && !ISDPCLIENT(newcl))
+		SV_PrintToClient(newcl, PRINT_HIGH, "This server is using CSQC - you are missing out due to your choice of outdated client / protocol!\n");
+#endif
+
 	if (!redirect)
 	{
 		Sys_ServerActivity();
@@ -3374,6 +3454,12 @@ static int dehex(int i)
 }
 static qboolean Rcon_Validate (void)
 {
+	/*
+	   The rcon protocol sucks.
+	   1) vanilla sent it plain text
+	   2) there's no challenge, so there's no way to block spoofed requests
+	   3) the hashed version of the protocol still has no challenge
+	*/
 	const char *realpass = rcon_password.string;
 	const char *pass = Cmd_Argv(1);
 	if (!strlen (realpass))
@@ -3456,6 +3542,8 @@ void SVC_RemoteCommand (void)
 	int		i;
 	char	remaining[1024];
 	char	adr[MAX_ADR_SIZE];
+	static unsigned int blockuntil;
+	unsigned int curtime, inc = 1000/sv_rconlim.value;
 
 	{
 		char *br = SV_BannedReason(&net_from);
@@ -3466,8 +3554,18 @@ void SVC_RemoteCommand (void)
 		}
 	}
 
-	if (!Rcon_Validate ())
+	if (sv_rconlim.value > 0)
 	{
+		curtime = Sys_Milliseconds();
+		if (1000 < curtime - blockuntil)
+			blockuntil = curtime - 1000;
+		if (inc > curtime-blockuntil)
+			return;	//throttle
+	}
+
+	if (!Rcon_Validate())
+	{
+		blockuntil += inc;
 /*
 #ifdef SVRANKING
 		if (cmd_allowaccess.value)	//try and find a username, match the numeric password
@@ -3532,6 +3630,9 @@ void SVC_RemoteCommand (void)
 
 		Con_TPrintf ("Bad rcon from %s:\t%s\n"
 			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
+
+		if (1)
+			return;
 
 		SV_BeginRedirect (RD_PACKET, com_language);
 
@@ -3821,25 +3922,49 @@ qboolean SV_ConnectionlessPacket (void)
 		//its a subtle difference, but means we can avoid wasteful spam for real qw clients.
 		SVC_GetChallenge ((net_message.cursize==16)?true:false);
 	}
-#if 1//def NQPROT
-	/*for DP origionally, but dpmaster expects it, and we need dpmaster for custom protocol names*/
 	else if (!strcmp(c, "getstatus"))
-	{
+	{	//q3/dpmaster support
 		if (sv_public.ival >= 0)
 			if (SVC_ThrottleInfo())
 				SVC_GetInfo(Cmd_Args(), true);
 	}
 	else if (!strcmp(c, "getinfo"))
-	{
+	{	//q3/dpmaster support
 		if (sv_public.ival >= 0)
 			if (SVC_ThrottleInfo())
 				SVC_GetInfo(Cmd_Args(), false);
 	}
-#endif
 	else if (!strcmp(c, "rcon"))
-		SVC_RemoteCommand ();
-	else if (!strcmp(c, "realip"))
+	{
+		if (SVC_ThrottleInfo())
+			SVC_RemoteCommand ();
+	}
+	else if (!strcmp(c, "realip") || !strcmp(c, "ip"))
 		SVC_RealIP ();
+/*
+	else if (!strcmp(c,"lastscores"))
+	{
+		if (SVC_ThrottleInfo())
+			SVC_LastScores ();
+	}
+	else if (!strcmp(c,"dlist") || !strcmp(c,"demolist"))
+	{
+		if (SVC_ThrottleInfo())
+			SVC_DemoList ();
+	}
+	else if (!strcmp(c,"dlistr") || !strcmp(c,"dlistregex") || !strcmp(c,"demolistr") || !strcmp(c,"demolistregex"))
+	{
+		if (SVC_ThrottleInfo())
+			SVC_DemoListRegex ();
+	}
+*/
+#ifdef MVD_RECORDING
+	else if (!strcmp(c,"qtvusers"))
+	{
+		if (SVC_ThrottleInfo())
+			SVC_QTVUsers ();
+	}
+#endif
 	else if (!PR_GameCodePacket(net_message.data+4))
 	{
 		static unsigned int lt;
@@ -4859,7 +4984,7 @@ float SV_Frame (void)
 	if (isDedicated)
 	{
 //		FTP_ClientThink();
-		HTTP_CL_Think();
+		HTTP_CL_Think(NULL, NULL);
 	}
 #endif
 
@@ -5183,6 +5308,7 @@ void SV_InitLocal (void)
 		Log_Init();
 	}
 	rcon_password.restriction = RESTRICT_MAX;	//no cheatie rconers changing rcon passwords...
+	Cvar_Register (&sv_rconlim,	cvargroup_servercontrol);
 	Cvar_Register (&sv_crypt_rcon,	cvargroup_servercontrol);
 	Cvar_Register (&spectator_password,	cvargroup_servercontrol);
 
@@ -5295,6 +5421,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_csqcdebug, cvargroup_servercontrol);
 	Cvar_Register (&sv_specprint, cvargroup_serverpermissions);
 
+	Cvar_Register (&sv_reliable_sound, cvargroup_serverphysics);
 	Cvar_Register (&sv_gamespeed, cvargroup_serverphysics);
 	Cvar_Register (&sv_nqplayerphysics,	cvargroup_serverphysics);
 	Cvar_Register (&pr_allowbutton1, cvargroup_servercontrol);
@@ -5482,7 +5609,7 @@ into a more C freindly form.
 */
 void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 {
-	char	*val, *p;
+	const char	*val, *p;
 	int		i;
 	client_t	*client;
 	int		dupc = 1;
@@ -5490,6 +5617,8 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 #ifdef SVRANKING
 	extern cvar_t rank_filename;
 #endif
+	size_t blobsize;
+	qboolean large;
 
 	int bottom = atoi(InfoBuf_ValueForKey(&cl->userinfo, "bottomcolor"));
 
@@ -5507,16 +5636,19 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
 
 	// name for C code
-	val = InfoBuf_ValueForKey (&cl->userinfo, "name");
-
-	if (cl->protocol != SCP_BAD || *val)
+	val = InfoBuf_BlobForKey (&cl->userinfo, "name", &blobsize, &large);
+	if (!val)
+		val = "";
+	//we block large names here because a) they're unwieldly. b) they might cause players to be invisible to older clients/server browsers/etc.
+	//bots with no name skip the fixup, to avoid default names(they're expected to be given a name eventually, so are allowed to be invisible for now)
+	if (large || (cl->protocol == SCP_BAD && !*val))
+		newname[0] = 0;
+	else
 	{
 		SV_FixupName(val, newname, sizeof(newname));
 		if (strlen(newname) > 40)
 			newname[40] = 0;
 	}
-	else
-		newname[0] = 0;
 
 	deleetstring(basic, newname);
 	if (cl->protocol != SCP_BAD)
@@ -5672,7 +5804,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			cl->playercolor = top*16 + bottom;
 			if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 			{
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 				if (cl->edict)
 					cl->edict->xv->clientcolors = cl->playercolor;
 #endif
@@ -5737,6 +5869,8 @@ void SV_ExecInitialConfigs(char *defaultexec)
 
 	Cbuf_AddText(defaultexec, RESTRICT_LOCAL);
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
+	//make sure +set args override fmf/engine defaults (redundant when there's no map/etc command in configs)
+	COM_ParsePlusSets(true);
 
 	if (COM_FileSize("server.cfg") != -1)
 		Cbuf_AddText ("cl_warncmd 1\nexec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
@@ -5748,6 +5882,9 @@ void SV_ExecInitialConfigs(char *defaultexec)
 #endif
 	else
 		Cbuf_AddText ("cl_warncmd 0\nexec default.cfg\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
+
+	//make sure +set stuff still applies...
+	COM_ParsePlusSets(true);
 
 // process command line arguments
 	Cbuf_Execute ();
@@ -5844,6 +5981,12 @@ void SV_Init (quakeparms_t *parms)
 		Cmd_StuffCmds();
 		Cbuf_Execute ();
 
+		Menu_Download_Update();
+
+#ifdef WEBCLIENT
+		if (Sys_RunInstaller())
+			Sys_Quit();
+#endif
 
 		Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
 

@@ -952,7 +952,7 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 	if (COM_CheckParm("-current"))
 		return;
 
-	if (XRandR_FindOutput(devicename))
+	if (xrandr.crtcinfo)
 	{
 		XRRCrtcInfo *c;
 		xrandr.crtcmode = XRandR_FindBestMode(*width, *height, rate);
@@ -1040,9 +1040,6 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 }
 #endif
 
-
-
-extern cvar_t	_windowed_mouse;
 
 
 static float mouse_grabbed = 0;
@@ -2525,7 +2522,7 @@ static void UpdateGrabs(void)
 	qboolean wantmgrabs, allownullcursor;
 	Cursor wantcursor;
 
-	wantmgrabs = (fullscreenflags&FULLSCREEN_ACTIVE) || !!_windowed_mouse.value;
+	wantmgrabs = (fullscreenflags&FULLSCREEN_ACTIVE) || !!in_windowed_mouse.value;
 	if (!vid.activeapp)
 		wantmgrabs = false;
 	allownullcursor = wantmgrabs;	//this says whether we can possibly want it. if false then we disallow the null cursor. Yes, this might break mods that do their own sw cursors. such mods are flawed in other ways too.
@@ -2828,6 +2825,9 @@ static void GetEvent(void)
 		break;
 
 	case FocusIn:
+		//don't care about it if its just someone wiggling the mouse
+		if (event.xfocus.detail == NotifyPointer)
+			break;
 		//activeapp is if the game window is focused
 		vid.activeapp = true;
 		ClearAllStates();	//just in case.
@@ -2848,6 +2848,9 @@ static void GetEvent(void)
 //			x11.pXUnmapWindow(vid_dpy, vid_decoywindow);
 		break;
 	case FocusOut:
+		//don't care about it if its just someone wiggling the mouse
+		if (event.xfocus.detail == NotifyPointer)
+			break;
 		//if we're already active, the decoy window shouldn't be focused anyway.
 		if (event.xfocus.window == vid_window)
 			x11.ime_shown = -1;
@@ -2887,6 +2890,7 @@ static void GetEvent(void)
 				char *protname = x11.pXGetAtomName(vid_dpy, event.xclient.data.l[0]);
 				if (!strcmp(protname, "WM_DELETE_WINDOW"))
 				{
+					Key_Dest_Remove(kdm_console);
 					if (Cmd_Exists("menu_quit") || Cmd_AliasExist("menu_quit", RESTRICT_LOCAL))
 						Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
 					else if (Cmd_Exists("m_quit") || Cmd_AliasExist("m_quit", RESTRICT_LOCAL))
@@ -3851,9 +3855,9 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		fullscreenflags |= FULLSCREEN_DESKTOP;
 #ifdef USE_XRANDR
 	XRandR_Init();
+	XRandR_FindOutput(info->devicename);
 	if (fullscreen && !(fullscreenflags & FULLSCREEN_ANYMODE))
 		XRandR_SelectMode(info->devicename, &x, &y, &width, &height, rate);
-	XRandR_FindOutput(info->devicename);
 #endif
 
 #ifdef USE_VMODE
@@ -3881,7 +3885,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 
 		//window managers fuck up too much if we change the video mode and request the windowmanager make us fullscreen.
 		//we assume that window manages will understand xrandr, as that actually provides notifications that things have changed.
-		if (!(fullscreenflags & FULLSCREEN_VMODE) && X_CheckWMFullscreenAvailable())
+		if (!(fullscreenflags & (FULLSCREEN_VMODE|FULLSCREEN_XRANDR)) && X_CheckWMFullscreenAvailable())
 			fullscreenflags |= FULLSCREEN_WM;
 		else
 			fullscreenflags |= FULLSCREEN_LEGACY;
@@ -3974,7 +3978,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 	else
 #endif
 #ifdef USE_VMODE
-	if (!xrandr.origgamma)
+	if (!xrandr.origgamma && vm.pXF86VidModeGetGammaRampSize)
 	{
 		int rampsize = 256;
 		vm.pXF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);

@@ -49,9 +49,9 @@ struct searchpathfuncs_s
 	qboolean		(QDECL *PollChanges)(searchpathfuncs_t *handle);	//returns true if there were changes
 
 	qboolean		(QDECL *FileStat)(searchpathfuncs_t *handle, flocation_t *loc, time_t *mtime);
-	qboolean		(QDECL *RenameFile)(searchpathfuncs_t *handle, const char *oldname, const char *newname);	//returns true on success, false if source doesn't exist, or if dest does.
+	qboolean		(QDECL *CreateFile)(searchpathfuncs_t *handle, flocation_t *loc, const char *filename);		//like FindFile, but returns a usable loc even if the file does not exist yet (may also create requisite directories too)
+	qboolean		(QDECL *RenameFile)(searchpathfuncs_t *handle, const char *oldname, const char *newname);	//returns true on success, false if source doesn't exist, or if dest does (cached locs may refer to either new or old name).
 	qboolean		(QDECL *RemoveFile)(searchpathfuncs_t *handle, const char *filename);	//returns true on success, false if it wasn't found or is readonly.
-	qboolean		(QDECL *MkDir)(searchpathfuncs_t *handle, const char *filename);	//is this really needed?
 };
 //searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc);	//returns a handle to a new pak/path
 
@@ -74,6 +74,8 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parent_pure, const
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri);
 void PM_EnumeratePlugins(void (*callback)(const char *name));
 int PM_IsApplying(qboolean listsonly);
+unsigned int PM_MarkUpdates (void);	//mark new/updated packages as needing install.
+void PM_ApplyChanges(void);	//for -install/-doinstall args
 void PM_ManifestPackage(const char *name, int security);
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize);	//names the engine we should be running
 void Menu_Download_Update(void);
@@ -85,7 +87,7 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 #define SPF_TEMPORARY		4	//a map-specific path, purged at map change.
 #define SPF_EXPLICIT		8	//a root gamedir (bumps depth on gamedir depth checks). 
 #define SPF_UNTRUSTED		16	//has been downloaded from somewhere. configs inside it should never be execed with local access rights.
-#define SPF_PRIVATE			32	//private to the client. ie: the fte dir.
+#define SPF_PRIVATE			32	//private to the client. ie: the fte dir. name is not networked.
 #define SPF_WRITABLE		64	//safe to write here. lots of weird rules etc.
 #define SPF_BASEPATH		128	//part of the basegames, and not the mod gamedir(s).
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags);

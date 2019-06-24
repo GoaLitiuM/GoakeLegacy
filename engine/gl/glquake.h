@@ -28,8 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning(disable : 4051)     // ALPHA
 #endif
 
-void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
-qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
+void AddPointToBounds (const vec3_t v, vec3_t mins, vec3_t maxs);
+qboolean BoundsIntersect (const vec3_t mins1, const vec3_t maxs1, const vec3_t mins2, const vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
 struct builddata_s
@@ -57,14 +57,13 @@ void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short
 
 #ifdef GLQUAKE
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
-		#if 1
+		#ifndef GLSLONLY
 			#include <GLES/gl.h>
 			#ifndef GL_CLIP_PLANE0
 			#define GL_CLIP_PLANE0 0x3000
 			#endif
 		#else
 			#include <GLES2/gl2.h>
-			#define GL_TEXTURE_COORD_ARRAY 0
 		#endif
 		/*gles has no doubles*/
 		#define GLclampd GLclampf
@@ -197,7 +196,7 @@ typedef void (APIENTRY * FTEPFNGLUNLOCKARRAYSEXTPROC) (void);
 extern	BINDTEXFUNCPTR qglBindTexture;
 extern	DELTEXFUNCPTR delTexFunc;
 extern	TEXSUBIMAGEPTR TexSubImage2DFunc;
-extern void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
+extern void (APIENTRY *qglStencilOpSeparate) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
 #endif
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
@@ -252,6 +251,7 @@ typedef struct {
 	int ext_texture_filter_anisotropic;
 
 	struct glfmt_s formatinfo[PTI_MAX];
+	int unpackalignment;
 } gl_config_t;
 
 extern gl_config_t gl_config;
@@ -588,7 +588,6 @@ void R_NetGraph (void);
 #define qglVertexAttribPointer glVertexAttribPointer
 #define qglViewport glViewport
 
-#define qglStencilOpSeparateATI qglStencilOpSeparate
 #define qglGenFramebuffersEXT qglGenFramebuffers
 #define qglDeleteFramebuffersEXT qglDeleteFramebuffers
 #define qglBindFramebufferEXT qglBindFramebuffer

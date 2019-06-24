@@ -1407,7 +1407,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		break;
 	}
 	if (format == VK_FORMAT_UNDEFINED)	//no default case means warnings for unsupported formats above.
-		Sys_Error("VK_CreateTexture2DArray: Unrecognised image encoding: %u\n", encoding);
+		Sys_Error("VK_CreateTexture2DArray: Unsupported image encoding: %u(%s)\n", encoding, Image_FormatName(encoding));
 
 	ici.flags = (ret.type==PTI_CUBEMAP)?VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT:0;
 	ici.imageType = VK_IMAGE_TYPE_2D;
@@ -3903,6 +3903,10 @@ void VK_CheckTextureFormats(void)
 		{PTI_RG8,				VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_R8_SNORM,			VK_FORMAT_R8_SNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_RG8_SNORM,			VK_FORMAT_R8G8_SNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_R16,				VK_FORMAT_R16_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RGBA16,			VK_FORMAT_R16G16B16A16_UNORM,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_R16F,				VK_FORMAT_R16_SFLOAT,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_R32F,				VK_FORMAT_R32_SFLOAT,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 
 		{PTI_DEPTH16,			VK_FORMAT_D16_UNORM,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
 		{PTI_DEPTH24,			VK_FORMAT_X8_D24_UNORM_PACK32,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
@@ -4566,7 +4570,12 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 			Con_Printf("VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
 			return false;
 		case VK_ERROR_EXTENSION_NOT_PRESENT:
-			Con_Printf("VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
+		case VK_ERROR_FEATURE_NOT_PRESENT:
+		case VK_ERROR_INITIALIZATION_FAILED:
+		case VK_ERROR_DEVICE_LOST:
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+			Con_Printf("%s: something on a system level is probably misconfigured\n", VK_VKErrorToString(err));
 			return false;
 		default:
 			Con_Printf("Unknown vulkan device creation error: %x\n", err);
@@ -4635,12 +4644,12 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	sh_config.pValidateProgram = NULL;
 	sh_config.pProgAutoFields = NULL;
 
-	if (sh_config.texfmt[PTI_DEPTH32])
-		vk.depthformat = VK_FORMAT_D32_SFLOAT;
-	else if (sh_config.texfmt[PTI_DEPTH24])
+	if (sh_config.texfmt[PTI_DEPTH24])
 		vk.depthformat = VK_FORMAT_X8_D24_UNORM_PACK32;
 	else if (sh_config.texfmt[PTI_DEPTH24_8])
 		vk.depthformat = VK_FORMAT_D24_UNORM_S8_UINT;
+	else if (sh_config.texfmt[PTI_DEPTH32])	//nvidia recommend to de-prioritise 32bit (float) depth.
+		vk.depthformat = VK_FORMAT_D32_SFLOAT;
 	else	//16bit depth is guarenteed in vulkan
 		vk.depthformat = VK_FORMAT_D16_UNORM;
 
@@ -4668,7 +4677,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		}
 #endif
 	}
-	if (info->srgb != 1 && (vid.flags & VID_SRGB_FB))
+	if (info->srgb > 0 && (vid.flags & VID_SRGB_FB))
 		vid.flags |= VID_SRGBAWARE;
 	return true;
 }

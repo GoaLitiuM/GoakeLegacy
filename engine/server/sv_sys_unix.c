@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <fcntl.h>
 #include <dirent.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifdef MULTITHREAD
 #include <pthread.h>
@@ -98,12 +99,34 @@ qboolean Sys_rmdir (const char *path)
 
 qboolean Sys_remove (const char *path)
 {
+#ifdef __unix__
+	return unlink(path);
+#else
 	return system(va("rm \"%s\"", path));
+#endif
 }
 
 qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return !rename(oldfname, newfname);
+}
+
+
+#if _POSIX_C_SOURCE >= 200112L
+	#include <sys/statvfs.h>
+#endif
+qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
+{
+#if _POSIX_C_SOURCE >= 200112L
+	//posix 2001
+	struct statvfs inf;
+	if(0==statvfs(path, &inf))
+	{
+		*freespace = inf.f_bsize*(quint64_t)inf.f_bavail;
+		return true;
+	}
+#endif
+	return false;
 }
 
 int Sys_DebugLog(char *file, char *fmt, ...)
@@ -190,6 +213,7 @@ void Sys_Error (const char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
+	COM_WorkerAbort(string);
 	printf ("Fatal error: %s\n",string);
 
 	tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
@@ -334,14 +358,18 @@ void Sys_Printf (char *fmt, ...)
 			wchar_t w;
 			conchar_t *e, *c;
 			conchar_t ctext[MAXPRINTMSG];
+			unsigned int codeflags, codepoint;
 			e = COM_ParseFunString(CON_WHITEMASK, msg, ctext, sizeof(ctext), false);
-			for (c = ctext; c < e; c++)
+			for (c = ctext; c < e; )
 			{
-				if (*c & CON_HIDDEN)
+				c = Font_Decode(c, &codeflags, &codepoint);
+				if (codeflags & CON_HIDDEN)
 					continue;
 
-				ApplyColour(*c);
-				w = *c & 0x0ffff;
+				if ((codeflags&CON_RICHFORECOLOUR) || (codepoint == '\n' && (codeflags&CON_NONCLEARBG)))
+					codeflags = CON_WHITEMASK;	//make sure we don't get annoying backgrounds on other lines.
+				ApplyColour(codeflags);
+				w = codepoint;
 				if (w >= 0xe000 && w < 0xe100)
 				{
 					/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
@@ -376,6 +404,7 @@ void Sys_Printf (char *fmt, ...)
 						putc(w, stdout);
 				}
 			}
+			ApplyColour(CON_WHITEMASK);
 		}
 		else
 		{
@@ -618,7 +647,7 @@ void Sys_Shutdown (void)
 {
 }
 
-#ifdef __linux__ /*should probably be GNUC but whatever*/
+#if defined(__linux__) && defined(__GNUC__)
 #include <execinfo.h>
 #ifdef __i386__
 #include <ucontext.h>
@@ -906,7 +935,7 @@ int main(int argc, char *argv[])
 
 
 
-#ifdef __linux__
+#if defined(__linux__) && defined(__GNUC__)
 	if (!COM_CheckParm("-nodumpstack"))
 	{
 		struct sigaction act;
@@ -1131,10 +1160,90 @@ void Sys_ServerActivity(void)
 
 qboolean Sys_RandomBytes(qbyte *string, int len)
 {
-	qboolean res;
+	qboolean res = false;
 	int fd = open("/dev/urandom", 0);
-	res = (read(fd, string, len) == len);
-	close(fd);
-
+	if (fd != -1)
+	{
+		res = (read(fd, string, len) == len);
+		close(fd);
+	}
 	return res;
 }
+
+#ifdef WEBCLIENT
+#include "fs.h"
+static qboolean Sys_DoInstall(void)
+{
+	char fname[MAX_QPATH];
+	float pct = 0;
+	qboolean applied = false;
+#ifdef __unix__
+	qboolean showprogress = isatty(STDOUT_FILENO);
+#else
+	qboolean showprogress = false;
+#endif
+
+#if 1
+	FS_CreateBasedir(NULL);
+#else
+	char basedir[MAX_OSPATH];
+	if (!FS_NativePath("", FS_ROOT, basedir, sizeof(basedir)))
+		return true;
+	FS_CreateBasedir(basedir);
+#endif
+
+	*fname = 0;
+	for(;;)
+	{
+		while(FS_DownloadingPackage())
+		{
+			const char *cur = "";
+			float newpct = 50;
+			HTTP_CL_Think(&cur, &newpct);
+
+			if (*cur && Q_strncmp(fname, cur, sizeof(fname)-1))
+			{
+				Q_strncpyz(fname, cur, sizeof(fname));
+				Con_Printf("Downloading: %s\n", fname);
+			}
+			if (showprogress && (int)(pct*10) != (int)(newpct*10))
+			{
+				pct = newpct;
+				Sys_Printf("%5.1f%%\r", pct);
+			}
+
+			Sys_Sleep(10/1000.0);
+			COM_MainThreadWork();
+		}
+
+		if (!applied)
+		{
+			if (!PM_MarkUpdates())
+				break;	//no changes to apply
+			PM_ApplyChanges();
+			applied = true;	//don't keep applying.
+			continue;
+		}
+		break;
+	}
+	if (showprogress)
+		Sys_Printf("     \r");
+	return true;
+}
+qboolean Sys_RunInstaller(void)
+{
+	if (COM_CheckParm("-install"))
+	{	//install THEN run
+		Sys_DoInstall();
+		return false;
+	}
+	if (COM_CheckParm("-doinstall"))
+	{
+		//install only, then quit
+		return Sys_DoInstall();
+	}
+	if (!com_installer)
+		return false;
+	return Sys_DoInstall();
+}
+#endif

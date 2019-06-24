@@ -300,7 +300,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	G_FLOAT(OFS_RETURN) = slotnum;
 }
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 void CL_LoadFont_f(void)
 {
 	//console command for compat with dp/debug.
@@ -521,6 +521,9 @@ void QCBUILTIN PF_CL_stringwidth(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	PR_CL_BeginString(prinst, 0, 0, size?size[0]:8, size?size[1]:8, &px, &py);
 	px = Font_LineScaleWidth(buffer, end);
 	Font_EndString(NULL);
+
+	if (!size)	//for compat with dp, divide by 8 after... because weird.
+		px /= 8;
 
 	G_FLOAT(OFS_RETURN) = (px * vid.width) / vid.rotpixelwidth;
 }
@@ -2226,6 +2229,7 @@ static struct {
 	{"con_printf",				PF_SubConPrintf,			392},
 	{"con_draw",				PF_SubConDraw,				393},
 	{"con_input",				PF_SubConInput,				394},
+	{"setwindowcaption",		PF_cl_setwindowcaption,		0},
 	{"cvars_haveunsaved",		PF_cvars_haveunsaved,		0},
 															//gap
 	{"buf_create",				PF_buf_create,				440},
@@ -2363,6 +2367,13 @@ static struct {
 	{"digest_hex",				PF_digest_hex,				639},
 	{"digest_ptr",				PF_digest_ptr,				0},
 	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641},
+
+
+	{"setlocaluserinfo",		PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfo",		PF_cl_getlocaluserinfostring,	0},
+	{"setlocaluserinfoblob",	PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfoblob",	PF_cl_getlocaluserinfoblob,		0},
+
 	{NULL}
 };
 static builtin_t menu_builtins[1024];
@@ -2801,7 +2812,7 @@ void MP_RegisterCvarsAndCmds(void)
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
 	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cmd_AddCommand("loadfont", CL_LoadFont_f);
 #endif
 

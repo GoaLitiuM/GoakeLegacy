@@ -24,6 +24,7 @@ void Sys_Error (const char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (string, sizeof (string), error, argptr);
 	va_end (argptr);
+	COM_WorkerAbort(string);
 	Sys_Printf("Error: %s\n", string);
 
 	Con_Print ("Quake Error: ");
@@ -102,6 +103,9 @@ qboolean Sys_remove (const char *path)
 qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return emscriptenfte_buf_rename(oldfname, newfname);
+}
+qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
+{	//not implemented. we could try querying local storage quotas, but our filesystem is otherwise purely ram so doesn't have much of a limit in 64bit browsers. hurrah for swap space.
 	return false;
 }
 
@@ -235,7 +239,12 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	return false;
 }
 
-
+#ifdef WEBCLIENT
+qboolean Sys_RunInstaller(void)
+{       //not implemented
+	return false;
+}
+#endif
 
 #define SYS_CLIPBOARD_SIZE  256
 static char *clipboard_buffer;

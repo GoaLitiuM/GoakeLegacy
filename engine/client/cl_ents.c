@@ -467,7 +467,7 @@ void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits)
 	if (bits & U_ORIGIN3)
 	{
 		if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
-			to->origin[1] = MSG_ReadCoordFloat ();
+			to->origin[2] = MSG_ReadCoordFloat ();
 		else
 			to->origin[2] = MSG_ReadCoord ();
 	}
@@ -2135,6 +2135,7 @@ void V_AddAxisEntity(entity_t *in)
 void V_ClearEntity(entity_t *e)
 {
 	memset(e, 0, sizeof(*e));
+	e->pvscache.num_leafs = -1;
 	e->playerindex = -1;
 	e->topcolour = TOP_DEFAULT;
 	e->bottomcolour = BOTTOM_DEFAULT;
@@ -3344,11 +3345,11 @@ void CL_LinkStaticEntities(void *pvs)
 				VectorCopy(stat->state.origin, mins);
 				VectorCopy(stat->state.origin, maxs);
 			}
-			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &stat->pvscache, mins, maxs);
+			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &stat->ent.pvscache, mins, maxs);
 		}
 
 		/*pvs test*/
-		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->pvscache, pvs))
+		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->ent.pvscache, pvs))
 			continue;
 
 
@@ -3614,7 +3615,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 					VectorCopy(snew->angles, le->newangle);
 
 					//fixme: should be oldservertime
-					le->orglerpdeltatime = servertime-le->orglerpstarttime;
+					le->orglerpdeltatime = bound(0.001, servertime-le->orglerpstarttime, cl_lerp_maxinterval.value);
 					le->orglerpstarttime = servertime;
 				}
 
@@ -3920,6 +3921,13 @@ void CL_LinkPacketEntities (void)
 		le = &cl.lerpents[state->number];
 
 		ent = &cl_visedicts[cl_numvisedicts];
+		ent->pvscache.num_leafs = 0;
+#if defined(Q2BSPS) || defined(Q3BSPS) || defined(TERRAIN)
+		ent->pvscache.areanum = 0;
+		ent->pvscache.areanum2 = 0;
+		ent->pvscache.headnode = 0;
+#endif
+
 		ent->rtype = RT_MODEL;
 		ent->playerindex = -1;
 		ent->customskin = 0;
@@ -4072,7 +4080,7 @@ void CL_LinkPacketEntities (void)
 				modelflags = model->flags;
 		}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (cl.model_precache_vwep[0] && state->modelindex2 < MAX_VWEP_MODELS)
 		{
 			if (state->modelindex == cl_playerindex && cl.model_precache_vwep[0]->loadstate == MLS_LOADED &&
@@ -4189,7 +4197,7 @@ void CL_LinkPacketEntities (void)
 					Q_snprintfz(name, sizeof(name), "textures/bmodels/simple_%s_%i.tga", basename, ent->skinnum);
 				else
 					Q_snprintfz(name, sizeof(name), "textures/models/simple_%s_%i.tga", basename, ent->skinnum);
-				model->simpleskin[ent->skinnum] = R_RegisterShader(name, 0, va("{\nnomipmaps\nprogram defaultsprite\nsurfaceparm noshadows\nsurfaceparm nodlight\nsort seethrough\n{\nmap \"%s\"\nalphafunc ge128\n}\n}\n", name));
+				model->simpleskin[ent->skinnum] = R_RegisterShader(name, 0, va("{\nnomipmaps\nprogram defaultsprite#MASK=0.5\nsurfaceparm noshadows\nsurfaceparm nodlight\nsort seethrough\n{\nmap \"%s\"\nalphafunc ge128\n}\n}\n", name));
 			}
 			VectorCopy(le->angles, angles);
 
@@ -4594,7 +4602,12 @@ void CLQW_ParsePlayerinfo (void)
 		for (i = 0; i < 3; i++)
 		{
 			if (flags & (DF_ORIGINX << i))
-				state->origin[i] = MSG_ReadCoord ();
+			{
+				if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
+					state->origin[i] = MSG_ReadCoordFloat ();
+				else
+					state->origin[i] = MSG_ReadCoord ();
+			}
 		}
 
 		VectorSubtract(state->origin, prevstate->origin, dist);
@@ -5070,7 +5083,7 @@ void CL_LinkPlayers (void)
 	static int		flickertime;
 	static int		flicker;
 	float			predictmsmult = 1000*cl_predict_players_frac.value;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	int				modelindex2;
 #endif
 	extern cvar_t	cl_demospeed;
@@ -5123,7 +5136,7 @@ void CL_LinkPlayers (void)
 			continue;
 
 		//the extra modelindex check is to stop lame mods from using vweps with rings
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (state->command.impulse && cl.model_precache_vwep[0] && cl.model_precache_vwep[0]->type != mod_dummy && state->modelindex == cl_playerindex)
 		{
 			model = cl.model_precache_vwep[0];
@@ -5133,7 +5146,7 @@ void CL_LinkPlayers (void)
 #endif
 		{
 			model = cl.model_precache[state->modelindex];
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			modelindex2 = 0;
 #endif
 		}
@@ -5325,7 +5338,7 @@ void CL_LinkPlayers (void)
 			CL_AddFlagModels (ent, 0);
 		else if (state->effects & QWEF_FLAG2)
 			CL_AddFlagModels (ent, 1);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (modelindex2)
 			CL_AddVWeapModel (ent, cl.model_precache_vwep[modelindex2]);
 #endif

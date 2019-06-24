@@ -67,7 +67,7 @@ cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be show exactly what was last received, which will be jerky. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
-cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, so this will not function there. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
+cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, ^1so this will not function there^7. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
 cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
 extern cvar_t net_compress;
@@ -280,6 +280,7 @@ static struct
 	int				subprotocol;	//the monkeys are trying to eat me.
 	unsigned int	fteext1;
 	unsigned int	fteext2;
+	unsigned int	ezext1;
 	int				qport;
 	int				challenge;		//tracked as part of guesswork based upon what replies we get.
 	double			time;			//for connection retransmits
@@ -440,6 +441,7 @@ void CL_Quit_f (void)
 	Sys_Quit ();
 }
 
+#ifdef NQPROT
 void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 {
 	char	data[2048];
@@ -455,29 +457,29 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 
 	cl.splitclients = 0;
 }
+#endif
 
-#ifdef PROTOCOL_VERSION_FTE
-void CL_SupportedFTEExtensions(int *pext1, int *pext2)
+void CL_SupportedFTEExtensions(unsigned int *pext1, unsigned int *pext2, unsigned int *ezpext1)
 {
-	unsigned int fteprotextsupported = 0;
-	unsigned int fteprotextsupported2 = 0;
+	unsigned int fteprotextsupported1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+	unsigned int fteprotextsupported2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+	unsigned int ezprotextsupported1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 
-	fteprotextsupported = Net_PextMask(1, false);
-	fteprotextsupported2 = Net_PextMask(2, false);
-
-	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
+	fteprotextsupported1 &= strtoul(cl_pext_mask.string, NULL, 16);
 //	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
+//	ezprotextsupported1 &= strtoul(cl_ezpext1_mask.string, NULL, 16);
 
 	if (cl_nopext.ival)
 	{
-		fteprotextsupported = 0;
+		fteprotextsupported1 = 0;
 		fteprotextsupported2 = 0;
+		ezprotextsupported1 = 0;
 	}
 
-	*pext1 = fteprotextsupported;
+	*pext1 = fteprotextsupported1;
 	*pext2 = fteprotextsupported2;
+	*ezpext1 = ezprotextsupported1;
 }
-#endif
 
 char *CL_GUIDString(netadr_t *adr, const char *guidstring)
 {
@@ -550,9 +552,7 @@ called by CL_Connect_f and CL_CheckResend
 ======================
 */
 void CL_SendConnectPacket (netadr_t *to, int mtu,
-#ifdef PROTOCOL_VERSION_FTE
-						   int ftepext, int ftepext2,
-#endif
+						   unsigned int ftepext1, unsigned int ftepext2, unsigned int ezpext1,
 						   int compressioncrc,
 						   const char *guidhash
 						  /*, ...*/)
@@ -562,10 +562,9 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	char	data[2048];
 	char *info;
 	double t1, t2;
-#ifdef PROTOCOL_VERSION_FTE
-	int fteprotextsupported=0;
+	int fteprotextsupported1=0;
 	int fteprotextsupported2=0;
-#endif
+	int ezprotextsupported1=0;
 	char *a;
 
 // JACK: Fixed bug where DNS lookups would cause two connects real fast
@@ -580,31 +579,33 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		compressioncrc = 0;
 	}
 
-#ifdef PROTOCOL_VERSION_FTE
 #ifdef Q2CLIENT
 	if (connectinfo.protocol == CP_QUAKE2)
 	{
-		fteprotextsupported = ftepext & (PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN);
+		fteprotextsupported1 = ftepext1 & (PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN);
 		fteprotextsupported2 = 0;
+		ezprotextsupported1 = 0;
 	}
 	else
 #endif
 	{
-		CL_SupportedFTEExtensions(&fteprotextsupported, &fteprotextsupported2);
+		CL_SupportedFTEExtensions(&fteprotextsupported1, &fteprotextsupported2, &ezprotextsupported1);
 
-		fteprotextsupported &= ftepext;
+		fteprotextsupported1 &= ftepext1;
 		fteprotextsupported2 &= ftepext2;
+		ezprotextsupported1 &= ezpext1;
 
 		if (connectinfo.protocol != CP_QUAKEWORLD)
 		{
-			fteprotextsupported = 0;
+			fteprotextsupported1 = 0;
 			fteprotextsupported2 = 0;
+			ezprotextsupported1 = 0;
 		}
 	}
 
-	connectinfo.fteext1 = fteprotextsupported;
+	connectinfo.fteext1 = fteprotextsupported1;
 	connectinfo.fteext2 = fteprotextsupported2;
-#endif
+	connectinfo.ezext1 = ezprotextsupported1;
 
 	t1 = Sys_DoubleTime ();
 
@@ -679,14 +680,13 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	Q_strncatz(data, "\n", sizeof(data));
 
-#ifdef PROTOCOL_VERSION_FTE
-	if (ftepext)
-		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported), sizeof(data));
-#endif
-#ifdef PROTOCOL_VERSION_FTE2
+	if (ftepext1)
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE1, fteprotextsupported1), sizeof(data));
 	if (ftepext2)
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE2, fteprotextsupported2), sizeof(data));
-#endif
+
+	if (ezpext1)
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_EZQUAKE1, ezprotextsupported1), sizeof(data));
 
 	{
 		int ourmtu;
@@ -786,6 +786,7 @@ void CL_CheckForResend (void)
 			connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
 			connectinfo.fteext1 = PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN;
 			connectinfo.fteext2 = 0;
+			connectinfo.ezext1 = 0;
 			break;
 #endif
 		default:
@@ -796,8 +797,9 @@ void CL_CheckForResend (void)
 				//for hexen2 we always force fte's native qw protocol. other protocols won't cut it.
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-				connectinfo.fteext1 = Net_PextMask(1, false);
-				connectinfo.fteext2 = Net_PextMask(2, false);
+				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 			else if (!strcmp(lbp, "qwid") || !strcmp(lbp, "idqw"))
 			{	//for recording .qwd files in any client
@@ -805,6 +807,7 @@ void CL_CheckForResend (void)
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 				connectinfo.fteext1 = 0;
 				connectinfo.fteext2 = 0;
+				connectinfo.ezext1 = 0;
 			}
 #ifdef Q3CLIENT
 			else if (!strcmp(lbp, "q3"))
@@ -822,8 +825,9 @@ void CL_CheckForResend (void)
 				{
 					connectinfo.protocol = CP_QUAKEWORLD;
 					connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-					connectinfo.fteext1 = Net_PextMask(1, false);
-					connectinfo.fteext2 = Net_PextMask(2, false);
+					connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+					connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+					connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 				}
 			}
 			else if (!strcmp(lbp, "fitz") || !strcmp(lbp, "rmqe") ||
@@ -871,16 +875,18 @@ void CL_CheckForResend (void)
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
-				connectinfo.fteext1 = Net_PextMask(1, true);
-				connectinfo.fteext2 = Net_PextMask(2, true);
+				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, true);
+				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, true);
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 #endif
 			else
 			{	//protocol wasn't recognised, and we didn't take the nq fallback, so that must mean we're going for qw.
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-				connectinfo.fteext1 = Net_PextMask(1, false);
-				connectinfo.fteext2 = Net_PextMask(2, false);
+				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 
 #ifdef NETPREPARSE
@@ -894,8 +900,9 @@ void CL_CheckForResend (void)
 				{
 					connectinfo.protocol = CP_QUAKEWORLD;
 					connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-					connectinfo.fteext1 = Net_PextMask(1, false);
-					connectinfo.fteext2 = Net_PextMask(2, false);
+					connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+					connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+					connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 				}
 				else if (progstype != PROG_QW && cls.protocol == CP_QUAKEWORLD)
 				{
@@ -909,8 +916,9 @@ void CL_CheckForResend (void)
 			{
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-				connectinfo.fteext1 = Net_PextMask(1, false);
-				connectinfo.fteext2 = Net_PextMask(2, false);
+				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 #ifdef NQPROT
 			else if (cls.demorecording == DPB_NETQUAKE && cls.protocol != CP_NETQUAKE)
@@ -998,7 +1006,7 @@ void CL_CheckForResend (void)
 		{
 			if (!connectinfo.challenge)
 				connectinfo.challenge = rand();
-			CL_SendConnectPacket (NULL, 8192-16, connectinfo.fteext1, connectinfo.fteext2, 0, sv_guidhash.string);
+			CL_SendConnectPacket (NULL, 8192-16, connectinfo.fteext1, connectinfo.fteext2, connectinfo.ezext1, 0, sv_guidhash.string);
 		}
 
 		return;
@@ -2271,6 +2279,8 @@ void CL_CheckServerInfo(void)
 		movevars.flyfriction = *s?Q_atof(s):4;
 		//s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_edgefriction");
 		//movevars.edgefriction = *s?Q_atof(s):2;
+		if (!(movevars.flags&MOVEFLAG_VALID))
+			movevars.flags = (movevars.flags&~MOVEFLAG_QWEDGEBOX) | (*s?0:MOVEFLAG_QWEDGEBOX);
 
 		movevars.maxvelocity = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxvelocity"));
 		movevars.gravity = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_gravity"));
@@ -2400,6 +2410,8 @@ void CL_CheckServerInfo(void)
 
 	if (oldteamplay != cl.teamplay)
 		Skin_FlushPlayers();
+
+	CSQC_ServerInfoChanged();
 }
 
 /*
@@ -2493,6 +2505,8 @@ Allow clients to change userinfo
 */
 void CL_SetInfo_f (void)
 {
+	char *key, *val;
+	size_t keysize, valsize;
 	cvar_t *var;
 	int pnum = CL_TargettedSplit(true);
 	if (Cmd_Argc() == 1)
@@ -2535,7 +2549,17 @@ void CL_SetInfo_f (void)
 		return;
 	}
 
-	CL_SetInfo(pnum, Cmd_Argv(1), Cmd_Argv(2));
+	key = Cmd_Argv(1);
+	val = Cmd_Argv(2);
+
+	key = InfoBuf_DecodeString(key, key+strlen(key), &keysize);
+	val = InfoBuf_DecodeString(val, val+strlen(val), &valsize);
+	if (keysize != strlen(key))
+		Con_Printf ("setinfo: ignoring key name with embedded null\n");
+	else
+		CL_SetInfoBlob(pnum, key, val, valsize);
+	Z_Free(key);
+	Z_Free(val);
 }
 
 #if 1//def _DEBUG
@@ -3034,7 +3058,7 @@ void CL_ConnectionlessPacket (void)
 		static unsigned int lasttime = 0xdeadbeef;
 		static netadr_t lastadr;
 		unsigned int curtime = Sys_Milliseconds();
-		unsigned long pext = 0, pext2 = 0, huffcrc=0, mtu=0;
+		unsigned long ftepext1= 0, ftepext2 = 0, ezpext1 = 0, huffcrc=0, mtu=0;
 #ifdef HAVE_DTLS
 		int candtls = 0;	//0=no,1=optional,2=mandatory
 #endif
@@ -3073,7 +3097,7 @@ void CL_ConnectionlessPacket (void)
 
 				connectinfo.protocol = CP_QUAKE3;
 				connectinfo.challenge = atoi(s+17);
-				CL_SendConnectPacket (&net_from, 0, 0, 0, 0/*, ...*/, NULL);
+				CL_SendConnectPacket (&net_from, 0, 0, 0, 0, 0/*, ...*/, NULL);
 			}
 			else
 			{
@@ -3220,8 +3244,9 @@ void CL_ConnectionlessPacket (void)
 				unsigned int l = MSG_ReadLong();
 				switch(cmd)
 				{
-				case PROTOCOL_VERSION_FTE:			pext = l;		break;
-				case PROTOCOL_VERSION_FTE2:			pext2 = l;		break;
+				case PROTOCOL_VERSION_FTE1:			ftepext1 = l;		break;
+				case PROTOCOL_VERSION_FTE2:			ftepext2 = l;		break;
+				case PROTOCOL_VERSION_EZQUAKE1:		ezpext1 = l;		break;
 				case PROTOCOL_VERSION_FRAGMENT:		mtu = l;		break;
 #ifdef HAVE_DTLS
 				case PROTOCOL_VERSION_DTLSUPGRADE:	candtls = l;	break;	//0:not enabled. 1:explicit use allowed. 2:favour it. 3: require it
@@ -3264,7 +3289,7 @@ void CL_ConnectionlessPacket (void)
 		}
 #endif
 
-		CL_SendConnectPacket (&net_from, mtu, pext, pext2, huffcrc/*, ...*/, guidhash);
+		CL_SendConnectPacket (&net_from, mtu, ftepext1, ftepext2, ezpext1, huffcrc/*, ...*/, guidhash);
 		return;
 	}
 #ifdef Q2CLIENT
@@ -3496,6 +3521,7 @@ client_connect:	//fixme: make function
 		cls.proquake_angles_hack = false;
 		cls.fteprotocolextensions = connectinfo.fteext1;
 		cls.fteprotocolextensions2 = connectinfo.fteext2;
+		cls.ezprotocolextensions1 = connectinfo.ezext1;
 		cls.challenge = connectinfo.challenge;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 		if (cls.protocol == CP_QUAKE2)
@@ -3504,9 +3530,14 @@ client_connect:	//fixme: make function
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
 				cls.netchan.qportsize = 1;
 		}
-		cls.netchan.fragmentsize = connectinfo.mtu;
+		cls.netchan.pext_fragmentation = connectinfo.mtu?true:false;
 		if (connectinfo.mtu >= 64)
+		{
+			cls.netchan.mtu = connectinfo.mtu;
 			cls.netchan.message.maxsize = sizeof(cls.netchan.message_buf);
+		}
+		else
+			cls.netchan.mtu = MAX_QWMSGLEN;
 #ifdef HUFFNETWORK
 		cls.netchan.compresstable = Huff_CompressionCRC(connectinfo.compresscrc);
 #else
@@ -3694,7 +3725,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 		cls.fteprotocolextensions = connectinfo.fteext1;
 		cls.fteprotocolextensions2 = connectinfo.fteext2;
-		cls.ezprotocolextensions1 = 0;
+		cls.ezprotocolextensions1 = connectinfo.ezext1;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 		CL_ParseEstablished();
 		cls.netchan.isnqprotocol = true;
@@ -3931,7 +3962,7 @@ qboolean CL_AllowArbitaryDownload(const char *oldname, const char *localfile)
 	return false;
 }
 
-#if defined(NQPROT) && !defined(NOLEGACY)
+#if defined(NQPROT) && defined(HAVE_LEGACY)
 //this is for DP compat.
 static void CL_Curl_f(void)
 {
@@ -4254,11 +4285,16 @@ void CL_FTP_f(void)
 //fixme: make a cvar
 void CL_Fog_f(void)
 {
-	int ftype = Q_strcasecmp(Cmd_Argv(0), "fog");
+	int ftype;
+	if (!Q_strcasecmp(Cmd_Argv(0), "waterfog"))
+		ftype = 1;
+	else //fog
+		ftype = 0;
 	if ((cl.fog_locked && !Cmd_FromGamecode() && !cls.allow_cheats) || Cmd_Argc() <= 1)
 	{
+		static const char *fognames[]={"fog","waterfog"};
 		if (Cmd_ExecLevel != RESTRICT_INSECURE)
-			Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
+			Con_Printf("Current %s %f (r:%f g:%f b:%f, a:%f bias:%f)\n", fognames[ftype], cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
 	}
 	else
 	{
@@ -4307,9 +4343,36 @@ void CL_Fog_f(void)
 	}
 }
 
+#ifdef _DEBUG
+void CL_FreeSpace_f(void)
+{
+	quint64_t freespace;
+	const char *freepath = Cmd_Argv(1);
+	if (Sys_GetFreeDiskSpace(freepath, &freespace))
+	{
+		if (freespace > 512.0*1024*1024*1024)
+			Con_Printf("%s: %g tb available\n", freepath, freespace/(1024.0*1024*1024*1024));
+		else if (freespace > 512.0*1024*1024)
+			Con_Printf("%s: %g gb available\n", freepath, freespace/(1024.0*1024*1024));
+		else if (freespace > 512.0*1024)
+			Con_Printf("%s: %g mb available\n", freepath, freespace/(1024.0*1024));
+		else if (freespace > 512.0)
+			Con_Printf("%s: %g kb available\n", freepath, freespace/1024.0);
+		else
+			Con_Printf("%s: %"PRIu64" bytes available\n", freepath, freespace);
+	}
+	else
+		Con_Printf("%s: disk free not queryable\n", freepath);
+}
+#endif
+
 void CL_CrashMeEndgame_f(void)
 {
-	Host_EndGame("crashme!");
+	Host_EndGame("crashme! %s", Cmd_Args());
+}
+void CL_CrashMeError_f(void)
+{
+	Sys_Error("crashme! %s", Cmd_Args());
 }
 
 void CL_Status_f(void)
@@ -4668,7 +4731,11 @@ void CL_Init (void)
 	Cmd_AddCommandD ("demo_jump", CL_DemoJump_f, "Jump to a specified time in a demo. Prefix with a + or - for a relative offset. Seeking backwards will restart the demo and the fast forward, which can take some time in long demos.");
 	Cmd_AddCommandD ("demo_nudge", CL_DemoNudge_f, "Nudge the demo by one frame. Argument should be +1 or -1. Nudging backwards is limited.");
 	Cmd_AddCommandAD ("timedemo", CL_TimeDemo_f, CL_DemoList_c, NULL);
+#ifdef _DEBUG
+	Cmd_AddCommand ("freespace", CL_FreeSpace_f);
+#endif
 	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
+	Cmd_AddCommand ("crashme_error", CL_CrashMeError_f);
 
 	Cmd_AddCommandD ("showpic", SCR_ShowPic_Script_f, 	"showpic <imagename> <placename> <x> <y> <zone> [width] [height] [touchcommand]\nDisplays an image onscreen, that potentially has a key binding attached to it when clicked/touched.\nzone should be one of: TL, TR, BL, BR, MM, TM, BM, ML, MR. This serves as an extra offset to move the image around the screen without any foreknowledge of the screen resolution.");
 	Cmd_AddCommandD ("showpic_removeall", SCR_ShowPic_Remove_f, 	"removes any pictures inserted with the showpic command.");
@@ -4745,7 +4812,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("fullinfo", CL_FullInfo_f);
 
 	Cmd_AddCommand ("color", CL_Color_f);
-#if defined(NQPROT) && !defined(NOLEGACY)
+#if defined(NQPROT) && defined(HAVE_LEGACY)
 	Cmd_AddCommand ("curl",	CL_Curl_f);
 #endif
 	Cmd_AddCommand ("download", CL_Download_f);
@@ -4894,7 +4961,8 @@ void Host_WriteConfiguration (void)
 		f = FS_OpenVFS(savename, "wb", FS_GAMEONLY);
 		if (!f)
 		{
-			Con_TPrintf (CON_ERROR "Couldn't write config.cfg.\n");
+			FS_NativePath(savename, FS_GAMEONLY, sysname, sizeof(sysname));
+			Con_TPrintf (CON_ERROR "Couldn't write %s.\n", sysname);
 			return;
 		}
 
@@ -5746,7 +5814,7 @@ double Host_Frame (double time)
 
 #ifdef WEBCLIENT
 //	FTP_ClientThink();
-	HTTP_CL_Think();
+	HTTP_CL_Think(NULL, NULL);
 #endif
 
 	if (r_blockvidrestart)
@@ -6184,7 +6252,7 @@ void CL_StartCinematicOrMenu(void)
 		else if (idcin_depth != FDEPTH_MISSING)
 			Media_PlayFilm("video/idlog.cin", true);
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		//and for fun (blame spirit):
 		if (COM_FCheckExists("data/local/video/New_Bliz640x480.bik"))
 			Media_PlayFilm("av:data/local/video/New_Bliz640x480.bik", true);
@@ -6387,7 +6455,12 @@ void Host_FinishLoading(void)
 		FS_ChangeGame(NULL, true, true);
 
 		if (waitingformanifest)
+		{
+#ifdef MULTITHREAD
+			Sys_Sleep(0.1);
+#endif
 			return;
+		}
 
 		Con_History_Load();
 
@@ -6428,7 +6501,12 @@ void Host_FinishLoading(void)
 	}
 
 	if (PM_IsApplying(true))
+	{
+#ifdef MULTITHREAD
+		Sys_Sleep(0.1);
+#endif
 		return;
+	}
 
 	//android may find that it has no renderer at various points.
 	if (r_forceheadless)

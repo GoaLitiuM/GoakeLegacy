@@ -1078,6 +1078,9 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 
 void SetHookState(qboolean state)
 {
+	if (!sys_disableTaskSwitch.ival && !sys_disableWinKeys.ival)
+		state = false;
+
 	if (!state == !llkeyboardhook)	//not so types are comparable
 		return;
 
@@ -3321,8 +3324,8 @@ BOOL CopyFileU(const char *src, const char *dst, BOOL bFailIfExists)
 	return CopyFileW(widen(wide1, sizeof(wide1), src), widen(wide2, sizeof(wide2), dst), bFailIfExists);
 }
 
-void FS_CreateBasedir(const char *path);
-qboolean Sys_DoInstall(void)
+#ifdef WEBCLIENT
+static qboolean Sys_DoInstall(void)
 {
 	extern ftemanifest_t *fs_manifest;
 	char exepath[MAX_OSPATH];
@@ -3421,7 +3424,7 @@ qboolean Sys_DoInstall(void)
 
 		SendMessage(progress, PBM_SETRANGE32, 0, 10000);
 		*fname = 0;
-		HTTP_CL_Think();
+		HTTP_CL_Think(NULL, NULL);
 		while(FS_DownloadingPackage())
 		{
 			MSG msg;
@@ -3452,7 +3455,7 @@ qboolean Sys_DoInstall(void)
 				DispatchMessage (&msg);
 
 			Sleep(10);
-			HTTP_CL_Think();
+			HTTP_CL_Think(NULL, NULL);
 		}
 		DestroyWindow(progress);
 		DestroyWindow(wnd);
@@ -3516,6 +3519,7 @@ qboolean Sys_RunInstaller(void)
 	}
 	return true;
 }
+#endif
 
 #define RESLANG MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_UK)
 static const char *Sys_FindManifest(void)

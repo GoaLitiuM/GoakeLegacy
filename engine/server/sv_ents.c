@@ -3731,6 +3731,14 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 
 				if (client->gibfilter && SV_GibFilter(ent))
 					continue;
+
+#ifdef VM_Q1
+				//mvdsv compat
+				if (client->hideentity && EDICT_TO_PROG(svprogfuncs, ent) == client->hideentity)
+					continue;
+				if (client->hideplayers && e <= sv.allocated_client_slots)
+					continue;
+#endif
 			}
 			else
 				tracecullent = NULL;
@@ -4134,7 +4142,7 @@ void SV_CleanupEnts(void)
 		ent = EDICT_NUM_PB(svprogfuncs, e);
 		ent->xv->SendFlags = 0;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		//this is legacy code. we'll just have to live with the slight delay.
 		//FIXME: check if Version exists and do it earlier.
 		if ((int)ent->xv->Version != sv.csqcentversion[ent->entnum])

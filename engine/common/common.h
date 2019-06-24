@@ -35,8 +35,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	//C99 has a stdint header which hopefully contains an intptr_t
 	//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
 	#include <stdint.h>
-	#define qintptr_t intptr_t
-	#define quintptr_t uintptr_t
+	typedef intptr_t qintptr_t;
+	typedef uintptr_t quintptr_t;
 	#define qint16_t int16_t
 	#define quint16_t uint16_t
 	#define qint32_t int32_t
@@ -130,6 +130,13 @@ typedef enum {false, true}	qboolean;
 #define	EXTENDED_INFO_STRING	1024
 #define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
+
+
+#ifdef HAVE_LEGACY
+#define legacyval(_legval,_newval) _legval
+#else
+#define legacyval(_legval,_newval) _newval
+#endif
 
 #ifdef HAVE_CLIENT
 #define cls_state cls.state
@@ -401,7 +408,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 #define PFS_KEEPMARKUP		1	//leave markup in the final string (but do parse it)
 #define PFS_FORCEUTF8		2	//force utf-8 decoding
 #define PFS_NOMARKUP		4	//strip markup completely
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 #define PFS_EZQUAKEMARKUP	8	//aim for compat with ezquake instead of q3 compat
 #endif
 #define PFS_CENTERED		16	//flag used by console prints (text should remain centered)
@@ -448,7 +455,7 @@ struct cache_user_s;
 
 extern char	com_gamepath[MAX_OSPATH];
 extern char	com_homepath[MAX_OSPATH];
-extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
+//extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
 //qofs_Make is used to 'construct' a variable of qofs_t type. this is so the code can merge two 32bit ints on old systems and use a long long type internally without generating warnings about bit shifts when qofs_t is only 32bit instead.
@@ -519,9 +526,10 @@ struct vfsfile_s;
 //standard return value is 0 on failure, or depth on success.
 int FS_FLocateFile(const char *filename, unsigned int flags, flocation_t *loc);
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
-char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
+const char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
 qboolean FS_GetLocMTime(flocation_t *location, time_t *modtime);
-char *FS_GetPackageDownloadFilename(flocation_t *loc);
+const char *FS_GetPackageDownloadFilename(flocation_t *loc);	//returns only packages (or null)
+const char *FS_GetRootPackagePath(flocation_t *loc);			//favours packages, but falls back on gamedirs.
 
 qboolean FS_GetPackageDownloadable(const char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
@@ -579,7 +587,7 @@ enum fs_relative{
 	FS_PUBBASEGAMEONLY	//qw/ (fixme: should be the last non-private basedir)
 };
 
-void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len);
+qboolean COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len);
 
 void FS_FlushFSHashWritten(const char *fname);
 void FS_FlushFSHashRemoved(const char *fname);
@@ -693,6 +701,7 @@ qboolean PM_CanInstall(const char *packagename);
 
 void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_DownloadingPackage(void);
+void FS_CreateBasedir(const char *path);
 qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs, qboolean allowbasedirchange);
 void FS_Shutdown(void);
 struct gamepacks
@@ -785,7 +794,7 @@ extern const char *basicuserinfos[];	//note: has a leading *
 extern const char *privateuserinfos[];	//key names that are not broadcast from the server
 qboolean InfoBuf_FindKey (infobuf_t *info, const char *key, size_t *idx);
 const char *InfoBuf_KeyForNumber (infobuf_t *info, int num);
-const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize);
+const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize, qboolean *large);
 char *InfoBuf_ReadKey (infobuf_t *info, const char *key, char *outbuf, size_t outsize);
 char *InfoBuf_ValueForKey (infobuf_t *info, const char *key);
 qboolean InfoBuf_RemoveKey (infobuf_t *info, const char *key);
@@ -858,6 +867,11 @@ void IPLog_Add(const char *ip, const char *name);	//for associating player ip ad
 qboolean IPLog_Merge_File(const char *fname);
 #endif
 qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize);
+
+#if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
+qboolean Log_CheckMapCompletion(const char *packagename, const char *mapname, float *besttime, float *fulltime, float *bestkills, float *bestsecrets);
+void Log_MapNowCompleted(void);
+#endif
 
 
 /*used by and for botlib and q3 gamecode*/

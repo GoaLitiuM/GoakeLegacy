@@ -571,7 +571,9 @@ static sizebuf_t	*writedest;
 static client_t		*cldest;
 struct netprim_s *destprim;
 static int majortype;
+#ifdef NQPROT
 static int minortype;
+#endif
 static int protocollen;
 
 static qbyte buffer[MAX_QWMSGLEN];
@@ -583,7 +585,6 @@ static int multicasttype;
 static int requireextension;
 static qboolean ignoreprotocol;
 static int te_515sevilhackworkaround;
-extern qboolean ssqc_deprecated_warned;
 
 #define svc_setfrags 14
 #define svc_updatecolors 17
@@ -725,6 +726,10 @@ void NPP_NQFlush(void)
 					h2finale = T_GetString(lookup[buffer[1]]);
 				}
 			}
+#endif
+
+#if defined(HAVE_CLIENT)
+			Log_MapNowCompleted();
 #endif
 
 			for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
@@ -1757,6 +1762,9 @@ void NPP_QWFlush(void)
 		break;
 		//ignore these.
 	case svc_intermission:
+#if defined(HAVE_CLIENT)
+		Log_MapNowCompleted();
+#endif
 //		if (writedest == &sv.reliable_datagram)
 		{
 			client_t *cl;

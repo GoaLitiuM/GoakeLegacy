@@ -145,6 +145,10 @@ int COM_CheckParm(const char *parm)
 	return 0;
 }
 
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
 char *authedusername;
 char *autheduserpassword;
 int lport_min, lport_max;
@@ -158,6 +162,8 @@ int main(int argc, char **argv)
 #ifdef _WIN32
 	WSADATA pointlesscrap;
 	WSAStartup(2, &pointlesscrap);
+#else
+	signal(SIGPIPE, SIG_IGN);	//so we don't crash out if a peer closes the socket half way through.
 #endif
 
 	while (arg < argc)
@@ -283,7 +289,7 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, ti
 	HANDLE r;
 	WIN32_FIND_DATAA fd;	
 	char apath[MAX_OSPATH];
-	char file[MAX_OSPATH];
+	char file[MAX_OSPATH+MAX_PATH];
 	char *s;
 	int go;
 	strcpy(apath, match);

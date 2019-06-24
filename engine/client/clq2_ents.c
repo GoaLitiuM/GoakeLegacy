@@ -2420,12 +2420,10 @@ Sets r_refdef view values
 */
 void CLQ2_CalcViewValues (int seat)
 {
-	extern cvar_t v_gunkick_q2;
 	int			i;
 	float		lerp, backlerp;
 	q2frame_t		*oldframe;
 	q2player_state_t	*ps, *ops;
-	extern cvar_t gl_cshiftenabled;
 	playerview_t *pv = &cl.playerview[seat];
 
 	r_refdef.areabitsknown = true;
@@ -2522,9 +2520,6 @@ Emits all entities, particles, and lights to the refresh
 */
 void CLQ2_AddEntities (void)
 {
-#ifdef _DEBUG
-	extern cvar_t chase_active, chase_back, chase_up;
-#endif
 	int seat;
 	if (cls.state != ca_active)
 		return;

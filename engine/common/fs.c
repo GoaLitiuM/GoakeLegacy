@@ -172,14 +172,15 @@ char	gamedirfile[MAX_OSPATH];
 char	pubgamedirfile[MAX_OSPATH];	//like gamedirfile, but not set to the fte-only paths
 
 
-
+searchpath_t *gameonly_homedir;
+searchpath_t *gameonly_gamedir;
 
 char	com_gamepath[MAX_OSPATH];	//c:\games\quake
 char	com_homepath[MAX_OSPATH];	//c:\users\foo\my docs\fte\quake
 qboolean	com_homepathenabled;
 qboolean	com_homepathusable;	//com_homepath is safe, even if not enabled.
 
-char	com_configdir[MAX_OSPATH];	//homedir/fte/configs
+//char	com_configdir[MAX_OSPATH];	//homedir/fte/configs
 
 int fs_hash_dups;
 int fs_hash_files;
@@ -401,7 +402,7 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int packagetype)
 
 	path = Cmd_Argv(arg++);
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	a = Cmd_Argv(arg);
 	if (!strcmp(a, "-"))
 	{
@@ -601,7 +602,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		}
 	}
 	//FIXME: these should generate package-manager entries.
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	else if (!Q_strcasecmp(cmd, "filedependancies") || !Q_strcasecmp(cmd, "archiveddependancies"))
 		FS_Manifest_ParsePackage(man, mdt_installation);
 	else if (!Q_strcasecmp(cmd, "archivedpackage"))
@@ -737,7 +738,7 @@ static void COM_Path_f (void)
 		Con_Printf("pubgamedirfile: \"%s\"\n", pubgamedirfile);
 		Con_Printf("com_gamepath: \"%s\"\n", com_gamepath);
 		Con_Printf("com_homepath: \"%s\" (enabled: %s, usable: %s)\n", com_homepath, com_homepathenabled?"yes":"no", com_homepathusable?"yes":"no");
-		Con_Printf("com_configdir: \"%s\"\n", com_configdir);
+//		Con_Printf("com_configdir: \"%s\"\n", com_configdir);
 		if (fs_manifest)
 			FS_Manifest_Print(fs_manifest);
 		return;
@@ -920,8 +921,9 @@ COM_WriteFile
 The filename will be prefixed by the current game directory
 ============
 */
-void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len)
+qboolean COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len)
 {
+	qboolean success = false;
 	vfsfile_t *vfs;
 
 	Sys_Printf ("COM_WriteFile: %s\n", filename);
@@ -931,13 +933,14 @@ void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *d
 	if (vfs)
 	{
 		VFS_WRITE(vfs, data, len);
-		VFS_CLOSE(vfs);
+		success = VFS_CLOSE(vfs);
 
 		if (fsroot >= FS_GAME)
 			FS_FlushFSHashWritten(filename);
 		else
 			com_fschanged=true;
 	}
+	return success;
 }
 
 /*
@@ -1065,7 +1068,9 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 	if (!filehandle)
 	{
 		int nlen = strlen(fname)+1;
-		if (!fs_hash_filebuckets || fs_hash_filebuckets->used+sizeof(*filehandle)+nlen > fs_hash_filebuckets->total)
+		int plen = sizeof(*filehandle)+nlen;
+		plen = (plen+__alignof(fsbucket_t)-1) & ~(__alignof(fsbucket_t)-1);
+		if (!fs_hash_filebuckets || fs_hash_filebuckets->used+plen > fs_hash_filebuckets->total)
 		{
 			void *o = fs_hash_filebuckets;
 			fs_hash_filebuckets = Z_Malloc(65536);
@@ -1073,7 +1078,7 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 			fs_hash_filebuckets->prev = o;
 		}
 		filehandle = (fsbucket_t*)(fs_hash_filebuckets->data+fs_hash_filebuckets->used);
-		fs_hash_filebuckets->used += sizeof(*filehandle)+nlen;
+		fs_hash_filebuckets->used += plen;
 
 		if (!filehandle)
 			return;	//eep!
@@ -1382,10 +1387,9 @@ fail:
 	return depth+1;
 }
 
-//returns the package/'gamedir/foo.pk3' filename to tell the client to download
-//unfortunately foo.pk3 may contain a 'bar.pk3' and downloading dir/foo.pk3/bar.pk3 won't work
-//so if loc->search is dir/foo.pk3/bar.pk3 find dir/foo.pk3 instead
-char *FS_GetPackageDownloadFilename(flocation_t *loc)
+//returns the location's root package (or gamedir).
+//(aka: loc->search->purepath, but stripping contained nested packs)
+const char *FS_GetRootPackagePath(flocation_t *loc)
 {
 	searchpath_t *sp, *search;
 
@@ -1405,11 +1409,40 @@ char *FS_GetPackageDownloadFilename(flocation_t *loc)
 			break;
 	}
 
-	if (sp && strchr(sp->purepath, '/'))	//never allow any packages that are directly sitting in the basedir.
+	//
+	if (sp)
 		return sp->purepath;
 	return NULL;
 }
-char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)
+
+//returns the package/'gamedir/foo.pk3' filename to tell the client to download
+//unfortunately foo.pk3 may contain a 'bar.pk3' and downloading dir/foo.pk3/bar.pk3 won't work
+//so if loc->search is dir/foo.pk3/bar.pk3 find dir/foo.pk3 instead
+const char *FS_GetPackageDownloadFilename(flocation_t *loc)
+{
+	searchpath_t *sp, *search;
+
+	for (sp = loc->search; ;)
+	{
+		for (search = com_searchpaths; search; search = search->next)
+		{
+			if (search != sp)
+				if (search->handle->GeneratePureCRC) //only consider files that have a pure hash. this excludes system paths
+					if (!strncmp(search->purepath, sp->purepath, strlen(search->purepath)))
+						if (sp->purepath[strlen(search->purepath)] == '/')	//also ensures that the path gets shorter, avoiding infinite loops as it fights between base+home dirs.
+							break;
+		}
+		if (search)
+			sp = search;
+		else
+			break;
+	}
+
+	if (sp && strchr(sp->purepath, '/') && sp->handle->GeneratePureCRC)	//never allow any packages that are directly sitting in the basedir.
+		return sp->purepath;
+	return NULL;
+}
+const char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)
 {
 	char *ret;
 	if (!loc->search)
@@ -1913,6 +1946,9 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 
 	fs_accessed_time = realtime;
 
+	if (fs_readonly && *mode == 'w')
+		return NULL;
+
 	if (relativeto == FS_SYSTEM)
 		return VFSOS_Open(filename, mode);
 
@@ -1935,23 +1971,48 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 	//if there can only be one file (eg: write access) find out where it is.
 	switch (relativeto)
 	{
-	case FS_GAMEONLY:	//OS access only, no paks
+	case FS_GAMEONLY:	//OS access only, no paks. Used for (re)writing files.
 		vfs = NULL;
+		//FIXME: go via a searchpath, because then the fscache can be selectively updated
 		if (com_homepathenabled)
 		{
-			if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homepath, gamedirfile, filename))
-				return NULL;
-			if (*mode == 'w')
-				COM_CreatePath(fullname);
-			vfs = VFSOS_Open(fullname, mode);
+			if (gameonly_homedir)
+			{
+				if ((*mode == 'w')
+						? gameonly_homedir->handle->CreateFile(gameonly_homedir->handle, &loc, filename)
+						: gameonly_homedir->handle->FindFile  (gameonly_homedir->handle, &loc, filename, NULL))
+					vfs = gameonly_homedir->handle->OpenVFS   (gameonly_homedir->handle, &loc, mode);
+				else
+					vfs = NULL;
+			}
+			else
+			{
+				if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homepath, gamedirfile, filename))
+					return NULL;
+				if (*mode == 'w')
+					COM_CreatePath(fullname);
+				vfs = VFSOS_Open(fullname, mode);
+			}
 		}
 		if (!vfs && *gamedirfile)
 		{
-			if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename))
-				return NULL;
-			if (*mode == 'w')
-				COM_CreatePath(fullname);
-			vfs =  VFSOS_Open(fullname, mode);
+			if (gameonly_gamedir)
+			{
+				if ((*mode == 'w')
+						? gameonly_gamedir->handle->CreateFile(gameonly_gamedir->handle, &loc, filename)
+						: gameonly_gamedir->handle->FindFile  (gameonly_gamedir->handle, &loc, filename, NULL))
+					vfs = gameonly_gamedir->handle->OpenVFS   (gameonly_gamedir->handle, &loc, mode);
+				else
+					vfs = NULL;
+			}
+			else
+			{
+				if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename))
+					return NULL;
+				if (*mode == 'w')
+					COM_CreatePath(fullname);
+				vfs =  VFSOS_Open(fullname, mode);
+			}
 		}
 		if (vfs || !(*mode == 'w' || *mode == 'a'))
 			return vfs;
@@ -2791,7 +2852,7 @@ Sets com_gamedir, adds the directory to the head of the path,
 then loads and adds pak1.pak pak2.pak ...
 ================
 */
-static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, const char *dir, unsigned int loadstuff, unsigned int flags)
+static searchpath_t *FS_AddSingleGameDirectory (searchpath_t **oldpaths, const char *puredir, const char *dir, unsigned int loadstuff, unsigned int flags)
 {
 	unsigned int	keptflags;
 	searchpath_t	*search;
@@ -2806,7 +2867,7 @@ static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, c
 		if (!Q_strcasecmp(search->logicalpath, dir))
 		{
 			search->flags |= flags & SPF_WRITABLE;
-			return; //already loaded (base paths?)
+			return search; //already loaded (base paths?)
 		}
 	}
 
@@ -2829,7 +2890,20 @@ static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, c
 	if (!handle)
 		handle = VFSOS_OpenPath(NULL, NULL, dir, dir, "");
 
-	FS_AddPathHandle(oldpaths, puredir, dir, handle, "", flags|keptflags, loadstuff);
+	return FS_AddPathHandle(oldpaths, puredir, dir, handle, "", flags|keptflags, loadstuff);
+}
+static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, unsigned int loadstuff, unsigned int flags)
+{
+	char syspath[MAX_OSPATH];
+	Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, puredir);
+	gameonly_gamedir = FS_AddSingleGameDirectory(oldpaths, puredir, syspath, loadstuff, flags&~(com_homepathenabled?SPF_WRITABLE:0u));
+	if (com_homepathenabled)
+	{
+		Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, puredir);
+		gameonly_homedir = FS_AddSingleGameDirectory(oldpaths, puredir, syspath, loadstuff, flags);
+	}
+	else
+		gameonly_homedir = NULL;
 }
 
 //if syspath, something like c:\quake\baseq2
@@ -3067,7 +3141,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
 }
 
-#if defined(NOLEGACY) || !defined(HAVE_CLIENT)
+#if !defined(HAVE_LEGACY) || !defined(HAVE_CLIENT)
 	#define ZFIXHACK
 #elif defined(ANDROID) //on android, these numbers seem to be generating major weirdness, so disable these.
 	#define ZFIXHACK
@@ -3077,10 +3151,11 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	#define ZFIXHACK "set r_polygonoffset_submodel_offset 25\nset r_polygonoffset_submodel_factor 0.05\n"
 #endif
 
-/*quake requires a few settings for compatibility*/
+/*ezquake cheats and compat*/
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
+/*quake requires a few settings for compatibility*/
 #define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8"
-#define QCFG "set con_stayhidden 0\nset com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
+#define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
 #define NQCFG "//-nohome\ncfg_save_auto 1\n" QCFG "sv_nqplayerphysics 1\ncl_loopbackprotocol auto\ncl_sbar 1\nplug_sbar 0\nsv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\n"
 //nehahra has to be weird with its extra cvars, and buggy fullbrights.
@@ -3095,10 +3170,16 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
 #define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
 /*yay q2!*/
-#define Q2CFG "set com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\n"
+#define Q2CFG "set v_gammainverted 1\nset com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
-#define Q3CFG "set com_parseutf8 0\ngl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\n"
+#define Q3CFG "set v_gammainverted 0\nset com_parseutf8 0\ngl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\n"
 //#define RMQCFG "sv_bigcoords 1\n"
+
+#ifdef HAVE_SSL
+#define UPDATEURL(g)	"https://updates.triptohell.info/downloadables.php?game=" #g
+#else
+#define UPDATEURL(g)	NULL
+#endif
 
 typedef struct {
 	const char *argname;	//used if this was used as a parameter.
@@ -3142,34 +3223,34 @@ const gamemode_info_t gamemode_info[] = {
 //mission packs should generally come after the main game to avoid prefering the main game. we violate this for hexen2 as the mission pack is mostly a superset.
 //whereas the quake mission packs replace start.bsp making the original episodes unreachable.
 //for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
 	//standard quake
-	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},QCFG,{"id1",	"qw",				"*fte"},	"Quake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},QCFG,{"id1",	"qw",				"*fte"},	"Quake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//alternative name, because fmf file install names are messy when a single name is used for registry install path.
-	{"-afterquake",	NULL,		"FTE-Quake",{"id1/pak0.pak", "id1/quake.rc"},                 QCFG,{"id1",	"qw",				"*fte"},	"Quake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-afterquake",	NULL,		"FTE-Quake",{"id1/pak0.pak", "id1/quake.rc"},                 QCFG,{"id1",	"qw",				"*fte"},	"Quake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//netquake-specific quake that avoids qw/ with its nquake fuckups, and disables nqisms
-	{"-netquake",	"nq",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG,{"id1"},								"NetQuake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-netquake",	"nq",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG,{"id1"},								"NetQuake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//because we can. quakespasm is hopefully close enough...
-	{"-fitz",		NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset spasm\n",{"id1"},			"NetQuake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-fitz",		NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset spasm\n",{"id1"},			"NetQuake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//because we can
-	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},QCFG"fps_preset tenebrae\n",{"id1","qw","*fte"},"Tenebrae", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset tenebrae\n",{"id1","qw","*fte"},"Tenebrae",						UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
 	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
 	//so just make these require the same files as good ol' quake.
-	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon"},
-	{"-rogue",		"rogue",	"FTE-Rogue",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity"},
+	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
+	{"-rogue",		"rogue",	"FTE-Rogue",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity",	UPDATEURL(Q1)},
 
 	//various quake-dependant non-standalone mods that require hacks
 	//quoth needed an extra arg just to enable hipnotic hud drawing, it doesn't actually do anything weird, but most engines have a -quoth arg, so lets have one too.
-	{"-quoth",		"quoth",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth"},
-	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra"},
+	{"-quoth",		"quoth",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth",						UPDATEURL(Q1)},
+	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra",			UPDATEURL(Q1)},
 	//various quake-based standalone mods.
 	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},"Nexuiz"},
 	{"-xonotic",	"xonotic",	"Xonotic",				{"data/xonotic-data.pk3dir",
-														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic"},
+														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic",							UPDATEURL(Xonotic)},
 //	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
 //														 "base/qwprogs.dat",
 //														 "base/pak0.pak"},				DMFCFG,	{"base",								},	"Spark"},
@@ -3181,17 +3262,17 @@ const gamemode_info_t gamemode_info[] = {
 #ifdef HEXEN2
 	//hexen2's mission pack generally takes precedence if both are installed.
 	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
-														 "portals/pak3.pak"},			HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP"},
-	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II"},
+														 "portals/pak3.pak"},			HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP",						UPDATEURL(H2)},
+	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II",							UPDATEURL(H2)},
 #endif
 #if defined(Q2CLIENT) || defined(Q2SERVER)
-	{"-quake2",		"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II"},
+	{"-quake2",		"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II",							UPDATEURL(Q2)},
 	//mods of the above that should generally work.
 	{"-dday",		"dday",		"FTE-Quake2",			{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
 #endif
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
-	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena"},
+	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3)},
 	//the rest are not supported in any real way. maps-only mostly, if that
 //	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},			NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
 //	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},			NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
@@ -3695,7 +3776,6 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	searchpath_t	*next;
 	int i;
 	int orderkey;
-	char syspath[MAX_OSPATH];
 
 	COM_AssertMainThread("FS_ReloadPackFilesFlags");
 	COM_WorkerFullSync();
@@ -3712,6 +3792,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	com_searchpaths = NULL;
 	com_purepaths = NULL;
 	com_base_searchpaths = NULL;
+	gameonly_gamedir = gameonly_homedir = NULL;
 
 	i = COM_CheckParm ("-basepack");
 	while (i && i < com_argc-1)
@@ -3774,23 +3855,11 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			else if (*dir == '*')
 			{
 				//paths with a leading * are private, and not announced to clients that ask what the current gamedir is.
-				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, dir+1);
-				FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|(com_homepathenabled?0:SPF_WRITABLE));
-				if (com_homepathenabled)
-				{
-					Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, dir+1);
-					FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|SPF_WRITABLE);
-				}
+				FS_AddGameDirectory(&oldpaths, dir+1, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|SPF_WRITABLE);
 			}
 			else
 			{
-				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, dir);
-				FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT|(com_homepathenabled?0:SPF_WRITABLE));
-				if (com_homepathenabled)
-				{
-					Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, dir);
-					FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
-				}
+				FS_AddGameDirectory(&oldpaths, dir, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
 			}
 		}
 	}
@@ -3820,9 +3889,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			}
 			else
 			{
-				FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_gamepath, dir), reloadflags, SPF_EXPLICIT|(com_homepathenabled?0:SPF_WRITABLE));
-				if (com_homepathenabled)
-					FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_homepath, dir), reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
+				FS_AddGameDirectory(&oldpaths, dir, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
 			}
 		}
 	}
@@ -4489,7 +4556,7 @@ void FS_Shutdown(void)
 	fs_thread_mutex = NULL;
 
 	Cvar_SetEngineDefault(&fs_gamename, NULL);
-	Cvar_SetEngineDefault(&pm_downloads_url, NULL);
+	Cvar_SetEngineDefault(&pkg_downloads_url, NULL);
 	Cvar_SetEngineDefault(&com_protocolname, NULL);
 }
 
@@ -5746,11 +5813,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			if (reloadconfigs)
 			{
 				Cvar_SetEngineDefault(&fs_gamename, man->formalname?man->formalname:"FTE");
-				Cvar_SetEngineDefault(&pm_downloads_url, man->downloadsurl?man->downloadsurl:"");
+				Cvar_SetEngineDefault(&pkg_downloads_url, man->downloadsurl?man->downloadsurl:"");
 				Cvar_SetEngineDefault(&com_protocolname, man->protocolname?man->protocolname:"FTE");
 				//FIXME: flag this instead and do it after a delay?
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
-				Cvar_ForceSet(&pm_downloads_url, pm_downloads_url.enginevalue);
+				Cvar_ForceSet(&pkg_downloads_url, pkg_downloads_url.enginevalue);
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
 #ifdef HAVE_CLIENT
 				vidrestart = false;
@@ -5817,12 +5884,15 @@ void FS_CreateBasedir(const char *path)
 {
 	vfsfile_t *f;
 	com_installer = false;
-	Q_strncpyz (com_gamepath, path, sizeof(com_gamepath));
-	COM_CreatePath(com_gamepath);
+	if (path)
+	{
+		Q_strncpyz (com_gamepath, path, sizeof(com_gamepath));
+		COM_CreatePath(com_gamepath);
+	}
 	fs_manifest->security = MANIFEST_SECURITY_INSTALLER;
 	FS_ChangeGame(fs_manifest, true, false);
 
-	if (host_parms.manifest)
+	if (path && host_parms.manifest)
 	{
 		f = FS_OpenVFS("default.fmf", "wb", FS_ROOT);
 		if (f)
@@ -6157,6 +6227,12 @@ static void FS_ChangeMod_f(void)
 			arg = va("map \"%s\"\n", Cmd_Argv(i++));
 			fs_loadedcommand = Z_StrDup(arg);
 		}
+		else if (!strcmp(arg, "spmap"))
+		{
+			Z_Free(fs_loadedcommand);
+			arg = va("deathmatch 0;coop 0;spmap \"%s\"\n", Cmd_Argv(i++));
+			fs_loadedcommand = Z_StrDup(arg);
+		}
 		else if (!strcmp(arg, "restart"))
 		{
 			Z_Free(fs_loadedcommand);
@@ -6324,7 +6400,6 @@ static void COM_InitHomedir(ftemanifest_t *man)
 		//but if it doesn't exist then we use $XDG_DATA_HOME/.fte instead
 		//we used to use $HOME/.#HOMESUBDIR/ but this is now only used if it actually exists AND the new path doesn't.
 		//new installs use $XDG_DATA_HOME/#HOMESUBDIR/ instead
-
 		char *ev = getenv("FTEHOME");
 		if (ev && *ev)
 		{
@@ -6437,8 +6512,8 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&fs_gamename, "Filesystem");
-	Cvar_Register(&pm_downloads_url, "Filesystem");
-	Cvar_Register(&pm_autoupdate, "Filesystem");
+	Cvar_Register(&pkg_downloads_url, "Filesystem");
+	Cvar_Register(&pkg_autoupdate, "Filesystem");
 	Cvar_Register(&com_protocolname, "Server Info");
 	Cvar_Register(&com_protocolversion, "Server Info");
 	Cvar_Register(&fs_game, "Filesystem");

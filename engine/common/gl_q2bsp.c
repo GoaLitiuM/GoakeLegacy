@@ -38,6 +38,7 @@
 cvar_t q3bsp_surf_meshcollision_flag = CVARD("q3bsp_surf_meshcollision_flag", "0x80000000", "The surfaceparm flag(s) that enables q3bsp trisoup collision");
 cvar_t q3bsp_surf_meshcollision_force = CVARD("q3bsp_surf_meshcollision_force", "0", "Force mesh-based collisions on all q3bsp trisoup surfaces.");
 cvar_t q3bsp_mergeq3lightmaps = CVARD("q3bsp_mergedlightmaps", "16", "Specifies the maximum number of lightmaps that may be merged for performance reasons. Unfortunately this breaks tcgen on lightmap passes - if you care, set this to 1.");
+cvar_t q3bsp_bihtraces = CVARFD("_q3bsp_bihtraces", "0", CVAR_RENDERERLATCH, "Uses runtime-generated bih collision culling for faster traces.");
 
 #if Q3SURF_NODRAW != TI_NODRAW
 #error "nodraw isn't constant"
@@ -60,6 +61,9 @@ static qboolean CM_NativeTrace(model_t *model, int forcehullnum, framestate_t *f
 static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 static int CM_PointCluster (model_t *mod, vec3_t p);
+struct cminfo_s;
+static struct bihnode_s *CM_BuildBIH (model_t *mod, struct cminfo_s *prv);
+static unsigned int CM_PointContentsBIH (const struct bihnode_s *fte_restrict node, const vec3_t p);
 #endif
 
 float RadiusFromBounds (vec3_t mins, vec3_t maxs)
@@ -126,7 +130,7 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s)
 	}
 }
 
-void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs)
+void AddPointToBounds (const vec3_t v, vec3_t mins, vec3_t maxs)
 {
 	int		i;
 	vec_t	val;
@@ -309,7 +313,8 @@ typedef struct
 	{
 		struct
 		{
-			int		cp[2];
+			unsigned short cp[2];
+			unsigned short fixedres[2];
 		} patch;
 		struct
 		{
@@ -411,6 +416,8 @@ typedef struct cminfo_s
 	q3cface_t	*faces;
 	int			numfaces;
 #endif
+
+	struct bihnode_s *bihnodes;
 } cminfo_t;
 
 static q2mapsurface_t	nullsurface;
@@ -426,7 +433,7 @@ void	CM_InitBoxHull (void);
 static void CM_FinalizeBrush(q2cbrush_t *brush);
 static void	FloodAreaConnections (cminfo_t	*prv);
 
-qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2)
+qboolean BoundsIntersect (const vec3_t mins1, const vec3_t maxs1, const vec3_t mins2, const vec3_t maxs2)
 {
 	return (mins1[0] <= maxs2[0] && mins1[1] <= maxs2[1] && mins1[2] <= maxs2[2] &&
 		 maxs1[0] >= mins2[0] && maxs1[1] >= mins2[1] && maxs1[2] >= mins2[2]);
@@ -521,7 +528,7 @@ static int Patch_FlatnessTest( float maxflat2, const float *point0, const float 
 Patch_GetFlatness
 ===============
 */
-static void Patch_GetFlatness( float maxflat, const float *points, int comp, const int *patch_cp, int *flat )
+static void Patch_GetFlatness( float maxflat, const float *points, int comp, const unsigned short *patch_cp, int *flat )
 {
 	int i, p, u, v;
 	float maxflat2 = maxflat * maxflat;
@@ -573,7 +580,7 @@ static void Patch_Evaluate_QuadricBezier( float t, const vec_t *point0, const ve
 Patch_Evaluate
 ===============
 */
-static void Patch_Evaluate( const vec_t *p, const int *numcp, const int *tess, vec_t *dest, int comp )
+static void Patch_Evaluate( const vec_t *p, const unsigned short *numcp, const int *tess, vec_t *dest, int comp )
 {
 	int num_patches[2], num_tess[2];
 	int index[3], dstpitch, i, u, v, x, y;
@@ -581,6 +588,13 @@ static void Patch_Evaluate( const vec_t *p, const int *numcp, const int *tess, v
 	vec_t *tvec, *tvec2;
 	const vec_t *pv[3][3];
 	vec4_t v1, v2, v3;
+
+	if (!tess[0] || !tess[1])
+	{	//not really a patch
+		for( i = 0; i < comp*numcp[1]*numcp[0]; i++ )
+			dest[i] = p[i];
+		return;
+	}
 
 	num_patches[0] = numcp[0] / 2;
 	num_patches[1] = numcp[1] / 2;
@@ -695,7 +709,7 @@ static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numver
 {
 	int i, j;
 	int axis, dir;
-	vec3_t normal, mins, maxs;
+	vec3_t normal;
 	float d, dist;
 	mplane_t mainplane;
 	vec3_t vec, vec2;
@@ -745,9 +759,9 @@ static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numver
 	brushplanes[numbrushplanes].dist = mainplane.dist; numbrushplanes++;
 
 	// calculate mins & maxs
-	ClearBounds( mins, maxs );
+	ClearBounds( facet->absmins, facet->absmaxs );
 	for( i = 0; i < numverts; i++ )
-		AddPointToBounds( verts[i], mins, maxs );
+		AddPointToBounds( verts[i], facet->absmins, facet->absmaxs );
 
 	// add the axial planes
 	for( axis = 0; axis < 3; axis++ )
@@ -765,9 +779,9 @@ static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numver
 				VectorClear( normal );
 				normal[axis] = dir;
 				if( dir == 1 )
-					dist = maxs[axis];
+					dist = facet->absmaxs[axis];
 				else
-					dist = -mins[axis];
+					dist = -facet->absmins[axis];
 
 				VectorCopy( normal, brushplanes[numbrushplanes].normal );
 				brushplanes[numbrushplanes].dist = dist; numbrushplanes++;
@@ -844,7 +858,7 @@ static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numver
 /*
 * CM_CreatePatch
 */
-static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec_t *verts, const int *patch_cp )
+static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec_t *verts, const unsigned short *patch_cp, const unsigned short *patch_subdiv)
 {
 	int step[2], size[2], flat[2];
 	int i, j, k ,u, v;
@@ -854,16 +868,36 @@ static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t
 	vec3_t tverts[4];
 	qbyte *data;
 	mplane_t *brushplanes;
+	float subdivlevel;
 
 	patch->surface = shaderref;
 
-	// find the degree of subdivision in the u and v directions
-	Patch_GetFlatness( cm_subdivlevel, verts, sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
+	if (patch_subdiv)
+	{	//fixed
+		step[0] = patch_subdiv[0];
+		step[1] = patch_subdiv[1];
+	}
+	else
+	{
+		// find the degree of subdivision in the u and v directions
+		subdivlevel = cm_subdivlevel;//r_subdivisions.value;
+		if ( subdivlevel < 1 )
+			subdivlevel = 1;
+		Patch_GetFlatness( subdivlevel, verts, sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
 
-	step[0] = 1 << flat[0];
-	step[1] = 1 << flat[1];
-	size[0] = ( patch_cp[0] >> 1 ) * step[0] + 1;
-	size[1] = ( patch_cp[1] >> 1 ) * step[1] + 1;
+		step[0] = 1 << flat[0];
+		step[1] = 1 << flat[1];
+	}
+	if (!step[0] || !step[1])
+	{
+		size[0] = patch_cp[0];
+		size[1] = patch_cp[1];
+	}
+	else
+	{
+		size[0] = ( patch_cp[0] >> 1 ) * step[0] + 1;
+		size[1] = ( patch_cp[1] >> 1 ) * step[1] + 1;
+	}
 	if( size[0] <= 0 || size[1] <= 0 )
 		return;
 
@@ -1045,6 +1079,7 @@ static qboolean CM_CreatePatchForFace (model_t *loadmodel, cminfo_t *prv, mleaf_
 
 		break;
 	case MST_PATCH:
+	case MST_PATCH_FIXED:
 		if (face->patch.cp[0] <= 0 || face->patch.cp[1] <= 0)
 			return true;
 
@@ -1082,7 +1117,7 @@ static qboolean CM_CreatePatchForFace (model_t *loadmodel, cminfo_t *prv, mleaf_
 			checkout[facenum] = prv->numpatches++;
 
 //gcc warns without this cast
-			CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp );
+			CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp, (face->facetype==MST_PATCH_FIXED)?face->patch.fixedres:NULL );
 		}
 		leaf->contents |= patch->surface->c.value;
 		leaf->numleafpatches++;
@@ -1682,7 +1717,7 @@ static qboolean CModQ2_LoadNodes (model_t *mod, qbyte *mod_base, lump_t *l)
 		Con_Printf (CON_ERROR "Map has no nodes\n");
 		return false;
 	}
-	if (count > SANITY_MAX_MAP_NODES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many nodes\n");
 		return false;
@@ -1796,7 +1831,7 @@ static qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 	// need to save space for box planes
-	if (count > SANITY_MAX_MAP_LEAFS)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many leafs\n");
 		return false;
@@ -1873,7 +1908,7 @@ static qboolean CModQ2_LoadPlanes (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 	// need to save space for box planes
-	if (count >= SANITY_MAX_MAP_PLANES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many planes (%i)\n", count);
 		return false;
@@ -2477,7 +2512,7 @@ static qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > SANITY_MAX_MAP_FACES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many faces\n");
 		return false;
@@ -2495,10 +2530,14 @@ static qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		out->numverts = LittleLong ( in->num_vertices );
 		out->firstvert = LittleLong ( in->firstvertex );
 
-		if (out->facetype == MST_PATCH)
+		if (out->facetype == MST_PATCH || out->facetype == MST_PATCH_FIXED)
 		{
-			out->patch.cp[0] = LittleLong ( in->patchwidth );
-			out->patch.cp[1] = LittleLong ( in->patchheight );
+			unsigned int pw = LittleLong ( in->patchwidth );
+			unsigned int ph = LittleLong ( in->patchheight );
+			out->patch.cp[0] = pw&0xffff;
+			out->patch.cp[1] = ph&0xffff;
+			out->patch.fixedres[0] = pw>>16;
+			out->patch.fixedres[1] = ph>>16;
 		}
 		else
 		{
@@ -2528,7 +2567,7 @@ static qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > SANITY_MAX_MAP_FACES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many faces\n");
 		return false;
@@ -2546,10 +2585,14 @@ static qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		out->numverts = LittleLong ( in->num_vertices );
 		out->firstvert = LittleLong ( in->firstvertex );
 
-		if (out->facetype == MST_PATCH)
+		if (out->facetype == MST_PATCH || out->facetype == MST_PATCH_FIXED)
 		{
-			out->patch.cp[0] = LittleLong ( in->patchwidth );
-			out->patch.cp[1] = LittleLong ( in->patchheight );
+			unsigned int pw = LittleLong ( in->patchwidth );
+			unsigned int ph = LittleLong ( in->patchheight );
+			out->patch.cp[0] = pw&0xffff;
+			out->patch.cp[1] = ph&0xffff;
+			out->patch.fixedres[0] = pw>>16;
+			out->patch.fixedres[1] = ph>>16;
 		}
 		else
 		{
@@ -2650,9 +2693,42 @@ mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org)
 
 static index_t tempIndexesArray[MAX_ARRAY_VERTS*6];
 
+static void GL_SizePatchFixed(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert, cminfo_t *prv)
+{
+	unsigned short patch_cp[2];
+	int step[2], size[2];
+
+	patch_cp[0] = patchwidth&0xffff;
+	patch_cp[1] = patchheight&0xffff;
+
+	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+	// allocate space for mesh
+	step[0] = patchwidth>>16;
+	step[1] = patchheight>>16;
+	if (!step[0] || !step[1])
+	{
+		size[0] = patch_cp[0];
+		size[1] = patch_cp[1];
+	}
+	else
+	{
+		size[0] = (patch_cp[0] / 2) * step[0] + 1;
+		size[1] = (patch_cp[1] / 2) * step[1] + 1;
+	}
+
+	mesh->numvertexes = size[0] * size[1];
+	mesh->numindexes = (size[0]-1) * (size[1]-1) * 6;
+}
 static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert, cminfo_t *prv)
 {
-	int patch_cp[2], step[2], size[2], flat[2];
+	unsigned short patch_cp[2];
+	int step[2], size[2], flat[2];
 	float subdivlevel;
 
 	patch_cp[0] = patchwidth;
@@ -2686,7 +2762,8 @@ static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numv
 static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
-	int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
+	int numindexes, step[2], size[2], flat[2], i, u, v, p;
+	unsigned short patch_cp[2];
 	index_t	*indexes;
 	float subdivlevel;
 	int sty;
@@ -2713,6 +2790,114 @@ static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, i
 	step[1] = (1 << flat[1]);
 	size[0] = (patch_cp[0] / 2) * step[0] + 1;
 	size[1] = (patch_cp[1] / 2) * step[1] + 1;
+	numverts = size[0] * size[1];
+
+	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS )
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+
+	if (mesh->numvertexes != numverts)
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+// fill in
+
+	Patch_Evaluate ( prv->verts[firstvert], patch_cp, step, mesh->xyz_array[0], sizeof(vecV_t)/sizeof(vec_t));
+	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+	{
+		if (mesh->colors4f_array[sty])
+			Patch_Evaluate ( prv->colors4f_array[sty][firstvert], patch_cp, step, mesh->colors4f_array[sty][0], 4 );
+	}
+	Patch_Evaluate ( prv->normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
+	Patch_Evaluate ( prv->vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
+	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+	{
+		if (mesh->lmst_array[sty])
+			Patch_Evaluate ( prv->vertlstmexcoords[sty][firstvert], patch_cp, step, mesh->lmst_array[sty][0], 2 );
+	}
+
+// compute new indexes avoiding adding invalid triangles
+	numindexes = 0;
+	indexes = tempIndexesArray;
+	for (v = 0, i = 0; v < size[1]-1; v++)
+	{
+		for (u = 0; u < size[0]-1; u++, i += 6)
+		{
+			indexes[0] = p = v * size[0] + u;
+			indexes[1] = p + size[0];
+			indexes[2] = p + 1;
+
+//			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) )
+			{
+				indexes += 3;
+				numindexes += 3;
+			}
+
+			indexes[0] = p + 1;
+			indexes[1] = p + size[0];
+			indexes[2] = p + size[0] + 1;
+
+//			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) )
+			{
+				indexes += 3;
+				numindexes += 3;
+			}
+		}
+	}
+
+// allocate and fill index table
+
+	mesh->numindexes = numindexes;
+
+	memcpy (mesh->indexes, tempIndexesArray, numindexes * sizeof(index_t) );
+}
+
+static void GL_CreateMeshForPatchFixed (model_t *mod, mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
+{
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
+	int numindexes, step[2], size[2], i, u, v, p;
+	unsigned short patch_cp[2];
+	index_t	*indexes;
+	float subdivlevel;
+	int sty;
+
+	patch_cp[0] = patchwidth&0xffff;
+	patch_cp[1] = patchheight&0xffff;
+	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+	subdivlevel = r_subdivisions.value;
+	if ( subdivlevel < 1 )
+		subdivlevel = 1;
+
+// allocate space for mesh
+	step[0] = patchwidth>>16;
+	step[1] = patchheight>>16;
+	if (!step[0] || !step[1])
+	{	//explicit CPs only.
+		size[0] = patch_cp[0];
+		size[1] = patch_cp[1];
+	}
+	else
+	{
+		size[0] = (patch_cp[0] / 2) * step[0] + 1;
+		size[1] = (patch_cp[1] / 2) * step[1] + 1;
+	}
 	numverts = size[0] * size[1];
 
 	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS )
@@ -2865,15 +3050,19 @@ static void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *b
 static void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
-	q3dface_t *in = (q3dface_t*)(bd+1);
 	int idx = (out - mod->surfaces) - mod->firstmodelsurface;
-	in += idx;
+	q3dface_t *in = (q3dface_t*)(bd+1) + idx;
+	int facetype = LittleLong(in->facetype);
 
-	if (LittleLong(in->facetype) == MST_PATCH)
+	if (facetype == MST_PATCH)
 	{
 		GL_CreateMeshForPatch(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 	}
-	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
+	else if (facetype == MST_PATCH_FIXED)
+	{
+		GL_CreateMeshForPatchFixed(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+	}
+	else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 	{
 		unsigned int fv = LittleLong(in->firstvertex), fi = LittleLong(in->firstindex), i;
 		for (i = 0; i < out->mesh->numvertexes; i++)
@@ -3024,6 +3213,11 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->mesh = &mesh[surfnum];
 			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
 		}
+		else if (facetype == MST_PATCH_FIXED)
+		{
+			out->mesh = &mesh[surfnum];
+			GL_SizePatchFixed(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
+		}
 		else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 		{
 			out->mesh = &mesh[surfnum];
@@ -3136,6 +3330,11 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->mesh = &mesh[surfnum];
 			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
 		}
+		else if (facetype == MST_PATCH_FIXED)
+		{
+			out->mesh = &mesh[surfnum];
+			GL_SizePatchFixed(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
+		}
 		else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 		{
 			out->mesh = &mesh[surfnum];
@@ -3175,7 +3374,7 @@ static qboolean CModQ3_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l
 	count = l->filelen / sizeof(*in);
 	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
-	if (count > SANITY_MAX_MAP_NODES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Too many nodes on map\n");
 		return false;
@@ -3284,7 +3483,7 @@ static qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 	// need to save space for box planes
 
-	if (count > SANITY_MAX_MAP_LEAFS)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Too many leaves on map");
 		return false;
@@ -3349,7 +3548,7 @@ static qboolean CModQ3_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > SANITY_MAX_MAP_PLANES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Too many planes on map (%i)\n", count);
 		return false;
@@ -4593,6 +4792,10 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	mod->terrain = Mod_LoadTerrainInfo(mod, loadname, false);
 #endif
 
+	if (q3bsp_bihtraces.ival)
+		prv->bihnodes = CM_BuildBIH(mod, prv);
+	else
+		prv->bihnodes = NULL;
 	return &prv->cmodels[0];
 }
 
@@ -4897,38 +5100,43 @@ int CM_PointContents (model_t *mod, vec3_t p)
 	if (!mod)	// map not loaded
 		return 0;
 
-	i = CM_PointLeafnum_r (mod, p, mod->hulls[0].firstclipnode);
-
-	if (mod->fromgame == fg_quake2)
-		contents = mod->leafs[i].contents;	//q2 is simple.
+	if (mod->fromgame != fg_quake2 && ((cminfo_t*)mod->meshinfo)->bihnodes)
+		contents = CM_PointContentsBIH(((cminfo_t*)mod->meshinfo)->bihnodes, p);
 	else
 	{
-		leaf = &mod->leafs[i];
+		i = CM_PointLeafnum_r (mod, p, mod->hulls[0].firstclipnode);
 
-	//	if ( leaf->contents & CONTENTS_NODROP ) {
-	//		contents = CONTENTS_NODROP;
-	//	} else {
-			contents = 0;
-	//	}
-
-		for (i = 0; i < leaf->numleafbrushes; i++)
+		if (mod->fromgame == fg_quake2)
+			contents = mod->leafs[i].contents;	//q2 is simple.
+		else
 		{
-			brush = prv->leafbrushes[leaf->firstleafbrush + i];
+			leaf = &mod->leafs[i];
 
-			// check if brush actually adds something to contents
-			if ( (contents & brush->contents) == brush->contents ) {
-				continue;
-			}
+		//	if ( leaf->contents & CONTENTS_NODROP ) {
+		//		contents = CONTENTS_NODROP;
+		//	} else {
+				contents = 0;
+		//	}
 
-			brushside = brush->brushside;
-			for ( j = 0; j < brush->numsides; j++, brushside++ )
+			for (i = 0; i < leaf->numleafbrushes; i++)
 			{
-				if ( PlaneDiff (p, brushside->plane) > 0 )
-					break;
-			}
+				brush = prv->leafbrushes[leaf->firstleafbrush + i];
 
-			if (j == brush->numsides)
-				contents |= brush->contents;
+				// check if brush actually adds something to contents
+				if ( (contents & brush->contents) == brush->contents ) {
+					continue;
+				}
+
+				brushside = brush->brushside;
+				for ( j = 0; j < brush->numsides; j++, brushside++ )
+				{
+					if ( PlaneDiff (p, brushside->plane) > 0 )
+						break;
+				}
+
+				if (j == brush->numsides)
+					contents |= brush->contents;
+			}
 		}
 	}
 #ifdef TERRAIN
@@ -5611,17 +5819,61 @@ static void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 {
 	int			i, j;
 	mplane_t	*plane;
-	vec3_t		ofs;
-	float dist;
-	float		d1, maxdist;
+	vec3_t		ofs, ofs2;
+	float dist, thickness;
+	float		d1;
 	q2cbrushside_t	*side;
 
 	if (!brush->numsides)
 		return;
 
-	maxdist = -9999;
+	i = 0;	//front plane
+	{
+		side = brush->brushside+i;
+		plane = side->plane;
 
-	for (i=0 ; i<brush->numsides ; i++)
+		switch(trace_shape)
+		{
+		default:
+		case shape_isbox:
+			for (j=0 ; j<3 ; j++)
+			{
+				if (plane->normal[j] < 0)
+					ofs[j] = maxs[j], ofs2[j] = mins[j];
+				else
+					ofs[j] = mins[j], ofs2[j] = maxs[j];
+			}
+
+			dist = DotProduct (ofs, plane->normal);
+			thickness = DotProduct (ofs2, plane->normal)-dist;
+			dist = plane->dist - dist;
+			break;
+		case shape_iscapsule:
+			dist = DotProduct(trace_up, plane->normal);
+			thickness = dist*(trace_capsulesize[(dist<0)?2:1]) + trace_capsulesize[0]*2;
+			dist = dist*(trace_capsulesize[(dist<0)?1:2]) - trace_capsulesize[0];
+			dist = plane->dist - dist;
+			break;
+		case shape_ispoint:
+			dist = plane->dist;
+			thickness = 0;
+			break;
+		}
+
+		d1 = DotProduct (p1, plane->normal) - dist;
+
+		// if completely in front of face, no intersection
+		if (d1 > 0)
+			return;
+
+		//point is behind the front plane, so no real intersection.
+		if (thickness < 0.25)
+			thickness = 0.25; //FIXME: patches should probably be infinitely thin, but that makes stuff messy.
+		if (d1 < -thickness)
+			return;
+	}
+
+	for (i=1 ; i<brush->numsides ; i++)
 	{
 		side = brush->brushside+i;
 		plane = side->plane;
@@ -5657,14 +5909,7 @@ static void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 		// if completely in front of face, no intersection
 		if (d1 > 0)
 			return;
-
-		if (side->surface && d1 > maxdist)
-			maxdist = d1;
 	}
-
-// FIXME
-	if (maxdist < -0.25)
-		return;		// deep inside the patch
 
 	// inside this patch
 	trace->startsolid = trace->allsolid = true;
@@ -5951,6 +6196,501 @@ return;
 	CM_RecursiveHullCheck (mod, node->childnum[side^1], midf, p2f, mid, p2);
 }
 
+struct bihnode_s
+{
+	//in a bih tree there are two values per node instead of a kd-tree's single midpoint
+	//this allows the two sides to overlap, which prevents the need to chop large objects into multiple leafs
+	//(it also allows gaps in the middle, which can further skip recursion)
+	enum {
+		BIH_X,
+		BIH_Y,
+		BIH_Z,
+		BIH_GROUP,
+		BIH_BRUSH,
+		BIH_PATCHBRUSH,
+		BIH_TRISOUP,
+	} type;
+	union
+	{
+		struct{
+			int firstchild;
+			int numchildren;
+		} group;
+		struct{
+			int firstchild;
+			float cmin[2];
+			float cmax[2];
+		} node;
+		struct bihdata_s{
+			unsigned int contents;
+			union {
+				q2cbrush_t *brush;
+				q2cbrush_t *patchbrush;
+				q3cmesh_t *cmesh;
+			};
+		} data;
+	};
+};
+struct bihbox_s {
+	vec3_t min;
+	vec3_t max;
+};
+struct bihtrace_s
+{
+	struct bihbox_s bounds;
+	struct bihbox_s size;
+	vec3_t expand;
+	qboolean negativedir[3];
+
+	vec3_t startpos;	//bounds.[min|max]
+	vec3_t totalmove;
+	vec3_t endpos;	//bounds.[min|max]
+	trace_t *trace;
+};
+static void CM_RecursiveBIHTrace (struct bihtrace_s *fte_restrict tr, const struct bihnode_s *fte_restrict node, const struct bihbox_s *fte_restrict movesubbounds, const struct bihbox_s *fte_restrict nodebox)
+{
+	//if the tree were 1d, we wouldn't need to be so careful with the bounds, but if the trace is long then we want to avoid hitting all surfaces within that entire-map-encompassing move aabb
+	switch(node->type)
+	{	//leaf
+	case BIH_BRUSH:
+		{
+			q2cbrush_t *b = node->data.brush;
+			if (node->data.contents & trace_contents)
+				if (BoundsIntersect(b->absmins, b->absmaxs, movesubbounds->min, movesubbounds->max))
+					CM_ClipBoxToBrush (tr->size.min, tr->size.max, tr->startpos, tr->endpos, tr->trace, b);
+		}
+		return;
+	case BIH_PATCHBRUSH:
+		{
+			q2cbrush_t *b = node->data.patchbrush;
+			if (node->data.contents & trace_contents)
+				if (BoundsIntersect(b->absmins, b->absmaxs, movesubbounds->min, movesubbounds->max))
+					CM_ClipBoxToPatch (tr->size.min, tr->size.max, tr->startpos, tr->endpos, tr->trace, b);
+		}
+		return;
+	case BIH_TRISOUP:
+		{
+			q3cmesh_t *cmesh = node->data.cmesh;
+			if (node->data.contents & trace_contents)
+				if (BoundsIntersect(cmesh->absmins, cmesh->absmaxs, movesubbounds->min, movesubbounds->max))
+					Mod_Trace_Trisoup_(cmesh->xyz_array, cmesh->indicies, cmesh->numincidies, trace_start, trace_end, trace_mins, trace_maxs, &trace_trace, &cmesh->surface->c);
+		}
+		return;
+	case BIH_GROUP:
+		{
+			int i;
+			for (i = 0; i < node->group.numchildren; i++)
+				CM_RecursiveBIHTrace(tr, node+node->group.firstchild+i, movesubbounds, nodebox);
+		}
+		return;
+	case BIH_X:
+	case BIH_Y:
+	case BIH_Z:
+		{
+			struct bihbox_s bounds;
+			struct bihbox_s newbounds;
+			float distnear, distfar, nearfrac, farfrac, min, max;
+			unsigned int axis = node->type, child;
+			vec3_t points[2];
+
+			if (!tr->totalmove[axis])
+			{	//doesn't move with respect to this axis. don't allow infinities.
+				for (child = 0; child < 2; child++)
+				{	//only recurse if we are actually within the child
+					min = node->node.cmin[child] - tr->expand[axis];
+					max = node->node.cmax[child] + tr->expand[axis];
+					if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
+					{
+						bounds = *nodebox;
+						bounds.min[axis] = min;
+						bounds.max[axis] = max;
+						CM_RecursiveBIHTrace(tr, node+node->node.firstchild+child, movesubbounds, &bounds);
+					}
+				}
+			}
+			else if (tr->negativedir[axis])
+			{	//trace goes from right to left so favour the right.
+				for (child = 2; child-- > 0;)
+				{
+					bounds = *nodebox;
+					bounds.min[axis] = node->node.cmin[child] - tr->expand[axis];
+					bounds.max[axis] = node->node.cmax[child] + tr->expand[axis];	//expand the bounds according to the player's size
+
+					if (!BoundsIntersect(movesubbounds->min, movesubbounds->max, bounds.min, bounds.max))
+						continue;
+//					if (movesubbounds->max[axis] < bounds.min[axis])
+//						continue;	//(clipped) move bounds is outside this child
+//					if (bounds.max[axis] < movesubbounds->min[axis])
+//						continue;	//(clipped) move bounds is outside this child
+
+					distnear = bounds.max[axis] - tr->startpos[axis];
+					nearfrac = distnear/tr->totalmove[axis];
+					if (nearfrac <= trace_truefraction)
+					{
+						VectorMA(tr->startpos, nearfrac, tr->totalmove, points[0]);	//clip the new movebounds (this is more to clip the other axis too)
+						distfar = bounds.min[axis] - tr->startpos[axis];
+						farfrac = distfar/tr->totalmove[axis];
+						VectorMA(tr->startpos, farfrac, tr->totalmove, points[1]);	//clip the new movebounds (this is more to clip the other axis too)
+
+						newbounds.min[0] = max(points[tr->negativedir[0]][0]-tr->expand[axis], bounds.min[0]); newbounds.max[0] = min(points[!tr->negativedir[0]][0]+tr->expand[axis], bounds.max[0]);
+						newbounds.min[1] = max(points[tr->negativedir[1]][1]-tr->expand[axis], bounds.min[1]); newbounds.max[1] = min(points[!tr->negativedir[1]][1]+tr->expand[axis], bounds.max[1]);
+						newbounds.min[2] = max(points[tr->negativedir[2]][2]-tr->expand[axis], bounds.min[2]); newbounds.max[2] = min(points[!tr->negativedir[2]][2]+tr->expand[axis], bounds.max[2]);
+						CM_RecursiveBIHTrace(tr, node+node->node.firstchild+child, &newbounds, &bounds);
+					}
+				}
+			}
+			else
+			{	//trace goes from left to right
+				for (child = 0; child < 2; child++)
+				{
+					bounds = *nodebox;
+					bounds.min[axis] = node->node.cmin[child] - tr->expand[axis];
+					bounds.max[axis] = node->node.cmax[child] + tr->expand[axis];	//expand the bounds according to the player's size
+
+					if (!BoundsIntersect(movesubbounds->min, movesubbounds->max, bounds.min, bounds.max))
+						continue;
+//					if (movesubbounds->max[axis] < bounds.min[axis])
+//						continue;	//(clipped) move bounds is outside this child
+//					if (bounds.max[axis] < movesubbounds->min[axis])
+//						continue;	//(clipped) move bounds is outside this child
+
+					distnear = bounds.min[axis] - tr->startpos[axis];
+					nearfrac = distnear/tr->totalmove[axis];
+					if (nearfrac <= trace_truefraction)
+					{
+						VectorMA(tr->startpos, nearfrac, tr->totalmove, points[0]);	//clip the new movebounds (this is more to clip the other axis too)
+						distfar = bounds.max[axis] - tr->startpos[axis];
+						farfrac = distfar/tr->totalmove[axis];
+						VectorMA(tr->startpos, farfrac, tr->totalmove, points[1]);	//clip the new movebounds (this is more to clip the other axis too)
+
+						newbounds.min[0] = max(points[tr->negativedir[0]][0]-tr->expand[axis], bounds.min[0]); newbounds.max[0] = min(points[!tr->negativedir[0]][0]+tr->expand[axis], bounds.max[0]);
+						newbounds.min[1] = max(points[tr->negativedir[1]][1]-tr->expand[axis], bounds.min[1]); newbounds.max[1] = min(points[!tr->negativedir[1]][1]+tr->expand[axis], bounds.max[1]);
+						newbounds.min[2] = max(points[tr->negativedir[2]][2]-tr->expand[axis], bounds.min[2]); newbounds.max[2] = min(points[!tr->negativedir[2]][2]+tr->expand[axis], bounds.max[2]);
+						CM_RecursiveBIHTrace(tr, node+node->node.firstchild+child, &newbounds, &bounds);
+					}
+				}
+			}
+		}
+		return;
+	}
+	FTE_UNREACHABLE;
+}
+
+static void CM_RecursiveBIHTest (struct bihtrace_s *fte_restrict tr, const struct bihnode_s *fte_restrict node)
+{	//with BIH, its possible for a large child node to have a box larger than its sibling.
+	switch(node->type)
+	{
+	case BIH_BRUSH:
+		{
+			q2cbrush_t *b = node->data.brush;
+			if (node->data.contents & trace_contents)
+//				if (BoundsIntersect(tr->bounds.min, tr->bounds.max, b->absmins, b->absmaxs))
+					CM_TestBoxInBrush (tr->size.min, tr->size.max, tr->startpos, tr->trace, b);
+		}
+		return;
+	case BIH_PATCHBRUSH:
+		{
+			q2cbrush_t *b = node->data.patchbrush;
+			if (node->data.contents & trace_contents)
+//				if (BoundsIntersect(tr->bounds.min, tr->bounds.max, b->absmins, b->absmaxs))
+					CM_TestBoxInPatch (tr->size.min, tr->size.max, tr->startpos, tr->trace, b);
+		}
+		return;
+	case BIH_TRISOUP:
+		{
+			q3cmesh_t *cmesh = node->data.cmesh;
+			if (node->data.contents & trace_contents)
+//				if (BoundsIntersect(cmesh->absmins, cmesh->absmaxs, tr->bounds.min, tr->bounds.max))
+					Mod_Trace_Trisoup_(cmesh->xyz_array, cmesh->indicies, cmesh->numincidies, trace_start, trace_end, trace_mins, trace_maxs, &trace_trace, &cmesh->surface->c);
+		}
+		return;
+	case BIH_GROUP:
+		{
+			int i;
+			for (i = 0; i < node->group.numchildren; i++)
+			{
+				CM_RecursiveBIHTest(tr, node+node->group.firstchild+i);
+				if (trace_trace.allsolid)
+					break;
+			}
+		}
+		return;
+	case BIH_X:
+	case BIH_Y:
+	case BIH_Z:
+		{	//node (x y or z)
+			float min; float max;
+			int axis = node->type;
+			min = node->node.cmin[0] - tr->expand[axis];
+			max = node->node.cmax[0] + tr->expand[axis];	//expand the bounds according to the player's size
+
+			//the point can potentially be within both children, or neither.
+			//it doesn't really matter which order we walk the tree, just be sure to do it efficiently.
+			if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
+			{
+				CM_RecursiveBIHTest(tr, node+node->node.firstchild+0);
+				if (trace_trace.allsolid)
+					return;
+			}
+
+			min = node->node.cmin[1] - tr->expand[axis];
+			max = node->node.cmax[1] + tr->expand[axis];
+			if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
+				return CM_RecursiveBIHTest(tr, node+node->node.firstchild+1);
+		}
+		return;
+	}
+	FTE_UNREACHABLE;
+}
+
+
+static unsigned int CM_PointContentsBIH (const struct bihnode_s *fte_restrict node, const vec3_t p)
+{
+	switch(node->type)
+	{	//leaf
+	case BIH_BRUSH:
+		{
+			q2cbrush_t *b = node->data.brush;
+			q2cbrushside_t *brushside = b->brushside;
+			size_t j;
+			if (!BoundsIntersect(p, p, b->absmins, b->absmaxs))
+				return 0;
+
+			for ( j = 0; j < b->numsides; j++, brushside++ )
+			{
+				if ( PlaneDiff (p, brushside->plane) > 0 )
+					return 0;
+			}
+			return b->contents;	//inside all planes
+		}
+	case BIH_PATCHBRUSH:
+		{	//patches have no contents...
+			return 0;
+		}
+	case BIH_TRISOUP:
+		{
+			//trisoup has no contents...
+			return 0;
+		}
+	case BIH_GROUP:
+		{
+			int i;
+			unsigned int contents = 0;
+			for (i = 0; i < node->group.numchildren; i++)
+				contents |= CM_PointContentsBIH(node+node->group.firstchild+i, p);
+			return contents;
+		}
+	case BIH_X:
+	case BIH_Y:
+	case BIH_Z:
+		{	//node (x y or z)
+			unsigned int contents;
+
+			//the point can potentially be within both children, or neither.
+			//it doesn't really matter which order we walk the tree, just be sure to do it efficiently.
+			if (node->node.cmin[0] <= p[node->type] && p[node->type] <= node->node.cmax[0])
+				contents = CM_PointContentsBIH(node+node->node.firstchild+0, p);
+			else
+				contents = 0;
+
+			if (node->node.cmin[1] <= p[node->type] && p[node->type] <= node->node.cmax[1])
+				contents |= CM_PointContentsBIH(node+node->node.firstchild+1, p);
+			return contents;
+		}
+	}
+	FTE_UNREACHABLE;
+}
+
+struct bihleaf_s
+{
+	int type;
+	vec3_t mins;
+	vec3_t maxs;
+	struct bihdata_s data;
+};
+
+static int QDECL CM_SortBIH_X (const void *va, const void *vb)
+{
+	const struct bihleaf_s *a = va, *b = vb;
+	float am = a->maxs[0]+a->mins[0];
+	float bm = b->maxs[0]+b->mins[0];
+	if (am == bm)
+		return 0;
+	return am > bm;
+}
+static int QDECL CM_SortBIH_Y (const void *va, const void *vb)
+{
+	const struct bihleaf_s *a = va, *b = vb;
+	float am = a->maxs[1]+a->mins[1];
+	float bm = b->maxs[1]+b->mins[1];
+	if (am == bm)
+		return 0;
+	return am > bm;
+}
+static int QDECL CM_SortBIH_Z (const void *va, const void *vb)
+{
+	const struct bihleaf_s *a = va, *b = vb;
+	float am = a->maxs[2]+a->mins[2];
+	float bm = b->maxs[2]+b->mins[2];
+	if (am == bm)
+		return 0;
+	return am > bm;
+}
+static struct bihbox_s CM_BuildBIHNode (struct bihnode_s *node, struct bihnode_s **freenodes, struct bihleaf_s *leafs, size_t numleafs)
+{
+	struct bihbox_s bounds;
+	if (numleafs == 1)	//the leaf just gives the brush pointer.
+	{
+		size_t i;
+		VectorCopy(leafs[0].mins, bounds.min);
+		VectorCopy(leafs[0].maxs, bounds.max);
+		node->type = leafs[0].type;
+		node->data = leafs[0].data;
+
+		//expand by 1qu, to avoid precision issues.
+		for (i = 0; i < 3; i++)
+		{
+			bounds.min[i] -= 1;
+			bounds.max[i] += 1;
+		}
+	}
+	else if (numleafs < 8)	//the leaf just gives the brush pointer.
+	{
+		struct bihnode_s *cnodes;
+		struct bihbox_s cb;
+		size_t i;
+		node->type = BIH_GROUP;
+
+		cnodes = *freenodes;
+		*freenodes += numleafs;
+		node->group.firstchild = cnodes - node;
+		node->group.numchildren = numleafs;
+
+		bounds = CM_BuildBIHNode(cnodes+0, freenodes, leafs+0, 1);
+		for (i = 1; i < numleafs; i++)
+		{
+			cb = CM_BuildBIHNode(cnodes+i, freenodes, leafs+i, 1);
+			AddPointToBounds(cb.min, bounds.min, bounds.max);
+			AddPointToBounds(cb.max, bounds.min, bounds.max);
+		}
+	}
+	else
+	{
+		size_t i, j;
+		size_t numleft = numleafs / 2;	//this ends up splitting at the median point.
+		size_t numright = numleafs - numleft;
+		struct bihbox_s left, right;
+		struct bihnode_s *cnodes;
+		static int (QDECL *sorts[3]) (const void *va, const void *vb) = {CM_SortBIH_X, CM_SortBIH_Y, CM_SortBIH_Z};
+		VectorCopy(leafs[0].mins, bounds.min);
+		VectorCopy(leafs[0].maxs, bounds.max);
+		for (i = 1; i < numleafs; i++)
+		{
+			for(j = 0; j < 3; j++)
+			{
+				if (bounds.min[j] > leafs[i].mins[j])
+					bounds.min[j] = leafs[i].mins[j];
+				if (bounds.max[j] < leafs[i].maxs[j])
+					bounds.max[j] = leafs[i].maxs[j];
+			}
+		}
+#if 1
+		{	//balanced by counts
+			vec3_t mid;
+			int onleft[3], onright[3], weight[3];
+			VectorAvg(bounds.max, bounds.min, mid);
+			VectorClear(onleft);
+			VectorClear(onright);
+			for (i = 0; i < numleafs; i++)
+			{
+				for (j = 0; j < 3; j++)
+				{	//ignore leafs that split the node.
+					if (leafs[i].maxs[j] < mid[j])
+						onleft[j]++;
+					if (mid[j] > leafs[i].mins[j])
+						onright[j]++;
+				}
+			}
+			for (j = 0; j < 3; j++)
+				weight[j] = onleft[j]+onright[j] - abs(onleft[j]-onright[j]);
+			//pick the most balanced.
+			if (weight[0] > weight[1] && weight[0] > weight[2])
+				node->type = BIH_X;
+			else if (weight[1] > weight[2])
+				node->type = BIH_Y;
+			else
+				node->type = BIH_Z;
+		}
+#else
+		{	//balanced by volume
+			vec3_t size;
+			VectorSubtract(bounds.max, bounds.min, size);
+			if (size[0] > size[1] && size[0] > size[2])
+				node->type = BIH_X;
+			else if (size[1] > size[2])
+				node->type = BIH_Y;
+			else
+				node->type = BIH_Z;*/
+		}
+#endif
+		qsort(leafs, numleafs, sizeof(*leafs), sorts[node->type]);
+
+		cnodes = *freenodes;
+		*freenodes += 2;
+		node->node.firstchild = cnodes - node;
+		left = CM_BuildBIHNode (cnodes+0, freenodes, leafs, numleft);
+		right = CM_BuildBIHNode (cnodes+1, freenodes, &leafs[numleft], numright);
+
+		node->node.cmin[0] = left.min[node->type];
+		node->node.cmax[0] = left.max[node->type];
+		node->node.cmin[1] = right.min[node->type];
+		node->node.cmax[1] = right.max[node->type];
+
+		bounds = left;
+		AddPointToBounds(right.min, bounds.min, bounds.max);
+		AddPointToBounds(right.max, bounds.min, bounds.max);
+	}
+	return bounds;
+}
+static struct bihnode_s *CM_BuildBIH (model_t *mod, cminfo_t *prv)
+{
+	size_t numleafs, numnodes, i, j;
+	struct bihnode_s *nodes, *tmpnodes;
+	struct bihleaf_s *leafs, *leaf;
+	numleafs = prv->numbrushes;
+	for (i = 0; i < prv->numpatches; i++)
+		numleafs += prv->patches[i].numfacets;
+	numnodes = numleafs*2-1;
+	leafs = BZ_Malloc(sizeof(*leafs)*numleafs);
+	nodes = ZG_Malloc(&mod->memgroup, sizeof(*nodes)*numnodes);
+	for (leaf=leafs, i = 0; i < prv->numbrushes; i++, leaf++)
+	{
+		q2cbrush_t *b = &prv->brushes[i];
+		leaf->type = BIH_BRUSH;
+		leaf->data.contents = b->contents;
+		leaf->data.brush = b;
+		VectorCopy(b->absmins, leaf->mins);
+		VectorCopy(b->absmaxs, leaf->maxs);
+	}
+	for (i = 0; i < prv->numpatches; i++)
+	{
+		q3cpatch_t *p = &prv->patches[i];
+		for (j = 0; j < p->numfacets; j++, leaf++)
+		{
+			leaf->type = BIH_PATCHBRUSH;
+			leaf->data.contents = p->facets[j].contents;
+			leaf->data.patchbrush = &p->facets[j];
+			VectorCopy(p->facets[j].absmins, leaf->mins);
+			VectorCopy(p->facets[j].absmaxs, leaf->maxs);
+		}
+	}
+	tmpnodes = nodes+1;
+	CM_BuildBIHNode(nodes, &tmpnodes, leafs, numleafs);
+	if (tmpnodes > nodes+numnodes)
+		Sys_Error("CM_BuildBIH: generated wrong number of nodes");
+	BZ_Free(leafs);	//just for temporary storage so that CM_BuildBIHNode doesn't need to care
+	return nodes;
+}
 
 //======================================================================
 
@@ -6019,6 +6759,9 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		trace_capsulesize[0] = ((maxs[0]-mins[0]) + (maxs[1]-mins[1]))/4.0;
 		trace_capsulesize[1] = maxs[2];
 		trace_capsulesize[2] = mins[2];
+		//make sure the mins_z/maxs_z isn't screwed.
+//		if (trace_capsulesize[1]-trace_capsulesize[2] < trace_capsulesize[0])
+//			trace_capsulesize[1] = trace_capsulesize[0]+trace_capsulesize[2];
 		ext = (trace_capsulesize[1] > -trace_capsulesize[2])?trace_capsulesize[1]:-trace_capsulesize[2];
 		trace_capsulesize[1] -= trace_capsulesize[0];
 		trace_capsulesize[2] += trace_capsulesize[0];
@@ -6084,6 +6827,33 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	}
 	else
 #endif
+	if (((cminfo_t*)mod->meshinfo)->bihnodes)
+	{
+		cminfo_t *prv = mod->meshinfo;
+		struct bihtrace_s tr;
+		int j;
+		VectorCopy(trace_mins, tr.size.min);
+		VectorCopy(trace_maxs, tr.size.max);
+		VectorCopy(trace_absmins, tr.bounds.min);
+		VectorCopy(trace_absmaxs, tr.bounds.max);
+		for (j = 0; j < 3; j++)
+			tr.negativedir[j] = (end[j] - start[j]) < 0;
+		VectorSubtract(end, start, tr.totalmove);
+		VectorCopy(trace_extents, tr.expand);
+		VectorCopy(trace_start, tr.startpos);
+		VectorCopy(trace_end, tr.endpos);
+		tr.trace = &trace_trace;
+		if (start[0] == end[0] && start[1] == end[1] && start[2] == end[2])
+			CM_RecursiveBIHTest(&tr, prv->bihnodes);
+		else
+		{
+			struct bihbox_s worldsize;
+			VectorCopy(mod->mins, worldsize.min);
+			VectorCopy(mod->maxs, worldsize.max);
+			CM_RecursiveBIHTrace(&tr, prv->bihnodes, &tr.bounds, &worldsize);
+		}
+	}
+	else
 	//
 	// check for position test special case
 	//
@@ -6846,6 +7616,7 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&q3bsp_surf_meshcollision_flag, MAPOPTIONS);
 	Cvar_Register(&q3bsp_surf_meshcollision_force, MAPOPTIONS);
 	Cvar_Register(&q3bsp_mergeq3lightmaps, MAPOPTIONS);
+	Cvar_Register(&q3bsp_bihtraces, MAPOPTIONS);
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 
 	CM_InitBoxHull ();

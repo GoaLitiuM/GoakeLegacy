@@ -51,7 +51,7 @@ void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
 {
-	Shader_NeedReload(false);
+//	Shader_NeedReload(false);
 }
 void R_ForceSky_f(void)
 {
@@ -79,7 +79,7 @@ cvar_t vid_vsync							= CVARAF  ("vid_vsync", "0",
 													   "vid_wait", CVAR_ARCHIVE);
 #endif
 
-cvar_t _windowed_mouse						= CVARF ("in_windowed_mouse","1",
+cvar_t in_windowed_mouse						= CVARF ("in_windowed_mouse","1",
 													 CVAR_ARCHIVE);	//renamed this, because of freecs users complaining that it doesn't work. I don't personally see why you'd want it set to 0, but that's winquake's default so boo hiss to that.
 
 cvar_t con_ocranaleds						= CVAR  ("con_ocranaleds", "2");
@@ -103,6 +103,12 @@ extern cvar_t r_forceprogramify;
 extern cvar_t dpcompat_nopremulpics;
 #ifdef PSKMODELS
 cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
+#endif
+
+#ifdef HAVE_LEGACY
+cvar_t r_ignoreentpvs						= CVARD ("r_ignoreentpvs", "1", "Disables pvs culling of entities that have been submitted to the renderer.");
+#else
+cvar_t r_ignoreentpvs						= CVARD ("r_ignoreentpvs", "0", "Disables pvs culling of entities that have been submitted to the renderer.");
 #endif
 
 cvar_t mod_md3flags							= CVARD  ("mod_md3flags", "1", "The flags field of md3s was never officially defined. If this is set to 1, the flags will be treated identically to mdl files. Otherwise they will be ignored. Naturally, this is required to provide rotating pickups in quake.");
@@ -268,16 +274,8 @@ cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The number of colour bits to request from the renedering context");
 cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
-#ifdef NACL
 cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "0",
-												CVAR_ARCHIVE);
-#else
-//these cvars will be given their names when they're registered, based upon whether -plugin was used. this means code can always use vid_fullscreen without caring, but gets saved properly.
-cvar_t vid_fullscreen						= CVARAFD ("vid_fullscreen", "0", NULL,
-												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Whether to use fullscreen or not. A value of 2 specifies fullscreen windowed (aka borderless window) mode.");
-//cvar_t vid_fullscreen_alternative			= CVARFD (NULL, "0",
-//												CVAR_ARCHIVE, "Whether to use fullscreen or not. This cvar is saved to your config but not otherwise used in this operating mode.");
-#endif
+												CVAR_ARCHIVE|CVAR_VIDEOLATCH);
 cvar_t vid_multisample						= CVARFD ("vid_multisample", "0",
 													CVAR_ARCHIVE, "The number of samples to use for Multisample AntiAliasing (aka: msaa). A value of 1 explicitly disables it.");
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
@@ -474,7 +472,7 @@ cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
 #endif
 
 #ifdef VKQUAKE
-cvar_t vk_stagingbuffers					= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
+cvar_t vk_stagingbuffers					= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
 cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",			"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
 cvar_t vk_debug								= CVARFD("vk_debug",					"0", CVAR_VIDEOLATCH, "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
 cvar_t vk_dualqueue							= CVARFD("vk_dualqueue",				"", CVAR_VIDEOLATCH, "Attempt to use a separate queue for presentation. Blank for default.");
@@ -782,7 +780,7 @@ void Renderer_Init(void)
 #if defined(_WIN32) && defined(MULTITHREAD)
 	Cvar_Register (&vid_winthread, VIDCOMMANDGROUP);
 #endif
-	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
+	Cvar_Register (&in_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
 	vid_renderer_opts.enginevalue = 
 #ifdef GLQUAKE
@@ -806,19 +804,6 @@ void Renderer_Init(void)
 		"";
 	Cvar_Register (&vid_renderer_opts, VIDCOMMANDGROUP);
 
-#ifndef NACL
-	/*if (COM_CheckParm("-plugin"))
-	{
-		vid_fullscreen.name = "vid_fullscreen_embedded";
-		vid_fullscreen_alternative.name = "vid_fullscreen_standalone";
-	}
-	else
-	{
-		vid_fullscreen.name = "vid_fullscreen_standalone";
-		vid_fullscreen_alternative.name = "vid_fullscreen_embedded";
-	}
-	Cvar_Register (&vid_fullscreen_alternative, VIDCOMMANDGROUP);*/
-#endif
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
 
@@ -898,8 +883,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_telestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe_smooth, GRAPHICALNICETIES);
-	Cvar_Register (&r_outline, GRAPHICALNICETIES);
-	Cvar_Register (&r_outline_width, GRAPHICALNICETIES);
+//	Cvar_Register (&r_outline, GRAPHICALNICETIES);
+//	Cvar_Register (&r_outline_width, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
 	Cvar_Register (&r_refractreflect_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_postprocshader, GRAPHICALNICETIES);
@@ -958,6 +943,7 @@ void Renderer_Init(void)
 
 
 //renderer
+	Cvar_Register (&r_ignoreentpvs, "Hacky bug workarounds");
 	Cvar_Register (&r_fullbright, SCREENOPTIONS);
 	Cvar_Register (&r_drawentities, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawviewmodel, GRAPHICALNICETIES);
@@ -1023,7 +1009,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_polygonoffset_stencil_offset, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cvar_Register (&dpcompat_nopremulpics, GLRENDEREROPTIONS);
 #endif
 #ifdef VKQUAKE
@@ -1753,7 +1739,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 					cl.model_precache[i] = Mod_FindName (Mod_FixName(cl.model_name[i], cl.model_name[1]));
 		}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		for (i=0; i < MAX_VWEP_MODELS; i++)
 		{
 			if (*cl.model_name_vwep[i])
@@ -1809,9 +1795,6 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 //		Skin_FlushAll();
 		Skin_FlushPlayers();
 
-#ifdef CSQC_DAT
-		CSQC_RendererRestarted();
-#endif
 	}
 	else
 	{
@@ -1822,6 +1805,10 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 #ifdef SKELETALOBJECTS
 	skel_reload();
+#endif
+#ifdef CSQC_DAT
+	Shader_DoReload();
+	CSQC_RendererRestarted();
 #endif
 
 	if (newr && qrenderer != QR_NONE)
@@ -2734,7 +2721,7 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 		vis = cvis[portal] = r_refdef.forcedvis;
 
 		r_oldviewcluster = -1;
-		r_oldviewcluster2 = -1;
+		r_oldviewcluster2 = -2;
 	}
 	else
 	{
@@ -2749,7 +2736,7 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 		else
 		{
 			r_oldviewcluster = -1;
-			r_oldviewcluster2 = -1;
+			r_oldviewcluster2 = -2;
 		}
 
 		if (r_novis.ival)
@@ -2760,7 +2747,7 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 			memset (curframevis[portal].buffer, 0xff, curframevis[portal].buffersize);
 
 			r_oldviewcluster = -1;
-			r_oldviewcluster2 = -1;
+			r_oldviewcluster2 = -2;
 		}
 		else
 		{

@@ -64,6 +64,9 @@ cvar_t	temp1 = CVARF("temp1", "0", CVAR_ARCHIVE);
 cvar_t	noexit = CVAR("noexit", "0");
 extern cvar_t sv_specprint;
 
+//cvar_t	sv_aim = {"sv_aim", "0.93"};
+cvar_t	sv_aim = CVAR("sv_aim", "2");
+
 extern cvar_t pr_autocreatecvars;
 cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory available to the QC vm. This has a theoretical maximum of 1gb, but that value can only really be used in 64bit builds. -1 will attempt to use some conservative default, but you may need to increase it. Consider also clearing pr_fixbrokenqccarrays if you need to change this cvar.");
 
@@ -73,42 +76,44 @@ cvar_t	pr_imitatemvdsv = CVARFD("pr_imitatemvdsv", "0", CVAR_LATCH, "Enables mvd
 /*other stuff*/
 cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_LATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "1", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
 #else
-cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
+static cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
 #endif
-cvar_t	pr_no_parsecommand = CVARFD("pr_no_parsecommand", "0", 0, "Provides a way around invalid mod usage of SV_ParseClientCommand, eg xonotic.");
+static cvar_t	pr_no_parsecommand = CVARFD("pr_no_parsecommand", "0", 0, "Provides a way around invalid mod usage of SV_ParseClientCommand, eg xonotic.");
 
 extern cvar_t pr_sourcedir;
 cvar_t	pr_ssqc_progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
-cvar_t	pr_nonetaccess = CVARD("pr_nonetaccess", "0", "Block all direct access to network buffers (the writebyte builtin and friends will ignore the call).");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
+static cvar_t	pr_nonetaccess = CVARD("pr_nonetaccess", "0", "Block all direct access to network buffers (the writebyte builtin and friends will ignore the call).");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
-cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
+static cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
 
-cvar_t pr_compatabilitytest = CVARFD("pr_compatabilitytest", "0", CVAR_LATCH, "Only enables builtins if the extension they are part of was queried.");
+static cvar_t pr_compatabilitytest = CVARFD("pr_compatabilitytest", "0", CVAR_LATCH, "Only enables builtins if the extension they are part of was queried.");
 
 cvar_t pr_ssqc_coreonerror = CVAR("pr_coreonerror", "1");
 
-cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
-#ifdef NOLEGACY
-cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "1", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
+static cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
+#ifndef HAVE_LEGACY
+static cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "1", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
 #else
-cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "0", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
+static cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "0", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
 #endif
-cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
+static cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
 cvar_t dpcompat_nopreparse = CVARD("dpcompat_nopreparse", "0", "Xonotic uses svc_tempentity with unknowable lengths mixed with other data that needs to be translated. This cvar disables any attempt to translate or pre-parse network messages, including disabling nq/qw cross compatibility. NOTE: because preparsing will be disabled, messages might not get backbuffered correctly if too much reliable data is written.");
-cvar_t dpcompat_traceontouch = CVARD("dpcompat_traceontouch", "0", "Report trace plane etc when an entity touches another.");
+//static cvar_t dpcompat_traceontouch = CVARD("dpcompat_traceontouch", "0", "Report trace plane etc when an entity touches another.");
 extern cvar_t sv_listen_dp;
 
-cvar_t sv_addon[MAXADDONS];
-char cvargroup_progs[] = "Progs variables";
+static cvar_t sv_addon[MAXADDONS];
+static char cvargroup_progs[] = "Progs variables";
 
-evalc_t evalc_idealpitch, evalc_pitch_speed;
+static evalc_t evalc_idealpitch, evalc_pitch_speed;
 
 qboolean ssqc_deprecated_warned;
 int pr_teamfield;
-unsigned int h2infoplaque[2];	/*hexen2 stat*/
+#ifdef HEXEN2
+static unsigned int h2infoplaque[2];	/*hexen2 stat*/
+#endif
 
 static void PRSV_ClearThreads(void);
 void PR_fclose_progs(pubprogfuncs_t*);
@@ -131,7 +136,7 @@ typedef struct qcstate_s
 
 	struct qcstate_s *next;
 } qcstate_t;
-qcstate_t *qcthreads;
+static qcstate_t *qcthreads;
 
 typedef struct {
 	//for func finding and swapping.
@@ -152,7 +157,7 @@ typedef struct {
 } BuiltinList_t;
 builtin_t pr_builtin[1024];
 
-struct {
+static struct {
 	func_t ChatMessage;	//mvdsv parsing of 'say' commands
 	func_t UserCmd;	//mvdsv
 	func_t ConsoleCmd; //mvdsv
@@ -183,7 +188,7 @@ func_t SpectatorDisconnect;	//QW
 func_t SV_PlayerPhysicsQC;	//DP's DP_SV_PLAYERPHYSICS extension
 func_t EndFrameQC;	//a common extension
 
-globalptrs_t realpr_global_ptrs;
+static globalptrs_t realpr_global_ptrs;
 globalptrs_t *pr_global_ptrs = &realpr_global_ptrs;
 
 pubprogfuncs_t *svprogfuncs;
@@ -317,7 +322,7 @@ void PDECL ED_Spawned (struct edict_s *ent, int loading)
 			ent->xv->drawflags = SCALE_ORIGIN_ORIGIN;	//if not running hexen2, default the scale origin to the actual origin.
 #endif
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		ent->xv->Version = sv.csqcentversion[ent->entnum];
 #endif
 		ent->xv->uniquespawnid = sv.csqcentversion[ent->entnum];
@@ -874,7 +879,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	static float writeonly;
 	static int writeonly_int;
 	static int endcontentsi, surfaceflagsi;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	static float endcontentsf, surfaceflagsf;
 #endif
 	static float dimension_send_default;
@@ -925,11 +930,11 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalint		(true, trace_ent);
 	globalfloat		(false, trace_inopen);
 	globalfloat		(false, trace_inwater);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	globalfloat		(false, trace_endcontentsf);
 #endif
 	globalint		(false, trace_endcontentsi);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	globalfloat		(false, trace_surfaceflagsf);
 #endif
 	globalint		(false, trace_surfaceflagsi);
@@ -939,7 +944,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalint		(false, trace_surface_id);
 	globalint		(false, trace_bone_id);
 	globalint		(false, trace_triangle_id);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	globalstring	(false, trace_dphittexturename);
 	globalfloat		(false, trace_dpstartcontents);
 	globalfloat		(false, trace_dphitcontents);
@@ -982,7 +987,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 
 #define ensureglobal(name,var) if (!(pr_globals)->name) (pr_globals)->name = &var;
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	if (!(pr_globals)->trace_surfaceflagsi)
 		(pr_globals)->trace_surfaceflagsi = (int*)PR_FindGlobal(svprogfuncs, "trace_surfaceflags", 0, NULL);
 	if (!(pr_globals)->trace_endcontentsi)
@@ -1522,7 +1527,7 @@ void QCLibTest(void)
 #endif
 */
 typedef char char32[32];
-char32 sv_addonname[MAXADDONS];
+static char32 sv_addonname[MAXADDONS];
 void PR_Init(void)
 {
 	int i;
@@ -1879,7 +1884,7 @@ void PR_SpawnInitialEntities(const char *file)
 }
 
 void SV_RegisterH2CustomTents(void);
-void Q_InitProgs(void)
+void Q_InitProgs(qboolean cinematic)
 {
 	int i, i2;
 	func_t f, f2;
@@ -1981,7 +1986,8 @@ void Q_InitProgs(void)
 	if (oldprnum < 0)
 	{
 		PR_LoadGlabalStruct(true);
-//		SV_Error("Couldn't open or compile progs\n");
+		if (cinematic)	//making this fatal, because it sucks to sit through a cinematic only to find the game isn't playable after.
+			SV_Error("No gamecode available. Try using the downloads menu.\n");
 		Con_Printf(CON_ERROR"Running without gamecode\n");
 	}
 
@@ -2725,8 +2731,6 @@ static int SV_CustomTEnt_Spawn(int index, float *org, float *org2, int count, fl
 #endif
 
 
-
-int externcallsdepth;
 
 float PR_LoadAditionalProgs(char *s);
 static void QCBUILTIN PF_addprogs(pubprogfuncs_t *prinst, globalvars_t *pr_globals)
@@ -3714,7 +3718,7 @@ static void set_trace_globals(pubprogfuncs_t *prinst, /*struct globalvars_s *pr_
 	pr_global_struct->trace_bone_id = trace->bone_id;
 	pr_global_struct->trace_triangle_id = trace->triangle_id;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	pr_global_struct->trace_surfaceflagsf = trace->surface?trace->surface->flags:0;
 	pr_global_struct->trace_endcontentsf = trace->contents;
 
@@ -3849,8 +3853,8 @@ static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s 
 
 //============================================================================
 
-pvsbuffer_t	checkpvsbuffer;
-vec3_t	checkorg;
+static pvsbuffer_t	checkpvsbuffer;
+static vec3_t	checkorg;
 extern cvar_t sv_nopvs;
 
 void PF_newcheckclient (pubprogfuncs_t *prinst, world_t *w)
@@ -4009,47 +4013,10 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 	if (strcmp(str, "disconnect\n") == 0)
 	{
 		// so long and thanks for all the fish
-		if (cl->netchan.remote_address.type == NA_LOOPBACK)
-			return;	//don't drop the local client. It looks wrong.
-		cl->drop = true;
+		if (cl->netchan.remote_address.type != NA_LOOPBACK)	//don't drop the local client. It looks wrong.
+			cl->drop = true;
 		return;
 	}
-
-#ifndef NOLEGACY
-	//this block is a hack to 'fix' nq mods that expect all clients to support nq commands - but we're a qw engine.
-	//FIXME: should buffer the entire command instead.
-	if (progstype != PROG_QW)
-	{
-		static qboolean expectingcolour;
-		if (!strncmp(str, "color ", 6)||!strncmp(str, ";color ", 7))	//okay, so this is a hack, but it fixes the qw scoreboard
-		{
-			expectingcolour = true;
-			if (!strcmp(str, "color ")||!strcmp(str, ";color "))
-				return;
-			else
-				str += 6;
-		}
-		// FIXME: this seems broken and color->teamname needs a common functions
-		if (expectingcolour)
-		{
-			int team = atoi(str);
-			char *tname;
-
-			expectingcolour = false;
-
-			switch(team)
-			{
-			case 4:		tname = "red";	break;
-			case 13:	tname = "blue";	break;
-			default:	tname = va("t%i", team);	break;	//good job our va has multiple buffers
-			}
-			PF_ForceInfoKey_Internal(entnum, "team", tname, strlen(tname));
-
-			ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen("color "));
-			ClientReliableWrite_String (cl, "color ");
-		}
-	}
-#endif
 
 	if (!(flags & STUFFCMD_DEMOONLY))
 	{
@@ -4543,7 +4510,7 @@ static void QCBUILTIN PF_getmodelindex (pubprogfuncs_t *prinst, struct globalvar
 
 	G_FLOAT(OFS_RETURN) = PF_precache_model_Internal(prinst, s, queryonly);
 }
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
@@ -4879,8 +4846,6 @@ Pick a vector for the player to shoot along
 vector aim(entity, missilespeed)
 =============
 */
-//cvar_t	sv_aim = {"sv_aim", "0.93"};
-cvar_t	sv_aim = CVAR("sv_aim", "2");
 void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent, *check, *bestent;
@@ -5962,6 +5927,10 @@ void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		return;
 	sv.mapchangelocked = true;
 
+#ifdef HAVE_CLIENT
+	Log_MapNowCompleted();
+#endif
+
 #ifdef HEXEN2
 	if (progstype == PROG_H2)
 	{
@@ -6264,7 +6233,7 @@ static void QCBUILTIN PF_sv_serverkeyblob (pubprogfuncs_t *prinst, struct global
 {
 	size_t blobsize = 0;
 	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char	*blobvalue = InfoBuf_BlobForKey(&svs.info, key, &blobsize);
+	const char	*blobvalue = InfoBuf_BlobForKey(&svs.info, key, &blobsize, NULL);
 
 	if ((prinst->callargc<2) || G_INT(OFS_PARM1) == 0)
 		G_INT(OFS_RETURN) = blobsize;	//no pointer to write to, just return the length.
@@ -6304,7 +6273,7 @@ static void QCBUILTIN PF_getlocalinfo (pubprogfuncs_t *prinst, struct globalvars
 {
 	size_t blobsize = 0;
 	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char	*blobvalue = InfoBuf_BlobForKey(&svs.localinfo, key, &blobsize);
+	const char	*blobvalue = InfoBuf_BlobForKey(&svs.localinfo, key, &blobsize, NULL);
 
 	if ((prinst->callargc<2) || G_INT(OFS_PARM1) == 0)
 		G_INT(OFS_RETURN) = blobsize;	//no pointer to write to, just return the length.
@@ -6917,7 +6886,7 @@ lh_extension_t *checkfteextensioncl(int mask, const char *name)	//true if the ci
 
 lh_extension_t *checkfteextensionsv(const char *name)	//true if the server supports an protocol extension.
 {
-	return checkfteextensioncl(Net_PextMask(1, false), name);
+	return checkfteextensioncl(Net_PextMask(PROTOCOL_VERSION_FTE1, false), name);
 }
 
 lh_extension_t *checkextension(const char *name)
@@ -7129,7 +7098,7 @@ float str2short (string str)
 
 static void QCBUILTIN PF_str2short (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = (float) LittleShort(*(short*)PR_GetStringOfs(prinst, OFS_PARM0));
+	G_FLOAT(OFS_RETURN) = LittleShort(*(const short*)PR_GetStringOfs(prinst, OFS_PARM0));
 }
 
 /*
@@ -7264,7 +7233,7 @@ static void QCBUILTIN PF_strstr (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		RETURN_TSTRING(p);
 }
 
-char readable2[256] =
+static char readable2[256] =
 {
 	'.', '_', '_', '_', '_', '.', '_', '_',
 	'_', '_', '\n', '_', '\n', '>', '.', '.',
@@ -7299,12 +7268,12 @@ char readable2[256] =
 	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
 	'x', 'y', 'z', '{', '|', '}', '~', '_'
 };
-
-void PR_CleanText(unsigned char *text)
+/*
+static void PR_CleanText(unsigned char *text)
 {
 	for ( ; *text; text++)
 		*text = readable2[*text];
-}
+}*/
 
 /*
 ================
@@ -8109,7 +8078,7 @@ enum
 
 	ce_max
 };
-int h2customtents[ce_max];
+static int h2customtents[ce_max];
 void SV_RegisterH2CustomTents(void)
 {
 	int i;
@@ -10330,7 +10299,7 @@ static void QCBUILTIN PF_setpause(pubprogfuncs_t *prinst, struct globalvars_s *p
 #else
 	#define D(p,d) p,d
 #endif
-BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
+static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0,		0,	D("void()", "Some builtin that should never be called. Ends the game with some weird message.")},
 
 #ifndef SERVERONLY
@@ -10459,9 +10428,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bprint",			PF_bprint,			0,		23,		0,		0,	D("void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "QW: Concatenates all string arguments, and prints the messsage on the console of only all clients who's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
 	{"sprint",			PF_sprint,			24,		0,		24,		0,	D("void(entity client, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "NQ: Concatenates all string arguments, and prints the messsage on the named client's console")},
 	{"sprint",			PF_sprint,			0,		24,		0,		0,	D("void(entity client, float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "QW: Concatenates all string arguments, and prints the messsage on the named client's console, but only if that client's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
+#ifdef HAVE_LEGACY
 	//these have subtly different behaviour, and are implemented using different internal builtins, which is a bit weird in the extensions file. documentation is documentation.
 	{"dprint",			PF_dprint,			25,		0,		25,		0,	D("void(string s, ...)", "NQ: Prints the given message on the server's console, but only if the developer cvar is set. Arguments will be concatenated into a single message.")},
 	{"dprint",			PF_print,			0,		25,		0,		0,	D("void(string s, ...)", "QW: Unconditionally prints the given message on the server's console.  Arguments will be concatenated into a single message.")},
+#else
+	//going forward, we have print and dprint
+	{"dprint",			PF_dprint,			25,		25,		25,		0,	D("void(string s, ...)", "NQ: Prints the given message on the server's console, but only if the developer cvar is set. Arguments will be concatenated into a single message.")},
+#endif
 	{"ftos",			PF_ftos,			26,		26,		26,		0,	D("string(float val)", "Returns a tempstring containing a representation of the given float. Precision depends upon engine.")},
 	{"vtos",			PF_vtos,			27,		27,		27,		0,	D("string(vector val)", "Returns a tempstring containing a representation of the given vector. Precision depends upon engine.")},
 	{"coredump",		PF_coredump,		28,		28,		28,		0,	D("void()", "Writes out a coredump. This contains stack, globals, and field info for all ents. This can be handy for debugging.")},
@@ -10573,7 +10547,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #ifndef QUAKETC
 //mvdsv (don't require ebfs usage in qw)
 	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, D("void()","Attempt to flush the localcmd buffer NOW. This is unsafe, as many events might cause the map to be purged while still executing qc code."),				true},
-	{"mvdtokenize",		PF_Tokenize, 		0,		0,		0,		84, D("void(string str)",NULL),		true},
+	{"mvdtokenize",		PF_tokenize_console,0,		0,		0,		84, D("void(string str)",NULL),		true},
 	{"mvdargc",			PF_ArgC,			0,		0,		0,		85, D("float()",NULL),				true},
 	{"mvdargv",			PF_ArgV,			0,		0,		0,		86, D("string(float num)",NULL),	true},
 
@@ -10988,9 +10962,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getplayerkeyvalue",	PF_Fixme,0,		0,		0,		348,	D("string(float playernum, string keyname)", "Look up a player's userinfo, to discover things like their name, topcolor, bottomcolor, skin, team, *ver.\nAlso includes scoreboard info like frags, ping, pl, userid, entertime, as well as voipspeaking and voiploudness.")},// (EXT_CSQC)
 	{"getplayerkeyfloat",	PF_Fixme,0,		0,		0,		0,		D("float(float playernum, string keyname, optional float assumevalue)", "Cheaper version of getplayerkeyvalue that avoids the need for so many tempstrings.")},
 	{"getplayerkeyblob",	PF_Fixme,0,		0,		0,		0,		D("int(float playernum, string keyname, optional void *outptr, int size)", "Obtains a copy of the full data blob. Will write up to size bytes but return the full size. Does not null terminate (but memalloc(ret+1) will, if you want to cast the buffer to a string), and the blob may contain embedded nulls. Ignores all special keys, returning only what is actually there.")},
-
-	{"getlocalinfo",	PF_getlocalinfo,0,	0,		0,		0,		D("int(string keyname, optional void *outptr, int size)", "Obtains a copy of the full data blob. Will write up to size bytes and return the actual size. Does not null terminate (but memalloc(ret+1) will, if you want to cast the buffer to a string), and the blob may contain embedded nulls. Ignores all special keys, returning only what is actually there.")},
-	{"setlocalinfo",	PF_setlocalinfo,0,	0,		0,		0,		D("void(string keyname, optional void *outptr, int size)", "Changes the server's localinfo. This data will be available for the following map, and will *usually* reload with saved games.")},
+	{"setlocaluserinfo",	PF_Fixme,0,		0,		0,		0,		D("void(float seat, string keyname, string newvalue)", "Change a userinfo key for the local player, equivelent to the setinfo console command. The server will normally forward the setting to other clients.")},
+	{"getlocaluserinfo",	PF_Fixme,0,		0,		0,		0,		D("string(float seat, string keyname)", "Reads a local userinfo key for the active seat. This is not quite the same as getplayerkeyvalue, due to latency and possible serverside filtering.")},
+	{"setlocaluserinfoblob",PF_Fixme,0,		0,		0,		0,		D("void(float seat, string keyname, void *outptr, int size)", "Sets the userinfo key to a blob that may contain nulls etc. Keys with a leading underscore will be visible to only the server (for user-specific binary settings).")},
+	{"getlocaluserinfoblob",PF_Fixme,0,		0,		0,		0,		D("int(float seat, string keyname, void *outptr, int maxsize)", "Obtains a copy of the full data blob. Will write up to size bytes but return the full size. Does not null terminate (but memalloc(ret+1) will, if you want to cast the buffer to a string), and the blob may contain embedded nulls. Ignores all special keys, returning only what is actually there.")},
+	{"getlocalinfo",	PF_getlocalinfo,0,	0,		0,		0,		D("int(string keyname, optional void *outptr, int size)", "Obtains a copy of a data blob (with spaces) from the server's private localinfo. Will write up to size bytes and return the actual size. Does not null terminate (but memalloc(ret+1) will, if you want to cast the buffer to a string), and the blob may contain embedded nulls. Ignores all special keys, returning only what is actually there.")},
+	{"setlocalinfo",	PF_setlocalinfo,0,	0,		0,		0,		D("void(string keyname, optional void *outptr, int size)", "Changes the server's private localinfo. This data will be available for the following map, and will *usually* reload with saved games.")},
 
 	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	D("float()", "Returns if the client is currently playing a demo or not. Returns 2 when playing an mvd (where other player's stats can be queried, or the pov can be changed freely).")},// (EXT_CSQC)
 	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns non-zero whenever the local console can directly affect the server (ie: listen servers or single-player). Compat note: DP returns 0 for single-player.")},//(EXT_CSQC)
@@ -10998,10 +10975,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setup_reverb",	PF_Fixme, 	0,		0,		0,		0,		D("typedef struct {\n\tfloat flDensity;\n\tfloat flDiffusion;\n\tfloat flGain;\n\tfloat flGainHF;\n\tfloat flGainLF;\n\tfloat flDecayTime;\n\tfloat flDecayHFRatio;\n\tfloat flDecayLFRatio;\n\tfloat flReflectionsGain;\n\tfloat flReflectionsDelay;\n\tvector flReflectionsPan;\n\tfloat flLateReverbGain;\n\tfloat flLateReverbDelay;\n\tvector flLateReverbPan;\n\tfloat flEchoTime;\n\tfloat flEchoDepth;\n\tfloat flModulationTime;\n\tfloat flModulationDepth;\n\tfloat flAirAbsorptionGainHF;\n\tfloat flHFReference;\n\tfloat flLFReference;\n\tfloat flRoomRolloffFactor;\n\tint   iDecayHFLimit;\n} reverbinfo_t;\nvoid(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t)", "Reconfigures a reverb slot for weird effects. Slot 0 is reserved for no effects. Slot 1 is reserved for underwater effects. Reserved slots will be reinitialised on snd_restart, but can otherwise be changed. These reverb slots can be activated with SetListener. Note that reverb will currently only work when using OpenAL.")},
 	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand.")},//(EXT_CSQC)
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
-	{"serverkey",		PF_sv_serverkeystring,0,0,	0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
+	{"serverkey",		PF_sv_serverkeystring,0,0,	0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string. If the key contains binary data then it will be truncated at the first null.")},//
 	{"serverkeyfloat",	PF_sv_serverkeyfloat,0,0,	0,		0,		D("float(string key, optional float assumevalue)", "Version of serverkey that returns the value as a float (which avoids tempstrings).")},//
-	{"serverkeyblob",	PF_sv_serverkeyblob,0,0,	0,		0,		D("int(int buf, string key, optional void *ptr, int size)", "Version of serverkey that can obtain entire serverinfo, localinfo, or (local)userinfo blobs. Returns blob size")},//
-	{"setserverkey",	PF_setserverkey,0,	0,		0,		0,		D("void(int buf, string key, void *ptr, optional int size)", "Changes the server's serverinfo.")},//
+	{"serverkeyblob",	PF_sv_serverkeyblob,0,0,	0,		0,		D("int(string key, optional void *ptr, int maxsize)", "Version of serverkey that returns data as a blob (ie: binary data that may contain nulls). Returns the full blob size, even if truncated (pass maxsize=0 to query required storage).")},//
+	{"setserverkey",	PF_setserverkey,0,	0,		0,		0,		D("void(string key, void *ptr, optional int size)", "Changes the server's serverinfo.")},//
 	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	D("string(optional string resetstring)", "Grab the next token in the map's entity lump.\nIf resetstring is not specified, the next token will be returned with no other sideeffects.\nIf empty, will reset from the map before returning the first token, probably {.\nIf not empty, will tokenize from that string instead.\nAlways returns tempstrings.")},//;
 	{"findfont",		PF_Fixme,	0,		0,		0,		356,	D("float(string s)", "Looks up a named font slot. Matches the actual font name as a last resort.")},//;
 	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high), if you have the freetype2 library in windows..")},
@@ -11259,7 +11236,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)", "Sets whether the server should or should not be paused. This does not affect auto-paused things like when the console is down.")},
 	//end dp extras
 	//begin mvdsv extras
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532,	"float(string mname)"},
 #endif
 	//end mvdsv extras
@@ -11267,6 +11244,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"log",				PF_Logarithm,		0,		0,		0,		532,	D("float(float v, optional float base)", "Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by.")},
 	{"soundupdate",		PF_Fixme,			0,		0,		0,		0,		D("float(entity e, float channel, string newsample, float volume, float attenuation, float pitchpct, float flags, float timeoffset)", "Changes the properties of the current sound being played on the given entity channel. newsample may be empty, and will be ignored in this case. timeoffset is relative to the current position (subtract the result of getsoundtime for absolute positions). Negative volume can be used to stop the sound. Return value is a fractional value based upon the number of audio devices that could be updated - test against TRUE rather than non-zero.")},
 	{"getsoundtime",	PF_Ignore,			0,		0,		0,		533,	D("float(entity e, float channel)", "Returns the current playback time of the sample on the given entity's channel. Beware CHAN_AUTO (in csqc, channels are not limited by network protocol).")},
+	{"getchannellevel",	PF_Ignore,			0,		0,		0,		0,		D("float(entity e, float channel)", "")},
 	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	D("float(string sample)", "Provides a way to query the duration of a sound sample, allowing you to set up a timer to chain samples.")},
 	{"buf_loadfile",	PF_buf_loadfile,	0,		0,		0,		535,	D("float(string filename, strbuf bufhandle)", "Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable.")},
 	{"buf_writefile",	PF_buf_writefile,	0,		0,		0,		536,	D("float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)", "Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer.")},
@@ -11643,7 +11621,7 @@ void PR_SVExtensionList_f(void)
 
 			if (i < 32)
 			{
-				if (!(Net_PextMask(1, false) & (1<<i)))
+				if (!(Net_PextMask(PROTOCOL_VERSION_FTE1, false) & (1<<i)))
 				{
 					if (showflags & SHOW_NOTSUPPORTEDEXT)
 						Con_Printf("^4protocol %s is not supported\n", extlist[i].name);
@@ -11716,7 +11694,6 @@ void PR_SVExtensionList_f(void)
 	}
 }
 
-builtin_t *pr_builtins = pr_builtin;
 int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
@@ -12480,7 +12457,9 @@ void PR_DumpPlatform_f(void)
 		{"STAT_KILLEDMONSTERS",	"const float", CS, NULL, STAT_MONSTERS},
 		{"STAT_ITEMS",			"const float", CS, D("self.items | (self.items2<<23). In order to decode this stat properly, you need to use getstatbits(STAT_ITEMS,0,23) to read self.items, and getstatbits(STAT_ITEMS,23,11) to read self.items2 or getstatbits(STAT_ITEMS,28,4) to read the visible part of serverflags, whichever is applicable."), STAT_ITEMS},
 		{"STAT_VIEWHEIGHT",		"const float", CS, D("player.view_ofs_z"), STAT_VIEWHEIGHT},
+#ifdef SIDEVIEWS
 		{"STAT_VIEW2",			"const float", CS, D("This stat contains the number of the entity in the server's .view2 field."), STAT_VIEW2},
+#endif
 		{"STAT_VIEWZOOM",		"const float", CS, D("Scales fov and sensitiity. Part of DP_VIEWZOOM."), STAT_VIEWZOOM},
 
 		{"STAT_USER",			"const float", QW|NQ|CS, D("Custom user stats start here (lower values are reserved for engine use)."), 32},
@@ -12523,19 +12502,34 @@ void PR_DumpPlatform_f(void)
 		{"VF_SCREENPSIZE",		"const float", CS|MENU, D("Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect)."), VF_SCREENPSIZE},
 		{"VF_VIEWENTITY",		"const float", CS, D("Changes the RF_EXTERNALMODEL flag on entities to match the new selection, and removes entities flaged with RF_VIEWENTITY. Requires cunning use of .entnum and typically requires calling addentities(MASK_VIEWMODEL) too."), VF_VIEWENTITY},
 
-		{"VF_RT_DESTCOLOUR",	"const float", CS|MENU, D("The texture name to write colour info into, this includes both 3d and 2d drawing.\nAdditional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy.\nWritten to by both 3d and 2d rendering.\nNote that any rendertarget textures may be destroyed on video mode changes or so. Shaders can name render targets by prefixing texture names with '$rt:', or $sourcecolour."), VF_RT_DESTCOLOUR0},
-//		{"VF_RT_DESTCOLOUR1",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR1},
-//		{"VF_RT_DESTCOLOUR2",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR2},
-//		{"VF_RT_DESTCOLOUR3",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR3},
+		{"VF_RT_DESTCOLOUR",	"const float", CS|MENU, D("The texture name to write colour info into, this includes both 3d and 2d drawing.\nAdditional arguments are: format (IMGFMT_*), sizexy.\nWritten to by both 3d and 2d rendering.\nNote that any rendertarget textures may be destroyed on video mode changes or so. Shaders can name render targets by prefixing texture names with '$rt:', or $sourcecolour."), VF_RT_DESTCOLOUR0},
+		{"VF_RT_DESTCOLOUR1",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR1},
+		{"VF_RT_DESTCOLOUR2",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR2},
+		{"VF_RT_DESTCOLOUR3",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR3},
 //		{"VF_RT_DESTCOLOUR4",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR4},
 //		{"VF_RT_DESTCOLOUR5",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR5},
 //		{"VF_RT_DESTCOLOUR6",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR6},
 //		{"VF_RT_DESTCOLOUR7",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR7},
 		{"VF_RT_SOURCECOLOUR",	"const float", CS|MENU, D("The texture name to use with shaders that specify a $sourcecolour map."), VF_RT_SOURCECOLOUR},
-		{"VF_RT_DEPTH",			"const float", CS|MENU, D("The texture name to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16bit=4,24bit=5,32bit=6), sizexy."), VF_RT_DEPTH},
+		{"VF_RT_DEPTH",			"const float", CS|MENU, D("The texture name to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (IMGFMT_D*), sizexy."), VF_RT_DEPTH},
 		{"VF_RT_RIPPLE",		"const float", CS|MENU, D("The texture name to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy."), VF_RT_RIPPLE},
 		{"VF_ENVMAP",			"const float", CS|MENU, D("The cubemap name to use as a fallback for $reflectcube, if a shader was unable to load one. Note that this doesn't automatically change shader permutations or anything."), VF_ENVMAP},
 		{"VF_USERDATA",			"const float", CS|MENU, D("Pointer (and byte size) to an array of vec4s. This data is then globally visible to all glsl via the w_user uniform."), VF_USERDATA},
+		{"VF_SKYROOM_CAMERA",	"const float", CS, D("Controls the camera position of the skyroom (which will be drawn underneath transparent sky surfaces). This should move slightly with the real camera, but not so much that the skycamera enters walls. Requires a skyshader with a blend mode on the first pass (or no passes)."), VF_SKYROOM_CAMERA},
+
+		{"IMGFMT_R8G8B8A8",		"const float", CS|MENU, D("Typical 32bit rgba pixel format."), 1},
+		{"IMGFMT_R16G16B16A16F","const float", CS|MENU, D("Half-Float pixel format. Requires gl3 support."), 2},
+		{"IMGFMT_R32G32B32A32F","const float", CS|MENU, D("Regular Float pixel format. Requires gl3 support."), 3},
+		{"IMGFMT_D16",			"const float", CS|MENU, D("16-bit depth pixel format. Must not be used with VF_RT_DESTCOLOUR*."), 4},
+		{"IMGFMT_D24",			"const float", CS|MENU, D("24-bit depth pixel format. Must not be used with VF_RT_DESTCOLOUR*."), 5},
+		{"IMGFMT_D32",			"const float", CS|MENU, D("32-bit depth pixel format. Must not be used with VF_RT_DESTCOLOUR*."), 6},
+		{"IMGFMT_R8",			"const float", CS|MENU, D("Single channel red-only 8bit pixel format."), 7},
+		{"IMGFMT_R16F",			"const float", CS|MENU, D("Single channel red-only Half-Float pixel format. Requires gl3 support."), 8},
+		{"IMGFMT_R32F",			"const float", CS|MENU, D("Single channel red-only Float pixel format. Requires gl3 support."), 9},
+		{"IMGFMT_A2B10G10R10",	"const float", CS|MENU, D("Packed 32-bit packed 10-bit colour pixel format. Requires gl3 support."), 10},
+		{"IMGFMT_R5G6B5",		"const float", CS|MENU, D("Packed 16-bit colour pixel format."), 11},
+		{"IMGFMT_R4G4B4A4",		"const float", CS|MENU, D("Packed 16-bit colour pixel format, with alpha"), 12},
+		{"IMGFMT_R8G8",			"const float", CS|MENU, D("16-bit two-channel pixel format."), 13},
 
 		{"RF_VIEWMODEL",		"const float", CS, D("Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob."), CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, D("Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible."), CSQCRF_EXTERNALMODEL},
@@ -12547,7 +12541,7 @@ void PR_DumpPlatform_f(void)
 
 		{"IE_KEYDOWN",			"const float", CS, D("Specifies that a key was pressed. Second argument is the scan code. Third argument is the unicode (printable) char value. Fourth argument denotes which keyboard(or mouse, if its a mouse 'scan' key) the event came from. Note that some systems may completely separate scan codes and unicode values, with a 0 value for the unspecified argument."), CSIE_KEYDOWN},
 		{"IE_KEYUP",			"const float", CS, D("Specifies that a key was released. Arguments are the same as IE_KEYDOWN. On some systems, this may be fired instantly after IE_KEYDOWN was fired."), CSIE_KEYUP},
-		{"IE_MOUSEDELTA",		"const float", CS, D("Specifies that a mouse was moved (touch screens and tablets typically give IE_MOUSEABS events instead, use _windowed_mouse 0 to test code to cope with either). Second argument is the X displacement, third argument is the Y displacement. Fourth argument is which mouse or touch event triggered the event."), CSIE_MOUSEDELTA},
+		{"IE_MOUSEDELTA",		"const float", CS, D("Specifies that a mouse was moved (touch screens and tablets typically give IE_MOUSEABS events instead, use in_windowed_mouse 0 to test code to cope with either). Second argument is the X displacement, third argument is the Y displacement. Fourth argument is which mouse or touch event triggered the event."), CSIE_MOUSEDELTA},
 		{"IE_MOUSEABS",			"const float", CS, D("Specifies that a mouse cursor or touch event was moved to a specific location relative to the virtual screen space. Second argument is the new X position, third argument is the new Y position. Fourth argument is which mouse or touch event triggered the event."), CSIE_MOUSEABS},
 		{"IE_ACCELEROMETER",	"const float", CS, NULL, CSIE_ACCELEROMETER},
 		{"IE_FOCUS",			"const float", CS, D("Specifies that input focus was given. parama says mouse focus, paramb says keyboard focus. If either are -1, then it is unchanged."), CSIE_FOCUS},
@@ -12589,6 +12583,7 @@ void PR_DumpPlatform_f(void)
 		{"LFIELD_RGBDECAY",		"const float", CS, NULL, lfield_rgbdecay},
 		{"LFIELD_RADIUSDECAY",	"const float", CS, NULL, lfield_radiusdecay},
 		{"LFIELD_STYLESTRING",	"const float", CS, NULL, lfield_stylestring},
+		{"LFIELD_NEARCLIP",		"const float", CS, NULL, lfield_nearclip},
 
 		{"LFLAG_NORMALMODE",	"const float", CS, NULL, LFLAG_NORMALMODE},
 		{"LFLAG_REALTIMEMODE",	"const float", CS, NULL, LFLAG_REALTIMEMODE},
@@ -12750,7 +12745,7 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma warning %s Q105 /*too few parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n", (targ & ID1)?"enable":"error");
 	VFS_PRINTF(f, "#pragma warning %s Q106 /*assignment to constant/lvalue. Define them as var if you want to initialise something.*/\n", (targ & ID1)?"enable":"error");
 	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown. Compatibility goes out of the window if you disable this.*/\n");
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	VFS_PRINTF(f, "#pragma warning error F211 /*system crc outdated (eg: dp's csqc). Such mods will not run properly in FTE.*/\n");
 #else
 	VFS_PRINTF(f, "#pragma warning disable F211 /*system crc outdated (eg: dp's csqc). Note that this may trigger emulation.*/\n");
@@ -12759,6 +12754,7 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals. They usually default to 0 in qc (except in recursive functions), but its still probably a bug*/\n");
 //	VFS_PRINTF(f, "#pragma warning %s F308 /*Optional arguments differ on redeclaration.*/\n", (targ & ID1)?"disable":"enable");
 
+#ifdef HEXEN2
 	if ((targ&ALL) == H2)
 	{
 		if (targ&FTE)
@@ -12767,6 +12763,7 @@ void PR_DumpPlatform_f(void)
 			VFS_PRINTF(f, "#pragma target H2\n");
 	}
 	else
+#endif
 	{
 		if (targ&FTE)
 			VFS_PRINTF(f, "#pragma target FTE\n");
@@ -13214,14 +13211,14 @@ void PR_DumpPlatform_f(void)
 	if (d != (ALL & ~targ))
 		VFS_PRINTF(f, "#endif\n");
 
-	if (targ & (CS|MENU))
-	{
-		VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
 #if defined(CSQC_DAT) || defined(MENU_DAT)
-		Key_PrintQCDefines(f);
+	if (targ & (CS|MENU))
+ 	{
+ 		VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
+ 		Key_PrintQCDefines(f);
+ 		VFS_PRINTF(f, "#endif\n");
+ 	}
 #endif
-		VFS_PRINTF(f, "#endif\n");
-	}
 
 	VFS_PRINTF(f, "#ifdef _ACCESSORS\n");
 	VFS_PRINTF(f,

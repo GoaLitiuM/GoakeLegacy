@@ -477,6 +477,9 @@ void QCBUILTIN PF_cl_bprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_cl_clientcount (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_getlocaluserinfoblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_getlocaluserinfostring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_setlocaluserinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void search_close_progs(pubprogfuncs_t *prinst, qboolean complain);
 
@@ -562,7 +565,7 @@ void PF_WriteString_Internal (int target, const char *str);
 pbool QDECL ED_CanFree (edict_t *ed);
 #endif
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 unsigned int FTEToDPContents(unsigned int contents);
 #endif
 
@@ -730,6 +733,7 @@ typedef enum
 	VF_RT_DESTCOLOUR7	= 219,
 	VF_ENVMAP			= 220,	//cubemap image for reflectcube
 	VF_USERDATA			= 221,
+	VF_SKYROOM_CAMERA	= 222,
 } viewflags;
 
 /*FIXME: this should be changed*/
@@ -777,8 +781,8 @@ enum lightfield_e
 	lfield_dietime=14,
 	lfield_rgbdecay=15,
 	lfield_radiusdecay=16,
-
-	lfield_stylestring=17
+	lfield_stylestring=17,
+	lfield_nearclip=18
 };
 enum csqc_input_event
 {

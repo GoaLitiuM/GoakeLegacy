@@ -232,8 +232,8 @@ void M_Menu_Options_f (void)
 	extern cvar_t sv_demoAutoRecord;
 	static const char *autorecordopts[] = {
 		"Off",
-		"Singleview",
-		"Multiview",
+		"Clientside Only",
+		"Prefer Serverside",
 		NULL
 	};
 	static const char *autorecordvals[] = {
@@ -291,6 +291,7 @@ void M_Menu_Options_f (void)
 		NULL
 	};
 
+	extern cvar_t cfg_save_auto;
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
 #ifdef PACKAGEMANAGER
@@ -299,6 +300,7 @@ void M_Menu_Options_f (void)
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
 		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
 		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
+		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
 		MB_SPACING(4),
 		MB_COMBOCVAR("View Projection", r_projection, projections, projectionvalues, NULL),
 		MB_COMBOCVAR("FOV Mode", scr_fov_mode, fovmodes, fovmodevalues, NULL),
@@ -309,7 +311,7 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXFUNC("Invert Mouse", M_Options_InvertMouse, 0, "Invert vertical mouse movement."),
 		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
-		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
+		MB_CHECKBOXCVAR("Windowed Mouse", in_windowed_mouse, 0),
 #if !defined(CLIENTONLY) && defined(SAVEDGAMES)
 		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autosavevals, NULL),
 #endif
@@ -603,25 +605,35 @@ void M_Menu_Audio_f (void)
 	};
 #ifdef VOICECHAT
 	static const char *voipcodecoptions[] = {
-		"Auto",
-		"Speex (ez-compat)",
-//		"Raw16 (11025)",
+#ifdef HAVE_OPUS
 		"Opus",
+#endif
+#ifdef HAVE_SPEEX
+#ifdef HAVE_LEGACY
+		"Speex (ez-compat)",
+#endif
 		"Speex (Narrow)",
 		"Speex (Wide)",
 //		"Speex (UltraWide)",
+#endif
+//		"Raw16 (11025)",
 //		"PCM A-Law",
 //		"PCM U-Law",
 		NULL
 	};
 	static const char *voipcodecvalue[] = {
-		"",
-		"0",	//speex non-standard
-//		"1",	//pcm16 sucks
+#ifdef HAVE_OPUS
 		"2",	//opus
+#endif
+#ifdef HAVE_SPEEX
+#ifdef HAVE_LEGACY
+		"0",	//speex non-standard (outdated)
+#endif
 		"3",	//speex narrow
 		"4",	//speex wide
 //		"5",	//speex UW
+#endif
+//		"1",	//pcm16 sucks
 //		"6",	//pcma
 //		"7",	//pcmu
 		NULL
@@ -867,7 +879,7 @@ const char *presetexec[] =
 	"seta r_graphics 1;"
 	"seta r_renderscale 1;"
 
-	, // fast options
+	, // fast options (for deathmatch)
 	"gl_texturemode ln;"
 	"gl_texturemode2d n;"
 #ifdef MINIMAL
@@ -886,7 +898,7 @@ const char *presetexec[] =
 	"r_nolightdir 0;"
 	"seta gl_simpleitems 0;"
 
-	, //quakespasm-esque options.
+	, //quakespasm-esque options (for singleplayer faithful).
 	"r_part_density 1;"
 	"gl_polyblend 1;"
 	"r_dynamic 2;"
@@ -898,10 +910,7 @@ const char *presetexec[] =
 	"v_gunkick 1;"
 	"cl_rollangle 2.0;"
 	"cl_bob 0.02;"
-	//these things are perhaps a little extreme
-	"r_loadlit 0;"
 	"vid_hardwaregamma 1;"		//auto hardware gamma, for fast fullscreen and usable windowed.
-	"d_mipcap 0 2;"				//gl without anisotropic filtering favours too-distant mips too often, so lets just pretend it doesn't exist. should probably mess with lod instead or something
 	"r_part_classic_expgrav 1;"	//vanillaery
 	"r_part_classic_opaque 1;"
 //	"r_particlesystem script;"	//q2 or hexen2 particle effects need to be loadable
@@ -913,13 +922,15 @@ const char *presetexec[] =
 	"seta cl_deadbodyfilter 0;"
 	"cl_fullpitch 1;maxpitch 90;seta minpitch -90;"	//QS has cheaty viewpitch range. some maps require it.
 
-	, //vanilla-esque options.
+	, //vanilla-esque options (for purists).
 	"cl_fullpitch 0;maxpitch \"\";seta minpitch \"\";"	//quakespasm is not vanilla
 	"gl_texturemode nll;"		//yup, we went there.
 	"gl_texturemode2d n.l;"		//yeah, 2d too.
 	"r_nolerp 1;"
 	"cl_sbar 1;"
+	"d_mipcap 0 2;"				//gl without anisotropic filtering favours too-distant mips too often, so lets just pretend it doesn't exist. should probably mess with lod instead or something
 	"v_viewmodel_quake 1;"
+	"r_loadlit 0;"
 	"gl_affinemodels 1;"
 	"r_softwarebanding 1;"		//ugly software banding.
 	"r_part_classic_square 1;"	//blocky baby!
@@ -980,7 +991,7 @@ const char *presetexec[] =
 	"r_glsl_offsetmapping 1;"
 	"r_shadow_realtime_world 1;"
 	"gl_texture_anisotropic_filtering 16;"
-	"vid_hardwaregamma 6;"	//scene gamma
+	"vid_hardwaregamma 4;"	//scene gamma
 };
 
 typedef struct fpsmenuinfo_s
@@ -1004,6 +1015,7 @@ static void ApplyPreset (int presetnum)
 
 void M_Menu_Preset_f (void)
 {
+	extern cvar_t cfg_save_auto;
 	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
@@ -1019,6 +1031,8 @@ void M_Menu_Preset_f (void)
 #ifdef RTLIGHTS
 		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
 #endif
+		MB_SPACING(16),
+		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
 		MB_END()
 	};
 	static menuresel_t resel;
@@ -1047,6 +1061,7 @@ void M_Menu_Preset_f (void)
 		item = 6;	//fast
 	else
 		item = 7;	//simple
+	item++; //the autosave option
 	item -= bias;
 	while (item --> 0)
 		menu->selecteditem = menu->selecteditem->common.next;
@@ -3039,12 +3054,13 @@ void M_Menu_Video_f (void)
 			MB_SPACING(4),
 			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
 			MB_SPACING(4),
-			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
+			MB_COMBOCVAR("sRGB", vid_srgb, srgbopts, srgbvalues, "Controls the colour space to try to use."),
 			MB_COMBOCVAR("Gamma Mode", v_gamma, gammamodeopts, gammamodevalues, "Controls how gamma is applied"),
 			MB_SLIDER("Gamma", v_gamma, 1.5, 0.25, -0.05, NULL),
-			MB_COMBOCVAR("Gamma Mode", vid_srgb, srgbopts, srgbvalues, "Controls the colour space to try to use."),
 			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
-
+			MB_SLIDER("Brightness", v_brightness, 0.0, 0.5, 0.05, NULL),
+			MB_SPACING(4),
+			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
 			MB_COMBOCVAR("VSync", vid_vsync, vsyncopts, vsyncvalues, "Controls whether to wait for rendering to finish."),
 			MB_EDITCVARSLIM("Framerate Limiter", cl_maxfps.name, "Limits the maximum framerate. Set to 0 for none."),
 			MB_CHECKBOXCVARTIP("Yield CPU", cl_yieldcpu, 1, "Reduce CPU usage between frames.\nShould probably be off when using vsync."),
@@ -3087,7 +3103,7 @@ void M_Menu_Video_f (void)
 	MC_AddCheckBox(menu,	16, y,							"   Preserve Gamma", &vid_preservegamma,0);	y+=8;
 	MC_AddSlider(menu,	16, y,								"         Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
 	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &_windowed_mouse,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &in_windowed_mouse,0);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->renderer;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, menu->selecteditem->common.posy, NULL, false);
@@ -3254,7 +3270,6 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	VectorScale(fwd, -mods->dist, r_refdef.vieworg);
 
 	memset(&ent, 0, sizeof(ent));
-	ent.scale = 1;
 //	ent.angles[1] = realtime*45;//mods->yaw;
 //	ent.angles[0] = realtime*23.4;//mods->pitch;
 
@@ -3266,8 +3281,18 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.model = Mod_ForName(mods->modelname, MLV_WARN);
 	if (!ent.model)
 		return;	//panic!
-	ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
+	ent.scale = max(max(fabs(ent.model->maxs[0]-ent.model->mins[0]), fabs(ent.model->maxs[1]-ent.model->mins[1])), fabs(ent.model->maxs[2]-ent.model->mins[2]));
+	ent.scale = ent.scale?64.0/ent.scale:1;
+	ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5;// + ent.model->mins[2];
+	ent.origin[2] *= ent.scale;
 	Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
+	VectorSet(ent.glowmod, 1, 1, 1);
+
+//	VectorScale(ent.axis[0], ent.scale, ent.axis[0]);
+//	VectorScale(ent.axis[1], ent.scale, ent.axis[1]);
+//	VectorScale(ent.axis[2], ent.scale, ent.axis[2]);
+//	ent.scale = 1;
+
 	if (strstr(mods->modelname, "player"))
 	{
 		ent.bottomcolour	= genhsv(realtime*0.1 + 0, 1, 1);
@@ -3311,6 +3336,9 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		VectorCopy(tr.endpos, lightpos);
 	}
 */
+	lightpos[0] = sin(realtime*0.1);
+	lightpos[1] = cos(realtime*0.1);
+	lightpos[2] = 0;
 
 	VectorNormalize(lightpos);
 	ent.light_dir[0] = DotProduct(lightpos, ent.axis[0]);
@@ -3619,12 +3647,18 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 						"body: %i\n"
 						"geomset: %i %i%s\n"
 						"numverts: %i\nnumtris: %i\n"
+#ifdef SKELETALMODELS
+						"numbones: %i\n"
+#endif
 						, ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2],
 						contents,
 						inf->csurface.flags,
 						inf->surfaceid,
 						inf->geomset>=MAX_GEOMSETS?-1:inf->geomset, inf->geomid, inf->geomset>=MAX_GEOMSETS?" (always)":"",
 						inf->numverts, inf->numindexes/3
+#ifdef SKELETALMODELS
+						,inf->numbones
+#endif
 						)
 					, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 			}
@@ -3709,7 +3743,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 					shader->defaulttextures->base = skin->upperoverlay;	//diffuse texture for the upper body(shirt colour). no alpha channel. added to base.rgb
 					break;
 				case 4:
-					t = "LopwerMap";
+					t = "LowerMap";
 					shader->defaulttextures->base = skin->loweroverlay;	//diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb
 					break;
 				case 5:
@@ -3977,14 +4011,19 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 
 	if (!mods->nummods)
 	{
-		Draw_FunString(x, y+0, "No games or mods known");
+		float scale[] = {8,8};
+		R_DrawTextField(0, y, vid.width, vid.height - y,
+					va(
+					"No games or mods known.\n"
 #if defined(FTE_TARGET_WEB) || defined(NACL)
-		Draw_FunString(x, y+8, "Connection issue or bad server config");
+					"Connection issue or bad server config.\n"
 #else
-		Draw_FunString(x, y+8, "You may need to use");
-		Draw_FunString(x, y+16, "  -basedir $PATHTOGAME");
-		Draw_FunString(x, y+24, "  on the commandline");
+	#ifndef ANDROID
+					"You may need to use -basedir $PATHTOGAME on the commandline.\n"
+	#endif
+					"\nExpected data path:\n^a%s", com_gamepath
 #endif
+					), CON_WHITEMASK, 0, font_console, scale);
 		return;
 	}
 

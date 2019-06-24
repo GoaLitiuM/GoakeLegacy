@@ -13,10 +13,21 @@ See gl_terrain.h for terminology, networking notes, etc.
 #include "gl_terrain.h"
 
 static terrainfuncs_t terrainfuncs;
+struct patchvert_s
+{
+	vec3_t v;
+	vec2_t tc;
+	vec4_t rgba;
+};
+
 
 cvar_t mod_terrain_networked = CVARD("mod_terrain_networked", "0", "Terrain edits are networked. Clients will download sections on demand, and servers will notify clients of changes.");
 cvar_t mod_terrain_defaulttexture = CVARD("mod_terrain_defaulttexture", "", "Newly created terrain tiles will use this texture. This should generally be updated by the terrain editor.");
 cvar_t mod_terrain_savever = CVARD("mod_terrain_savever", "", "Which terrain section version to write if terrain was edited.");
+cvar_t mod_terrain_sundir = CVARD("mod_terrain_sundir", "0.4 0.7 2", "The direction of the sun (vector will be normalised).");
+cvar_t mod_terrain_ambient = CVARD("mod_terrain_ambient", "0.5", "Proportion of ambient light.");
+cvar_t mod_terrain_shadows = CVARD("mod_terrain_shadows", "0", "Cast rays to determine whether parts of the terrain should be in shadow.");
+cvar_t mod_terrain_shadow_dist = CVARD("mod_terrain_shadow_dist", "2048", "How far rays should be cast in order to look for occlusing geometry.");
 
 enum
 {
@@ -74,7 +85,7 @@ void validatelinks2(link_t *firstnode, link_t *panic)
 
 
 #ifndef SERVERONLY
-static void ted_dorelight(heightmap_t *hm);
+static void ted_dorelight(model_t *m, heightmap_t *hm);
 static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b);
 static qboolean Terr_Collect(heightmap_t *hm);
 #endif
@@ -1926,6 +1937,18 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 	if (!s || s->loadstate < TSLS_LOADING2)
 		return;
 
+	{
+		int cx = s->sx/MAXSECTIONS;
+		int cy = s->sy/MAXSECTIONS;
+		hmcluster_t *c = hm->cluster[cx + cy*MAXCLUSTERS];
+		int sx = s->sx & (MAXSECTIONS-1);
+		int sy = s->sy & (MAXSECTIONS-1);
+
+		if (c->section[sx+sy*MAXSECTIONS] != s)
+			Sys_Error("Section %i,%i already destroyed...\n", s->sx, s->sy);
+		c->section[sx+sy*MAXSECTIONS] = NULL;
+	}
+
 	validatelinks(&hm->recycle);
 
 	RemoveLink(&s->recycle);
@@ -1959,10 +1982,16 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 	{
 		if (qglDeleteBuffersARB)
 		{
-			qglDeleteBuffersARB(1, &s->vbo.coord.gl.vbo);
-			s->vbo.coord.gl.vbo = 0;
-			qglDeleteBuffersARB(1, &s->vbo.indicies.gl.vbo);
-			s->vbo.indicies.gl.vbo = 0;
+			if (s->vbo.coord.gl.vbo)
+			{
+				qglDeleteBuffersARB(1, &s->vbo.coord.gl.vbo);
+				s->vbo.coord.gl.vbo = 0;
+			}
+			if (s->vbo.indicies.gl.vbo)
+			{
+				qglDeleteBuffersARB(1, &s->vbo.indicies.gl.vbo);
+				s->vbo.indicies.gl.vbo = 0;
+			}
 		}
 	}
 	else
@@ -2116,8 +2145,6 @@ validatelinks(&hm->recycle);
 			}
 			else
 			{
-				c->section[sx+sy*MAXSECTIONS] = NULL;
-
 				validatelinks(&hm->recycle);
 				Terr_DestroySection(hm, s, lightmapreusable);
 				validatelinks(&hm->recycle);
@@ -2992,7 +3019,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	
 //	hm->beinglazy = false;
 	if (hm->relight)
-		ted_dorelight(hm);
+		ted_dorelight(m, hm);
 
 	if (e->model == cl.worldmodel && hm->skyshader)
 	{
@@ -3303,9 +3330,10 @@ unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, frame
 	return Heightmap_PointContentsHM(hm, mins[2], org);
 }
 
-void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
+float Heightmap_Normal(heightmap_t *hm, vec2_t org, vec3_t norm)	//returns the z
 {
 #if 0
+	float z = 0;
 	norm[0] = 0;
 	norm[1] = 0;
 	norm[2] = 1;
@@ -3315,6 +3343,7 @@ void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 	vec3_t d1, d2;
 	const float wbias = CHUNKBIAS * hm->sectionsize;
 	hmsection_t *s;
+	float z;
 
 	norm[0] = 0;
 	norm[1] = 0;
@@ -3323,12 +3352,12 @@ void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 	sx = (org[0]+wbias)/hm->sectionsize;
 	sy = (org[1]+wbias)/hm->sectionsize;
 	if (sx < hm->firstsegx || sy < hm->firstsegy)
-		return;
+		return hm->defaultgroundheight;
 	if (sx >= hm->maxsegx || sy >= hm->maxsegy)
-		return;
+		return hm->defaultgroundheight;
 	s = Terr_GetSection(hm, sx, sy, TGS_TRYLOAD);
 	if (!s)
-		return;
+		return hm->defaultgroundheight;
 
 	x = (org[0]+wbias - (sx*hm->sectionsize))*(SECTHEIGHTSIZE-1)/hm->sectionsize;
 	y = (org[1]+wbias - (sy*hm->sectionsize))*(SECTHEIGHTSIZE-1)/hm->sectionsize;
@@ -3347,6 +3376,10 @@ void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 		d2[0] = 0;
 		d2[1] = (hm->sectionsize / SECTHEIGHTSIZE);
 		d2[2] = (s->heights[(sx+1)+(sy+1)*SECTHEIGHTSIZE] - s->heights[(sx+1)+(sy+0)*SECTHEIGHTSIZE]);
+
+		z = (s->heights[(sx+0)+(sy+1)*SECTHEIGHTSIZE]*(1-y) +
+			 s->heights[(sx+1)+(sy+1)*SECTHEIGHTSIZE]*(x+y-1) +
+			 s->heights[(sx+1)+(sy+0)*SECTHEIGHTSIZE]*(1-x));
 	}
 	else
 	{	//the 0,0 triangle
@@ -3359,13 +3392,19 @@ void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 		d2[0] = 0;
 		d2[1] = (hm->sectionsize / SECTHEIGHTSIZE);
 		d2[2] = (s->heights[(sx+0)+(sy+1)*SECTHEIGHTSIZE] - s->heights[(sx+0)+(sy+0)*SECTHEIGHTSIZE]);
+
+		z = (s->heights[(sx+0)+(sy+1)*SECTHEIGHTSIZE]*(y) +
+			 s->heights[(sx+1)+(sy+0)*SECTHEIGHTSIZE]*(x) +
+			 s->heights[(sx+0)+(sy+0)*SECTHEIGHTSIZE]*(1-y-x));
 	}
+
 
 	VectorNormalize(d1);
 	VectorNormalize(d2);
 	CrossProduct(d1, d2, norm);
 	VectorNormalize(norm);
 #endif
+	return z;
 }
 
 typedef struct {
@@ -4237,11 +4276,11 @@ qboolean Heightmap_Trace_Test(struct model_s *model, int hulloverride, framestat
 	qboolean ret = Heightmap_Trace(model, hulloverride, framestate, mataxis, start, end, mins, maxs, capsule, against, trace);
 	
 	if (!trace->startsolid)
-	{
+	{	//FIXME: this code should not be needed.
 		trace_t testtrace;
 		Heightmap_Trace(model, hulloverride, framestate, mataxis, trace->endpos, trace->endpos, mins, maxs, capsule, against, &testtrace);
 		if (testtrace.startsolid)
-		{
+		{	//yup, we're bugged.
 			Con_DPrintf("Trace became solid\n");
 			trace->fraction = 0;
 			VectorCopy(start, trace->endpos);
@@ -4363,32 +4402,37 @@ static unsigned char *QDECL Terr_GetLightmap(hmsection_t *s, int idx, qboolean e
 	}
 	return lightmap[s->lightmap]->lightmaps + ((s->lmy+y) * HMLMSTRIDE + (s->lmx+x)) * lightmap[s->lightmap]->pixbytes;
 }
-static void ted_dorelight(heightmap_t *hm)
+static void ted_dorelight(model_t *m, heightmap_t *hm)
 {
 	unsigned char *lm = Terr_GetLightmap(hm->relight, 0, true);
-	int x, y;
+	int x, y, k;
 #define EXPAND 2
 	vec3_t surfnorms[(SECTTEXSIZE+EXPAND*2)*(SECTTEXSIZE+EXPAND*2)];
+	vec3_t surfpoint[(SECTTEXSIZE+EXPAND*2)*(SECTTEXSIZE+EXPAND*2)];
 //	float scaletab[EXPAND*2*EXPAND*2];
-	vec3_t ldir = {0.4, 0.7, 2};
+	vec3_t ldir;
 	hmsection_t *s = hm->relight;
+	float ambient, diffuse;
+	trace_t trace;
 	s->flags &= ~TSF_RELIGHT;
 	hm->relight = NULL;
 
 	if (s->lightmap < 0)
 		return;
 
+	ambient = 255*mod_terrain_ambient.value;
+	diffuse = 255-ambient;
+
 	for (y = -EXPAND; y < SECTTEXSIZE+EXPAND; y++)
 	for (x = -EXPAND; x < SECTTEXSIZE+EXPAND; x++)
 	{
-		vec3_t pos;
-		pos[0] = hm->relightmin[0] + (x*hm->sectionsize/(SECTTEXSIZE-1));
-		pos[1] = hm->relightmin[1] + (y*hm->sectionsize/(SECTTEXSIZE-1));
-		pos[2] = 0;
-		Heightmap_Normal(s->hmmod, pos, surfnorms[x+EXPAND + (y+EXPAND)*(SECTTEXSIZE+EXPAND*2)]);
+		k = x+EXPAND + (y+EXPAND)*(SECTTEXSIZE+EXPAND*2);
+		surfpoint[k][0] = hm->relightmin[0] + (x*hm->sectionsize/(SECTTEXSIZE-1));
+		surfpoint[k][1] = hm->relightmin[1] + (y*hm->sectionsize/(SECTTEXSIZE-1));
+		surfpoint[k][2] = Heightmap_Normal(s->hmmod, surfpoint[k], surfnorms[k])+0.1;
 	}
 
-	VectorNormalize(ldir);
+	VectorNormalize2(mod_terrain_sundir.vec4, ldir);
 
 	for (y = 0; y < SECTTEXSIZE; y++, lm += (HMLMSTRIDE-SECTTEXSIZE)*4)
 	for (x = 0; x < SECTTEXSIZE; x++, lm += 4)
@@ -4408,10 +4452,18 @@ static void ted_dorelight(heightmap_t *hm)
 		d = DotProduct(ldir, norm);
 		if (d < 0)
 			d = 0;
+		else if (mod_terrain_shadows.ival)
+		{
+			float *point = surfpoint[x+EXPAND + (y+EXPAND)*(SECTTEXSIZE+EXPAND*2)];
+			vec3_t sun;
+			VectorMA(point, mod_terrain_shadow_dist.value, ldir, sun);
+			if (m->funcs.NativeTrace(m, 0, NULL, NULL, point, sun, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID|FTECONTENTS_BODY, &trace))
+				d = 0;
+		}
 //		lm[0] = norm[0]*127 + 128;
 //		lm[1] = norm[1]*127 + 128;
 //		lm[2] = norm[2]*127 + 128;
-		lm[3] = 127 + d*128;
+		lm[3] = ambient + d*diffuse;
 	}
 
 	lightmap[s->lightmap]->modified = true;
@@ -5470,6 +5522,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 		vec3_t normal[65536];
 		vec3_t svector[65536];
 		vec3_t tvector[65536];
+		vec4_t rgba[65536];
 		index_t index[65535];
 	} *arrays = NULL;
 	size_t numverts = 0;
@@ -5858,6 +5911,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 									VectorCopy(br->patch->verts[r2].norm, arrays->normal[r1]);
 									VectorCopy(br->patch->verts[r2].sdir, arrays->svector[r1]);
 									VectorCopy(br->patch->verts[r2].tdir, arrays->tvector[r1]);
+									Vector4Copy(br->patch->verts[r2].rgba, arrays->rgba[r1]);
 
 									Vector2Copy(br->patch->verts[r2].tc, arrays->lmcoord[r1]);
 								}
@@ -5891,6 +5945,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 									VectorCopy(br->planes[j], arrays->normal[o]);
 									VectorCopy(br->faces[j].stdir[0], arrays->svector[o]);
 									VectorCopy(br->faces[j].stdir[1], arrays->tvector[o]);
+									Vector4Set(arrays->rgba[o], 1.0, 1.0, 1.0, 1.0);
 
 									//compute the texcoord planes
 									s = (DotProduct(arrays->svector[o], arrays->coord[o]) + br->faces[j].stdir[0][3]);
@@ -5915,17 +5970,18 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 
 					if (numverts || numindicies)
 					{
-						bb = Z_Malloc(sizeof(*bb) + (sizeof(bb->mesh.xyz_array[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
+						bb = Z_Malloc(sizeof(*bb) + (sizeof(bb->mesh.xyz_array[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])+sizeof(arrays->rgba[0])) * numverts);
 						bb->next = bt->batches;
 						bt->batches = bb;
 						bb->lightmap = lmnum;
-						BE_VBO_Begin(&ctx, (sizeof(arrays->coord[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
+						BE_VBO_Begin(&ctx, (sizeof(arrays->coord[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])+sizeof(arrays->rgba[0])) * numverts);
 						BE_VBO_Data(&ctx, arrays->coord,	sizeof(arrays->coord	[0])*numverts,		&bb->vbo.coord);
 						BE_VBO_Data(&ctx, arrays->texcoord, sizeof(arrays->texcoord	[0])*numverts,		&bb->vbo.texcoord);
 						BE_VBO_Data(&ctx, arrays->lmcoord,	sizeof(arrays->lmcoord	[0])*numverts,		&bb->vbo.lmcoord[0]);
 						BE_VBO_Data(&ctx, arrays->normal,	sizeof(arrays->normal	[0])*numverts,		&bb->vbo.normals);
 						BE_VBO_Data(&ctx, arrays->svector,	sizeof(arrays->svector	[0])*numverts,		&bb->vbo.svector);
 						BE_VBO_Data(&ctx, arrays->tvector,	sizeof(arrays->tvector	[0])*numverts,		&bb->vbo.tvector);
+						BE_VBO_Data(&ctx, arrays->rgba,		sizeof(arrays->rgba		[0])*numverts,		&bb->vbo.colours[0]);
 						BE_VBO_Finish(&ctx, arrays->index,	sizeof(arrays->index	[0])*numindicies,	&bb->vbo.indicies, &bb->vbo.vbomem, &bb->vbo.ebomem);
 
 						bb->mesh.xyz_array = (vecV_t*)(bb+1);
@@ -5940,6 +5996,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						memcpy(bb->mesh.snormals_array, arrays->svector, sizeof(*bb->mesh.snormals_array) * numverts);
 						bb->mesh.tnormals_array = (vec3_t*)(bb->mesh.snormals_array+numverts);
 						memcpy(bb->mesh.tnormals_array, arrays->tvector, sizeof(*bb->mesh.tnormals_array) * numverts);
+						bb->mesh.colors4f_array[0] = (vec4_t*)(bb->mesh.tnormals_array+numverts);
+						memcpy(bb->mesh.colors4f_array[0], arrays->rgba, sizeof(*bb->mesh.colors4f_array[0]) * numverts);
 
 						bb->pmesh = &bb->mesh;
 						bb->mesh.numindexes = numindicies;
@@ -6212,7 +6270,7 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 }
 
 
-static brushes_t *Terr_Patch_Insert(model_t *model, heightmap_t *hm, brushtex_t *patch_tex, int patch_w, int patch_h, vec5_t *patch_v, int stride)
+static brushes_t *Terr_Patch_Insert(model_t *model, heightmap_t *hm, brushtex_t *patch_tex, int patch_w, int patch_h, struct patchvert_s *patch_v, int stride)
 {
 	int x, y;
 	brushes_t brush;
@@ -6232,11 +6290,9 @@ static brushes_t *Terr_Patch_Insert(model_t *model, heightmap_t *hm, brushtex_t 
 	{
 		for (x = 0; x < patch_w; x++)
 		{
-			brush.patch->verts[x + y*patch_w].v[0] = patch_v[x][0];
-			brush.patch->verts[x + y*patch_w].v[1] = patch_v[x][1];
-			brush.patch->verts[x + y*patch_w].v[2] = patch_v[x][2];
-			brush.patch->verts[x + y*patch_w].tc[0] = patch_v[x][3];
-			brush.patch->verts[x + y*patch_w].tc[1] = patch_v[x][4];
+			VectorCopy(patch_v[x].v, brush.patch->verts[x + y*patch_w].v);
+			Vector2Copy(patch_v[x].tc, brush.patch->verts[x + y*patch_w].tc);
+			Vector4Copy(patch_v[x].rgba, brush.patch->verts[x + y*patch_w].rgba);
 			//brush.patch->verts[x + y*patch_w].norm
 			//brush.patch->verts[x + y*patch_w].sdir
 			//brush.patch->verts[x + y*patch_w].tdir
@@ -7085,10 +7141,19 @@ void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 	VFS_PRINTF(file, "\n{");
 	if (br->patch)
 	{
-		VFS_PRINTF(file, "\n\tpatchDef2\n\t{\n\t\t\"%s\"\n\t\t( %.9g %.9g %.9g %.9g %.9g )\n\t\t(\n",
+		qboolean hasrgba = false;
+		for (y = 0; y < br->patch->ypoints*br->patch->xpoints; y++)
+		{
+			if (br->patch->verts[y].rgba[0] != 1.0 || br->patch->verts[y].rgba[1] != 1.0 || br->patch->verts[y].rgba[2] != 1.0 || br->patch->verts[y].rgba[3] != 1.0)
+				break;
+		}
+		hasrgba = (y < br->patch->ypoints*br->patch->xpoints);
+
+		VFS_PRINTF(file, "\n\tpatchDef%s\n\t{\n\t\t\"%s\"\n\t\t( %u %u %.9g %.9g %.9g )\n\t\t(\n",
+				hasrgba?"WS":"2",
 				br->patch->tex?br->patch->tex->shadername:"",
-				0.0/*xoffset*/,
-				0.0/*yoffset*/,
+				br->patch->xpoints/*width*/,
+				br->patch->ypoints/*height*/,
 				0.0/*rotation*/,
 				1.0/*xscale*/,
 				1.0/*yscale*/);
@@ -7097,11 +7162,20 @@ void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 			VFS_PRINTF(file, "\t\t\t(\n");
 			for (x = 0; x < br->patch->xpoints; x++)
 			{
-				VFS_PRINTF(file, "\t\t\t\t( %.9g %.9g %.9g %.9g %.9g )\n",	br->patch->verts[x + y*br->patch->xpoints].v[0],
-																			br->patch->verts[x + y*br->patch->xpoints].v[1],
-																			br->patch->verts[x + y*br->patch->xpoints].v[2],
-																			br->patch->verts[x + y*br->patch->xpoints].tc[0],
-																			br->patch->verts[x + y*br->patch->xpoints].tc[1]);
+				const char *fmt;
+				if (hasrgba)
+					fmt = "\t\t\t\t( %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g )\n";
+				else
+					fmt = "\t\t\t\t( %.9g %.9g %.9g %.9g %.9g )\n";	//q3 compat.
+				VFS_PRINTF(file, fmt,	br->patch->verts[x + y*br->patch->xpoints].v[0],
+										br->patch->verts[x + y*br->patch->xpoints].v[1],
+										br->patch->verts[x + y*br->patch->xpoints].v[2],
+										br->patch->verts[x + y*br->patch->xpoints].tc[0],
+										br->patch->verts[x + y*br->patch->xpoints].tc[1],
+										br->patch->verts[x + y*br->patch->xpoints].rgba[0],
+										br->patch->verts[x + y*br->patch->xpoints].rgba[1],
+										br->patch->verts[x + y*br->patch->xpoints].rgba[2],
+										br->patch->verts[x + y*br->patch->xpoints].rgba[3]);
 			}
 			VFS_PRINTF(file, "\t\t\t)\n");
 		}
@@ -7331,7 +7405,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	//patch info
 	brushtex_t *patch_tex=NULL;
 	int	patch_w=0, patch_h=0;
-	vec5_t patch_v[64][64];
+	struct patchvert_s patch_v[64][64];
 
 #ifdef RUNTIMELIGHTING
 	hm->entsdirty = true;
@@ -7453,9 +7527,11 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				continue;
 			}
 		}
-		else if (inbrush && !strcmp(token, "patchDef2"))
+		else if (inbrush && (!strcmp(token, "patchDef2") || !strcmp(token, "patchDef3") || !strcmp(token, "patchDefWS")))
 		{
 			int x, y;
+			qboolean patchdef3 = !strcmp(token, "patchDef3");	//fancy alternative with rgba colours per control point
+			qboolean parsergba = !strcmp(token, "patchDefWS");	//fancy alternative with rgba colours per control point
 			if (numplanes || patch_tex)
 			{
 				Con_Printf(CON_ERROR "%s: mixed patch+planes\n", mod->name);
@@ -7470,10 +7546,17 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			if (strcmp(token, "(")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			/*xoffset = atof(token);*/
+			/*patch_w = atof(token);*/
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			/*yoffset = atof(token);*/
+			/*patch_h = atof(token);*/
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			if (patchdef3)
+			{
+				/*xsubdiv = atof(token);*/
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				/*ysubdiv = atof(token);*/
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			}
 			/*rotation = atof(token);*/
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			/*xscale = atof(token);*/
@@ -7493,15 +7576,39 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				while (!strcmp(token, "("))
 				{
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][0] = atof(token);
+					patch_v[y][x].v[0] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][1] = atof(token);
+					patch_v[y][x].v[1] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][2] = atof(token);
+					patch_v[y][x].v[2] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][3] = atof(token);
+					patch_v[y][x].tc[0] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][4] = atof(token);
+					patch_v[y][x].tc[1] = atof(token);
+
+					if (parsergba)
+					{	//the following four lines are stupid.
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						if (strcmp(token, "(")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
+
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						patch_v[y][x].rgba[0] = atof(token);
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						patch_v[y][x].rgba[1] = atof(token);
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						patch_v[y][x].rgba[2] = atof(token);
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						patch_v[y][x].rgba[3] = atof(token);
+					}
+					else
+					{	//no data provided, use default values.
+						patch_v[y][x].rgba[0] =
+						patch_v[y][x].rgba[1] =
+						patch_v[y][x].rgba[2] =
+						patch_v[y][x].rgba[3] = 1.0;
+					}
 
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 					if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
@@ -7934,31 +8041,33 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force)
 }
 
 #ifndef SERVERONLY
+#if 0 //not yet ready
 struct ted_import_s
 {
-	int x, y;
-	int width;
-	int height;
+	size_t x, y;
+	size_t width;
+	size_t height;
 	unsigned short *data;
 };
 //static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float radius, float strength, int steps,
-void ted_import_heights(void *vctx, hmsection_t *s, int idx, float wx, float wy, float strength)
+static void ted_import_heights_r16(void *vctx, hmsection_t *s, int idx, float wx, float wy, float strength)
 {
 	struct ted_import_s *ctx = vctx;
 	unsigned int y = idx/SECTHEIGHTSIZE;
 	unsigned int x = idx%SECTHEIGHTSIZE;
 	x += s->sx*(SECTHEIGHTSIZE-1) - ctx->x;
 	y += s->sy*(SECTHEIGHTSIZE-1) - ctx->y;
-	if (x < 0 || x >= ctx->width || y < 0 || y >= ctx->height)
+	if (x >= ctx->width || y >= ctx->height)
 		return;
 	s->flags |= TSF_NOTIFY|TSF_EDITED|TSF_DIRTY|TSF_RELIGHT;
 	s->heights[idx] = ctx->data[x + y*ctx->width] * (8192.0/(1<<16));
 }
-void Mod_Terrain_Import_f(void)
+static void Mod_Terrain_Import_f(void)
 {
 	model_t *mod;
 	struct ted_import_s ctx;
 	const char *mapname = Cmd_Argv(1);
+	const char *filename;
 	size_t fsize;
 	heightmap_t *hm;
 	vec3_t pos = {0};
@@ -7978,16 +8087,142 @@ void Mod_Terrain_Import_f(void)
 		return;
 
 	fsize = 0;
-	ctx.data = (void*)FS_LoadMallocFile("quake8km/height8km.r16", &fsize);
+	filename = va("maps/%s.r16", mapname);
+	ctx.data = (void*)FS_LoadMallocFile(filename, &fsize);
+	if (!ctx.data)
+	{
+		Con_Printf("Unable to read %s\n", filename);
+		return;
+	}
 	ctx.width = ctx.height = sqrt(fsize/2);
 	ctx.x = 0;
 	ctx.y = 0;
 	pos[0] += hm->sectionsize * CHUNKBIAS;
 	pos[1] += hm->sectionsize * CHUNKBIAS;
 	if (fsize == ctx.width*ctx.height*2)
-		ted_itterate(hm, tid_flat, pos, max(ctx.width, ctx.height), 1, SECTHEIGHTSIZE, ted_import_heights, &ctx);
+		ted_itterate(hm, tid_flat, pos, max(ctx.width, ctx.height), 1, SECTHEIGHTSIZE, ted_import_heights_r16, &ctx);
 	FS_FreeFile(ctx.data);
 }
+static void Mod_Terrain_Export_f(void)
+{
+	model_t *mod;
+	struct ted_import_s ctx;
+	char mapname[MAX_QPATH];
+	const char *filename;
+	heightmap_t *hm;
+	size_t w, h;
+	size_t tx, ty;
+	size_t sx, sy;
+	unsigned int outtilex=0,outtiley=0;
+	qboolean populated;
+	if (Cmd_IsInsecure())
+	{
+		Con_Printf("Please use this command via the console\n");
+		return;
+	}
+	if (*Cmd_Argv(1))
+		mod = NULL;//Mod_FindName(va("maps/%s", mapname));
+	else
+		mod = cl.worldmodel;
+	if (!mod || mod->type == mod_dummy)
+		return;
+	hm = mod->terrain;
+	if (!hm)
+		return;
+
+	COM_StripExtension(mod->name, mapname, sizeof(mapname));
+
+	ctx.x = hm->firstsegx * (SECTHEIGHTSIZE-1);
+	w = (hm->maxsegx-hm->firstsegx) * (SECTHEIGHTSIZE-1) + 1;
+	while(w)
+	{
+		ctx.width = w;
+		if (ctx.width > 2048+1)
+			ctx.width = 2048;
+
+		outtiley = 0;
+		ctx.y = hm->firstsegy * (SECTHEIGHTSIZE-1);
+		h = (hm->maxsegy-hm->firstsegy) * (SECTHEIGHTSIZE-1) + 1;
+		while(h)
+		{
+			ctx.height = h;
+			if (ctx.height > 2048+1)
+				ctx.height = 2048;
+
+			populated = false;
+			ctx.data = Z_Malloc(ctx.width*ctx.height*2);
+			for (sy = ctx.y/(SECTHEIGHTSIZE-1); sy < (ctx.y+ctx.height + SECTHEIGHTSIZE-3)/(SECTHEIGHTSIZE-1); sy++)
+			for (sx = ctx.x/(SECTHEIGHTSIZE-1); sx < (ctx.x+ctx.width  + SECTHEIGHTSIZE-3)/(SECTHEIGHTSIZE-1); sx++)
+			{
+				hmsection_t *s = Terr_GetSection(hm, sx, sy, TGS_WAITLOAD|TGS_ANYSTATE);
+				if (s->loadstate == TSLS_FAILED)
+				{	//we're doing this weirdly so we can destroy sections as we go.
+					Terr_DestroySection(hm, s, true);
+					s = NULL;
+				}
+				if (s)
+				{
+					populated = true;
+					for (ty = 0; ty < SECTHEIGHTSIZE; ty++)
+					{
+						size_t y = sy*(SECTHEIGHTSIZE-1)+ty - ctx.y;
+						if (y >= ctx.height)
+							continue;
+						for (tx = 0; tx < SECTHEIGHTSIZE; tx++)
+						{
+							size_t x = sx*(SECTHEIGHTSIZE-1)+tx - ctx.x;
+							if (x >= ctx.width)
+								continue;
+							ctx.data[x + y*ctx.width] = s->heights[tx+y*SECTHEIGHTSIZE] / (8192.0/(1<<16));
+						}
+					}
+					if (!(s->flags & TSF_EDITED))
+						Terr_DestroySection(hm, s, true);
+				}
+				else
+				{
+					for (ty = 0; ty < SECTHEIGHTSIZE; ty++)
+					{
+						size_t y = sy*(SECTHEIGHTSIZE-1)+ty - ctx.y;
+						if (y >= ctx.height)
+							continue;
+						for (tx = 0; tx < SECTHEIGHTSIZE; tx++)
+						{
+							size_t x = sx*(SECTHEIGHTSIZE-1)+tx - ctx.x;
+							if (x >= ctx.width)
+								continue;
+							ctx.data[x + y*ctx.width] = hm->defaultgroundheight / (8192.0/(1<<16));
+						}
+					}
+				}
+			}
+
+			filename = va("%s/x%u_y%u.r16", mapname, outtilex, outtiley);
+			if (populated)
+			{
+				if (FS_WriteFile(filename, ctx.data, ctx.width*ctx.height*2, FS_GAMEONLY))
+				{
+					char sysname[1024];
+					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					Con_Printf("Wrote %s\n", sysname);
+				}
+				else
+					Con_Printf("Unable to write %s\n", filename);
+			}
+			else
+				Con_Printf("Skipping unpopulated %s\n", filename);
+			Z_Free(ctx.data);
+
+			outtiley++;
+			ctx.y += ctx.height;
+			h -= ctx.height;
+		}
+		outtilex++;
+		ctx.x += ctx.width;
+		w -= ctx.width;
+	}
+}
+#endif
 
 void Mod_Terrain_Create_f(void)
 {
@@ -8232,9 +8467,15 @@ void Terr_Init(void)
 	Cmd_AddCommand("mod_terrain_save", Mod_Terrain_Save_f);
 	Cmd_AddCommand("mod_terrain_reload", Mod_Terrain_Reload_f);
 #ifndef SERVERONLY
-	Cmd_AddCommandD("mod_terrain_import", Mod_Terrain_Import_f, "Import a raw heightmap");
+//	Cmd_AddCommandD("mod_terrain_export", Mod_Terrain_Export_f, "Export a raw heightmap");
+//	Cmd_AddCommandD("mod_terrain_import", Mod_Terrain_Import_f, "Import a raw heightmap");
 	Cmd_AddCommand("mod_terrain_create", Mod_Terrain_Create_f);
 	Cmd_AddCommandD("mod_terrain_convert", Mod_Terrain_Convert_f, "mod_terrain_convert [mapname] [texkill]\nConvert a terrain to the current format. If texkill is specified, only tiles with the named texture will be converted, and tiles with that texture will be stripped. This is a slow operation.");
+
+	Cvar_Register(&mod_terrain_sundir, "Terrain");
+	Cvar_Register(&mod_terrain_ambient, "Terrain");
+	Cvar_Register(&mod_terrain_shadows, "Terrain");
+	Cvar_Register(&mod_terrain_shadow_dist, "Terrain");
 #endif
 
 	Mod_RegisterModelFormatText(NULL, "FTE Heightmap Map (hmp)", "terrain", Terr_LoadTerrainModel);

@@ -305,13 +305,13 @@ extern qboolean noclip_anglehack;
 extern	quakeparms_t host_parms;
 
 extern	cvar_t		fs_gamename;
-extern	cvar_t		pm_downloads_url;
-extern	cvar_t		pm_autoupdate;
+extern	cvar_t		pkg_downloads_url;
+extern	cvar_t		pkg_autoupdate;
 extern	cvar_t		com_protocolname;
 extern	cvar_t		com_protocolversion;
 extern	cvar_t		com_nogamedirnativecode;
 extern	cvar_t		com_parseutf8;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 extern	cvar_t		ezcompat_markup;
 #endif
 extern	cvar_t		sys_ticrate;
@@ -356,6 +356,7 @@ typedef enum
 	WG_COUNT	= 2 //main and loaders
 } wgroup_t;
 void COM_AddWork(wgroup_t thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);
+void COM_InsertWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);
 qboolean COM_HasWork(void);
 void COM_WorkerFullSync(void);
 void COM_DestroyWorkerThread(void);
@@ -370,6 +371,7 @@ void COM_AssertMainThread(const char *msg);
 #else
 #define com_workererror false
 #define COM_AddWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
+#define COM_InsertWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
 #define COM_WorkerPartialSync(c,a,v)
 #define COM_WorkerFullSync()
 #define COM_HasWork() false

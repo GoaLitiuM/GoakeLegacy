@@ -170,7 +170,6 @@ extern float gammapending;
 extern cvar_t	vid_mode;
 // Note that 3 is MODE_FULLSCREEN_DEFAULT
 extern cvar_t		vid_vsync;
-extern cvar_t		_windowed_mouse;
 extern cvar_t		vid_hardwaregamma;
 extern cvar_t		vid_desktopgamma;
 extern cvar_t		gl_lateswap;
@@ -1908,7 +1907,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		Con_SafePrintf("WGL_EXTENSIONS: %s\n", wgl_extensions?wgl_extensions:"NONE");
 
 	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
-#if 1//def _DEBUG
+
 	//attempt to promote that to opengl3.
 	if (qwglCreateContextAttribsARB)
 	{
@@ -2021,7 +2020,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			}
 		}
 	}
-#endif
 
 	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
 	qwglGetPixelFormatAttribfvARB = getglfunc("wglGetPixelFormatAttribfvARB");

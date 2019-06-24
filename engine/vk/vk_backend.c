@@ -43,7 +43,9 @@ extern cvar_t vk_stagingbuffers;
 
 unsigned int vk_usedynamicstaging;
 
+#ifdef RTLIGHTS
 static void VK_TerminateShadowMap(void);
+#endif
 void VKBE_BeginShadowmapFace(void);
 
 static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype);
@@ -1705,12 +1707,12 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 
 	case T_GEN_CURRENTRENDER:
 		return shaderstate.tex_currentrender;
-	case T_GEN_VIDEOMAP:
 #ifdef HAVE_MEDIA_DECODER
+	case T_GEN_VIDEOMAP:
 		if (pass->cin)
 			return Media_UpdateForShader(pass->cin);
-#endif
 		return r_nulltex;
+#endif
 
 	case T_GEN_LIGHTCUBEMAP:	//light's projected cubemap
 		if (shaderstate.curdlight)
@@ -3025,12 +3027,13 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	err = vkCreateGraphicsPipelines(vk.device, vk.pipelinecache, 1, &pipeCreateInfo, vkallocationcb, &pipe->pipeline);
 
 	if (err)
-	{
+	{	//valid err values are VK_ERROR_OUT_OF_HOST_MEMORY, VK_ERROR_OUT_OF_DEVICE_MEMORY, VK_ERROR_INVALID_SHADER_NV
+		//VK_INCOMPLETE is a Qualcom bug with certain spirv-opt optimisations.
 		shaderstate.rc.activepipeline = VK_NULL_HANDLE;
 		if (err != VK_ERROR_INVALID_SHADER_NV)
-			Sys_Error("Error %i creating pipeline for %s. Check spir-v modules / drivers.\n", err, shaderstate.curshader->name);
+			Sys_Error("%s creating pipeline %s for material %s. Check spir-v modules / drivers.\n", VK_VKErrorToString(err), p->name, shaderstate.curshader->name);
 		else
-			Con_Printf("Error creating pipeline for %s. Check glsl / spir-v modules / drivers.\n", shaderstate.curshader->name);
+			Con_Printf("Error creating pipeline %s for material %s. Check glsl / spir-v modules / drivers.\n", p->name, shaderstate.curshader->name);
 		return;
 	}
 
@@ -4247,7 +4250,9 @@ batch_t *VKBE_GetTempBatch(void)
 
 void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 {
+#ifdef RTLIGHTS
 	extern cvar_t gl_specular;
+#endif
 	vkcbuf_light_t *cbl = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbl) + 0x0ff) & ~0xff, &shaderstate.ubo_light.buffer, &shaderstate.ubo_light.offset);
 	shaderstate.ubo_light.range = sizeof(*cbl);
 
@@ -4268,7 +4273,7 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 		float view[16];
 		float proj[16];
 		extern cvar_t r_shadow_shadowmapping_nearclip;
-		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, r_shadow_shadowmapping_nearclip.value, l->radius, false);
+		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, l->nearclip?l->nearclip:r_shadow_shadowmapping_nearclip.value, l->radius, false);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(view, l->axis[0], l->axis[1], l->axis[2], l->origin);
 		Matrix4_Multiply(proj, view, cbl->l_cubematrix);
 	}
@@ -5785,10 +5790,10 @@ void VKBE_SubmitMeshes (batch_t **worldbatches, batch_t **blist, int first, int 
 
 #ifdef RTLIGHTS
 //FIXME: needs context for threading
-void VKBE_BaseEntTextures(void)
+void VKBE_BaseEntTextures(qbyte *scenepvs)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
-	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
+	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, scenepvs);
 	VKBE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	VKBE_SelectEntity(&r_worldentity);
 }
@@ -6166,7 +6171,7 @@ void VKBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float sha
 {
 #define SHADOWMAP_SIZE 512
 	extern cvar_t r_shadow_shadowmapping_nearclip, r_shadow_shadowmapping_bias;
-	float nc = r_shadow_shadowmapping_nearclip.value;
+	float nc = dl->nearclip?dl->nearclip:r_shadow_shadowmapping_nearclip.value;
 	float bias = r_shadow_shadowmapping_bias.value;
 
 	//much of the projection matrix cancels out due to symmetry and stuff
@@ -6240,7 +6245,7 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 
 	shaderstate.curdlight = NULL;
 	//fixme: figure out some way to safely orphan this data so that we can throw the rest to a worker.
-	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
+	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis);
 
 	BE_UploadLightmaps(false);
 	if (r_refdef.scenevis)

@@ -728,8 +728,11 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 	//FIXME: this should be part of sv_new_f or something instead, so that any angles sent by clients won't be invalid
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
-		svs.clients[i].datagram.prim = svs.netprim;
-		svs.clients[i].netchan.message.prim = svs.netprim;
+		svs.clients[i].netchan.netprim = svs.netprim;
+
+		//make sure those are kept up to date too.
+		svs.clients[i].datagram.prim =
+		svs.clients[i].netchan.message.prim = svs.clients[i].netchan.netprim;
 	}
 
 	//
@@ -814,7 +817,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	extern cvar_t allow_download_refpackages;
 	func_t f;
 	const char *file;
-	extern cvar_t pr_maxedicts;
 
 	gametype_e newgametype;
 
@@ -1139,7 +1141,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 #endif
 	{
 		newgametype = GT_PROGS;	//let's just hope this loads.
-		Q_InitProgs();
+		Q_InitProgs(usecinematic);
 	}
 
 //	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//full q2 dll decision in one if statement
@@ -1693,7 +1695,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 				SV_ExtractFromUserinfo(host_client, true);
 				SV_SpawnParmsToQC(host_client);
 				SV_SetUpClientEdict(host_client, sv_player);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 				sv_player->xv->clientcolors = host_client->playercolor;
 #endif
 

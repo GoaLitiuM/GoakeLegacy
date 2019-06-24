@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 cvar_t ruleset_allow_in		= CVAR("ruleset_allow_in", "1");
 cvar_t rcon_level			= CVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= CVAR("cmd_maxbuffersize", "65536");
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 cvar_t dpcompat_set         = CVAR("dpcompat_set", "0");
 cvar_t dpcompat_console     = CVARD("dpcompat_console", "0", "Enables hacks to emulate DP's console.");
 #else
@@ -443,7 +443,7 @@ void Cbuf_ExecuteLevel (int level)
 {
 	int		i;
 	char	*text;
-	char	line[65536];
+	char	linebuf[65536], *line;
 	qboolean	comment;
 	int		quotes;
 
@@ -503,8 +503,10 @@ void Cbuf_ExecuteLevel (int level)
 				break;	// don't break if inside a quoted string
 		}
 
-		if (i >= sizeof(line))
-			i = sizeof(line)-1;
+		if (i >= sizeof(linebuf))
+			line = malloc(i+1);	//might leak if the command longjmps. :(
+		else
+			line = linebuf;
 		memcpy (line, text, i);
 		line[i] = 0;
 
@@ -523,6 +525,8 @@ void Cbuf_ExecuteLevel (int level)
 
 // execute the command line
 		Cmd_ExecuteString (line, level);
+		if (line != linebuf)
+			free(line);
 	}
 }
 
@@ -884,7 +888,7 @@ static void Cmd_Echo_f (void)
 	Con_Printf ("%s", t);
 #else
 	t = TP_ParseFunChars(t);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Con_PrintFlags (t, ((ezcompat_markup.ival>=2)?PFS_EZQUAKEMARKUP:0), 0);
 #else
 	Con_PrintFlags (t, 0, 0);
@@ -2625,14 +2629,24 @@ static void Cmd_ForwardToServer_f (void)
 	if (Q_strcasecmp(Cmd_Argv(1), "pext") == 0 && (cls.protocol != CP_NETQUAKE || cls.fteprotocolextensions2 || cls.protocol_nq != CPNQ_ID || cls.proquake_angles_hack || cls.netchan.remote_address.type != NA_LOOPBACK))
 	{	//don't send any extension flags this if we're using cl_loopbackprotocol nqid, purely for a compat test.
 		//if you want to record compat-demos, disable extensions instead.
-		unsigned int fp1 = Net_PextMask(1, cls.protocol == CP_NETQUAKE), fp2 = Net_PextMask(2, cls.protocol == CP_NETQUAKE);
+		unsigned int	fp1 = Net_PextMask(PROTOCOL_VERSION_FTE1, cls.protocol == CP_NETQUAKE),
+						fp2 = Net_PextMask(PROTOCOL_VERSION_FTE2, cls.protocol == CP_NETQUAKE),
+						ez1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, cls.protocol == CP_NETQUAKE) & EZPEXT1_CLIENTADVERTISE;
 		extern cvar_t cl_nopext;
+		char line[256];
 		if (cl_nopext.ival)
 		{
 			fp1 = 0;
 			fp2 = 0;
 		}
-		CL_SendClientCommand(true, "pext %#x %#x %#x %#x", PROTOCOL_VERSION_FTE, fp1, PROTOCOL_VERSION_FTE2, fp2);
+		Q_strncpyz(line, "pext", sizeof(line));
+		if (fp1)
+			Q_strncatz(line, va(" %#x %#x", PROTOCOL_VERSION_FTE1, fp1), sizeof(line));
+		if (fp2)
+			Q_strncatz(line, va(" %#x %#x", PROTOCOL_VERSION_FTE2, fp2), sizeof(line));
+		if (ez1)
+			Q_strncatz(line, va(" %#x %#x", PROTOCOL_VERSION_EZQUAKE1, ez1), sizeof(line));
+		CL_SendClientCommand(true, "%s", line);
 		return;
 	}
 	if (Q_strcasecmp(Cmd_Argv(1), "ptrack") == 0)
@@ -2674,7 +2688,7 @@ static void	Cmd_ExecuteStringGlobalsAreEvil (const char *text, int level)
 	cmd_function_t	*cmd;
 	cmdalias_t		*a;
 
-	char dest[8192];
+	char dest[65536];
 	Cmd_ExecLevel = level;
 
 	while (*text == ' ' || *text == '\n')
@@ -4259,7 +4273,7 @@ void Cmd_Init (void)
 	Cvar_Register(&ruleset_allow_in, "Console");
 	Cmd_AddCommandD ("in", Cmd_In_f, "Issues the given command after a time delay. Disabled if ruleset_allow_in is 0.");
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
 	Cvar_Register(&dpcompat_console, "Darkplaces compatibility");
 #endif

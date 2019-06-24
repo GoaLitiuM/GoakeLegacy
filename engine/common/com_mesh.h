@@ -52,7 +52,8 @@ typedef struct
 #endif
 	qboolean loop;
 	int numposes;
-	float rate;
+	//float *poseendtime;	//first starts at 0, anim duration is poseendtime[numposes-1]
+	float rate;				//average framerate of animation.
 #ifdef NONSKELETALMODELS
 	galiaspose_t *poseofs;
 #endif
@@ -170,8 +171,8 @@ typedef struct galiasinfo_s
 	struct galiasinfo_s *nextsurf;
 
 #ifdef SKELETALMODELS
-//	int *bonemap;		//some models are horribly complicated, this provides a gpubone->cpubone table, reducing the number of gpu bones needed on a per-mesh basis.
-//	int mappedbones;
+	boneidx_t *bonemap;		//filled in automatically if our mesh has more gpu bones than we can support
+	unsigned int mappedbones;
 
 	float *baseframeofs;	/*non-heirachical*/
 	int numbones;
@@ -181,7 +182,7 @@ typedef struct galiasinfo_s
 	vec3_t *ofs_skel_norm;
 	vec3_t *ofs_skel_svect;
 	vec3_t *ofs_skel_tvect;
-	byte_vec4_t *ofs_skel_idx;
+	bone_vec4_t *ofs_skel_idx;
 	vec4_t *ofs_skel_weight;
 
 	vboarray_t vbo_skel_verts;
@@ -219,7 +220,7 @@ typedef struct modplugfuncs_s
 	void (QDECL *UnRegisterModelFormat)(int idx);
 	void (QDECL *UnRegisterAllModelFormats)(void);
 
-	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, int size);	//ctx=&mod->memgroup and the data will be freed when the model is freed.
+	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, size_t size);	//ctx=&mod->memgroup and the data will be freed when the model is freed.
 
 	void (QDECL *ConcatTransforms) (const float in1[3][4], const float in2[3][4], float out[3][4]);
 	void (QDECL *M3x4_Invert) (const float *in1, float *out);
@@ -234,8 +235,8 @@ typedef struct modplugfuncs_s
 	void *reserved2;
 	image_t *(QDECL *GetTexture)(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
 	vfsfile_t *(QDECL *OpenVFS)(const char *filename, const char *mode, enum fs_relative relativeto);
-	void *unused3;
-	void *unused4;
+	void (QDECL *AccumulateTextureVectors)(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms);
+	void (QDECL *NormaliseTextureVectors)(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms);
 	void *unused5;
 	void *unused6;
 	void *unused7;
@@ -263,9 +264,9 @@ qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **nam
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 
-void Mod_AccumulateTextureVectors(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms);
+void QDECL Mod_AccumulateTextureVectors(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms);
 void Mod_AccumulateMeshTextureVectors(mesh_t *mesh);
-void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms);
+void QDECL Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms);
 void R_Generate_Mesh_ST_Vectors(mesh_t *mesh);
 
 #ifdef __cplusplus

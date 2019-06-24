@@ -53,9 +53,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #  define NO_X11
 # endif
 #endif
-#ifdef MULTITHREAD
-# include <pthread.h>
-#endif
 
 #ifdef __CYGWIN__
 #define USE_LIBTOOL
@@ -104,29 +101,28 @@ qboolean isDedicated;
 
 #if 1
 static int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
-static void ApplyColour(unsigned int chr)
+static void ApplyColour(unsigned int chrflags)
 {
-	static int oldchar = CON_WHITEMASK;
+	static int oldflags = CON_WHITEMASK;
 	int bg, fg;
-	chr &= CON_FLAGSMASK;
 
-	if (oldchar == chr)
+	if (oldflags == chrflags)
 		return;
-	oldchar = chr;
+	oldflags = chrflags;
 
 	printf("\e[0;"); // reset
 
-	if (chr & CON_BLINKTEXT)
+	if (chrflags & CON_BLINKTEXT)
 		printf("5;"); // set blink
 
-	bg = (chr & CON_BGMASK) >> CON_BGSHIFT;
-	fg = (chr & CON_FGMASK) >> CON_FGSHIFT;
+	bg = (chrflags & CON_BGMASK) >> CON_BGSHIFT;
+	fg = (chrflags & CON_FGMASK) >> CON_FGSHIFT;
 
 	// don't handle intensive bit for background
 	// as terminals differ too much in displaying \e[1;7;3?m
 	bg &= 0x7;
 
-	if (chr & CON_NONCLEARBG)
+	if (chrflags & CON_NONCLEARBG)
 	{
 		if (fg & 0x8) // intensive bit set for foreground
 		{
@@ -172,6 +168,7 @@ void Sys_Printf (char *fmt, ...)
 	conchar_t	ctext[2048];
 	conchar_t       *c, *e;
 	wchar_t		w;
+	unsigned int codeflags, codepoint;
 
 	if (nostdout)
 		return;
@@ -185,13 +182,16 @@ void Sys_Printf (char *fmt, ...)
 
 	e = COM_ParseFunString(CON_WHITEMASK, text, ctext, sizeof(ctext), false);
 
-	for (c = ctext; c < e; c++)
+	for (c = ctext; c < e; )
 	{
-		if (*c & CON_HIDDEN)
+		c = Font_Decode(c, &codeflags, &codepoint);
+		if (codeflags & CON_HIDDEN)
 			continue;
 
-		ApplyColour(*c);
-		w = *c & 0x0ffff;
+		if ((codeflags&CON_RICHFORECOLOUR) || (codepoint == '\n' && (codeflags&CON_NONCLEARBG)))
+			codeflags = CON_WHITEMASK;	//make sure we don't get annoying backgrounds on other lines.
+		ApplyColour(codeflags);
+		w = codepoint;
 		if (w >= 0xe000 && w < 0xe100)
 		{
 			/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
@@ -422,6 +422,9 @@ void Sys_Error (const char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
+
+	COM_WorkerAbort(string);
+
 	fprintf(stderr, "Error: %s\n", string);
 
 	Host_Shutdown ();
@@ -476,6 +479,22 @@ qboolean Sys_remove (const char *path)
 qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return !rename(oldfname, newfname);
+}
+#if _POSIX_C_SOURCE >= 200112L
+	#include <sys/statvfs.h>
+#endif
+qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
+{
+#if _POSIX_C_SOURCE >= 200112L
+	//posix 2001
+	struct statvfs inf;
+	if(0==statvfs(path, &inf))
+	{
+		*freespace = inf.f_bsize*(quint64_t)inf.f_bavail;	//grab the quota-free value rather than the actual free space
+		return true;
+	}
+#endif
+	return false;
 }
 
 int Sys_DebugLog(char *file, char *fmt, ...)
@@ -752,7 +771,7 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 
 // =======================================================================
 //friendly way to crash, including stack traces. should help reduce gdb use.
-#ifdef __linux__ /*should probably be GNUC but whatever*/
+#if defined(__linux__) && defined(__GNUC__) /*should probably be GNUC but whatever*/
 #include <execinfo.h>
 #ifdef __i386__
 #include <ucontext.h>
@@ -783,8 +802,7 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 
 #if defined(__i386__)
 	//x86 signals don't leave the stack in a clean state, so replace the signal handler with the real crash address, and hide this function
-	ucontext_t *uc = vcontext;
-	array[1] = (void*)uc->uc_mcontext.gregs[REG_EIP];
+	array[1] = (void*)((ucontext_t*)vcontext)->uc_mcontext.gregs[REG_EIP];
 	firstframe = 1;
 #elif defined(__amd64__)
 	//amd64 is sane enough, but this function and the libc signal handler are on the stack, and should be ignored.
@@ -924,7 +942,7 @@ int main (int c, const char **v)
 	}
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) && defined(__GNUC__)
 	if (!COM_CheckParm("-nodumpstack"))
 	{
 		struct sigaction act;
@@ -975,7 +993,6 @@ int main (int c, const char **v)
 */
 #endif
 	TL_InitLanguages(parms.binarydir);
-
 
 	if (!isatty(STDIN_FILENO))
 		noconinput = !isPlugin;	//don't read the stdin if its probably screwed (running in qtcreator seems to pipe stdout to stdin in an attempt to screw everything up).
@@ -1123,3 +1140,10 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 
 	return res;
 }
+
+#ifdef WEBCLIENT
+qboolean Sys_RunInstaller(void)
+{
+	return false;
+}
+#endif

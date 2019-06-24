@@ -29,7 +29,8 @@ lights are then added over the top based upon the diffusemap, bumpmap and specul
 
 #ifndef SHADER_H
 #define SHADER_H
-typedef void (shader_gen_t)(const char *name, shader_t*, const void *args);
+struct shaderparsestate_s;
+typedef void (shader_gen_t)(struct shaderparsestate_s *ps, const char *name, const void *args);
 
 #define SHADER_TMU_MAX 16
 #define SHADER_PASS_MAX	16
@@ -283,7 +284,9 @@ typedef struct shaderpass_s {
 
 		T_GEN_SOURCECUBE,	//used for render-to-texture targets
 
+#ifdef HAVE_MEDIA_DECODER
 		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
+#endif
 		T_GEN_CUBEMAP,		//use a cubemap instead, otherwise like T_GEN_SINGLEMAP
 		T_GEN_3DMAP,		//use a 3d texture instead, otherwise T_GEN_SINGLEMAP.
 
@@ -513,6 +516,9 @@ struct programpermu_s
 	#endif
 	} h;
 #endif
+#ifdef GLQUAKE
+	int factorsuniform;
+#endif
 	unsigned int permutation;
 	unsigned int attrmask;
 	unsigned int texmask;	//'standard' textures that are in use
@@ -675,6 +681,12 @@ struct shader_s
 
 	bucket_t bucket;
 
+#define MATERIAL_FACTOR_BASE 0
+#define MATERIAL_FACTOR_SPEC 1
+#define MATERIAL_FACTOR_EMIT 2
+#define MATERIAL_FACTOR_COUNT 3
+	vec4_t factors[MATERIAL_FACTOR_COUNT];
+
 	//arranged as a series of vec4s
 /*	struct
 	{
@@ -711,15 +723,17 @@ cin_t *R_ShaderGetCinematic(shader_t *s);
 cin_t *R_ShaderFindCinematic(const char *name);
 shader_t *R_ShaderFind(const char *name);	//does NOT increase the shader refcount.
 
-void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultSkinShell(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultWaterShader(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultSkybox(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultCinematic(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultScript(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultSkin			(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultSkinShell	(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_Default2D			(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultBSPLM		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultBSPQ1		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultBSPQ2		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultWaterShader	(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultSkybox		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultCinematic	(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultScript		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_PolygonShader		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
 
 void Shader_ResetRemaps(void);	//called on map changes to reset remapped shaders.
 void Shader_DoReload(void);		//called when the shader system dies.
@@ -742,7 +756,7 @@ mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 #define BEF_FORCEADDITIVE		(1u<<2)	//blend dest = GL_ONE
 #define BEF_FORCETRANSPARENT	(1u<<3)	//texenv replace -> modulate
 #define BEF_FORCENODEPTH		(1u<<4)	//disables any and all depth.
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 #define BEF_PUSHDEPTH			(1u<<5)	//additional polygon offset
 #endif
 //FIXME: the above should really be legacy-only
@@ -976,9 +990,9 @@ void GLBE_PolyOffsetStencilShadow(qboolean foobar);
 void GLBE_PolyOffsetStencilShadow(void);
 #endif
 //Called from shadowmapping code into backend
-void GLBE_BaseEntTextures(void);
-void D3D9BE_BaseEntTextures(void);
-void D3D11BE_BaseEntTextures(void);
+void GLBE_BaseEntTextures(qbyte *worldpvs);
+void D3D9BE_BaseEntTextures(qbyte *worldpvs);
+void D3D11BE_BaseEntTextures(qbyte *worldpvs);
 //prebuilds shadow volumes
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend

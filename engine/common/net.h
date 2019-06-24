@@ -191,6 +191,7 @@ qboolean NET_DTLS_Disconnect(struct ftenet_connections_s *col, netadr_t *to);
 void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
 #endif
 extern cvar_t timeout;
+extern cvar_t tls_ignorecertificateerrors;	//evil evil evil.
 
 //============================================================================
 
@@ -209,9 +210,10 @@ typedef struct
 	float		nqreliable_resendtime;//force nqreliable_allowed, thereby forcing a resend of anything n
 	qbyte		nqunreliableonly;	//nq can't cope with certain reliables some times. if 2, we have a reliable that result in a block (that should be sent). if 1, we are blocking. if 0, we can send reliables freely. if 3, then we just want to ignore clc_moves
 #endif
+	qboolean	pext_fragmentation;	//fte's packet fragmentation extension, to avoid issues with low mtus.
 	struct netprim_s netprim;
-	int			fragmentsize;
-	int			dupe;
+	int			mtu;				//the path mtu, if known
+	int			dupe;				//how many times to dupe packets
 
 	float		last_received;		// for timeouts
 
@@ -280,7 +282,7 @@ void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t *adr, char *format, .
 void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language, translation_t text, ...);
 qboolean Netchan_Process (netchan_t *chan);
 void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport);
-unsigned int Net_PextMask(int maskset, qboolean fornq);
+unsigned int Net_PextMask(unsigned int protover, qboolean fornq);
 extern cvar_t net_mtu;
 
 qboolean Netchan_CanPacket (netchan_t *chan, int rate);

@@ -33,7 +33,7 @@ void SV_MVDStop_f (void);
 
 static void QDECL SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
-cvar_t	sv_demoAutoRecord = CVARAD("sv_demoAutoRecord", "0", "cl_autodemo", "If set, automatically record demos.\n-1: record on client connection.\n1+: record once there's this many active players on the server.");
+cvar_t	sv_demoAutoRecord = CVARAD("sv_demoAutoRecord", "0", "cl_autodemo", "If set, automatically record demos.\n-1: record on client connection only.\n1+: record once there's this many active players on the server (or if connected to a remote server).");
 cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "", "If set, demo data will be flushed only periodically");
 cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "0x80000"); //half a meg
 cvar_t	sv_demoMaxDirSize = CVARD("sv_demoMaxDirSize", "100mb", "Maximum allowed serverside storage space for mvds. set to blank to remove the limit. New demos cannot be recorded once this size is reached.");	//so ktpro autorecords.
@@ -41,6 +41,7 @@ cvar_t	sv_demoMaxDirCount = CVARD("sv_demoMaxDirCount", "500", "Maximum allowed 
 cvar_t	sv_demoMaxDirAge = CVARD("sv_demoMaxDirAge", "0", "Maximum allowed age for demos, any older demos will be deleted when sv_demoClearOld is set (this doesn't prevent recording new demos).");
 cvar_t	sv_demoClearOld = CVARD("sv_demoClearOld", "0", "Automatically delete demos to keep the demos count reasonable.");
 cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
+cvar_t	sv_demoDirAlt = CVARCD("sv_demoDirAlt", "", SV_DemoDir_Callback, "Provides a fallback directory name for demo downloads, for when sv_demoDir doesn't contain the requested demo.");
 cvar_t	sv_demofps = CVAR("sv_demofps", "30");
 cvar_t	sv_demoPings = CVARD("sv_demoPings", "10", "Interval between ping updates in mvds");
 cvar_t	sv_demoMaxSize = CVARD("sv_demoMaxSize", "", "Demos will be truncated to be no larger than this size.");
@@ -83,7 +84,7 @@ static char demomsgbuf[MAX_OVERALLMSGLEN];
 
 static mvddest_t *singledest;	//used when a stream is starting up so redundant data doesn't get dumped into other streams
 
-static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream);
+static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream, const char *info);
 qboolean SV_MVD_Record (mvddest_t *dest);
 char *SV_MVDName2Txt(char *name);
 extern cvar_t qtv_password;
@@ -102,23 +103,27 @@ static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 	if (d->file)
 	{
 		VFS_CLOSE(d->file);
-		FS_FlushFSHashWritten(d->filename);
+		if (d->desttype != DEST_STREAM)
+			FS_FlushFSHashWritten(d->filename);
 	}
 
-	if (reason == MVD_CLOSE_CANCEL)
+	if (d->desttype != DEST_STREAM)
 	{
-		FS_Remove(d->filename, FS_GAMEONLY);
+		if (reason == MVD_CLOSE_CANCEL)
+		{
+			FS_Remove(d->filename, FS_GAMEONLY);
 
-		FS_Remove(SV_MVDName2Txt(d->filename), FS_GAMEONLY);
+			FS_Remove(SV_MVDName2Txt(d->filename), FS_GAMEONLY);
 
-		//SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
-	}
-	else if (d->desttype != DEST_STREAM)
-	{
-		char buf[512];
-		Q_strncpyz(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename, d->simplename, sizeof(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename));
-		demolog.sequence++;
-		SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n^[/download %s^]\n", COM_QuotedString(va("demos/%s",d->simplename), buf, sizeof(buf), false));
+			//SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
+		}
+		else
+		{
+			char buf[512];
+			Q_strncpyz(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename, d->simplename, sizeof(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename));
+			demolog.sequence++;
+			SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n^[/download %s^]\n", COM_QuotedString(va("demos/%s",d->simplename), buf, sizeof(buf), false));
+		}
 	}
 
 	Z_Free(d);
@@ -246,6 +251,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 	int versiontouse = 0;
 	int raw = 0;
 	char password[256] = "";
+	char userinfo[1024];
 	enum {
 		QTVAM_NONE,
 		QTVAM_PLAIN,
@@ -277,6 +283,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		return QTV_ERROR;
 	}
 
+	*userinfo = 0;
 	for(;;)
 	{
 		lineend = strchr(start, '\n');
@@ -358,6 +365,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 			else if (!strcmp(com_token, "USERINFO"))
 			{
 				//if we were treating this as a regular client over tcp (qizmo...)
+				start = COM_ParseTokenOut(start, NULL, userinfo, sizeof(userinfo), &com_tokentype);
 			}
 			else
 			{
@@ -527,7 +535,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 	{
 		if (p->hasauthed == true)
 		{
-			SV_MVD_Record(SV_MVD_InitStream(clientstream));
+			SV_MVD_Record(SV_MVD_InitStream(clientstream, userinfo));
 			return QTV_ACCEPT;
 		}
 	}
@@ -541,7 +549,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				 "\n");
 			VFS_WRITE(clientstream, e, strlen(e));
 			e = NULL;
-			dst = SV_MVD_InitStream(clientstream);
+			dst = SV_MVD_InitStream(clientstream, userinfo);
 			dst->droponmapchange = p->isreverse;
 			SV_MVD_Record(dst);
 			return QTV_ACCEPT;
@@ -779,14 +787,14 @@ static void QDECL SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue)
 	value = var->string;
 	if (!value[0] || value[0] == '/' || (value[0] == '\\' && value[1] == '\\'))
 	{
-		Cvar_ForceSet(&sv_demoDir, "demos");
+		Cvar_ForceSet(var, var->enginevalue);
 		return;
 	}
 	if (value[0] == '.' && value[1] == '.')
 		value += 2;
 	if (strstr(value,".."))
 	{
-		Cvar_ForceSet(&sv_demoDir, "demos");
+		Cvar_ForceSet(var, var->enginevalue);
 		return;
 	}
 }
@@ -1203,6 +1211,7 @@ void MVD_Init (void)
 	Cvar_Register (&sv_demoMaxDirAge,	MVDVARGROUP);
 	Cvar_Register (&sv_demoClearOld,	MVDVARGROUP);
 	Cvar_Register (&sv_demoDir,			MVDVARGROUP);
+	Cvar_Register (&sv_demoDirAlt,		MVDVARGROUP);
 	Cvar_Register (&sv_demoPrefix,		MVDVARGROUP);
 	Cvar_Register (&sv_demoSuffix,		MVDVARGROUP);
 	Cvar_Register (&sv_demotxt,			MVDVARGROUP);
@@ -1379,7 +1388,6 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "disk", name);
 		break;
 	}
-	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), SV_Demo_CurrentOutput());
 
 	txtname = SV_MVDName2Txt(name);
 	if (sv_demotxt.value)
@@ -1427,7 +1435,7 @@ char *SV_Demo_CurrentOutput(void)
 		if (d->desttype == DEST_FILE || d->desttype == DEST_BUFFEREDFILE || d->desttype == DEST_THREADEDFILE)
 			return d->simplename;
 	}
-	return "QTV";
+	return "";
 }
 void SV_Demo_PrintOutputs(void)
 {
@@ -1441,7 +1449,7 @@ void SV_Demo_PrintOutputs(void)
 	}
 }
 
-static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream)
+static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream, const char *info)
 {
 	mvddest_t *dst;
 
@@ -1460,6 +1468,21 @@ static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream)
 	dst->maxcachesize = 0x8000;	//is this too small?
 	dst->cache = BZ_Malloc(dst->maxcachesize);
 	dst->droponmapchange = false;
+	*dst->filename = 0;
+	*dst->simplename = 0;
+
+	if (info)
+	{
+		char *s = Info_ValueForKey(info, "name");
+		Q_strncpyz(dst->simplename, s, sizeof(dst->simplename));
+
+		s = Info_ValueForKey(info, "streamid");
+		Q_strncpyz(dst->filename, s, sizeof(dst->filename));
+		s = Info_ValueForKey(info, "address");
+		if (*dst->filename && *s)
+			Q_strncatz(dst->filename, "@", sizeof(dst->filename));
+		Q_strncatz(dst->filename, s, sizeof(dst->filename));
+	}
 
 	return dst;
 }
@@ -1597,8 +1620,11 @@ void SV_WriteSetMVDMessage (void)
 void SV_MVD_SendInitialGamestate(mvddest_t *dest);
 qboolean SV_MVD_Record (mvddest_t *dest)
 {
+	static int destid;
 	if (!dest)
 		return false;
+
+	dest->id = ++destid;	//give each stream a unique id, for no real reason other than for other people to track it via SVC_Status(|32).
 
 	SV_MVD_WriteReliables(false);
 	DestFlush(true);
@@ -1652,6 +1678,8 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 
 	dest->nextdest = demo.dest;
 	demo.dest = dest;
+
+	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), SV_Demo_CurrentOutput());
 
 	SV_ClientProtocolExtensionsChanged(&demo.recorder);
 
@@ -1727,7 +1755,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 	if (demo.recorder.fteprotocolextensions)
 	{
-		MSG_WriteLong(&buf, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong(&buf, PROTOCOL_VERSION_FTE1);
 		MSG_WriteLong(&buf, demo.recorder.fteprotocolextensions);
 	}
 	if (demo.recorder.fteprotocolextensions2)
@@ -2431,7 +2459,7 @@ void SV_MVDList_f (void)
 	Con_Printf("content of %s/*.mvd\n", sv_demoDir.string);
 	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
-	if (!list || !list->name[0])
+	if (!dir->numfiles)
 	{
 		Con_Printf("no demos\n");
 	}
@@ -2483,7 +2511,7 @@ void SV_UserCmdMVDList_f (void)
 	SV_ClientPrintf(host_client, PRINT_HIGH, "available demos:\n");
 	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
-	if (!list->name[0])
+	if (!dir->numfiles)
 	{
 		SV_ClientPrintf(host_client, PRINT_HIGH, "no demos\n");
 	}
@@ -2566,7 +2594,7 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 	VFS_PRINTF(pipe, "available demos:<br/>\n");
 	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
-	if (!list->name[0])
+	if (!dir->numfiles)
 	{
 		VFS_PRINTF(pipe, "no demos<br/>\n");
 	}

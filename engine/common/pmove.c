@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 movevars_t		movevars;
 playermove_t	pmove;
+extern cvar_t	pm_noround;	//evile.
 
 //#define movevars_dpflags		MOVEFLAG_QWCOMPAT
 //#define movevars_edgefriction	2
@@ -448,7 +449,7 @@ int PM_StepSlideMove (qboolean in_air)
 		VectorCopy (trace.endpos, pmove.origin);
 	}
 
-	if ((in_air || movevars.slidefix) && -DotProduct(pmove.gravitydir, original) < 0)
+	if (in_air && -DotProduct(pmove.gravitydir, original) < 0)
 		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
 	PM_SlideMove ();
@@ -550,10 +551,10 @@ void PM_Friction (void)
 			//id quirk: this is a tracebox, NOT a traceline, yet still starts BELOW the player.
 			start[2] = pmove.origin[2] + pmove.player_mins[2];
 			stop[2] = start[2] - 34;
-			if (movevars.flags & MOVEFLAG_QWEDGEBOX)	//quirky qw behaviour uses a tracebox, which
+			if (movevars.flags & MOVEFLAG_QWEDGEBOX)	//vanilla qw behaviour is to use a tracebox, which makes edge friction almost unnoticable.
 				trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
 			else
-			{
+			{	//traceline instead.
 				vec3_t min, max;
 				VectorCopy(pmove.player_mins, min);
 				VectorCopy(pmove.player_maxs, max);
@@ -1368,12 +1369,30 @@ static void PM_NudgePosition (void)
 	int		i;
 	static float	sign[5] = {0, -1/8.0, 1/8.0, -2/8.0, 2/8.0};
 
-	VectorCopy (pmove.origin, base);
-
-	if (movevars.coordsize) for (i=0 ; i<3 ; i++)
-		base[i] = MSG_FromCoord(MSG_ToCoord(base[i], movevars.coordsize), movevars.coordsize);	//higher precision or at least with more accurate rounding
+	//really we want to just use this here
+	//base[i] = MSG_FromCoord(MSG_ToCoord(pmove.origin[i], movevars.coordsize), movevars.coordsize);
+	//but it has overflow issues, so do things the painful way instead.
+	//this stuff is so annoying because we're trying to avoid biasing the position towards 0. you'll see the effects of that if you use a low forwardspeed or low sv_gamespeed etc, but its also noticable with default settings too.
+	if (
+#ifdef HAVE_LEGACY
+			pm_noround.ival ||
+#endif
+			movevars.coordsize == 4)	//float precision on the network. no need to truncate.
+	{
+		VectorCopy (pmove.origin, base);
+	}
+	else if (movevars.coordsize)	//1/8th precision, but don't truncate because that screws everything up.
+	{
+		for (i=0 ; i<3 ; i++)
+		{
+			if (pmove.origin[i] >= 0)
+				base[i] = (qintptr_t)(pmove.origin[i]*8+0.5f) / 8.0;
+			else
+				base[i] = (qintptr_t)(pmove.origin[i]*8-0.5f) / 8.0;
+		}
+	}
 	else for (i=0 ; i<3 ; i++)
-		base[i] = ((int) (pmove.origin[i] * 8)) * 0.125;	//legacy compat, which biases towards the origin.
+		base[i] = ((qintptr_t) (pmove.origin[i] * 8)) * 0.125;	//legacy compat, which biases towards the origin.
 
 //	VectorCopy (base, pmove.origin);
 

@@ -1771,7 +1771,7 @@ static texid_t Font_LoadFallbackConchars(void)
 		Font_CopyGlyph('|', 131, lump);
 		Font_CopyGlyph('>', 13, lump);
 	}
-	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = Image_GetTexture("charset", NULL, IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, (void*)lump, NULL, width, height, PTI_RGBA8);
 	BZ_Free(lump);
 	return tex;
 }
@@ -2144,9 +2144,12 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 		if (f->faces < MAX_FACES)
 		{
 			size_t lumpsize;
-			qbyte lumptype;
-			void *lumpdata;
-			lumpdata = W_GetLumpName("conchars", &lumpsize, &lumptype);
+			qbyte lumptype = 0;
+			void *lumpdata = NULL;
+			if ((!lumpdata || lumptype != TYP_HLFONT) && *fontfilename)
+				lumpdata = W_GetLumpName(fontfilename, &lumpsize, &lumptype);
+			if (!lumpdata || lumptype != TYP_HLFONT)
+				lumpdata = W_GetLumpName("conchars", &lumpsize, &lumptype);
 			if (lumpdata && lumptype == TYP_HLFONT)
 			{
 				fontface_t *fa = Z_Malloc(sizeof(*fa));

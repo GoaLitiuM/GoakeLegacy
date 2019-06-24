@@ -60,12 +60,12 @@ typedef struct nqglobalvars_s
 	float	*trace_allsolid;
 	float	*trace_startsolid;
 	float	*trace_fraction;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	float	*trace_surfaceflagsf;
 #endif
 	int		*trace_surfaceflagsi;
 	string_t*trace_surfacename;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	float	*trace_endcontentsf;
 #endif
 	int		*trace_endcontentsi;
@@ -80,7 +80,7 @@ typedef struct nqglobalvars_s
 	int	*trace_ent;
 	float	*trace_inopen;
 	float	*trace_inwater;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	string_t*trace_dphittexturename;
 	float *trace_dpstartcontents;
 	float *trace_dphitcontents;
@@ -117,7 +117,7 @@ typedef struct nqglobalvars_s
 #define P_VEC(v) (pr_global_struct->v)
 
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 #define comfieldfloat_legacy(n,desc)
 #else
 #define comfieldfloat_legacy comfieldfloat
@@ -278,6 +278,12 @@ and the extension fields are added on the end and can have extra vm-specific stu
 #define svextqcfieldshexen2
 #endif
 
+#ifdef PEXT_VIEW2
+#define svextqcfield_clientcamera comfieldentity(clientcamera,"Controls which entity to use for this client's camera.")
+#else
+#define svextqcfield_clientcamera
+#endif
+
 #define svextqcfields \
 	comfieldfloat(maxspeed,NULL)/*added in quake 1.09*/\
 	comfieldentity(view2,"defines a second viewpoint, typically displayed in a corner of the screen (also punches open pvs).")/*FTE_PEXT_VIEW2*/\
@@ -287,6 +293,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(drawonlytoclient,"This entity will be sent *only* to the player named by this field. To other players they will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.")\
 	comfieldentity(viewmodelforclient,"This entity will be sent only to the player named by this field, and this entity will be attached to the player's view as an additional weapon model.")/*DP_ENT_VIEWMODEL*/\
 	comfieldentity(exteriormodeltoclient,"This entity will be invisible to the player named by this field, except in mirrors or mirror-like surfaces, where it will be visible as normal. It may still cast shadows as normal, and generate lights+particles, depending on client settings. Does not affect how other players see the entity.")\
+	svextqcfield_clientcamera\
 	comfieldfloat(glow_size,NULL)\
 	comfieldfloat(glow_color,NULL)\
 	comfieldfloat(glow_trail,NULL)\

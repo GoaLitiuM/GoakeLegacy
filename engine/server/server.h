@@ -152,7 +152,7 @@ typedef struct
 		};
 #endif
 		struct {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			const char	*vw_model_precache[32];
 #endif
 			const char	*model_precache[MAX_PRECACHE_MODELS];	// NULL terminated
@@ -415,7 +415,7 @@ enum
 	PRESPAWN_CSPROGS,			//demos contain a copy of the csprogs.
 #endif
 	PRESPAWN_SOUNDLIST,			//nq skips these
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	PRESPAWN_VWEPMODELLIST,		//qw ugly extension.
 #endif
 	PRESPAWN_MODELLIST,
@@ -483,7 +483,8 @@ typedef struct client_s
 	float			maxspeed;			// localized maxspeed
 	float			entgravity;			// localized ent gravity
 
-	int viewent;	//fake the entity positioning.
+	int viewent;		//fake the entity positioning.
+	int clientcamera;	//cache for dp_sv_clientcamera.
 
 	edict_t			*edict;				// EDICT_NUM(clientnum+1)
 //additional game modes use additional edict pointers. this ensures that references are crashes.
@@ -503,7 +504,7 @@ typedef struct client_s
 										// extracted from userinfo
 	char			guid[64]; /*+2 for split+pad*/
 	int				messagelevel;		// for filtering printed messages
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	float			*dp_ping;
 	float			*dp_pl;
 #endif
@@ -562,13 +563,18 @@ typedef struct client_s
 	#define SENDFLAGS_PRESENT 0x80000000u	//this entity is present on that client
 	#define SENDFLAGS_REMOVED 0x40000000u	//to handle remove packetloss
 
+#ifdef HAVE_LEGACY
+	char			*dlqueue;			//name\name delimited list of files to ask the client to download.
+#endif
 	char			downloadfn[MAX_QPATH];
 	vfsfile_t		*download;			// file being downloaded
 	qofs_t			downloadsize;		// total bytes
 	qofs_t			downloadcount;		// bytes sent
 
+#ifdef NQPROT
 	qofs_t			downloadacked;		//DP-specific
 	qofs_t			downloadstarted;	//DP-specific
+#endif
 
 	int				spec_track;			// entnum of player tracking
 
@@ -644,11 +650,10 @@ typedef struct client_s
 #endif
 
 	qboolean		csqcactive;
-#ifdef PROTOCOL_VERSION_FTE
 	qboolean		pextknown;
 	unsigned int	fteprotocolextensions;
 	unsigned int	fteprotocolextensions2;
-#endif
+	unsigned int	ezprotocolextensions1;
 	unsigned int	zquake_extensions;
 	unsigned int	max_net_ents; /*highest entity number the client can receive (limited by either protocol or client's buffer size)*/
 	unsigned int	max_net_staticents; /*limit to the number of static ents supported by the client*/
@@ -717,6 +722,11 @@ typedef struct client_s
 	float delay;
 	laggedpacket_t *laggedpacket;
 	laggedpacket_t *laggedpacket_last;
+
+#ifdef VM_Q1
+	int hideentity;
+	qboolean hideplayers;
+#endif
 } client_t;
 
 #if defined(NQPROT) || defined(Q2SERVER) || defined(Q3SERVER)
@@ -1267,7 +1277,7 @@ void SV_SendClientMessages (void);
 void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
-void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx);
+void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx);
 
 void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int flags);
 void QDECL SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags);
@@ -1313,6 +1323,10 @@ void SV_UpdateToReliableMessages (void);
 void SV_FlushBroadcasts (void);
 qboolean SV_CanTrack(client_t *client, int entity);
 
+#ifdef HAVE_LEGACY
+void SV_DownloadQueueNext(client_t *client);
+void SV_DownloadQueueClear(client_t *client);
+#endif
 #ifdef NQPROT
 void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg);
 #endif
@@ -1367,6 +1381,7 @@ void SV_ReplaceEntityFrame(client_t *cl, int framenum);
 //
 
 void ClientReliableCheckBlock(client_t *cl, int maxsize);
+sizebuf_t *ClientReliable_StartWrite(client_t *cl, int maxsize);	//MUST be followed by a call to ClientReliable_FinishWrite before the next start
 void ClientReliable_FinishWrite(client_t *cl);
 void ClientReliableWrite_Begin(client_t *cl, int c, int maxsize);
 client_t *ClientReliableWrite_BeginSplit(client_t *cl, int svc, int svclen);
@@ -1524,8 +1539,9 @@ typedef struct mvddest_s {
 
 	vfsfile_t *file;
 
-	char filename[MAX_QPATH];	//demos/foo.mvd
-	char simplename[MAX_QPATH];	//foo.mvd
+	int id;
+	char filename[MAX_QPATH];	//demos/foo.mvd (or a username)
+	char simplename[MAX_QPATH];	//foo.mvd (or a qtv resource)
 
 	int flushing;	//worker has a cache (used as a sync point)
 	char *cache;
@@ -1560,7 +1576,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest);
 
 extern demo_t			demo;				// server demo struct
 
-extern cvar_t	sv_demoDir;
+extern cvar_t	sv_demoDir, sv_demoDirAlt;
 extern cvar_t	sv_demoAutoRecord;
 extern cvar_t	sv_demofps;
 extern cvar_t	sv_demoPings;

@@ -1947,7 +1947,7 @@ static void CL_SendUserinfoUpdate(void)
 	size_t bloboffset = cls.userinfosync.keys[0].syncpos;
 	unsigned int seat = info - cls.userinfo;
 	size_t blobsize;
-	const char *blobdata = InfoBuf_BlobForKey(info, key, &blobsize);
+	const char *blobdata = InfoBuf_BlobForKey(info, key, &blobsize, NULL);
 	size_t sendsize = blobsize - bloboffset;
 
 	const char *s;
@@ -2307,6 +2307,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	{
 		CL_SendDownloadReq(&buf);
 
+		//only start spamming userinfo blobs once we receive the initial serverinfo.
+		while (cls.userinfosync.numkeys && cls.netchan.message.cursize < 512 && (cl.haveserverinfo || cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3))
+			CL_SendUserinfoUpdate();
+
 		while (clientcmdlist)
 		{
 			next = clientcmdlist->next;
@@ -2314,6 +2318,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			{
 				if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command)+100 > cls.netchan.message.maxsize)
 					break;
+				if (!strncmp(clientcmdlist->command, "spawn", 5) && cls.userinfosync.numkeys)
+					break;	//HACK: don't send the spawn until all pending userinfos have been flushed.
 				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 				MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
 			}
@@ -2329,10 +2335,6 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			Z_Free(clientcmdlist);
 			clientcmdlist = next;
 		}
-
-		//only start spamming userinfo blobs once we receive the initial serverinfo.
-		while (cls.userinfosync.numkeys && cls.netchan.message.cursize < 512 && (cl.haveserverinfo || cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3))
-			CL_SendUserinfoUpdate();
 	}
 
 	// if we're not doing clc_moves and etc, don't continue unless we wrote something previous

@@ -64,7 +64,7 @@ float csqc_starttime;	//reset on each csqc reload to restore lost precision of c
 int	csqc_playerseat;	//can be negative.
 static playerview_t *csqc_playerview;
 qboolean csqc_dp_lastwas3d;	//to emulate DP correctly, we need to track whether drawpic/drawfill or clearscene was called last. blame 515.
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 #define csqc_isdarkplaces false	//hopefully this will allow a smart enough compiler to optimise it out cleanly
 #else
 static qboolean csqc_isdarkplaces;
@@ -100,7 +100,7 @@ extern sfx_t			*cl_sfx_ric3;
 extern sfx_t			*cl_sfx_r_exp3;
 
 #define ENDLIST	//clarifies \ in list macros.
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 #define legacycsqcglobals
 #else
 #define legacycsqcglobals	\
@@ -128,6 +128,8 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(parse_event,			"CSQC_Parse_Event");	\
 	globalfunction(parse_damage,		"CSQC_Parse_Damage");	\
 	globalfunction(parse_setangles,		"CSQC_Parse_SetAngles");	\
+	globalfunction(playerinfochanged,	"CSQC_PlayerInfoChanged");	\
+	globalfunction(serverinfochanged,	"CSQC_ServerInfoChanged");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(rendererrestarted,	"CSQC_RendererRestarted");	\
@@ -372,7 +374,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 		csqcg.f_drawscores = 0;
 	}
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	{
 		etype_t etype = ev_void;
 		if (!csqcg.trace_surfaceflagsi)
@@ -860,7 +862,7 @@ static float CSQC_PitchScaleForModelIndex(int index)
 wedict_t *skel_gettaginfo_args (pubprogfuncs_t *prinst, vec3_t axis[3], vec3_t origin, int tagent, int tagnum);
 #endif
 
-static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
+static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *fte_restrict out)
 {
 	int ival;
 	model_t *model;
@@ -874,6 +876,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 
 	memset(out, 0, sizeof(*out));
 	out->model = model;
+	out->pvscache = in->pvsinfo;
 
 	rflags = in->xv->renderflags;
 	if (csqc_isdarkplaces)
@@ -882,7 +885,10 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	{
 		rflags = in->xv->renderflags;
 		if (rflags & CSQCRF_VIEWMODEL)
+		{
 			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
+			out->pvscache.num_leafs = -1;
+		}
 		if (rflags & CSQCRF_EXTERNALMODEL)
 			out->flags |= RF_EXTERNALMODEL;
 		if (rflags & CSQCRF_DEPTHHACK)
@@ -947,6 +953,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		csqcedict_t *p = (csqcedict_t*)skel_gettaginfo_args(csqcprogs, out->axis, out->origin, in->xv->tag_entity, in->xv->tag_index);
 		if (p && (int)p->xv->renderflags & CSQCRF_VIEWMODEL)
 			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
+		out->pvscache.num_leafs = -1;	//make visible globally
 #endif
 	}
 
@@ -1030,9 +1037,9 @@ static void QCBUILTIN PF_cs_makestatic (pubprogfuncs_t *prinst, struct globalvar
 		cl_static_entities[cl.num_statics].emit = NULL;
 		cl_static_entities[cl.num_statics].mdlidx = in->v->modelindex;
 		if (cl.worldmodel && cl.worldmodel->funcs.FindTouchedLeafs)
-			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[cl.num_statics].pvscache, in->v->absmin, in->v->absmax);
+			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[cl.num_statics].ent.pvscache, in->v->absmin, in->v->absmax);
 		else
-			memset(&cl_static_entities[cl.num_statics].pvscache, 0, sizeof(cl_static_entities[cl.num_statics].pvscache));
+			memset(&cl_static_entities[cl.num_statics].ent.pvscache, 0, sizeof(cl_static_entities[cl.num_statics].ent.pvscache));
 		cl.num_statics++;
 
 		//rtlights kinda need all this junk
@@ -1158,6 +1165,9 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 	case lfield_fov:
 		l->fov = G_FLOAT(OFS_PARM2);
 		break;
+	case lfield_nearclip:
+		l->nearclip = G_FLOAT(OFS_PARM2);
+		break;
 	case lfield_corona:
 		l->corona = G_FLOAT(OFS_PARM2);
 		break;
@@ -1244,6 +1254,9 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		break;
 	case lfield_fov:
 		G_FLOAT(OFS_RETURN) = l->fov;
+		break;
+	case lfield_nearclip:
+		G_FLOAT(OFS_PARM2) = l->nearclip;
 		break;
 	case lfield_corona:
 		G_FLOAT(OFS_RETURN) = l->corona;
@@ -1544,30 +1557,6 @@ static void CSQC_PolyFlush(void)
 	csqc_poly_shader = NULL;
 }
 
-static void Shader_PolygonShader(const char *shortname, shader_t *s, const void *args)
-{
-	Shader_DefaultScript(shortname, s,
-		"{\n"
-			"if $lpp\n"
-				"program lpp_skin\n"
-			"else\n"
-				"program defaultskin#NONORMALS\n"
-			"endif\n"
-			"{\n"
-				"map $diffuse\n"
-				"rgbgen vertex\n"
-				"alphagen vertex\n"
-			"}\n"
-			"{\n"
-				"map $fullbright\n"
-				"blendfunc add\n"
-			"}\n"
-		"}\n"
-		);
-
-	if (!s->defaulttextures->base && (s->flags & SHADER_HASDIFFUSE))
-		R_BuildDefaultTexnums(NULL, s, 0);
-}
 static shader_t *PR_R_PolygonShader(const char *shadername, qboolean twod)
 {
 	extern shader_t *shader_draw_fill_trans;
@@ -2002,6 +1991,13 @@ nogameaccess:
 		*r = r_refdef.afov;
 		break;
 
+	case VF_SKYROOM_CAMERA:
+		if (r_refdef.skyroom_enabled)
+			VectorCopy(r_refdef.skyroom_pos, r);
+		else
+			VectorClear(r);	//not really correct, but no other way to really signal this. -0? yuck.
+		break;
+
 	case VF_ORIGIN:
 		if (csqc_nogameaccess && prinst == csqc_world.progs)
 			goto nogameaccess;
@@ -2127,13 +2123,24 @@ uploadfmt_t PR_TranslateTextureFormat(int qcformat)
 {
 	switch(qcformat)
 	{
-	case 1: return TF_RGBA32;
-	case 2: return TF_RGBA16F;
-	case 3: return TF_RGBA32F;
-	case 4: return TF_DEPTH16;
-	case 5: return TF_DEPTH24;
-	case 6: return TF_DEPTH32;
-	default:return TF_INVALID;
+	case 1: return PTI_RGBA8;
+	case 2: return PTI_RGBA16F;
+	case 3: return PTI_RGBA32F;
+
+	case 4: return PTI_DEPTH16;
+	case 5: return PTI_DEPTH24;
+	case 6: return PTI_DEPTH32;
+
+	case 7: return PTI_R8;
+	case 8: return PTI_R16F;
+	case 9: return PTI_R32F;
+
+	case 10: return PTI_A2BGR10;
+	case 11: return PTI_RGB565;
+	case 12: return PTI_RGBA4444;
+	case 13: return PTI_RG8;
+
+	default:return PTI_INVALID;
 	}
 }
 void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2200,6 +2207,11 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r_refdef.fov_x = r_refdef.fov_y = 0;
 		r_refdef.fovv_x = r_refdef.fovv_y = 0;
 		r_refdef.dirty |= RDFD_FOV;
+		break;
+
+	case VF_SKYROOM_CAMERA:
+		r_refdef.skyroom_enabled = true;
+		VectorCopy(p, r_refdef.skyroom_pos);
 		break;
 
 	case VF_ORIGIN:
@@ -2631,7 +2643,7 @@ static void cs_settracevars(pubprogfuncs_t *prinst, trace_t *tr)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)csqc_world.edicts);
 	*csqcg.trace_networkentity = tr->entnum;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	*csqcg.trace_endcontentsf = tr->contents;
 	*csqcg.trace_surfaceflagsf = tr->surface?tr->surface->flags:0;
 
@@ -3893,7 +3905,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 		else
 			sprintf(ret, "'%g %g %g'", ((col&0xff0000)>>16)/255.0, ((col&0x00ff00)>>8)/255.0, ((col&0x0000ff)>>0)/255.0);
 	}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	else if (csqc_isdarkplaces && !strcmp(keyname, "colors"))	//checks to see if a player has locally been set to ignored (for text chat)
 	{
 		ret = buffer;
@@ -3967,7 +3979,7 @@ static void QCBUILTIN PF_cs_serverkeyblob (pubprogfuncs_t *prinst, struct global
 	}
 	ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
 
-	blob = InfoBuf_BlobForKey(&cl.serverinfo, keyname, &blobsize);
+	blob = InfoBuf_BlobForKey(&cl.serverinfo, keyname, &blobsize, NULL);
 
 	if (qcptr)
 	{
@@ -4060,7 +4072,7 @@ static void QCBUILTIN PF_cs_getplayerkeyblob (pubprogfuncs_t *prinst, struct glo
 	else
 	{
 		size_t blobsize = 0;
-		const char *blob = InfoBuf_BlobForKey(&cl.players[pnum].userinfo, keyname, &blobsize);
+		const char *blob = InfoBuf_BlobForKey(&cl.players[pnum].userinfo, keyname, &blobsize, NULL);
 
 		if (qcptr)
 		{
@@ -4160,6 +4172,13 @@ void QCBUILTIN PF_getsoundtime (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	int			channel	= G_FLOAT(OFS_PARM1);
 
 	G_FLOAT(OFS_RETURN) = S_GetSoundTime(-entity->entnum, channel);
+}
+void QCBUILTIN PF_getchannellevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t	*entity	= G_WEDICT(prinst, OFS_PARM0);
+	int			channel	= G_FLOAT(OFS_PARM1);
+
+	G_FLOAT(OFS_RETURN) = S_GetChannelLevel(-entity->entnum, channel);
 }
 static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4659,7 +4678,7 @@ static void QCBUILTIN PF_cl_te_lightning1 (pubprogfuncs_t *prinst, struct global
 	float *start = G_VECTOR(OFS_PARM1);
 	float *end = G_VECTOR(OFS_PARM2);
 
-	CL_AddBeam(BT_Q1LIGHTNING1, ent->entnum+MAX_EDICTS, start, end);
+	CL_AddBeam(BT_Q1LIGHTNING1, ent->entnum+(ent->entnum?MAX_EDICTS:0), start, end);
 }
 static void QCBUILTIN PF_cl_te_lightning2 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4667,7 +4686,7 @@ static void QCBUILTIN PF_cl_te_lightning2 (pubprogfuncs_t *prinst, struct global
 	float *start = G_VECTOR(OFS_PARM1);
 	float *end = G_VECTOR(OFS_PARM2);
 
-	CL_AddBeam(BT_Q1LIGHTNING2, ent->entnum+MAX_EDICTS, start, end);
+	CL_AddBeam(BT_Q1LIGHTNING2, ent->entnum+(ent->entnum?MAX_EDICTS:0), start, end);
 }
 static void QCBUILTIN PF_cl_te_lightning3 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4675,7 +4694,7 @@ static void QCBUILTIN PF_cl_te_lightning3 (pubprogfuncs_t *prinst, struct global
 	float *start = G_VECTOR(OFS_PARM1);
 	float *end = G_VECTOR(OFS_PARM2);
 
-	CL_AddBeam(BT_Q1LIGHTNING3, ent->entnum+MAX_EDICTS, start, end);
+	CL_AddBeam(BT_Q1LIGHTNING3, ent->entnum+(ent->entnum?MAX_EDICTS:0), start, end);
 }
 static void QCBUILTIN PF_cl_te_beam (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4683,7 +4702,7 @@ static void QCBUILTIN PF_cl_te_beam (pubprogfuncs_t *prinst, struct globalvars_s
 	float *start = G_VECTOR(OFS_PARM1);
 	float *end = G_VECTOR(OFS_PARM2);
 
-	CL_AddBeam(BT_Q1BEAM, ent->entnum+MAX_EDICTS, start, end);
+	CL_AddBeam(BT_Q1BEAM, ent->entnum+(ent->entnum?MAX_EDICTS:0), start, end);
 }
 static void QCBUILTIN PF_cl_te_plasmaburn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6500,6 +6519,10 @@ static struct {
 	{"getplayerkeyvalue",		PF_cs_getplayerkeystring,		348},	// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
 	{"getplayerkeyfloat",		PF_cs_getplayerkeyfloat,		0},		// #348 string(float playernum, string keyname) getplayerkeyvalue
 	{"getplayerkeyblob",		PF_cs_getplayerkeyblob,			0},		// #0   int(float playernum, string keyname, optional void *outptr, int size) getplayerkeyblob
+	{"setlocaluserinfo",		PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfo",		PF_cl_getlocaluserinfostring,	0},
+	{"setlocaluserinfoblob",	PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfoblob",	PF_cl_getlocaluserinfoblob,		0},
 
 	{"isdemo",					PF_cl_playingdemo,				349},	// #349 float() isdemo (EXT_CSQC)
 //350
@@ -6770,6 +6793,7 @@ static struct {
 	{"stopsound",				PF_stopsound,				0},
 	{"soundupdate",				PF_soundupdate,				0},
 	{"getsoundtime",			PF_getsoundtime,			533},
+	{"getchannellevel",			PF_getchannellevel,			0},
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},
 	{"buf_writefile",			PF_buf_writefile,			536},
@@ -7444,6 +7468,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		movevars.edgefriction = 2;//*pm_edgefriction.string?pm_edgefriction.value:2;
 		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
 		movevars.coordsize = 4;
+		movevars.flags = MOVEFLAG_NOGRAVITYONGROUND;
 	}
 
 	for (i = 0; i < sizeof(csqc_builtin)/sizeof(csqc_builtin[0]); i++)
@@ -7563,7 +7588,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 			return false;
 		}
 
-		if (csqc_nogameaccess && !PR_FindFunction (csqcprogs, "CSQC_DrawHud", PR_ANY))
+		if (csqc_nogameaccess && !PR_FindFunction (csqcprogs, "CSQC_DrawHud", PR_ANY) && !PR_FindFunction (csqcprogs, "CSQC_DrawScores", PR_ANY))
 		{	//simple csqc module is not csqc. abort now.
 			CSQC_Shutdown();
 			Con_DPrintf("progs.dat is not suitable for SimpleCSQC - no CSQC_DrawHud\n");
@@ -8137,7 +8162,7 @@ qboolean CSQC_DrawView(void)
 
 	CSQC_RunThreads();	//wake up any qc threads
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (csqcg.autocvar_vid_conwidth)
 		*csqcg.autocvar_vid_conwidth = vid.width;
 	if (csqcg.autocvar_vid_conheight)
@@ -8434,6 +8459,28 @@ static void CSQC_GameCommand_f(void)
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, Cmd_Args()));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.gamecommand);
+}
+
+void CSQC_PlayerInfoChanged(int player)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.playerinfochanged)
+		return;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	G_FLOAT(OFS_PARM0) = player;
+//	(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, keyname));
+	PR_ExecuteProgram (csqcprogs, csqcg.playerinfochanged);
+}
+void CSQC_ServerInfoChanged(void)
+{
+//	void *pr_globals;
+	if (!csqcprogs || !csqcg.serverinfochanged)
+		return;
+
+//	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+//	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, keyname));
+	PR_ExecuteProgram (csqcprogs, csqcg.serverinfochanged);
 }
 
 qboolean CSQC_ParseTempEntity(void)
