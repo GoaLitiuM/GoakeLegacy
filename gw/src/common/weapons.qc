@@ -23,6 +23,9 @@ void PlayerWeaponAttack()
 		case WEAPON_LIGHTNING:
 			ammo_consumed = WeaponLightningFire();
 			break;
+		case WEAPON_CROSSBOW:
+			ammo_consumed = WeaponCrossbowFire();
+			break;
 		case 0:
 		default:
 			break;

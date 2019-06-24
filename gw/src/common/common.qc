@@ -5,17 +5,20 @@
 
 #define SND_WEAPON_ROCKET "weapons/sgun1.wav"
 #define SND_WEAPON_LIGHTNING "weapons/lhit.wav"
+#define SND_WEAPON_CROSSBOW "weapons/firebolt.wav"
 
 #define SPR_EXPLOSION "progs/s_explod.spr"
 
 #define MDL_PLAYER "progs/player.mdl"
 #define MDL_ROCKET "progs/missile.mdl"
 #define MDL_BEAM "progs/bolt2.mdl"
+#define MDL_ARROW "progs/arrow.mdl"
 
 #define ENT_PLAYER_SPAWN "info_player_deathmatch"
 
 #define CLASS_PLAYER "player"
 #define CLASS_LIGHTNING "lightning"
+#define CLASS_ARROW "arrow"
 
 // player collision box and offsets
 const vector VEC_ORIGIN = '0 0 0';

@@ -7,6 +7,7 @@ void precache_sounds()
 
 	precache_sound(SND_WEAPON_ROCKET);
 	precache_sound(SND_WEAPON_LIGHTNING);
+	precache_sound(SND_WEAPON_CROSSBOW);
 };
 
 void precache_models()
@@ -15,6 +16,7 @@ void precache_models()
 	precache_model(MDL_PLAYER);
 	precache_model(MDL_ROCKET);
 	precache_model(MDL_BEAM);
+	precache_model(MDL_ARROW);
 };
 
 void precache()

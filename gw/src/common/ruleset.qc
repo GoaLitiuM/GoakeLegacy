@@ -10,4 +10,10 @@ const float LIGHTNING_DPS = 100;
 const float LIGHTNING_TICKRATE = 1;
 const float LIGHTNING_FORCE = 100;
 
+const float CROSSBOW_RELOAD = 0.4;
+const float CROSSBOW_DAMAGE = 100;
+const float CROSSBOW_SPEED = 3500;
+const float CROSSBOW_FORCE = 600;
+const float CROSSBOW_TIME = 30.0;
+
 const float TELEPORT_MAX_VELOCITY = 400;

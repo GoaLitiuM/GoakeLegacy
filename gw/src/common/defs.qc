@@ -77,6 +77,7 @@ int WEAPON_AMMO_INDEX(int weapon)
 
 int WeaponRocketFire();
 int WeaponLightningFire();
+int WeaponCrossbowFire();
 
 enum
 {
