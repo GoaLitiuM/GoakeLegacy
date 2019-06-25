@@ -42,7 +42,11 @@ void ArrowOnTouch()
 	local float damage = CROSSBOW_DAMAGE;
 	local float force = CROSSBOW_FORCE;
 
-	if (other != world)
+	if (other.classname == CLASS_ARROW)
+	{
+		// allow projectiles to stack
+	}
+	else if (other != world)
 	{
 		local vector dir = normalize(self.velocity);
 		other.velocity += dir * force;
@@ -60,6 +64,8 @@ void ArrowOnTouch()
 	self.touch = 0;
 
 	setsize(self, '-8 -8 -8', '8 8 8');
+
+	//TODO: support surfaces which do not allow arrows to stick into (arrow drops/vanishes instead)
 }
 
 void SpawnArrow(vector pos, vector dir, entity player)
