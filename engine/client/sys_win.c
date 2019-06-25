@@ -1617,10 +1617,10 @@ void Sys_Init (void)
 		WinNT = true;
 	else
 		WinNT = false;
-#endif
 
 	qwinvermaj = vinfo.dwMajorVersion;
 	qwinvermin = vinfo.dwMinorVersion;
+#endif
 }
 
 
@@ -2894,8 +2894,10 @@ void Sys_DoFileAssociations(int elevated)
 	//on xp, we use ONLY current user. no 'registered applications' means no 'registered applications bug', which means no need to use hklm at all.
 	//in vista/7, we have to create stuff in local_machine. in which case we might as well put ALL associations in there. the ui stuff will allow user-specific settings, so this is not an issue other than the fact that it triggers uac.
 	//in 8, we cannot programatically force ownership of our associations, so we might as well just use the ui method even for vista+7 instead of the ruder version.
+#if _MSC_VER >= 1600
 	if (qwinvermaj < 6)
 		elevated = 2;
+#endif
 
 	root = elevated == 2?HKEY_CURRENT_USER:HKEY_LOCAL_MACHINE;
 
