@@ -35,7 +35,7 @@ void destroy() { remove(self); }
 
 void println(... argc)
 {
-	for (int i=0; i<argc; i++)
+	for (float i=0; i<argc; i++)
 		print(va_arg(i, string));
 	print("\n");
 }
