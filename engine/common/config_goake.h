@@ -128,7 +128,9 @@
 //#define PACKAGEMANAGER			//Allows the user to enable/disable/download(with WEBCLIENT) packages and plugins.
 
 // Audio Drivers
-#define AVAIL_OPENAL
+#ifndef _WIN32
+#define AVAIL_OPENAL            //prefer wasapi on windows
+#endif
 #define AVAIL_WASAPI			//windows advanced sound api
 //#define AVAIL_DSOUND
 #define HAVE_MIXER				//support non-openal audio drivers
