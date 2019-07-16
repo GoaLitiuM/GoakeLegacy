@@ -103,26 +103,139 @@ vector vel_delta;
 vector angles_delta;
 vector view_angles_old;
 int lastframe;
-float lastframe_time;
+
+void PlayerPrediction_RunPhysics(int startframe, int endframe, bool tickPlayer)
+{
+	local bool fullpred = cvar("cl_fullpred") != 0;
+
+	// run player physics simulation for all the frames
+	for (int i = startframe; i <= endframe; i++)
+	{
+		if (!getinputstate(i))
+			continue;
+
+		if (input_timelength == 0)
+			break;
+
+		// apply pending clientside changes here for the frame when it happened
+		if (i == deltaframe)
+		{
+			self.origin += origin_delta;
+			self.velocity += vel_delta;
+			self.angles += angles_delta;
+			setorigin(self, self.origin);
+			//view_angles += view_angles_delta;
+		}
+
+		if (tickPlayer)
+		{
+			if (fullpred)
+			{
+				self.fixangle = 0;
+
+				PlayerPreTick();
+
+				if (self.fixangle != 0)
+				{
+					self.fixangle = 0;
+					input_angles = self.angles;
+					view_angles = self.angles;
+				}
+			}
+		}
+
+		PlayerCustomPhysics();
+		setorigin(self, self.origin);
+
+		// detect fixangle changes from teleports during player movement
+		if (self.fixangle != 0)
+		{
+			self.fixangle = 0;
+			input_angles = self.angles;
+			if (tickPlayer)
+			{
+				view_angles = self.angles;
+				deltaframe = i;
+			}
+		}
+
+		if (tickPlayer && fullpred)
+		{
+			local vector prev_origin = self.origin;
+			local vector prev_velocity = self.velocity;
+			local vector prev_angles = self.angles;
+
+			PlayerPostTick();
+
+			// detect entity changes during a client tick
+			local vector origin_diff = self.origin - prev_origin;
+			local vector vel_diff = self.velocity - prev_velocity;
+			local vector angle_diff = self.angles - prev_angles;
+			if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
+			{
+				deltaframe = i;
+				origin_delta = origin_diff;
+				vel_delta = vel_diff;
+				angles_delta = angle_diff;
+			}
+		}
+	}
+}
+
+void PlayerPrediction_Reset()
+{
+	deltaframe = 0;
+	view_angles = view_angles_old;
+	self.fixangle = 0;
+	origin_delta = '0 0 0';
+	vel_delta = '0 0 0';
+	angles_delta = '0 0 0';
+}
+
+void PlayerPrediction_UpdateCamera()
+{
+	camera_origin_old = camera_origin - self.view_ofs;
+
+	// smooth out movement after stepping up
+	const float step_size = serverkeyfloat("pm_stepheight", 18);
+	const float step_smooth_units = 160;
+	local float step_z = camera_origin_old_z;
+	local float step_delta = self.origin_z - camera_origin_old_z;
+
+	if (self.flags & FL_ONGROUND != 0 && step_delta > 0 && step_delta <= step_size * 2)
+	{
+		// smoothing needs to be faster on slopes, otherwise it would look like player slightly sinks into the slope
+		tracebox(self.client_origin, self.mins, self.maxs, self.client_origin + self.client_velocity * frametime, false, self);
+		local float d = -dotproduct(global_gravitydir, trace_plane_normal);
+
+		local float smoothing = step_smooth_units;
+		if (d < 0.97 && d != 0)
+			smoothing = step_smooth_units * 3;
+
+		step_z += frametime * smoothing;
+		step_z = min(step_z, self.origin_z);
+	}
+	else
+		step_z = self.origin_z;
+
+	camera_origin = [self.origin_x, self.origin_y, step_z] + self.view_ofs;
+	camera_velocity = self.velocity;
+
+	setviewprop(VF_CL_VIEWANGLES, view_angles);
+	view_angles_old = view_angles;
+}
+
 void PlayerPrediction()
 {
-	bool fullpred = cvar("cl_fullpred") != 0;
+	local bool prediction = cvar("cl_nopred") == 0;
 
-	local vector oldOrigin = self.origin;
-	local vector oldVelocity = self.velocity;
-	local vector oldAngles = self.angles;
-	local float oldFlags = self.flags;
-	local float oldMoveFlags = self.pmove_flags;
-	local float oldJumpTime = self.jump_time;
-	local float oldJumpCount = self.jump_count;
-
-	// detect changes to entity state here, player state may have been modified by other entity (projectile for example)
+	// detect client-local changes to the player entity's state caused by other entities
 	local vector origin_diff = self.origin - self.client_origin;
 	local vector vel_diff = self.velocity - self.client_velocity;
 	local vector angle_diff = self.angles - self.client_angles;
 	if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
 	{
-		deltaframe = clientcommandframe;
+		deltaframe = lastframe;
 		origin_delta = origin_diff;
 		vel_delta = vel_diff;
 		angles_delta = angle_diff;
@@ -138,15 +251,9 @@ void PlayerPrediction()
 	self.jump_count = self.server_jump_count;
 	setorigin(self, self.origin);
 
-	// ignore server fixangle request if prediction handled it earlier
-	if (servercommandframe == deltaframe)
-	{
-		view_angles = view_angles_old;
-		self.fixangle = 0;
-		origin_delta = '0 0 0';
-		vel_delta = '0 0 0';
-		angles_delta = '0 0 0';
-	}
+	// reset prediction when we receive the correct frame
+	if (deltaframe > 0 && servercommandframe >= deltaframe)
+		PlayerPrediction_Reset();
 
 	if (self.fixangle != 0)
 	{
@@ -155,14 +262,11 @@ void PlayerPrediction()
 		view_angles = self.angles;
 	}
 
-	if (cvar("cl_nopred") == 0)
+	local int currentframe = clientcommandframe;
+	if (prediction)
 	{
-		local int startframe = servercommandframe + 1;
-		local int endframe = clientcommandframe;
-
 		// find the latest complete frame, low framerate client might skip some frames
-		local int currentframe = startframe;
-		for (int i = endframe; i >= startframe; i--)
+		for (int i = clientcommandframe; i >= servercommandframe + 1; i--)
 		{
 			if (!getinputstate(i))
 				continue;
@@ -174,108 +278,16 @@ void PlayerPrediction()
 			break;
 		}
 
-		local vector oldViewAngles = view_angles;
-
-		// run player physics simulation for all the frames
-		for (int i = startframe; i <= endframe; i++)
-		{
-			if (!getinputstate(i))
-				continue;
-
-			if (input_timelength == 0)
-				break;
-
-			// apply pending clientside changes here for the frame when it happened
-			if (i == deltaframe)
-			{
-				self.origin += origin_delta;
-				self.velocity += vel_delta;
-				self.angles += angles_delta;
-				setorigin(self, self.origin);
-				//view_angles += view_angles_delta;
-			}
-
-			if (i == currentframe)
-			{
-				// restore some of the data from previous iterations
-				self.flags = oldFlags;
-				self.pmove_flags = oldMoveFlags;
-				//self.angles = oldAngles;
-				self.jump_time = oldJumpTime;
-				if (lastframe == clientcommandframe)
-					self.jump_time -= input_timelength;
-				self.jump_count = oldJumpCount;
-
-				if (fullpred)
-				{
-					self.fixangle = 0;
-
-					PlayerPreTick();
-
-					if (self.fixangle != 0)
-					{
-						self.fixangle = 0;
-						input_angles = self.angles;
-						view_angles = self.angles;
-					}
-				}
-			}
-
-			PlayerCustomPhysics();
-			setorigin(self, self.origin);
-
-			// detect fixangle changes from teleports during player movement
-			if (self.fixangle != 0)
-			{
-				self.fixangle = 0;
-				input_angles = self.angles;
-				if (i == currentframe)
-				{
-					view_angles = self.angles;
-					deltaframe = currentframe;
-				}
-			}
-
-			if (i == currentframe && fullpred)
-				PlayerPostTick();
-
-			lastframe_time = input_timelength;
-		}
+		// simulation starts after the last verified frame
+		PlayerPrediction_RunPhysics(servercommandframe + 1, currentframe - 1, false);
+		PlayerPrediction_RunPhysics(currentframe, clientcommandframe, true);
 	}
 
-	// smooth out movement in stairs
-	camera_origin_old = camera_origin - self.view_ofs;
-	const float step_size = 18;
-	const float step_smooth_units = 100;
-	const float step_threshold = step_size * 2;
-	float step_delta = self.origin_z - camera_origin_old_z;
-	bool smooth_step = self.flags & FL_ONGROUND != 0 && step_delta > 0 && step_delta <= step_threshold;
-
-	if (smooth_step)
-	{
-		camera_origin_old_z += frametime * step_smooth_units;
-
-		if (camera_origin_old_z > self.origin_z)
-			camera_origin_old_z = self.origin_z;
-
-		if (self.origin_z - camera_origin_old_z > step_size)
-			camera_origin_old_z = self.origin_z - step_size;
-
-		camera_origin_z += camera_origin_old_z - self.origin_z;
-	}
-	else
-		camera_origin_old_z = self.origin_z;
-
-	camera_origin = self.origin + self.view_ofs;
-	camera_origin_z = camera_origin_old_z;
-	camera_origin += self.view_ofs;
-	camera_velocity = self.velocity;
+	PlayerPrediction_UpdateCamera();
 
 	addentity(self);
 
-	setviewprop(VF_CL_VIEWANGLES, view_angles);
-	view_angles_old = view_angles;
-
+	// store these so we can detect clientside changes for later frames
 	self.client_origin = self.origin;
 	self.client_velocity = self.velocity;
 	self.client_angles = self.angles;

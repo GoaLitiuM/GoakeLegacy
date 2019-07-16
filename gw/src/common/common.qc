@@ -136,4 +136,14 @@ void addRadialForce(vector location, float force, float radius, entity ignored)
 			addRadialForceEntity(location, force, radius, ent);
 		ent = ent.chain;
 	}
-};
+}
+
+float lerp(float a, float b, float t)
+{
+	return a * (1 - t) + b * t;
+}
+
+vector lerpvec(vector a, vector b, float t)
+{
+	return a * (1 - t) + b * t;
+}
