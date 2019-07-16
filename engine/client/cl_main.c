@@ -2266,7 +2266,8 @@ void CL_CheckServerInfo(void)
 		// movement vars for prediction
 		cl.bunnyspeedcap = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_bunnyspeedcap"));
 		movevars.slidefix = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_slidefix")) != 0);
-		movevars.airstep = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_airstep")) != 0);
+		movevars.slidyslopes = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_slidyslopes")) != 0);
+		movevars.airstep = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_airstep"));
 		movevars.pground = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_pground")) != 0);
 		movevars.stepdown = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_stepdown")) != 0);
 		movevars.walljump = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_walljump")));
