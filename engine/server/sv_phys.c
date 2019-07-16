@@ -90,7 +90,7 @@ cvar_t	pm_airstep			 = CVARAFD("pm_airstep", "", /*dp*/"sv_jumpstep", CVAR_SERVE
 cvar_t	pm_pground			 = CVARFD("pm_pground", "", CVAR_SERVERINFO, "Use persisten onground state instead of recalculating every frame."CON_WARNING"Do NOT use with nq mods, as most nq mods will interfere with onground state, resulting in glitches.");
 cvar_t	pm_stepdown			 = CVARFD("pm_stepdown", "", CVAR_SERVERINFO, "Causes physics to stick to the ground, instead of constantly losing traction whiloe going down steps.");
 cvar_t	pm_walljump			 = CVARFD("pm_walljump", "", CVAR_SERVERINFO, "Allows the player to bounce off walls while arborne.");
-cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", /*nq*/"edgefriction", CVAR_SERVERINFO, "Default value of 2");
+//cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", /*nq*/"edgefriction", CVAR_SERVERINFO, "Default value of 2");
 
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)
@@ -2719,7 +2719,7 @@ void SV_SetMoveVars(void)
 	movevars.watersinkspeed		= *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction		= *pm_flyfriction.string?pm_flyfriction.value:4;
 	//movevars.edgefriction		= *pm_edgefriction.string?pm_edgefriction.value:2;
-	movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*pm_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
+	movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*sv_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
 	movevars.maxvelocity		= sv_maxvelocity.value;
 	movevars.wallfriction		= sv_wallfriction.value;
 	movevars.edgefriction		= sv_edgefriction.value;

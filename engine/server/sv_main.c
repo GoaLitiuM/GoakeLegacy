@@ -5293,7 +5293,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	pm_slidyslopes;
 	extern	cvar_t	pm_watersinkspeed;
 	extern	cvar_t	pm_flyfriction;
-	extern	cvar_t	pm_edgefriction;
+	//extern	cvar_t	pm_edgefriction;
 
 	SV_InitOperatorCommands	();
 	SV_UserInit ();
@@ -5351,7 +5351,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_pground,				cvargroup_serverphysics);
 	Cvar_Register (&pm_stepdown,			cvargroup_serverphysics);
 	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
-	Cvar_Register (&pm_edgefriction,		cvargroup_serverphysics);
+	//Cvar_Register (&pm_edgefriction,		cvargroup_serverphysics);
 
 	Cvar_Register (&sv_compatiblehulls,		cvargroup_serverphysics);
 	Cvar_Register (&dpcompat_stats,			"Darkplaces compatibility");

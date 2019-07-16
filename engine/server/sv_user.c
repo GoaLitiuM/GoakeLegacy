@@ -111,7 +111,7 @@ extern cvar_t	pm_stepdown;
 extern cvar_t	pm_walljump;
 extern cvar_t	pm_watersinkspeed;
 extern cvar_t	pm_flyfriction;
-extern cvar_t	pm_edgefriction;
+extern cvar_t	sv_edgefriction;
 cvar_t sv_pushplayers = CVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
@@ -7348,9 +7348,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
-	movevars.edgefriction = *pm_edgefriction.string?pm_edgefriction.value:2;
+	movevars.edgefriction = *sv_edgefriction.string?sv_edgefriction.value:2;
 	movevars.coordsize = host_client->netchan.netprim.coordsize;
-	movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*pm_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
+	movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*sv_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
 
 // should already be folded into host_client->maxspeed
 //	if (sv_player->xv->hasted)
@@ -8789,7 +8789,7 @@ static void SV_UserFriction (void)
 	trace = World_Move (&sv.world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)sv_player);
 
 	if (trace.fraction == 1.0)
-		friction = sv_friction.value*(*pm_edgefriction.string?pm_edgefriction.value:2);
+		friction = sv_friction.value*(*sv_edgefriction.string?sv_edgefriction.value:2);
 	else
 		friction = sv_friction.value;
 
