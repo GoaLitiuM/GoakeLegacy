@@ -855,6 +855,7 @@ const char *presetexec[] =
 	"seta r_coronas 0;"
 	"seta r_shadow_realtime_dlight 0;"
 	"seta r_shadow_realtime_world 0;"
+	"seta r_shadow_realtime_dlight_shadows 1;"
 	"seta r_glsl_offsetmapping 0;"
 	"seta vid_hardwaregamma 3;"	//people benchmarking against other engines with fte using glsl gamma and the other not is annoying as fuck.
 //	"seta gl_detail 0;"
@@ -1098,6 +1099,23 @@ void FPS_Preset_f (void)
 		return;
 	}
 
+	if (!stricmp("qw", arg))
+	{	//enable qwisms
+		Cbuf_InsertText(
+			"set sv_nqplayerphysics 0\n"
+			"set sv_gameplayfix_multiplethinks 1\n"
+			, RESTRICT_LOCAL, false);
+		return;
+	}
+	if (!stricmp("nq", arg))
+	{	//disable qwisms, for better mod compat
+		Cbuf_InsertText(
+			"set sv_nqplayerphysics 1\n"
+			"set sv_gameplayfix_multiplethinks 0\n"
+			, RESTRICT_LOCAL, false);
+		return;
+	}
+
 	if (!stricmp("dp", arg))
 	{
 #ifdef HAVE_SERVER
@@ -1105,6 +1123,7 @@ void FPS_Preset_f (void)
 			Cbuf_InsertText("echo Be sure to restart your server\n", RESTRICT_LOCAL, false);
 #endif
 		Cbuf_InsertText(
+			"fps_preset nq\n"
 			//these are for smc+derived mods
 			"sv_listen_dp 1\n"					//awkward, but forces the server to load the effectinfo.txt in advance.
 			"sv_bigcoords 1\n"					//for viewmodel lep precision (would be better to use csqc)
@@ -1134,6 +1153,7 @@ void FPS_Preset_f (void)
 	if (!stricmp("tenebrae", arg))
 	{	//for the luls. combine with the tenebrae mod for maximum effect.
 		Cbuf_InsertText(
+			"fps_preset nq\n"
 			"set r_shadow_realtime_world 1\n"
 			"set r_shadow_realtime_dlight 1\n"
 			"set r_shadow_bumpscale_basetexture 4\n"
@@ -2885,7 +2905,7 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 	static const char *bppvalues[] = {"16", "24", NULL};
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 	extern int qwinvermaj, qwinvermin;
 	//on win8+, hide the 16bpp option - windows would just reject it.
 	int bppbias = ((qwinvermaj == 6 && qwinvermin >= 2) || qwinvermaj>6)?1:0;

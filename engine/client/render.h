@@ -283,6 +283,7 @@ typedef struct
 	float		m_projection_view[16];	//projection matrix for the viewmodel. because people are weird.
 	float		m_view[16];
 	qbyte		*scenevis;			/*this is the vis that's currently being draw*/
+	int			*sceneareas;		/*this is the area info for the camera (should normally be count+one area, but could be two areas near an opaque water plane)*/
 
 	mplane_t	frustum[MAXFRUSTUMPLANES];
 	int			frustum_numworldplanes;	//all but far, which isn't culled because this wouldn't cover the entire screen.
@@ -324,7 +325,7 @@ extern	struct texture_s	*r_notexture_mip;
 
 extern	entity_t	r_worldentity;
 
-void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, unsigned int bemode, qbyte *worldpvs);	//if dl, filters based upon the dlight.
+void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, unsigned int bemode, const qbyte *worldpvs, const int *worldareas);	//if dl, filters based upon the dlight.
 
 //gl_alias.c
 void R_GAliasFlushSkinCache(qboolean final);
@@ -596,8 +597,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
-void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight);
-void Image_ResampleTexture8 (unsigned char *in, int inwidth, int inheight, unsigned char *out,  int outwidth, int outheight);
+void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, int inheight, void *out,  int outwidth, int outheight);
 
 void BoostGamma(qbyte *rgba, int width, int height, uploadfmt_t fmt);
 void SaturateR8G8B8(qbyte *data, int size, float sat);

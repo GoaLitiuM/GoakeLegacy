@@ -3632,7 +3632,6 @@ static void Sys_MakeInstaller(const char *name)
 				for (i = 0; i < sizeof(icosizes)/sizeof(icosizes[0]); i++)
 				{
 					unsigned int x,y;
-					unsigned int pixels;
 					if (icosizes[i].width > imgwidth || icosizes[i].height > imgheight)
 						continue;	//ignore icons if they're bigger than the original icon.
 
@@ -3648,8 +3647,6 @@ static void Sys_MakeInstaller(const char *name)
 						qbyte *out, *outmask;
 						qbyte *in, *inrow;
 						unsigned int outidx;
-
-						pixels = icosizes[i].width * icosizes[i].height;
 
 						bi = data = Z_Malloc(sizeof(*bi) + icosizes[i].width * icosizes[i].height * 5 + icosizes[i].height*4);
 						memset(bi,0, sizeof(BITMAPINFOHEADER));
@@ -3667,8 +3664,7 @@ static void Sys_MakeInstaller(const char *name)
 						outmask = (qbyte*)data + datalen;
 						datalen += ((icosizes[i].width+31)&~31)/8 * icosizes[i].height;
 
-						in = malloc(pixels*4);
-						Image_ResampleTexture((unsigned int*)rgbadata, imgwidth, imgheight, (unsigned int*)in, icosizes[i].width, icosizes[i].height);
+						in = Image_ResampleTexture(format, rgbadata, imgwidth, imgheight, NULL, icosizes[i].width, icosizes[i].height);
 
 						inrow = in;
 						outidx = 0;
@@ -4274,8 +4270,7 @@ void *WIN_CreateCursor(const qbyte *imagedata, int width, int height, uploadfmt_
 		nh = height * scale;
 		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128)	//don't go crazy.
 			return NULL;
-		nd = BZ_Malloc(nw*nh*4);
-		Image_ResampleTexture((unsigned int*)imagedata, width, height, (unsigned int*)nd, nw, nh);
+		nd = Image_ResampleTexture(format, imagedata, width, height, NULL, nw, nh);
 		width = nw;
 		height = nh;
 		imagedata = scaled = nd;

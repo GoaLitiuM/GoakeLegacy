@@ -835,7 +835,7 @@ void CL_GatherButtons (usercmd_t *cmd, int pnum)
 	GATHERBIT(in_button[14-3],	16);
 	GATHERBIT(in_button[15-3],	17);
 	GATHERBIT(in_button[16-3],	18);
-	cmd->buttons = bits;
+	cmd->buttons |= bits;
 }
 
 /*
@@ -1356,6 +1356,7 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 #ifdef CSQC_DAT
 		CSQC_Input_Frame(seat, cmd);
 #endif
+		memset(&cl_pendingcmd[seat], 0, sizeof(cl_pendingcmd[seat]));
 	}
 
 	//inputs are only sent once we receive an entity.

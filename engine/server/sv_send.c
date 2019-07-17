@@ -782,7 +782,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				mask = NULL;
 			else
 			{
-				cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
+				cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin, NULL);
 				if (cluster >= 0)
 					mask = sv.world.worldmodel->phs + cluster*sv.world.worldmodel->pvsbytes;
 				else
@@ -793,7 +793,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
+			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin, NULL);
 			if (cluster >= 0)
 				mask = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, cluster, NULL, PVM_FAST);
 			else
@@ -878,7 +878,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 					{
 						vec3_t pos;
 						VectorAdd(split->edict->v->origin, split->edict->v->view_ofs, pos);
-						cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos);
+						cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos, NULL);
 						if (cluster>= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
 						{
 			//				Con_Printf ("PVS supressed multicast\n");
@@ -1043,7 +1043,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, 
 			mask = NULL;
 		else
 		{
-			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
+			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin, NULL);
 			if (cluster >= 0)
 				mask = sv.world.worldmodel->phs + cluster * sv.world.worldmodel->pvsbytes;
 			else
@@ -1054,7 +1054,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, 
 	case MULTICAST_PVS_R:
 		reliable = true;	// intentional fallthrough
 	case MULTICAST_PVS:
-		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
+		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin, NULL);
 		if (cluster >= 0)
 			mask = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, cluster, NULL, PVM_FAST);
 		else
@@ -1128,7 +1128,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, 
 				{
 					vec3_t pos;
 					VectorAdd(split->edict->v->origin, split->edict->v->view_ofs, pos);
-					cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos);
+					cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos, NULL);
 					if (cluster>= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
 					{
 		//				Con_Printf ("PVS supressed multicast\n");

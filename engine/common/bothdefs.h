@@ -716,6 +716,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define FTE_ALIGN(a)
 #endif
 
+#if __STDC_VERSION__ >= 201112L
+	#include <stdalign.h>
+	#define fte_alignof(type) alignof(qintptr_t)
+#elif _MSC_VER
+	#define fte_alignof(type) __alignof(qintptr_t)
+#else
+	#define fte_alignof(type) sizeof(qintptr_t)
+#endif
+
 //fte_inline must only be used in headers, and requires one and ONLY one fte_inlinebody elsewhere.
 //fte_inlinebody must be used on a prototype OUTSIDE of a header.
 //fte_inlinestatic must not be used inside any headers at all.
@@ -786,6 +795,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	MAX_QPATH		128			// max length of a quake game pathname
 #define	MAX_OSPATH		1024		// max length of a filesystem pathname (260 on windows, but needs to be longer for utf8)
+#define OLD_MAX_QPATH	64			// it was baked into various file formats, which is unfortunate.
 
 #define	ON_EPSILON		0.1			// point on plane side epsilon
 
@@ -971,7 +981,12 @@ STAT_MOVEVARS_MAXAIRSPEED					= 252, // DP
 STAT_MOVEVARS_STEPHEIGHT					= 253, // DP
 STAT_MOVEVARS_AIRACCEL_QW					= 254, // DP
 STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
+#else
+STAT_VIEWHEIGHT		= 16,	//same as zquake
+#ifdef SIDEVIEWS
+STAT_VIEW2			= 20,
 #endif
+#endif //QUAKESTATS
 	MAX_CL_STATS = 256
 };
 

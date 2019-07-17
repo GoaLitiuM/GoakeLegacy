@@ -1696,7 +1696,7 @@ void GLBE_Init(void)
 
 //end tables
 
-#define MAX_ARRAY_VERTS 65535
+#define MAX_ARRAY_VERTS 65536
 static vecV_t		vertexarray[MAX_ARRAY_VERTS];
 #if 1//ndef GLSLONLY
 static avec4_t		coloursarray[MAX_ARRAY_VERTS];
@@ -5220,7 +5220,7 @@ static qboolean GLBE_GenerateBatchTextures(batch_t *batch, shader_t *bs)
 	int oldfbo;
 	float oldil;
 	int oldbem;
-	if (r_refdef.recurse == r_portalrecursion.ival || r_refdef.recurse == R_MAX_RECURSE)
+	if (r_refdef.recurse >= r_portalrecursion.ival || r_refdef.recurse == R_MAX_RECURSE)
 		return false;
 	//these flags require rendering some view as an fbo
 	//(BEM_DEPTHDARK is used when lightmap scale is 0, but still shows any emissive stuff)
@@ -5583,12 +5583,12 @@ batch_t *GLBE_GetTempBatch(void)
 
 /*called from shadowmapping code*/
 #ifdef RTLIGHTS
-void GLBE_BaseEntTextures(qbyte *worldpvs)
+void GLBE_BaseEntTextures(const qbyte *worldpvs, const int *worldareas)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	batch_t **ob = shaderstate.mbatches;
 	shaderstate.mbatches = batches;
-	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, worldpvs);
+	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, worldpvs, worldareas);
 	GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	GLBE_SelectEntity(&r_worldentity);
 	shaderstate.mbatches = ob;
@@ -6211,6 +6211,8 @@ void GLBE_DrawLightPrePass(void)
 	qglClearColor (1,0,0,1);
 }
 
+qboolean R_DrawSkyroom(shader_t *skyshader);
+
 void GLBE_DrawWorld (batch_t **worldbatches)
 {
 #ifdef RTLIGHTS
@@ -6255,7 +6257,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 	}
 
 	//memset(batches, 0, sizeof(batches));
-	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis);
+	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis, r_refdef.sceneareas);
 	R_GenDlightBatches(batches);
 	shaderstate.curentity = &r_worldentity;
 //	if (cl.paused || cls.state < ca_active)
@@ -6268,6 +6270,21 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 	BE_UpdateLightmaps();
 	if (worldbatches)
 	{
+		if (worldbatches[SHADER_SORT_SKY] && r_refdef.skyroom_enabled)
+		{
+			batch_t *b;
+			for (b = worldbatches[SHADER_SORT_SKY]; b; b = b->next)
+				if (R_DrawSkyroom(b->shader))
+				{
+					GL_CullFace(0);//make sure flipcull reversion takes effect
+					currententity = NULL;
+					GLBE_SelectEntity(&r_worldentity);
+					GL_ForceDepthWritable();
+					qglClear(GL_DEPTH_BUFFER_BIT);
+					r_refdef.flags |= RDF_SKIPSKY;
+					break;
+				}
+		}
 		if (gl_overbright.modified)
 		{
 			int i;

@@ -276,6 +276,7 @@ deps = [
   #meson.get_compiler('c').find_library('ole32', required : true),
   #meson.get_compiler('c').find_library('gdi32', required : true),
   meson.get_compiler('c').find_library('wsock32', required : true),
+  meson.get_compiler('c').find_library('ws2_32', required : true),
   meson.get_compiler('c').find_library('winmm', required : true),
 ]
 

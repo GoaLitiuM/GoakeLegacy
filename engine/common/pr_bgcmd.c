@@ -5,6 +5,9 @@
 #if !defined(CLIENTONLY) || defined(CSQC_DAT) || defined(MENU_DAT)
 
 #include "pr_common.h"
+#ifdef SQL
+#include "sv_sql.h"
+#endif
 
 #include <ctype.h>
 
@@ -202,14 +205,14 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 		debuggerresume = -1;
 		fprintf(stdout, "qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
 		fflush(stdout);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 #ifndef SERVERONLY
 		INS_UpdateGrabs(false, false);
 #endif
 #endif
 		while(debuggerresume == -1 && !wantquit)
 		{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 			Sleep(10);
 #else
 			usleep(10*1000);
@@ -403,7 +406,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 #endif
 		debuggerresume = -1;
 		debuggerresumeline = *line;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 		if (debuggerwnd)
 			SetForegroundWindow((HWND)debuggerwnd);
 #endif
@@ -425,7 +428,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		}
 		while(debuggerresume == -1 && !wantquit)
 		{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 			Sleep(10);
 #else
 			usleep(10*1000);
@@ -433,7 +436,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			SV_GetConsoleCommands();
 		}
 #else
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 		INS_UpdateGrabs(false, false);
 #endif
 		if (reason)
@@ -442,7 +445,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			Con_Footerf(NULL, false, "^bDebugging");
 		while(debuggerresume == -1 && !wantquit)
 		{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 			Sleep(10);
 #else
 			usleep(10*1000);
@@ -1122,26 +1125,28 @@ void QCBUILTIN PF_getsurfacepointattribute(pubprogfuncs_t *prinst, struct global
 	}
 }
 
-pvsbuffer_t qcpvs;
 //#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
 //note: this requires a correctly setorigined entity.
 void QCBUILTIN PF_checkpvs(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *world = prinst->parms->user;
+	model_t *worldmodel = world->worldmodel;
 	float *viewpos = G_VECTOR(OFS_PARM0);
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM1);
+	int cluster;
+	int qcpvsarea[2];
+	qbyte *pvs;
 
-	if (!world->worldmodel || world->worldmodel->loadstate != MLS_LOADED)
+	if (!worldmodel || worldmodel->loadstate != MLS_LOADED)
 		G_FLOAT(OFS_RETURN) = false;
-	else if (!world->worldmodel->funcs.FatPVS)
+	else if (!worldmodel->funcs.FatPVS)
 		G_FLOAT(OFS_RETURN) = true;
 	else
 	{
-		//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
-		//and yeah, this is overkill what with the whole fat thing and all.
-		world->worldmodel->funcs.FatPVS(world->worldmodel, viewpos, &qcpvs, false);
-
-		G_FLOAT(OFS_RETURN) = world->worldmodel->funcs.EdictInFatPVS(world->worldmodel, &ent->pvsinfo, qcpvs.buffer);
+		qcpvsarea[0] = 1;
+		cluster = worldmodel->funcs.ClusterForPoint(worldmodel, viewpos, &qcpvsarea[1]);
+		pvs = worldmodel->funcs.ClusterPVS(worldmodel, cluster, NULL, PVM_FAST);
+		G_FLOAT(OFS_RETURN) = worldmodel->funcs.EdictInFatPVS(worldmodel, &ent->pvsinfo, pvs, qcpvsarea);
 	}
 }
 
@@ -6423,6 +6428,9 @@ void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored)
 #endif
 #ifdef TEXTEDITOR
 	Editor_ProgsKilled(progs);
+#endif
+#ifdef SQL
+	SQL_KillServers(progs);
 #endif
 	tokenize_flush();
 }

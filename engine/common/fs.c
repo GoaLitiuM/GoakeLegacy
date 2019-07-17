@@ -1069,7 +1069,7 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 	{
 		int nlen = strlen(fname)+1;
 		int plen = sizeof(*filehandle)+nlen;
-		plen = (plen+__alignof(fsbucket_t)-1) & ~(__alignof(fsbucket_t)-1);
+		plen = (plen+fte_alignof(fsbucket_t)-1) & ~(fte_alignof(fsbucket_t)-1);
 		if (!fs_hash_filebuckets || fs_hash_filebuckets->used+plen > fs_hash_filebuckets->total)
 		{
 			void *o = fs_hash_filebuckets;
@@ -3155,7 +3155,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
 /*quake requires a few settings for compatibility*/
 #define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8"
-#define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
+#define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
 #define NQCFG "//-nohome\ncfg_save_auto 1\n" QCFG "sv_nqplayerphysics 1\ncl_loopbackprotocol auto\ncl_sbar 1\nplug_sbar 0\nsv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\n"
 //nehahra has to be weird with its extra cvars, and buggy fullbrights.
@@ -5800,15 +5800,17 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 		if (allowreloadconfigs)
 		{
-			for (i = 0; i < countof(conffile); i++)
-			{
-				FS_FLocateFile(conffile[i], FSLF_IFFOUND|FSLF_IGNOREPURE, &loc);
-				if (confpath[i] != (loc.search?loc.search->handle:NULL))
+			if (!reloadconfigs)
+				for (i = 0; i < countof(conffile); i++)
 				{
-					reloadconfigs = true;
-					Con_DPrintf("Reloading configs because %s has changed\n", conffile[i]);
+					FS_FLocateFile(conffile[i], FSLF_IFFOUND|FSLF_IGNOREPURE, &loc);
+					if (confpath[i] != (loc.search?loc.search->handle:NULL))
+					{
+						reloadconfigs = true;
+						Con_DPrintf("Reloading configs because %s has changed\n", conffile[i]);
+						break;
+					}
 				}
-			}
 
 			if (reloadconfigs)
 			{
@@ -6281,6 +6283,10 @@ void FS_ArbitraryFile_c(int argn, const char *partial, struct xcommandargcomplet
 	}
 }
 
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+#elif !defined(NOSTDIO)
+#include <sys/stat.h>
+#endif
 static void COM_InitHomedir(ftemanifest_t *man)
 {
 	int i;
