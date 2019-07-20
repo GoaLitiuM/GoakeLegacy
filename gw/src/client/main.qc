@@ -203,17 +203,17 @@ float CSQC_InputEvent(float evtype, float scanx, float chary, float devid)
 		// weapon impulses may get lost in some rare cases (high framerate, other impulses during the same frame...),
 		// so we handle weapon commands here in case the input_impulse misses the request.
 		local string bind = strtolower(getkeybind(scanx));
-		local int i = strstrofs(bind, "weapon ");
-		if (i >= 0)
+		local int weapon_str_index = strstrofs(bind, "weapon ");
+		if (weapon_str_index >= 0)
 		{
-			i += 7; //'weapon '
+			weapon_str_index += 7; //'weapon '
 
 			local string str;
-			local int end = strstrofs(bind, ";", i);
+			local int end = strstrofs(bind, ";", weapon_str_index);
 			if (end >= 0)
-				str = substring(bind, i, end-1-i);
+				str = substring(bind, weapon_str_index, end-1-weapon_str_index);
 			else
-				str = substring(bind, i, 2);
+				str = substring(bind, weapon_str_index, 2);
 
 			local int weap = stoi(strtrim(str));
 			if (weap > 0)
@@ -231,6 +231,7 @@ float CSQC_InputEvent(float evtype, float scanx, float chary, float devid)
 
 void CSQC_Input_Frame()
 {
+	// ensure input_impulse handles weapon switching properly
 	if (weapon_impulse != 0)
 	{
 		input_impulse = weapon_impulse;

@@ -88,6 +88,9 @@ enum
 float sv_autojump;
 
 // player
+.float last_jump_count;
+.float last_jump_time;
+.float last_velocity_z;
 .float reload_time;
 .float weapon;
 .float weapon_next;

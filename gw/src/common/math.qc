@@ -73,3 +73,13 @@ float randomFloat(float first, float last)
 
 	return first + random2() * (last-first);
 }
+
+float lerp(float a, float b, float t)
+{
+	return a * (1 - t) + b * t;
+}
+
+vector lerpvec(vector a, vector b, float t)
+{
+	return a * (1 - t) + b * t;
+}

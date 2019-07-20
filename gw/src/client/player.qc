@@ -14,6 +14,7 @@ void PlayerUpdate(bool isnew)
 		self.solid = SOLID_SLIDEBOX;
 		self.predraw = PlayerPreDraw;
 		self.drawmask = MASK_ENGINE;
+		self.customphysics = noop;
 		setmodel(self, MDL_PLAYER);
 	}
 
@@ -66,9 +67,7 @@ float PlayerPreDraw()
 
 	if (self.entnum == player_localentnum)
 	{
-		self.movetype = MOVETYPE_WALK;
 		PlayerPrediction();
-		self.movetype = MOVETYPE_NONE; // disable physics calculation for player
 
 		if (self.beam_ent != world)
 		{
@@ -144,7 +143,7 @@ void PlayerPrediction_RunPhysics(int startframe, int endframe, bool tickPlayer)
 			}
 		}
 
-		PlayerCustomPhysics();
+		PlayerPhysics();
 		setorigin(self, self.origin);
 
 		// detect fixangle changes from teleports during player movement
