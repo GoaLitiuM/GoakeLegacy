@@ -237,4 +237,10 @@ void CSQC_Input_Frame()
 		input_impulse = weapon_impulse;
 		weapon_impulse = 0;
 	}
+
+	if (self.health <= 0)
+	{
+		if (input_buttons & BUTTON_ATTACK != 0 || input_buttons & BUTTON_JUMP != 0)
+			input_impulse = IMPULSE_RESPAWN;
+	}
 }

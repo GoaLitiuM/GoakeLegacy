@@ -50,6 +50,14 @@ enum
 	WEAPON_LAST, // do not touch this
 };
 
+enum
+{
+	IMPULSE_WEAPON_LAST = WEAPON_LAST,	// not used, all the impulses before this are reserved
+
+	IMPULSE_RESPAWN = 20,
+	IMPULSE_RESPAWN_FORCED,
+};
+
 int WEAPON_AMMO_STAT(int weapon)
 {
 	if (weapon == WEAPON_SHOTGUN)

@@ -26,6 +26,17 @@ void PlayerRemove()
 	setorigin(self, self.origin);
 }
 
+void PlayerSpawn();
+void PlayerRequestRespawn()
+{
+	PlayerSpawn();
+
+#ifdef CSQC
+	// unrelease these actions to force player to release the keys in order to request respawning
+	localcmd("-attack; -jump");
+#endif
+}
+
 void PlayerPreTick()
 {
 	// needed for tracking player jumps and landing velocity
@@ -62,7 +73,14 @@ void PlayerPostTick()
 	local bool onground = (self.flags & FL_ONGROUND) != 0;
 
 	if (self.health <= 0)
+	{
+		if (input_impulse == IMPULSE_RESPAWN || input_impulse == IMPULSE_RESPAWN_FORCED)
+			PlayerRequestRespawn();
+
 		return;
+	}
+	else if (input_impulse == IMPULSE_RESPAWN_FORCED)
+		PlayerRequestRespawn();
 
 	// handle the intent of switching weapons, may not happen until reload is finished
 	if (input_impulse > 0 && input_impulse < WEAPON_LAST && self.weapon_next != input_impulse)
@@ -101,4 +119,33 @@ void PlayerPostTick()
 void PlayerOnJump()
 {
 	clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
+}
+
+void PlayerOnDeath(entity source, entity sourcePlayer)
+{
+	self.solid = SOLID_NOT;
+	self.movetype = MOVETYPE_TOSS;
+
+#ifdef CSQC
+	// unrelease these actions to force player to release the keys in order to request respawning
+	localcmd("-attack; -jump");
+#endif
+}
+
+void PlayerTakeDamage(float damage, entity source)
+{
+	if ((int)damage <= 0)
+		return;
+
+	if (self.health <= 0)
+		return;
+
+	entity sourcePlayer = source.owner;
+	if (sourcePlayer.classname != "player")
+		sourcePlayer = world;
+
+	self.health -= (int)damage;
+
+	if (self.health <= 0)
+		PlayerOnDeath(source, sourcePlayer);
 }

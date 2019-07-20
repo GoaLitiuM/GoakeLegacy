@@ -3,6 +3,11 @@ void PlayerPreTick();
 void PlayerPostTick();
 void PlayerPrediction();
 
+void PlayerSpawn()
+{
+	PlayerInit();
+}
+
 void PlayerUpdate(bool isnew)
 {
 	if (isnew)
@@ -228,6 +233,8 @@ void PlayerPrediction()
 {
 	local bool prediction = cvar("cl_nopred") == 0;
 
+	local float client_health = self.health;
+
 	// detect client-local changes to the player entity's state caused by other entities
 	local vector origin_diff = self.origin - self.client_origin;
 	local vector vel_diff = self.velocity - self.client_velocity;
@@ -242,13 +249,14 @@ void PlayerPrediction()
 
 	// rewind to the last known confirmed state
 	self.origin = self.server_origin;
+	setorigin(self, self.origin);
 	self.velocity = self.server_velocity;
 	self.angles = self.server_angles;
 	self.flags = self.server_flags;
 	self.pmove_flags = self.server_pmove_flags;
 	self.jump_time = self.server_jump_time;
 	self.jump_count = self.server_jump_count;
-	setorigin(self, self.origin);
+	self.health = getplayerstat(player_localnum, STAT_HEALTH, EV_FLOAT);
 
 	// reset prediction when we receive the correct frame
 	if (deltaframe > 0 && servercommandframe >= deltaframe)
@@ -279,6 +287,8 @@ void PlayerPrediction()
 
 		// simulation starts after the last verified frame
 		PlayerPrediction_RunPhysics(servercommandframe + 1, currentframe - 1, false);
+
+		self.health = client_health;
 		PlayerPrediction_RunPhysics(currentframe, clientcommandframe, true);
 	}
 
