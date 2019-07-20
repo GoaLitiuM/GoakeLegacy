@@ -234,7 +234,7 @@ void PlayerPrediction()
 	local vector angle_diff = self.angles - self.client_angles;
 	if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
 	{
-		deltaframe = lastframe;
+		deltaframe = lastframe+1;
 		origin_delta = origin_diff;
 		vel_delta = vel_diff;
 		angles_delta = angle_diff;
