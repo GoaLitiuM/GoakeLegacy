@@ -308,8 +308,10 @@ static plugin_t *Plug_Load(const char *file, int type)
 		for (u = 0; staticplugins[u].name; u++)
 		{
 			if (!Q_strcasecmp(file, staticplugins[u].name))
+			{
 				newplug->vm = VM_CreateBuiltin(file, Plug_SystemCallsNative, staticplugins[u].initfunction);
-			break;
+				break;
+			}
 		}
 	}
 
