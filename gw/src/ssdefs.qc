@@ -569,10 +569,6 @@ const float ATTN_NORM = 1;	/* Standard attenuation */
 const float ATTN_IDLE = 2;	/* Extra attenuation so that sounds don't travel too far. */
 const float ATTN_STATIC = 3;	/* Even more attenuation to avoid torches drowing out everything else throughout the map. */
 const float SVC_CGAMEPACKET = 83;	/* Direct ssqc->csqc message. Must only be multicast. The data triggers a CSQC_Parse_Event call in the csqc for the csqc to read the contents. The server *may* insert length information for clients connected via proxies which are not able to cope with custom csqc payloads. This should only ever be used in conjunction with the MSG_MULTICAST destination. */
-const float MSG_BROADCAST = 0;	/* The byte(s) will be unreliably sent to all players. MSG_ constants are valid arguments to the Write* builtin family. */
-const float MSG_ONE = 1;	/* The byte(s) will be reliably sent to the player specified in the msg_entity global. WARNING: in quakeworld servers without network preparsing enabled, this can result in illegible server messages (due to individual reliable messages being split between multiple backbuffers/packets). NQ has larger reliable buffers which avoids this issue, but still kicks the client. */
-const float MSG_ALL = 2;	/* The byte(s) will be reliably sent to all players. */
-const float MSG_INIT = 3;	/* The byte(s) will be written into the signon buffer. Clients will see these messages when they connect later. This buffer is only flushed on map changes, so spamming it _WILL_ result in overflows. */
 const float MSG_MULTICAST = 4;	/* The byte(s) will be written into the multicast buffer for more selective sending. Messages sent this way will never be split across packets, and using this for csqc-only messages will not break protocol translation. */
 const float MSG_ENTITY = 5;	/* The byte(s) will be written into the entity buffer. This is a special value used only inside 'SendEntity' functions. */
 const float MULTICAST_ALL = 0;	/* The multicast message is unreliably sent to all players. MULTICAST_ constants are valid arguments for the multicast builtin, which ignores the specified origin when given this constant. */
@@ -1010,6 +1006,9 @@ void(string s) strunzone = #119; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRING
 void(string cvar, float val) cvar_setf = #176;
 void(string soundname, optional float channel, optional float volume) localsound = #177; /*
 		Plays a sound... locally... probably best not to call this from ssqc. Also disables reverb. */
+
+float(string soundname, float queryonly) getsoundindex = #0:getsoundindex; /*
+		Provides a way to query if a sound is already precached or not. The return value can also be checked for <=255 to see if it'll work over any network protocol. The sound index can also be used for writebyte hacks, but this is discouraged - use SOUNDFLAG_UNICAST instead. */
 
 float(string modelname, optional float queryonly) getmodelindex = #200; /*
 		Acts as an alternative to precache_model(foo);setmodel(bar, foo); return bar.modelindex;

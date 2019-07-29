@@ -2,6 +2,35 @@ project('goake', 'c', 'cpp')
 
 win = import('windows')
 
+c_args = [
+  #'-Wstrict-prototypes',
+  #'-Wold-style-definition',
+  #'-Wold-style-declaration',
+  #'-Wvla',
+  #'-Wdeclaration-after-statement',
+
+  #debug
+  #'-fstack-protector-strong',
+  #'-std=gnu89',
+]
+
+c_args += [
+  '-DCONFIG_FILE_NAME=config_goake.h',
+]
+
+if get_option('buildtype') == 'debug'
+  c_args += '-DDEBUG'
+endif
+
+client_c_args = [
+  '-DGLQUAKE',
+  '-DVKQUAKE',
+  '-DD3D9QUAKE',
+  '-DD3D11QUAKE',
+]
+
+server_c_args = '-DSERVERONLY'
+
 includes = [
   include_directories('engine/common'),
   include_directories('engine/client'),
@@ -11,9 +40,10 @@ includes = [
   include_directories('engine'),
 ]
 
+# icon file for Windows
 resource_files = [
-  win.compile_resources('engine/client/winquake.rc')
-]
+  win.compile_resources('engine/client/winquake.rc', include_directories: includes, args: c_args)
+] 
 
 arch_src_files = [
   resource_files,
@@ -279,36 +309,6 @@ deps = [
   meson.get_compiler('c').find_library('ws2_32', required : true),
   meson.get_compiler('c').find_library('winmm', required : true),
 ]
-
-c_args = [
-  #'-Wstrict-prototypes',
-  #'-Wold-style-definition',
-  #'-Wold-style-declaration',
-  #'-Wvla',
-  #'-Wdeclaration-after-statement',
-
-  #debug
-  #'-fstack-protector-strong',
-  #'-std=gnu89',
-]
-
-c_args += [
-  '-DCONFIG_FILE_NAME=config_goake.h',
-]
-
-if get_option('buildtype') == 'debug'
-  c_args += '-DDEBUG'
-endif
-
-client_c_args = [
-  '-DGLQUAKE',
-  '-DVKQUAKE',
-  '-DD3D9QUAKE',
-  '-DD3D11QUAKE',
-]
-
-server_c_args = '-DSERVERONLY'
-
 
 bullet = declare_dependency(
   include_directories: include_directories('thirdparty/bullet2/src'),

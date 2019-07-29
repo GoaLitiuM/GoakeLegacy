@@ -6,7 +6,7 @@
 #define DISTRIBUTIONLONG		"GoaLitiuM"						//think of this as your company name. It isn't shown too often, so can be quite long.
 #define FULLENGINENAME			"Goake"					//nominally user-visible name.
 #define ENGINEWEBSITE			""								//for shameless self-promotion purposes.
-//#define BRANDING_ICON			"fte_eukara.ico"				//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
+#define BRANDING_ICON			"goake.ico"				//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
 #define GAME_CFGFILE			"config"						//name of the configuration filename used for loading and saving
 #define GAME_VER_MAJOR			0
 #define GAME_VER_MINOR			3
@@ -148,7 +148,7 @@
 #define HAVE_SPEECHTOTEXT		//windows speech-to-text thing
 
 // Features required by vanilla quake/quakeworld...
-//#define QUAKETC
+#define QUAKETC
 //#define QUAKESTATS				//defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself.
 //#define QUAKEHUD				//support for drawing the vanilla hud.
 //#define QWSKINS					//disabling this means no qw .pcx skins nor enemy/team skin/colour forcing

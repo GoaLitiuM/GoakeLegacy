@@ -2779,7 +2779,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		// drop all non-Goake clients
 		SV_RejectMessage(info->protocol, "This is a Goake server.\n");
 		Con_DPrintf ("* Rejected non-goake client.\n");
-		return NULL;
+		return;
 	}
 	else
 	{
@@ -2789,7 +2789,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			// drop clients with wrong version
 			SV_RejectMessage(info->protocol, "This is a %s server.\n", my_ver);
 			Con_DPrintf ("* Rejected wrong goake client.\n");
-			return NULL;
+			return;
 		}
 	}
 #endif

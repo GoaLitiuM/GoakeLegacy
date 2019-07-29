@@ -6426,13 +6426,6 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	if (COM_FCheckExists ("frontend.cfg"))
 		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
 #endif
-#ifdef GOAKE
-	Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-	if (COM_FDepthFile ("config.cfg", true) <= def)
-		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
-	if (COM_FCheckExists ("autoexec.cfg"))
-		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
-#endif
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 	COM_ParsePlusSets(true);
 
