@@ -67,9 +67,6 @@ void PlayerUpdate(bool isnew)
 
 float PlayerPreDraw()
 {
-	UpdatePlayerStats();
-	UpdateGlobalStats(); // this is probably not the best place to update global stats
-
 	if (self.entnum == player_localentnum)
 	{
 		PlayerPrediction();
@@ -101,17 +98,18 @@ float PlayerPreDraw()
 	}
 }
 
+// deltaframe is the client frame when a predictable event occured
+// of which effects should be applied to predicted frames
+// until the corrected frame is received from the server.
 int deltaframe;
+int lastframe;
 vector origin_delta;
 vector vel_delta;
 vector angles_delta;
-vector view_angles_old;
-int lastframe;
+vector view_angles_delta;
 
-void PlayerPrediction_RunPhysics(int startframe, int endframe, bool tickPlayer)
+void PlayerPrediction_RunPhysics(int startframe, int endframe)
 {
-	local bool fullpred = cvar("cl_fullpred") != 0;
-
 	// run player physics simulation for all the frames
 	for (int i = startframe; i <= endframe; i++)
 	{
@@ -124,28 +122,10 @@ void PlayerPrediction_RunPhysics(int startframe, int endframe, bool tickPlayer)
 		// apply pending clientside changes here for the frame when it happened
 		if (i == deltaframe)
 		{
-			self.origin += origin_delta;
-			self.velocity += vel_delta;
+			self.origin = origin_delta;
+			self.velocity = vel_delta;
 			self.angles += angles_delta;
 			setorigin(self, self.origin);
-			//view_angles += view_angles_delta;
-		}
-
-		if (tickPlayer)
-		{
-			if (fullpred)
-			{
-				self.fixangle = 0;
-
-				PlayerPreTick();
-
-				if (self.fixangle != 0)
-				{
-					self.fixangle = 0;
-					input_angles = self.angles;
-					view_angles = self.angles;
-				}
-			}
 		}
 
 		PlayerPhysics();
@@ -156,32 +136,76 @@ void PlayerPrediction_RunPhysics(int startframe, int endframe, bool tickPlayer)
 		{
 			self.fixangle = 0;
 			input_angles = self.angles;
-			if (tickPlayer)
-			{
-				view_angles = self.angles;
-				deltaframe = i;
-			}
 		}
+	}
+}
 
-		if (tickPlayer && fullpred)
+void PlayerPrediction_RunPhysicsAndTick(int frame)
+{
+	local bool fullpred = cvar("cl_fullpred") != 0;
+
+	if (!getinputstate(frame) || input_timelength == 0)
+		return;
+
+	if (frame == deltaframe)
+	{
+		self.origin = origin_delta;
+		self.velocity = vel_delta;
+		self.angles += angles_delta;
+		setorigin(self, self.origin);
+	}
+
+	if (fullpred)
+	{
+		self.fixangle = 0;
+
+		PlayerPreTick();
+
+		if (self.fixangle != 0)
 		{
-			local vector prev_origin = self.origin;
-			local vector prev_velocity = self.velocity;
-			local vector prev_angles = self.angles;
+			self.fixangle = 0;
+			input_angles = self.angles;
+			view_angles = self.angles;
+		}
+	}
 
-			PlayerPostTick();
+	PlayerPhysics();
+	setorigin(self, self.origin);
 
-			// detect entity changes during a client tick
-			local vector origin_diff = self.origin - prev_origin;
-			local vector vel_diff = self.velocity - prev_velocity;
-			local vector angle_diff = self.angles - prev_angles;
-			if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
-			{
-				deltaframe = i;
-				origin_delta = origin_diff;
-				vel_delta = vel_diff;
-				angles_delta = angle_diff;
-			}
+	// detect fixangle changes from teleports during player movement
+	if (self.fixangle != 0)
+	{
+		self.fixangle = 0;
+		input_angles = self.angles;
+
+		// apply fixangle to view and mark the delta down
+		view_angles = self.angles;
+
+		deltaframe = frame+1;
+		origin_delta = self.origin;
+		vel_delta = self.velocity;
+		view_angles_delta = self.angles;
+	}
+
+	if (fullpred)
+	{
+		local vector prev_origin = self.origin;
+		local vector prev_velocity = self.velocity;
+		local vector prev_angles = self.angles;
+
+		PlayerPostTick();
+
+		// detect entity state changes during a client tick
+		local vector origin_diff = self.origin - prev_origin;
+		local vector vel_diff = self.velocity - prev_velocity;
+		local vector angle_diff = self.angles - prev_angles;
+		if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
+		{
+			deltaframe = frame;
+			origin_delta = self.origin;
+			vel_delta = self.velocity;
+			angles_delta = angle_diff;
+			view_angles_delta = view_angles;
 		}
 	}
 }
@@ -189,11 +213,11 @@ void PlayerPrediction_RunPhysics(int startframe, int endframe, bool tickPlayer)
 void PlayerPrediction_Reset()
 {
 	deltaframe = 0;
-	view_angles = view_angles_old;
 	self.fixangle = 0;
 	origin_delta = '0 0 0';
 	vel_delta = '0 0 0';
 	angles_delta = '0 0 0';
+	view_angles_delta = view_angles;
 }
 
 void PlayerPrediction_UpdateCamera()
@@ -226,28 +250,10 @@ void PlayerPrediction_UpdateCamera()
 	camera_velocity = self.velocity;
 
 	setviewprop(VF_CL_VIEWANGLES, view_angles);
-	view_angles_old = view_angles;
 }
 
-void PlayerPrediction()
+void PlayerPrediction_ApplyServerState()
 {
-	local bool prediction = cvar("cl_nopred") == 0;
-
-	local float client_health = self.health;
-
-	// detect client-local changes to the player entity's state caused by other entities
-	local vector origin_diff = self.origin - self.client_origin;
-	local vector vel_diff = self.velocity - self.client_velocity;
-	local vector angle_diff = self.angles - self.client_angles;
-	if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
-	{
-		deltaframe = lastframe+1;
-		origin_delta = origin_diff;
-		vel_delta = vel_diff;
-		angles_delta = angle_diff;
-	}
-
-	// rewind to the last known confirmed state
 	self.origin = self.server_origin;
 	setorigin(self, self.origin);
 	self.velocity = self.server_velocity;
@@ -256,29 +262,59 @@ void PlayerPrediction()
 	self.pmove_flags = self.server_pmove_flags;
 	self.jump_time = self.server_jump_time;
 	self.jump_count = self.server_jump_count;
-	self.health = getplayerstat(player_localnum, STAT_HEALTH, EV_FLOAT);
+}
 
-	// reset prediction when we receive the correct frame
-	if (deltaframe > 0 && servercommandframe >= deltaframe)
-		PlayerPrediction_Reset();
+void PlayerPrediction()
+{
+	local bool prediction = cvar("cl_nopred") == 0;
+	local bool predict_stats = prediction;
+
+	// detect client-local changes to the player entity's state caused by other entities
+	local vector origin_diff = self.origin - self.client_origin;
+	local vector vel_diff = self.velocity - self.client_velocity;
+	local vector angle_diff = self.angles - self.client_angles;
+	if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
+	{
+		deltaframe = lastframe;
+		origin_delta = self.origin;
+		vel_delta = self.velocity;
+		angles_delta = angle_diff;
+		view_angles_delta = view_angles;
+	}
 
 	if (self.fixangle != 0)
 	{
 		self.fixangle = 0;
-		input_angles = self.angles;
-		view_angles = self.angles;
+		input_angles = self.server_angles;
+
+		// view angles shouldn't be adjusted from delta values when player respawns
+		if (deltaframe > 0)
+			view_angles = self.server_angles + (view_angles - view_angles_delta);
+		else
+			view_angles = self.server_angles;
 	}
 
-	local int currentframe = clientcommandframe;
+	// rewind to the last known confirmed state
+	PlayerPrediction_ApplyServerState();
+
+	// reset prediction when we receive the correct frame
+	if (deltaframe > 0 && servercommandframe >= deltaframe)
+	{
+		PlayerPrediction_Reset();
+		predict_stats = false;
+	}
+
+	UpdatePlayerStats(!predict_stats);
+	UpdateGlobalStats(!predict_stats);
+
 	if (prediction)
 	{
+		local int currentframe = clientcommandframe;
+
 		// find the latest complete frame, low framerate client might skip some frames
 		for (int i = clientcommandframe; i >= servercommandframe + 1; i--)
 		{
-			if (!getinputstate(i))
-				continue;
-
-			if (input_timelength == 0)
+			if (!getinputstate(i) || input_timelength == 0)
 				continue;
 
 			currentframe = i;
@@ -286,10 +322,9 @@ void PlayerPrediction()
 		}
 
 		// simulation starts after the last verified frame
-		PlayerPrediction_RunPhysics(servercommandframe + 1, currentframe - 1, false);
+		PlayerPrediction_RunPhysics(servercommandframe + 1, currentframe - 1);
 
-		self.health = client_health;
-		PlayerPrediction_RunPhysics(currentframe, clientcommandframe, true);
+		PlayerPrediction_RunPhysicsAndTick(currentframe);
 	}
 
 	PlayerPrediction_UpdateCamera();

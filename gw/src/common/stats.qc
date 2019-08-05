@@ -25,9 +25,14 @@ struct Stat
 
 #ifdef CSQC
 	.__variant fld;
-	int value_int;
-	float value_flt;
-	string value_str;
+
+	// these should match the stat values of local client, and are used in detecting changes
+	union
+	{
+		int value_int;
+		float value_flt;
+		string value_str;
+	};
 #endif
 
 	__variant* ptr;
@@ -209,9 +214,10 @@ void RegisterFieldStat(int statnum, int stattype, .__variant fld)
 
 void RegisterGlobalStat(int statnum, int stattype, __variant* ptr, string cvarname = "")
 {
-	local bool csqc = false;
 #ifdef CSQC
-	csqc = true;
+	const bool csqc = true;
+#else
+	const bool csqc = false;
 #endif
 
 	if (csqc || cvarname != "")
