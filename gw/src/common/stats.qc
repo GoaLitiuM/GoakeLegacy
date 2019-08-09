@@ -195,6 +195,10 @@ void UpdateGlobalStats(bool forced = false)
 			error("unsupported stattype");
 #endif
 	}
+
+	maxfps = stof(infokey(world, "maxfps"));
+	if (maxfps == 0)
+		maxfps = 72;
 }
 
 void RegisterFieldStat(int statnum, int stattype, .__variant fld)

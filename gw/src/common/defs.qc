@@ -1,7 +1,6 @@
 #ifdef CSQC
-float svtime;
-#endif
-#ifdef SSQC
+float svtime; // version of 'time' which is more suitable for prediction (time + ping)
+#else
 #define svtime time
 #endif
 
@@ -94,6 +93,7 @@ enum
 
 // globals for global stats
 float sv_autojump;
+float maxfps;
 
 // player
 .float last_jump_count;
