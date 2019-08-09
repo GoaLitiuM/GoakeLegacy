@@ -10,29 +10,35 @@ void PlayerSpawn()
 
 void PlayerUpdate(bool isnew)
 {
+	local float send_flags = readFloat();
+	if (send_flags & SENDFLAGS_ORIGIN)
+		self.server_origin = readVector();
+	if (send_flags & SENDFLAGS_ANGLES)
+		self.server_angles = readVector();
+	if (send_flags & SENDFLAGS_VELOCITY)
+		self.server_velocity = readVector();
+	if (send_flags & SENDFLAGS_FLAGS)
+	{
+		self.server_flags = readFloat();
+		self.server_pmove_flags = readFloat();
+	}
+	if (send_flags & SENDFLAGS_JUMP)
+	{
+		self.server_jump_time = readFloat();
+		self.server_jump_count = readFloat();
+	}
+
 	if (isnew)
 	{
 		if (self.entnum == player_localentnum)
+		{
 			local_player = self;
 
-		self.classname = CLASS_PLAYER;
-		self.solid = SOLID_SLIDEBOX;
-		self.predraw = PlayerPreDraw;
-		self.drawmask = MASK_ENGINE;
-		self.customphysics = noop;
-		setmodel(self, MDL_PLAYER);
-	}
+			// server tried to fixangle player before it was spawned...
+			self.fixangle = fixanglefix;
+			fixanglefix = 0;
+		}
 
-	self.server_origin = readVector();
-	self.server_angles = readVector();
-	self.server_velocity = readVector();
-	self.server_flags = readFloat();
-	self.server_pmove_flags = readFloat();
-	self.server_jump_time = readFloat();
-	self.server_jump_count = readFloat();
-
-	if (isnew)
-	{
 		// reset values for prediction
 		self.origin = self.server_origin;
 		self.velocity = self.server_velocity;
@@ -51,15 +57,12 @@ void PlayerUpdate(bool isnew)
 		self.client_jump_time = self.jump_time;
 		self.client_jump_count = self.jump_count;
 
-		if (self.entnum == player_localentnum)
-		{
-			// server tried to fixangle player before it was spawned...
-			self.fixangle = fixanglefix;
-			fixanglefix = 0;
-		}
-
 		UpdatePlayerStats(true);
 		PlayerInit();
+
+		self.predraw = PlayerPreDraw;
+		self.drawmask = MASK_ENGINE;
+		self.customphysics = noop;
 	}
 
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);

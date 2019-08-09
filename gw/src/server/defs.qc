@@ -1,5 +1,7 @@
 #define writeFloat WriteFloat
 #define writeByte WriteByte
+#define writeEntity WriteEntity
+
 void writeVector(float to, vector vec)
 {
 	WriteCoord(to, vec_x);

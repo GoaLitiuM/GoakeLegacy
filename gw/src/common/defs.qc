@@ -105,3 +105,22 @@ float sv_autojump;
 .int weapons;
 .int ammo[WEAPON_LAST-1];
 .float weapon_sound_loop_time;
+
+// for debugging
+#ifdef CSQC
+#define CLSV "cl "
+#else
+#define CLSV "sv "
+#endif
+
+// SendFlag bits
+#define SENDFLAGS_ORIGIN		0x000001
+#define SENDFLAGS_ANGLES		0x000002
+#define SENDFLAGS_VELOCITY		0x000004
+#define SENDFLAGS_AVELOCITY		0x000008
+
+#define SENDFLAGS_FLAGS			0x000010
+#define SENDFLAGS_JUMP			0x000020
+
+#define SENDFLAGS_ALL			0xFFFFFF
+#define SENDFLAGS_PHYSICS		(SENDFLAGS_ORIGIN || SENDFLAGS_ANGLES || SENDFLAGS_VELOCITY)

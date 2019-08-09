@@ -20,13 +20,23 @@ entity FindRandomSpawn()
 float PlayerSendEntity(entity ent, float send_flags)
 {
 	writeByte(MSG_ENTITY, 1);
-	writeVector(MSG_ENTITY, self.origin);
-	writeVector(MSG_ENTITY, self.angles);
-	writeVector(MSG_ENTITY, self.velocity);
-	writeFloat(MSG_ENTITY, self.flags);
-	writeFloat(MSG_ENTITY, self.pmove_flags);
-	writeFloat(MSG_ENTITY, self.jump_time);
-	writeFloat(MSG_ENTITY, self.jump_count);
+	writeFloat(MSG_ENTITY, send_flags);
+	if (send_flags & SENDFLAGS_ORIGIN)
+		writeVector(MSG_ENTITY, self.origin);
+	if (send_flags & SENDFLAGS_ANGLES)
+		writeVector(MSG_ENTITY, self.angles);
+	if (send_flags & SENDFLAGS_VELOCITY)
+		writeVector(MSG_ENTITY, self.velocity);
+	if (send_flags & SENDFLAGS_FLAGS)
+	{
+		writeFloat(MSG_ENTITY, self.flags);
+		writeFloat(MSG_ENTITY, self.pmove_flags);
+	}
+	if (send_flags & SENDFLAGS_JUMP)
+	{
+		writeFloat(MSG_ENTITY, self.jump_time);
+		writeFloat(MSG_ENTITY, self.jump_count);
+	}
 	return 1;
 }
 
@@ -57,11 +67,10 @@ void PlayerPreThink()
     input_buttons |= self.button2 * BUTTON_JUMP;
 
 	PlayerPreTick();
-};
+}
 
 void PlayerPostThink()
 {
-	self.SendFlags = FULLSEND; // TODO: use bitmask for different types of update packets
 
 	PlayerPostTick();
-};
+}

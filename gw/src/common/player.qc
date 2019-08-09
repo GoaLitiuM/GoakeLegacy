@@ -13,6 +13,8 @@ void PlayerInit()
 	self.weapon_next = self.weapon;
 
 	setorigin(self, self.origin);
+
+	self.SendFlags |= SENDFLAGS_ALL;
 }
 
 void PlayerRemove()
@@ -24,6 +26,8 @@ void PlayerRemove()
 	#endif
 
 	setorigin(self, self.origin);
+
+	self.SendFlags |= SENDFLAGS_ALL;
 }
 
 void PlayerSpawn();
@@ -58,7 +62,27 @@ void PlayerPhysics()
 		input_impulse = 0;
 	}
 
+#ifdef SSQC
+	local vector old_origin = self.origin;
+	local vector old_velocity = self.velocity;
+	local float old_flags = self.flags;
+	local float old_pmove_flags = self.pmove_flags;
+	local float old_jump_time = self.jump_time;
+	local float old_jump_count = self.jump_count;
+#endif
 	runstandardplayerphysics(self);
+
+#ifdef SSQC
+	// TODO: do these in PreThink
+	if (self.origin != old_origin)
+		self.SendFlags |= SENDFLAGS_ORIGIN;
+	if (self.velocity != old_velocity)
+		self.SendFlags |= SENDFLAGS_VELOCITY;
+	if (self.flags != old_flags || self.pmove_flags != old_pmove_flags)
+		self.SendFlags |= SENDFLAGS_FLAGS;
+	if (self.jump_time != old_jump_time || self.jump_count != old_jump_count)
+		self.SendFlags |= SENDFLAGS_JUMP;
+#endif
 
 	if (self.health <= 0)
 	{
@@ -125,6 +149,8 @@ void PlayerOnDeath(entity source, entity sourcePlayer)
 {
 	self.solid = SOLID_NOT;
 	self.movetype = MOVETYPE_TOSS;
+
+	self.SendFlags |= SENDFLAGS_ALL;
 
 #ifdef CSQC
 	// unrelease these actions to force player to release the keys in order to request respawning

@@ -9,8 +9,8 @@ void addRadialForceEntity(vector location, float force, float radius, entity tar
 		return;
 
 	local float multiplier = (radius-distance) / distance;
-	if (multiplier < 0.0f)
-		multiplier = 0.0f;
+	if (multiplier <= 0.0f)
+		return;
 	else if (multiplier > 1.0f)
 		multiplier = 1.0f;
 
@@ -18,10 +18,9 @@ void addRadialForceEntity(vector location, float force, float radius, entity tar
 	direction = normalize(direction);
 
 	// apply the force to entity's velocity
-	local vector addvel = (direction * force * multiplier);
-	target.velocity = target.velocity + addvel;
+	target.velocity += direction * force * multiplier;
+	target.SendFlags |= SENDFLAGS_VELOCITY;
 
-	println(itos(vlen(addvel)), " tot: ", itos(vlen(target.velocity)));
 }
 
 void addRadialForce(vector location, float force, float radius, entity source = 0, entity ignored = 0)

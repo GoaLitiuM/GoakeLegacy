@@ -23,8 +23,6 @@ const float TE_LIGHTNINGBLOOD = 13;
 
 float SVC_TEMPENTITY = 23;
 
-#define FULLSEND 0xFFFFFF
-
 // input_buttons
 #define BUTTON_ATTACK 1
 #define BUTTON_JUMP 2

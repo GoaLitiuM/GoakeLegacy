@@ -40,6 +40,9 @@ float weapon_impulse;
 .float server_jump_time;
 .float server_jump_count;
 
+// not used by client
+.float SendFlags;
+
 float noop_predraw() { return PREDRAW_NEXT; }
 
 entity getEntity(float entitynum)
