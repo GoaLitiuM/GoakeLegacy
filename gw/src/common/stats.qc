@@ -1,22 +1,6 @@
 void RegisterFieldStat(int statnum, int stattype, .__variant fld);
 void RegisterGlobalStat(int statnum, int stattype, __variant* ptr, string cvarname = "");
 
-void RegisterStats()
-{
-	// register stats, maps fields to stats
-	RegisterFieldStat(STAT_HEALTH, EV_FLOAT, health);
-	RegisterFieldStat(STAT_CURRENT_WEAPON, EV_FLOAT, weapon);
-	//RegisterFieldStat(STAT_NEXT_WEAPON, EV_FLOAT, weapon_next);
-	RegisterFieldStat(STAT_WEAPONS, EV_INTEGER, weapons);
-	RegisterFieldStat(STAT_RELOAD_TIME, EV_FLOAT, reload_time);
-
-	for (int i=0; i<=STAT_AMMO_LAST-STAT_AMMO_NONE; i++)
-		RegisterFieldStat(STAT_AMMO_NONE+i, EV_INTEGER, ammo[i]);
-
-	// global stats are mapped to globals
-	RegisterGlobalStat(STAT_AUTOJUMP, EV_FLOAT, &sv_autojump, "sv_autojump");
-}
-
 // attempt to emulate clientstat/globalstat in CSQC, and additionally maps cvars to variables
 struct Stat
 {
@@ -38,8 +22,44 @@ struct Stat
 	__variant* ptr;
 	string cvarname;
 };
-Stat stats[256];
+Stat* stats;
+int stats_allocated_count;
 int stats_count;
+
+void AllocateStats(int size)
+{
+	if (size <= stats_allocated_count)
+		return;
+
+	Stat* old_stats = stats;
+
+	stats = memalloc(sizeof(Stat) * size);
+	stats_allocated_count = size;
+
+	if (stats_count > 0)
+		memcpy(stats, old_stats, sizeof(Stat) * stats_count);
+
+	memfree(old_stats);
+}
+
+void RegisterStats()
+{
+	AllocateStats(32);
+
+	// register stats, maps fields to stats
+	RegisterFieldStat(STAT_HEALTH, EV_FLOAT, health);
+	RegisterFieldStat(STAT_CURRENT_WEAPON, EV_FLOAT, weapon);
+	//RegisterFieldStat(STAT_NEXT_WEAPON, EV_FLOAT, weapon_next);
+	RegisterFieldStat(STAT_WEAPONS, EV_INTEGER, weapons);
+	RegisterFieldStat(STAT_RELOAD_TIME, EV_FLOAT, reload_time);
+	RegisterFieldStat(STAT_PROJECTILE_ID, EV_FLOAT, projectile_id);
+
+	for (int i=0; i<=STAT_AMMO_LAST-STAT_AMMO_NONE; i++)
+		RegisterFieldStat(STAT_AMMO_NONE+i, EV_INTEGER, ammo[i]);
+
+	// global stats are mapped to globals
+	RegisterGlobalStat(STAT_AUTOJUMP, EV_FLOAT, &sv_autojump, "sv_autojump");
+}
 
 #ifdef CSQC
 void UpdatePlayerStats(bool forced = false)
@@ -204,6 +224,9 @@ void UpdateGlobalStats(bool forced = false)
 void RegisterFieldStat(int statnum, int stattype, .__variant fld)
 {
 #ifdef CSQC
+	if (stats_count == stats_allocated_count)
+		AllocateStats((stats_allocated_count+1)*2);
+
 	stats[stats_count]->statnum = statnum;
 	stats[stats_count]->stattype = stattype;
 	stats[stats_count]->fld = fld;
@@ -226,6 +249,9 @@ void RegisterGlobalStat(int statnum, int stattype, __variant* ptr, string cvarna
 
 	if (csqc || cvarname != "")
 	{
+		if (stats_count == stats_allocated_count)
+			AllocateStats((stats_allocated_count+1)*2);
+
 		stats[stats_count]->statnum = statnum;
 		stats[stats_count]->stattype = stattype;
 		//stats[stats_count]->fld = 0;
