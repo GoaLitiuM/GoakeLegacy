@@ -7,6 +7,8 @@
 #include <qcdefs.qc>
 
 #include <client/defs.qc>
+#include <common/common.qc>
+#include <common/defs.qc>
 #include <common.src>
 
 #include <client/misc.qc>

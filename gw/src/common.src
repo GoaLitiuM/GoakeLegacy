@@ -1,5 +1,3 @@
-#include <common/common.qc>
-#include <common/defs.qc>
 #include <common/ruleset.qc>
 #include <common/precache.qc>
 #include <common/math.qc>

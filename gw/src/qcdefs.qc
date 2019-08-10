@@ -31,3 +31,8 @@ float SVC_TEMPENTITY = 23;
 //pmove flags. seperate from flags
 #define PMF_JUMP_HELD 1
 #define PMF_LADDER 2
+
+int ModInt(int a, int b)
+{
+	return a - (b * (a/b));
+}
