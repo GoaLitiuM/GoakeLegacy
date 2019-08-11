@@ -1572,8 +1572,14 @@ static void Sound_CheckDownloads (void)
 			}
 			else if (cl_download_csprogs.ival)
 			{
-				char *str = va("csprogsvers/%x.dat", chksum);
-				CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED);
+				// skip download if local csprogs matches the server one
+				size_t sz;
+				void* file = COM_LoadTempFile("csprogs.dat", FSLF_IGNOREPURE, &sz);
+				if (!file || LittleLong(Com_BlockChecksum(file, sz)) != chksum)
+				{
+					char *str = va("csprogsvers/%x.dat", chksum);
+					CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED);
+				}
 			}
 			else
 			{
