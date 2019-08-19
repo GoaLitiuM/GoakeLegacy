@@ -334,6 +334,12 @@ static void Sys_QueryDesktopParameters(void);
 int qwinvermaj;
 int qwinvermin;
 
+typedef int(*PFN_NtSetTimerResolution)(ULONG DesiredResolution, BOOLEAN SetResolution, ULONG* CurrentResolution);
+typedef int(*PFN_NtDelayExecution)(BOOLEAN Alertable, PLARGE_INTEGER DelayInterval);
+
+PFN_NtSetTimerResolution NtSetTimerResolution;
+PFN_NtDelayExecution NtDelayExecution;
+
 char		*sys_argv[MAX_NUM_ARGVS];
 
 
@@ -569,7 +575,6 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 }
 #endif
 
-int		starttime;
 qboolean Minimized;
 qboolean	WinNT;	//NT has a) proper unicode support that does not unconditionally result in errors. b) a few different registry paths.
 
@@ -1530,8 +1535,6 @@ Sys_Init
 */
 void Sys_Init (void)
 {
-//	LARGE_INTEGER	PerformanceFreq;
-//	unsigned int	lowpart, highpart;
 	OSVERSIONINFO	vinfo;
 
 	Sys_QueryDesktopParameters();
@@ -1572,32 +1575,20 @@ void Sys_Init (void)
 #endif
 #endif
 
-#if 0
-	if (!QueryPerformanceFrequency (&PerformanceFreq))
-		Sys_Error ("No hardware timer available");
-
-// get 32 out of the 64 time bits such that we have around
-// 1 microsecond resolution
-	lowpart = (unsigned int)PerformanceFreq.LowPart;
-	highpart = (unsigned int)PerformanceFreq.HighPart;
-	lowshift = 0;
-
-	while (highpart || (lowpart > 2000000.0))
-	{
-		lowshift++;
-		lowpart >>= 1;
-		lowpart |= (highpart & 1) << 31;
-		highpart >>= 1;
-	}
-
-	pfreq = 1.0 / (double)lowpart;
-
 	Sys_InitFloatTime ();
-#endif
 
 	// make sure the timer is high precision, otherwise
 	// NT gets 18ms resolution
-	timeBeginPeriod( 1 );
+	dllhandle_t* ntdll = Sys_LoadLibrary("ntdll.dll", NULL);
+	if (ntdll)
+	{
+		NtSetTimerResolution = Sys_GetAddressForName(ntdll, "NtSetTimerResolution");
+		NtDelayExecution = Sys_GetAddressForName(ntdll, "NtDelayExecution");
+
+		// use the lowest possible timer resolution the system can support
+		ULONG ntCurrentResolution;
+		NtSetTimerResolution(1, TRUE, &ntCurrentResolution);
+	}
 
 	vinfo.dwOSVersionInfoSize = sizeof(vinfo);
 
@@ -1777,54 +1768,41 @@ void Sys_Quit (void)
 }
 
 
-#if 0
+#if 1
 /*
 ================
 Sys_DoubleTime
 ================
 */
+LARGE_INTEGER starttime;
+LARGE_INTEGER PerformanceFreq;
+void Sys_InitFloatTime (void)
+{
+	QueryPerformanceFrequency(&PerformanceFreq);
+}
 double Sys_DoubleTime (void)
 {
-	static int			first = 1;
-	static LARGE_INTEGER		qpcfreq;
-	LARGE_INTEGER		PerformanceCount;
-	static LONGLONG			oldcall;
-	static LONGLONG			firsttime;
-	LONGLONG			diff;
-
-	QueryPerformanceCounter (&PerformanceCount);
-	if (first)
-	{
-		first = 0;
-		QueryPerformanceFrequency(&qpcfreq);
-		firsttime = PerformanceCount.QuadPart;
-		diff = 0;
-	}
-	else
-		diff = PerformanceCount.QuadPart - oldcall;
-	if (diff >= 0)
-		oldcall = PerformanceCount.QuadPart;
-	return (oldcall - firsttime) / (double)qpcfreq.QuadPart;
+	LARGE_INTEGER ticks;
+	QueryPerformanceCounter(&ticks);
+	return (ticks.QuadPart - starttime.QuadPart) / (double)PerformanceFreq.QuadPart;
 }
 unsigned int Sys_Milliseconds (void)
 {
-	return Sys_DoubleTime()*1000;
+	LARGE_INTEGER ticks;
+	QueryPerformanceCounter(&ticks);
+	return ((ticks.QuadPart - starttime.QuadPart)*1000) / (double)PerformanceFreq.QuadPart;
 }
 #else
+int starttime;
+void Sys_InitFloatTime (void)
+{
+	starttime = timeGetTime();
+}
 unsigned int Sys_Milliseconds (void)
 {
-	static DWORD starttime;
-	static qboolean first = true;
 	DWORD now;
-//	double t;
-
 	now = timeGetTime();
 
-	if (first) {
-		first = false;
-		starttime = now;
-		return 0.0;
-	}
 	/*
 	if (now < starttime) // wrapped?
 	{
@@ -3749,9 +3727,9 @@ static void Sys_MakeInstaller(const char *name)
 }
 #endif
 
-#if defined(_MSC_VER) && defined(_AMD64_)
-#pragma optimize( "", off)	//64bit msvc sucks and falls over when trying to inline Host_Frame
-#endif
+//#if defined(_MSC_VER) && defined(_AMD64_)
+//#pragma optimize( "", off)	//64bit msvc sucks and falls over when trying to inline Host_Frame
+//#endif
 #ifdef __GNUC__
 __attribute__((visibility("default")))
 #endif
@@ -4181,9 +4159,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	/* return success of application */
 	return TRUE;
 }
-#ifdef _MSC_VER
-#pragma optimize( "", on)	//revert back to default optimisations again.
-#endif
+//#ifdef _MSC_VER
+//#pragma optimize( "", on)	//revert back to default optimisations again.
+//#endif
 
 #if 0	//define this if you're somehow getting windows' consle subsystem instead of the proper windows one
 int __cdecl main(void)
@@ -4239,7 +4217,14 @@ static void Sys_QueryDesktopParameters(void)
 
 void Sys_Sleep (double seconds)
 {
-	Sleep(seconds * 1000);
+    const double adjust = 0.001; // arbitrary value to substract from the given sleep time to avoid oversleeping too often
+
+	LARGE_INTEGER period;
+	period.QuadPart = -(long)((seconds-adjust)*10000000); // 100ns units, negative values represents relative time
+	if (period.QuadPart > 0)
+		return;
+
+	NtDelayExecution(FALSE, &period);
 }
 
 
