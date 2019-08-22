@@ -109,6 +109,7 @@ static cvar_t sv_addon[MAXADDONS];
 static char cvargroup_progs[] = "Progs variables";
 
 static evalc_t evalc_idealpitch, evalc_pitch_speed;
+static void PR_Lightstyle_f(void);
 
 qboolean ssqc_deprecated_warned;
 int pr_teamfield;
@@ -505,6 +506,20 @@ static void ASMCALL ThinkTimeOp (pubprogfuncs_t *prinst, edict_t *ed, float var)
 static int SV_ParticlePrecache_Add(const char *pname);
 static pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *keyname, const char *value)
 {
+	if (!strcmp(keyname, "traileffect"))
+	{
+		foo->xv->traileffectnum = SV_ParticlePrecache_Add(value);
+		return true;
+	}
+	if (!strcmp(keyname, "emiteffect"))
+	{
+		foo->xv->emiteffectnum = SV_ParticlePrecache_Add(value);
+		return true;
+	}
+
+	if (*keyname == '_')
+		keyname++;
+
 #ifdef HEXEN2
 	/*Worldspawn only fields...*/
 	if (NUM_FOR_EDICT(inst, foo) == 0)
@@ -524,19 +539,17 @@ static pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *k
 	}
 #endif
 
-	if (!strcmp(keyname, "traileffect"))
-	{
-		foo->xv->traileffectnum = SV_ParticlePrecache_Add(value);
-		return true;
-	}
-	if (!strcmp(keyname, "emiteffect"))
-	{
-		foo->xv->emiteffectnum = SV_ParticlePrecache_Add(value);
-		return true;
-	}
-
 	if (!strcmp(keyname, "sky") || !strcmp(keyname, "fog"))
 		return true;	//these things are handled in the client, so don't warn if they're used.
+
+	if (!strcmp(keyname, "skyroom"))
+	{
+		value = COM_Parse(value);sv.skyroom_pos[0] = atof(com_token);
+		value = COM_Parse(value);sv.skyroom_pos[1] = atof(com_token);
+		value = COM_Parse(value);sv.skyroom_pos[2] = atof(com_token);
+		sv.skyroom_pos_known = true;
+		return true;
+	}
 
 	//don't spam warnings about missing fields if we failed to load the progs.
 	if (!svs.numprogs)
@@ -701,7 +714,7 @@ static qboolean QDECL SVPR_Event_ContentsTransition(world_t *w, wedict_t *ent, i
 #define H2MP_PROGHEADER_CRC	26905	//hexen2 mission pack uses slightly different defs... *sigh*...
 #define H2DEMO_PROGHEADER_CRC	14046	//I'm guessing this is from the original release or something
 
-pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
+pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc, const char *filename)
 {
 	progstype_t modtype;
 	if (crc == QW_PROGHEADER_CRC)
@@ -724,7 +737,10 @@ pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc
 		progstype = modtype;
 	//if the new one differs from the main module, reject it, unless it has crc 0, which we'll allow as a universal mutator (good luck guessing the correct arguments, but hey).
 	if (progstype != modtype && crc != 0)
+	{
+		Con_Printf("Unable to load \"%s\" due to mismatched gametype/progdefs\n", filename);
 		return false;
+	}
 	return true;
 }
 static void *PDECL SSQC_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void *buf_ctx, size_t size), void *buf_ctx, size_t *size, pbool issource)
@@ -846,11 +862,14 @@ void PR_Deinit(void)
 		sv.world.progs = NULL;
 		svprogfuncs=NULL;
 
-		for (i = 0; i < MAX_LIGHTSTYLES; i++)
+		for (i = 0; i < sv.maxlightstyles; i++)
 		{
-			BZ_Free((void*)sv.strings.lightstyles[i]);
-			sv.strings.lightstyles[i] = NULL;
+			BZ_Free((void*)sv.lightstyles[i].str);
+			sv.lightstyles[i].str = NULL;
 		}
+		BZ_Free(sv.lightstyles);
+		sv.lightstyles = NULL;
+		sv.maxlightstyles = 0;
 	}
 
 	World_Destroy(&sv.world);
@@ -1533,6 +1552,8 @@ void PR_Init(void)
 
 	Cmd_AddCommand ("extensionlist_ssqc", PR_SVExtensionList_f);
 	Cmd_AddCommand ("pr_dumpplatform", PR_DumpPlatform_f);
+
+	Cmd_AddCommand ("sv_lightstyle", PR_Lightstyle_f);
 
 /*
 #ifdef _DEBUG
@@ -4636,7 +4657,7 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 	client_t	*client;
 	int			j;
 
-	if (style < 0 || style >= MAX_LIGHTSTYLES)
+	if (style < 0 || style >= MAX_NET_LIGHTSTYLES)
 	{
 		Con_Printf("WARNING: Bad lightstyle %i.\n", style);
 		return;
@@ -4644,14 +4665,16 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 	if (strlen(val) >= 64)
 		Con_Printf("WARNING: Style string is longer than standard (%i). Some clients could crash.\n", 63);
 
+	if (style+1 > sv.maxlightstyles)
+		Z_ReallocElements((void**)&sv.lightstyles, &sv.maxlightstyles, style+1, sizeof(*sv.lightstyles));
 
 // change the string in sv
-	if (sv.strings.lightstyles[style])
-		BZ_Free((void*)sv.strings.lightstyles[style]);
-	sv.strings.lightstyles[style] = Z_StrDup(val);
+	if (sv.lightstyles[style].str)
+		BZ_Free((void*)sv.lightstyles[style].str);
+	sv.lightstyles[style].str = Z_StrDup(val);
 
 #ifdef PEXT_LIGHTSTYLECOL
-	VectorCopy(rgb, sv.lightstylecolours[style]);
+	VectorCopy(rgb, sv.lightstyles[style].colours);
 #endif
 
 // send message to all clients on this server
@@ -4662,58 +4685,13 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 	{
 		if (client->controller)
 			continue;
-		if ( client->state == cs_spawned )
-		{
-			if (style >= MAX_STANDARDLIGHTSTYLES)	//only bug out clients if the styles are needed
-				if (!*val)
-					continue;
-#ifdef PEXT_LIGHTSTYLECOL
-			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (rgb[0] != 1 || rgb[1] != 1 || rgb[2] != 1))
-			{
-				ClientReliableWrite_Begin (client, svcfte_lightstylecol, 3+6+strlen(val)+1);
-				ClientReliableWrite_Byte (client, style);
-				ClientReliableWrite_Char (client, 0x87);
-				ClientReliableWrite_Short (client, rgb[0]*1024);
-				ClientReliableWrite_Short (client, rgb[1]*1024);
-				ClientReliableWrite_Short (client, rgb[2]*1024);
-				ClientReliableWrite_String (client, val);
-			}
-			else
-#endif
-			{
-				ClientReliableWrite_Begin (client, svc_lightstyle, strlen(val)+3);
-				ClientReliableWrite_Byte (client, style);
-				ClientReliableWrite_String (client, val);
-			}
-		}
+		if (client->state == cs_spawned)
+			SV_SendLightstyle(client, NULL, style, false);
 	}
 
 #ifdef MVD_RECORDING
 	if (sv.mvdrecording)
-	{
-		if (style < MAX_STANDARDLIGHTSTYLES || *val)
-		{
-			sizebuf_t *msg = MVDWrite_Begin(dem_all, 0, 3+6+strlen(val)+1);
-#ifdef PEXT_LIGHTSTYLECOL
-			if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (rgb[0] != 1 || rgb[1] != 1 || rgb[2] != 1))
-			{
-				MSG_WriteByte (msg, svcfte_lightstylecol);
-				MSG_WriteByte (msg, style);
-				MSG_WriteChar (msg, 0x87);
-				MSG_WriteShort (msg, rgb[0]*1024);
-				MSG_WriteShort (msg, rgb[1]*1024);
-				MSG_WriteShort (msg, rgb[2]*1024);
-				MSG_WriteString (msg, val);
-			}
-			else
-#endif
-			{
-				MSG_WriteByte (msg, svc_lightstyle);
-				MSG_WriteByte (msg, style);
-				MSG_WriteString (msg, val);
-			}
-		}
-	}
+		SV_SendLightstyle(&demo.recorder, NULL, style, true);
 #endif
 }
 
@@ -4741,35 +4719,65 @@ static void QCBUILTIN PF_lightstyle (pubprogfuncs_t *prinst, struct globalvars_s
 	PF_applylightstyle(style, val, rgb);
 }
 
+static void PR_Lightstyle_f(void)
+{
+	int style = atoi(Cmd_Argv(1));
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
+		Con_TPrintf ("not supported in the current game mode.\n");
+	else if (!SV_MayCheat())
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
+	else if (Cmd_Argc() <= 2)
+	{
+		if (style >= 0 && style < sv.maxlightstyles && Cmd_Argc() >= 2)
+			Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+		else for (style = 0; style < sv.maxlightstyles; style++)
+			if (sv.lightstyles[style].str)
+				Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+	}
+	else
+	{
+		vec3_t rgb = {1,1,1};
+		if (Cmd_Argc() > 5)
+		{
+			rgb[0] = atof(Cmd_Argv(3));
+			rgb[1] = atof(Cmd_Argv(4));
+			rgb[2] = atof(Cmd_Argv(5));
+		}
+		else if (Cmd_Argc() > 3)
+			rgb[0] = rgb[1] = rgb[2] = atof(Cmd_Argv(3));
+		PF_applylightstyle(style, Cmd_Argv(2), rgb);
+	}
+}
+
 static void QCBUILTIN PF_getlightstyle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int		style = G_FLOAT(OFS_PARM0);
 
-	if (style >= countof(sv.strings.lightstyles))
+	if (style >= sv.maxlightstyles)
 	{
 		VectorSet(G_VECTOR(OFS_PARM1), 0, 0, 0);
 		G_INT(OFS_RETURN) = 0;
 	}
 	else
 	{
-		VectorCopy(sv.lightstylecolours[style], G_VECTOR(OFS_PARM1));
-		if (!sv.strings.lightstyles[style])
+		VectorCopy(sv.lightstyles[style].colours, G_VECTOR(OFS_PARM1));
+		if (!sv.lightstyles[style].str)
 			G_INT(OFS_RETURN) = 0;
 		else
-			RETURN_TSTRING(sv.strings.lightstyles[style]);
+			RETURN_TSTRING(sv.lightstyles[style].str);
 	}
 }
 static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int		style = G_FLOAT(OFS_PARM0);
 	int value;
-	if (!sv.strings.lightstyles[style])
+	if (style >= sv.maxlightstyles || !sv.lightstyles[style].str)
 		value = ('m'-'a')*22;
-	else if (sv.strings.lightstyles[style][0] == '=')
-		value = atof(sv.strings.lightstyles[style]+1)*256;
+	else if (sv.lightstyles[style].str[0] == '=')
+		value = atof(sv.lightstyles[style].str+1)*256;
 	else
-		value = sv.strings.lightstyles[style][max(0,(int)(sv.time*10)) % strlen(sv.strings.lightstyles[style])] - 'a';
-	VectorScale(sv.lightstylecolours[style], value*(1.0/256), G_VECTOR(OFS_RETURN));
+		value = sv.lightstyles[style].str[max(0,(int)(sv.time*10)) % strlen(sv.lightstyles[style].str)] - 'a';
+	VectorScale(sv.lightstyles[style].colours, value*(1.0/256), G_VECTOR(OFS_RETURN));
 }
 
 #ifdef HEXEN2
@@ -4777,12 +4785,12 @@ static void QCBUILTIN PF_lightstylevalue (pubprogfuncs_t *prinst, struct globalv
 {
 	int style;
 	style = G_FLOAT(OFS_PARM0);
-	if(style < 0 || style >= MAX_LIGHTSTYLES || !sv.strings.lightstyles[style])
+	if(style < 0 || style >= sv.maxlightstyles || !sv.lightstyles[style].str || !*sv.lightstyles[style].str)
 	{
 		G_FLOAT(OFS_RETURN) = 0;
 		return;
 	}
-	G_FLOAT(OFS_RETURN) = *sv.strings.lightstyles[style] - 'a';
+	G_FLOAT(OFS_RETURN) = *sv.lightstyles[style].str - 'a';
 }
 
 static void QCBUILTIN PF_lightstylestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9819,6 +9827,8 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		return;
 	}
 
+	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
+
 	if (pr_global_ptrs->clientcommandframe)
 		pmove.sequence = *pr_global_ptrs->clientcommandframe;
 	else
@@ -12554,14 +12564,14 @@ void PR_DumpPlatform_f(void)
 		{"RF_NOSHADOW",			"const float", CS, D("This entity will not cast shadows. Often useful on view models."), CSQCRF_NOSHADOW},
 		{"RF_FRAMETIMESARESTARTTIMES","const float", CS, D("Specifies that the frame1time, frame2time field are timestamps (denoting the start of the animation) rather than time into the animation."), CSQCRF_FRAMETIMESARESTARTTIMES},
 
-		{"IE_KEYDOWN",			"const float", CS, D("Specifies that a key was pressed. Second argument is the scan code. Third argument is the unicode (printable) char value. Fourth argument denotes which keyboard(or mouse, if its a mouse 'scan' key) the event came from. Note that some systems may completely separate scan codes and unicode values, with a 0 value for the unspecified argument."), CSIE_KEYDOWN},
-		{"IE_KEYUP",			"const float", CS, D("Specifies that a key was released. Arguments are the same as IE_KEYDOWN. On some systems, this may be fired instantly after IE_KEYDOWN was fired."), CSIE_KEYUP},
-		{"IE_MOUSEDELTA",		"const float", CS, D("Specifies that a mouse was moved (touch screens and tablets typically give IE_MOUSEABS events instead, use in_windowed_mouse 0 to test code to cope with either). Second argument is the X displacement, third argument is the Y displacement. Fourth argument is which mouse or touch event triggered the event."), CSIE_MOUSEDELTA},
-		{"IE_MOUSEABS",			"const float", CS, D("Specifies that a mouse cursor or touch event was moved to a specific location relative to the virtual screen space. Second argument is the new X position, third argument is the new Y position. Fourth argument is which mouse or touch event triggered the event."), CSIE_MOUSEABS},
-		{"IE_ACCELEROMETER",	"const float", CS, NULL, CSIE_ACCELEROMETER},
-		{"IE_FOCUS",			"const float", CS, D("Specifies that input focus was given. parama says mouse focus, paramb says keyboard focus. If either are -1, then it is unchanged."), CSIE_FOCUS},
-		{"IE_JOYAXIS",			"const float", CS, D("Specifies that what value a joystick/controller axis currently specifies. x=axis, y=value. Will be called multiple times, once for each axis of each active controller."), CSIE_JOYAXIS},
-		{"IE_GYROSCOPE",		"const float", CS, NULL, CSIE_GYROSCOPE},
+		{"IE_KEYDOWN",			"const float", CS|MENU, D("Specifies that a key was pressed. Second argument is the scan code. Third argument is the unicode (printable) char value. Fourth argument denotes which keyboard(or mouse, if its a mouse 'scan' key) the event came from. Note that some systems may completely separate scan codes and unicode values, with a 0 value for the unspecified argument."), CSIE_KEYDOWN},
+		{"IE_KEYUP",			"const float", CS|MENU, D("Specifies that a key was released. Arguments are the same as IE_KEYDOWN. On some systems, this may be fired instantly after IE_KEYDOWN was fired."), CSIE_KEYUP},
+		{"IE_MOUSEDELTA",		"const float", CS|MENU, D("Specifies that a mouse was moved (touch screens and tablets typically give IE_MOUSEABS events instead, use in_windowed_mouse 0 to test code to cope with either). Second argument is the X displacement, third argument is the Y displacement. Fourth argument is which mouse or touch event triggered the event."), CSIE_MOUSEDELTA},
+		{"IE_MOUSEABS",			"const float", CS|MENU, D("Specifies that a mouse cursor or touch event was moved to a specific location relative to the virtual screen space. Second argument is the new X position, third argument is the new Y position. Fourth argument is which mouse or touch event triggered the event."), CSIE_MOUSEABS},
+		{"IE_ACCELEROMETER",	"const float", CS|MENU, NULL, CSIE_ACCELEROMETER},
+		{"IE_FOCUS",			"const float", CS|MENU, D("Specifies that input focus was given. parama says mouse focus, paramb says keyboard focus. If either are -1, then it is unchanged."), CSIE_FOCUS},
+		{"IE_JOYAXIS",			"const float", CS|MENU, D("Specifies that what value a joystick/controller axis currently specifies. x=axis, y=value. Will be called multiple times, once for each axis of each active controller."), CSIE_JOYAXIS},
+		{"IE_GYROSCOPE",		"const float", CS|MENU, NULL, CSIE_GYROSCOPE},
 
 		{"CLIENTTYPE_DISCONNECTED","const float", QW|NQ, D("Return value from clienttype() builtin. This entity is a player slot that is currently empty."), CLIENTTYPE_DISCONNECTED},
 		{"CLIENTTYPE_REAL",		"const float", QW|NQ, D("This is a real player, and not a bot."), CLIENTTYPE_REAL},
@@ -12738,7 +12748,7 @@ void PR_DumpPlatform_f(void)
 	}
 
 	VFS_PRINTF(f,	"/*\n"
-					"This file was automatically generated by %s v%i.%i%s\n"
+					"This file was generated by %s v%i.%i%s, dated %s.\n"
 					"This file can be regenerated by issuing the following command:\n"
 					"%s %s\n"
 					"Available options:\n"
@@ -12751,7 +12761,7 @@ void PR_DumpPlatform_f(void)
 					"-Faccessors - use accessors instead of basic types via defines\n"
 					"-O          - write to a different qc file\n"
 					"*/\n"
-					, FULLENGINENAME, FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_EXTRA, Cmd_Argv(0), Cmd_Args());
+					, FULLENGINENAME, FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_EXTRA, __DATE__, Cmd_Argv(0), Cmd_Args());
 
 	VFS_PRINTF(f, "#pragma noref 1\n");
 	VFS_PRINTF(f, "//#pragma flag enable logicops\n");

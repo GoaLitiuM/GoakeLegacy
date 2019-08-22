@@ -548,8 +548,7 @@ qboolean CL_GetDemoMessage (void)
 			//make sure everything is loaded, to avoid stalls
 
 #ifdef MENU_DAT
-			if (Key_Dest_Has(kdm_gmenu))
-				MP_Toggle(0);
+			Menu_PopAll();
 #endif
 			COM_WorkerFullSync();
 
@@ -558,7 +557,6 @@ qboolean CL_GetDemoMessage (void)
 
 			//force the console up, we're done loading.
 			Key_Dest_Remove(kdm_console);
-			Key_Dest_Remove(kdm_emenu);
 			scr_con_current = 0;
 		}
 
@@ -1584,7 +1582,7 @@ static int CL_Record_Lightstyles(sizebuf_t *buf, int seq)
 {
 	unsigned int i;
 // send all current light styles
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+	for (i=0 ; i<cl_max_lightstyles ; i++)
 	{
 		if (i >= MAX_STANDARDLIGHTSTYLES)
 			if (!*cl_lightstyle[i].map)
@@ -2621,7 +2619,7 @@ void CL_QTVPoll (void)
 	qboolean streamavailable = false;
 	qboolean saidheader = false;
 #ifndef NOBUILTINMENUS
-	menu_t *sourcesmenu = NULL;
+	emenu_t *sourcesmenu = NULL;
 #endif
 	int sourcenum = 0;
 
@@ -2796,7 +2794,6 @@ void CL_QTVPoll (void)
 				//now put it on a menu
 				if (!sourcesmenu)
 				{
-					Key_Dest_Add(kdm_emenu);
 					sourcesmenu = M_CreateMenu(0);
 
 					MC_AddPicture(sourcesmenu, 16, 4, 32, 144, "gfx/qplaque.lmp");

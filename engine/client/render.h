@@ -294,6 +294,7 @@ typedef struct
 
 	vec3_t		skyroom_pos;		/*the camera position for sky rooms*/
 	qboolean	skyroom_enabled;	/*whether a skyroom position is defined*/
+	int			firstvisedict;		/*so we can skip visedicts in skies*/
 
 	pxrect_t	pxrect;				/*vrect, but in pixels rather than virtual coords*/
 	qboolean	externalview;		/*draw external models and not viewmodels*/
@@ -422,6 +423,7 @@ enum imageflags
 	IF_NOGAMMA			= 1<<9,		/*do not apply texture-based gamma*/
 	IF_3DMAP			= 1<<10,	/*waning - don't test directly*/
 	IF_CUBEMAP			= 1<<11,	/*waning - don't test directly*/
+	IF_2DARRAY				= IF_3DMAP|IF_CUBEMAP,
 	IF_TEXTYPE				= (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
 	IF_TEXTYPESHIFT			= 10,	/*0=2d, 1=3d, 2-7=cubeface*/
 	IF_MIPCAP			= 1<<12,	//allow the use of d_mipcap
@@ -529,7 +531,9 @@ typedef struct
 {
 	unsigned int *offsets;
 	unsigned short *extents;
-	unsigned char *styles;
+	unsigned char *styles8;
+	unsigned short *styles16;
+	unsigned int stylesperface;
 	unsigned char *shifts;
 	unsigned char defaultshift;
 } lightmapoverrides_t;
@@ -553,7 +557,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b);
 struct relight_ctx_s;
 struct llightinfo_s;
 void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int surfnum);	//version that is aware of bsp trees
-void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, qbyte surf_styles[4], qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
+void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, lightstyleindex_t surf_styles[4], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
 struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, struct model_s *model, qboolean shadows, qboolean skiplit);
 void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles);
 void LightShutdown(struct relight_ctx_s *ctx, struct model_s *mod);
@@ -563,7 +567,6 @@ extern const size_t lightthreadctxsize;
 
 extern struct model_s		*currentmodel;
 
-qboolean Media_ShowFilm(void);
 void Media_CaptureDemoEnd(void);
 void Media_RecordFrame (void);
 qboolean Media_PausedDemo (qboolean fortiming);
@@ -586,6 +589,7 @@ void R_RegisterRenderer(rendererinfo_t *ri);
 void R_AnimateLight (void);
 void R_UpdateHDR(vec3_t org);
 void R_UpdateLightStyle(unsigned int style, const char *stylestring, float r, float g, float b);
+void R_BumpLightstyles(unsigned int maxstyle);	//bumps the cl_max_lightstyles array size, if needed.
 struct texture_s *R_TextureAnimation (int frame, struct texture_s *base);	//mostly deprecated, only lingers for rtlights so world only.
 struct texture_s *R_TextureAnimation_Q2 (struct texture_s *base);	//mostly deprecated, only lingers for rtlights so world only.
 void RQ_Init(void);
@@ -593,7 +597,7 @@ void RQ_Shutdown(void);
 
 void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
-qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
+void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);

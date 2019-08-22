@@ -59,7 +59,7 @@ static struct
 	vec3_t	right;
 	vec3_t	up;
 } listener[MAX_SPLITS];
-vec_t		sound_nominal_clip_dist=1000.0;
+cvar_t snd_nominaldistance		= CVARAFD("s_nominaldistance", "1000", "snd_soundradius", CVAR_CHEAT, "This cvar defines how far an attenuation=1 sound can be heard.");
 
 #define	MAX_SFX		8192
 sfx_t		*known_sfx;		// hunk allocated [MAX_SFX]
@@ -2290,6 +2290,7 @@ void S_Init (void)
 	Cvar_Register(&precache,			"Sound controls");
 	Cvar_Register(&loadas8bit,			"Sound controls");
 	Cvar_Register(&bgmvolume,			"Sound controls");
+	Cvar_Register(&snd_nominaldistance,	"Sound controls");
 	Cvar_Register(&ambient_level,		"Sound controls");
 	Cvar_Register(&ambient_fade,		"Sound controls");
 	Cvar_Register(&snd_noextraupdate,	"Sound controls");
@@ -2916,7 +2917,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	else
 		VectorClear(target_chan->velocity);
 	target_chan->flags = flags;
-	target_chan->dist_mult = attenuation / sound_nominal_clip_dist;
+	target_chan->dist_mult = attenuation / snd_nominaldistance.value;
 	target_chan->master_vol = vol;
 	target_chan->entnum = entnum;
 	target_chan->entchannel = entchannel;
@@ -3142,9 +3143,13 @@ float S_GetChannelLevel(int entnum, int entchannel)
 			if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel && sc->channel[i].sfx)
 			{
 				ssamplepos_t spos = sc->GetChannelPos?sc->GetChannelPos(sc, &sc->channel[i]):(sc->channel[i].pos>>PITCHSHIFT);
-				scache = sc->channel[i].sfx->decoder.decodedata(sc->channel[i].sfx, &scachebuf, spos, 1);
+				if (sc->channel[i].sfx->decoder.decodedata)
+					scache = sc->channel[i].sfx->decoder.decodedata(sc->channel[i].sfx, &scachebuf, spos, 1);
+				else 
+					scache = NULL;
 				if (!scache)
 					scache = sc->channel[i].sfx->decoder.buf;
+
 				if (scache && spos >= scache->soundoffset && spos < scache->soundoffset+scache->length)
 				{
 					spos -= scache->soundoffset;
@@ -3330,7 +3335,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		ss->rate = 1<<PITCHSHIFT;
 		VectorCopy (origin, ss->origin);
 		ss->master_vol = vol*255;
-		ss->dist_mult = attenuation / sound_nominal_clip_dist;
+		ss->dist_mult = attenuation / snd_nominaldistance.value;
 		ss->pos = 0;
 		ss->flags = CF_FORCELOOP;
 
@@ -3678,7 +3683,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 			c->flags = CF_CLI_AUTOSOUND|CF_FORCELOOP;
 			c->entnum = sc->ChannelUpdate?entnums[count]:0;
 			c->entchannel = 0;
-			c->dist_mult = 3 / sound_nominal_clip_dist;
+			c->dist_mult = 3 / snd_nominaldistance.value;
 			c->master_vol = 255 * 1;
 			c->pos = 0<<PITCHSHIFT;	//q2 does weird stuff with the pos. we just forceloop and detect when it became irrelevant. this is required for stream decoding or openal
 			c->rate = 1<<PITCHSHIFT;
@@ -4192,6 +4197,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	double speedfactor;
 	qbyte *newcache;
 	streaming_t *s, *free=NULL;
+
 	for (s = s_streamers, i = 0; i < MAX_RAW_SOURCES; i++, s++)
 	{
 		if (!s->inuse)

@@ -366,9 +366,10 @@ void CLQ3_ParseDownload(void)
 	}
 
 	if (dl->size == (unsigned int)-1)
-	{
+	{	//the only downloads we should be getting is pk3s.
+		//if they're advertised-but-failing then its probably due to permissions rather than file-not-found
 		s = MSG_ReadString();
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_SERVERCVAR);
 		Host_EndGame("%s", s);
 		return;
 	}
@@ -398,7 +399,7 @@ void CLQ3_ParseDownload(void)
 	{
 		if (!DL_Begun(dl))
 		{
-			CL_DownloadFailed(dl->remotename, dl);
+			CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 			return;
 		}
 	}
@@ -899,7 +900,6 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	outframe_t *frame, *oldframe;
 	int cmdcount, key;
 	usercmd_t *to, *from;
-	extern int keycatcher;
 	extern cvar_t cl_nodelta, cl_c2sdupe;
 
 	//reuse the q1 array
@@ -927,7 +927,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		cmd->upmove = 100;
 		cmd->buttons &= ~2;
 	}
-	if (Key_Dest_Has(~kdm_game) || (keycatcher&3))
+	if (Key_Dest_Has(~kdm_game))
 		cmd->buttons |= 2;	//add in the 'at console' button
 
 	cl.outframes[cl.movesequence&Q3CMD_MASK].cmd[0] = *cmd;
@@ -1008,6 +1008,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 
 void CLQ3_SendAuthPacket(netadr_t *gameserver)
 {
+#ifdef HAVE_PACKET
 	char data[2048];
 	sizebuf_t msg;
 
@@ -1044,6 +1045,7 @@ void CLQ3_SendAuthPacket(netadr_t *gameserver)
 				Con_Printf("    failed\n");
 		}
 	}
+#endif
 }
 
 void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)

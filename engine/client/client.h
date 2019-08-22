@@ -345,7 +345,7 @@ typedef struct dlight_s
 	struct {
 		float updatetime;
 	} face [6];
-	int style;	//multiply by style values if > 0
+	int style;	//multiply by style values if >= 0 && < MAX_LIGHTSTYLES
 	float	fov; //spotlight
 	float	nearclip; //for spotlights...
 	struct dlight_s *next;
@@ -551,6 +551,17 @@ typedef struct
 
 extern client_static_t	cls;
 
+enum dlfailreason_e
+{
+	DLFAIL_UNTRIED,		//...
+	DLFAIL_UNSUPPORTED,	//eg vanilla nq
+	DLFAIL_CORRUPTED,	//something weird happened (hash fail)
+	DLFAIL_CLIENTCVAR,	//clientside cvar blocked the download
+	DLFAIL_CLIENTFILE,	//some sort of error writing the file
+	DLFAIL_SERVERCVAR,	//serverside setting blocked the download
+	DLFAIL_REDIRECTED,	//server told us to download a different file
+	DLFAIL_SERVERFILE,	//server couldn't find the file
+};
 typedef struct downloadlist_s {
 	char rname[128];
 	char localname[128];
@@ -567,6 +578,8 @@ typedef struct downloadlist_s {
 
 #define DLLF_BEGUN			(1u<<8)		//server has confirmed that the file exists, is readable, and we've opened a file. should not be set on new requests.
 #define DLLF_ALLOWWEB		(1u<<9)		//failed http downloads should retry but from the game server itself
+
+	enum dlfailreason_e failreason;
 	struct downloadlist_s *next;
 } downloadlist_t;
 
@@ -1049,9 +1062,12 @@ typedef struct
 extern	entity_state_t *cl_baselines;
 extern	static_entity_t		*cl_static_entities;
 extern	unsigned int	cl_max_static_entities;
-extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
+extern	lightstyle_t	*cl_lightstyle;
+extern	size_t			cl_max_lightstyles;
 extern	dlight_t		*cl_dlights;
 extern	size_t cl_maxdlights;
+
+extern	int				d_lightstylevalue[MAX_NET_LIGHTSTYLES];
 
 extern size_t rtlights_first, rtlights_max;
 extern int cl_baselines_count;
@@ -1221,7 +1237,7 @@ int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcos
 float CL_KeyState (kbutton_t *key, int pnum, qboolean noslowstart);
 const char *Key_KeynumToString (int keynum, int modifier);
 int Key_StringToKeynum (const char *str, int *modifier);
-char *Key_GetBinding(int keynum, int bindmap, int modifier);
+const char *Key_GetBinding(int keynum, int bindmap, int modifier);
 void Key_GetBindMap(int *bindmaps);
 void Key_SetBindMap(int *bindmaps);
 
@@ -1305,7 +1321,7 @@ int CL_IsDownloading(const char *localname);
 qboolean CL_CheckDLFile(const char *filename);
 qboolean CL_CheckOrEnqueDownloadFile (const char *filename, const char *localname, unsigned int flags);
 qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned int flags);
-downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl);
+downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl, enum dlfailreason_e failreason);
 int CL_DownloadRate(void);
 void CL_GetDownloadSizes(unsigned int *filecount, qofs_t *totalsize, qboolean *somesizesunknown);
 qboolean CL_ParseOOBDownload(void);
@@ -1519,7 +1535,7 @@ char*		TP_EnemyTeam (void);
 void		TP_ExecTrigger (char *s, qboolean indemos);
 qboolean	TP_FilterMessage (char *s);
 void		TP_Init(void);
-char*		TP_LocationName (vec3_t location);
+char*		TP_LocationName (const vec3_t location);
 char*		TP_MapName (void);
 void		TP_NewMap (void);
 void		TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info);
@@ -1671,7 +1687,6 @@ typedef enum
 	CINSTATE_FLUSHED,	//video will restart from beginning
 } cinstates_t;
 /*media playing system*/
-qboolean Media_PlayingFullScreen(void);
 qboolean Media_PlayFilm(char *name, qboolean enqueue);
 qboolean Media_StopFilm(qboolean all);
 struct cin_s *Media_StartCin(char *name);
@@ -1690,8 +1705,6 @@ cinstates_t Media_GetState(cin_t *cin);
 const char *Media_Send_GetProperty(cin_t *cin, const char *key);
 
 #else
-#define Media_Playing() false
-#define Media_PlayingFullScreen() false
 #define Media_PlayFilm(n,e) false
 #define Media_StopFilm(a) (void)true
 #endif

@@ -50,6 +50,7 @@ void (APIENTRY *qglEnable) (GLenum cap);
 void (APIENTRY *qglFinish) (void);
 void (APIENTRY *qglFlush) (void);
 void (APIENTRY *qglGenTextures) (GLsizei n, GLuint *textures);
+void (APIENTRY *qglGenerateMipmap)(GLenum target);
 void (APIENTRY *qglGetBooleanv) (GLenum pname, GLboolean *params);
 GLenum (APIENTRY *qglGetError) (void);
 void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
@@ -692,11 +693,10 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	gl_config.ext_packed_depth_stencil = GL_CheckExtension("GL_EXT_packed_depth_stencil");
 
-	if (GL_CheckExtension("GL_EXT_texture_filter_anisotropic"))
+	if ((!gl_config.gles && gl_config.glversion >= 4.6) || GL_CheckExtension("GL_EXT_texture_filter_anisotropic") || GL_CheckExtension("GL_ARB_texture_filter_anisotropic"))
 	{
 		qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_config.ext_texture_filter_anisotropic);
-
-		Con_DPrintf("Anisotropic filter extension found (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
+		Con_DPrintf("Anisotropic filtering supported (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
 	}
 
 	if ((!gl_config.gles && gl_config.glversion >= 2) || GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
@@ -707,6 +707,12 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (!gl_config.gles && gl_config.glversion >= 3)
 	{	//GL_ARB_texture_non_power_of_two is supposed to be mandatory in gl2+ and thus checking for it is redundant and not forwards-compatible
 		//geforcefx apparently software emulates it, so only activate it unconditionally on gl3+ hardware.
+		//gl2 drivers will likely still be explicitly advertising GL_ARB_texture_non_power_of_two so there's probably no great loss from requiring a higher version.
+		sh_config.texture_non_power_of_two = true;
+		sh_config.texture_non_power_of_two_pic = true;
+	}
+	else if (gl_config.gles && gl_config.glversion >= 3)
+	{	//gles3 is meant to have full npot support (like gl2+ was meant to).
 		sh_config.texture_non_power_of_two = true;
 		sh_config.texture_non_power_of_two_pic = true;
 	}
@@ -857,6 +863,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			gl_config.arb_texture_compression = true;
 	}
 #endif
+
+	gl_config.astc_decodeprecision = GL_CheckExtension("GL_EXT_texture_compression_astc_decode_mode");
 /*
 	if (GL_CheckExtension("GL_EXT_depth_bounds_test"))
 		qglDepthBoundsEXT = (void *)getglext("glDepthBoundsEXT");
@@ -2309,6 +2317,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				"uniform samplerCube s_reflectcube;\n",
 				"uniform sampler2D s_reflectmask;\n",
 				"uniform sampler2D s_displacement;\n",
+				"uniform sampler2D s_occlusion;\n",
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",
 				"uniform sampler2D s_deluxemap;\n#define s_deluxemap0 s_deluxemap\n",
 
@@ -3326,6 +3335,11 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		qglBindBufferARB	= (void *)getglext("glBindBuffer");
 	if (!qglBindBufferARB)
 		qglBindBufferARB	= GL_BindBufferARBStub;
+
+	if (gl_config.glversion >= 3.0)
+		qglGenerateMipmap	= (void *)getglext("glGenerateMipmap");
+	else
+		qglGenerateMipmap = NULL;
 #endif
 
 	if (!qglGetString)

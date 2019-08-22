@@ -2228,13 +2228,6 @@ qboolean Sbar_ShouldDraw (playerview_t *pv)
 		return false;
 #endif
 
-#ifdef VM_UI
-	if (UI_DrawStatusBar((pv->sb_showscores?1:0) + (pv->sb_showteamscores?2:0))>0)
-		return false;
-	if (UI_MenuState())
-		return false;
-#endif
-
 	headsup = !(cl_sbar.value || (scr_viewsize.value<100));
 	if ((sb_updates >= vid.numpages) && !headsup)
 		return false;
@@ -2850,16 +2843,18 @@ void Sbar_Draw (playerview_t *pv)
 	sbar_rect = r_refdef.grect;
 
 	sbarwidth = 320;
-	if (minidmoverlay && r_refdef.grect.width >= 640 && cl.teamplay)
+	if (minidmoverlay && sbar_rect.width >= 640 && cl.teamplay)
 		sbarwidth += 320;
-	else if (minidmoverlay && r_refdef.grect.width >= 512)
+	else if (minidmoverlay && sbar_rect.width >= 512)
 		sbarwidth += 192;
 	else
 		minidmoverlay = 0;
 
 	if (scr_centersbar.ival)
 	{
-		float ofs = (sbar_rect.width - sbarwidth)/2;
+		float ofs = (sbar_rect.width - 320)/2;
+		if (ofs > sbar_rect.width-sbarwidth)
+			ofs = sbar_rect.width-sbarwidth;
 		sbar_rect.x += ofs;
 		sbar_rect.width -= ofs;
 		sbar_rect_left = -ofs;
@@ -2971,7 +2966,7 @@ void Sbar_Draw (playerview_t *pv)
 				Sbar_DrawInventory (pv);
 			else if (cl_sbar.ival)
 				Sbar_DrawPic (0, -24, 320, 24, sb_scorebar);	//make sure we don't get HoM
-			if ((!headsup || sbar_rect.width<512) && cl.deathmatch && hud_miniscores_show->ival)
+			if (!headsup && minidmoverlay)
 				Sbar_DrawFrags (pv);
 		}
 
@@ -3807,11 +3802,6 @@ Sbar_IntermissionOverlay
 */
 void Sbar_IntermissionOverlay (playerview_t *pv)
 {
-#ifdef VM_UI
-	if (UI_DrawIntermission()>0)
-		return;
-#endif
-
 	Sbar_Start();
 
 	if (!cls.deathmatch)

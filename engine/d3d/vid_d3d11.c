@@ -1317,7 +1317,6 @@ static qboolean	(D3D11_SCR_UpdateScreen)			(void)
 {
 	//extern int keydown[];
 	//extern cvar_t vid_conheight;
-	int uimenu;
 #ifdef TEXTEDITOR
 	//extern qboolean editormodal;
 #endif
@@ -1370,12 +1369,6 @@ static qboolean	(D3D11_SCR_UpdateScreen)			(void)
 
 	Shader_DoReload();
 
-#ifdef VM_UI
-	uimenu = UI_MenuState();
-#else
-	uimenu = 0;
-#endif
-
 //	d3d11error(IDirect3DDevice9_BeginScene(pD3DDev9));
 /*
 #ifdef TEXTEDITOR
@@ -1395,16 +1388,6 @@ static qboolean	(D3D11_SCR_UpdateScreen)			(void)
 	}
 #endif
 */
-	if (Media_ShowFilm())
-	{
-		M_Draw(0);
-//		V_UpdatePalette (false);
-		Media_RecordFrame();
-//		R2D_BrightenScreen();
-//		IDirect3DDevice9_EndScene(pD3DDev9);
-		D3D11_PresentOrCrash();
-		return true;
-	}
 
 //
 // do 3D refresh drawing, and then update the screen
@@ -1414,25 +1397,20 @@ static qboolean	(D3D11_SCR_UpdateScreen)			(void)
 	noworld = false;
 	nohud = false;
 
-#ifdef VM_CG
-	if (CG_Refresh())
+	if (topmenu && topmenu->isopaque)
 		nohud = true;
-	else
+#ifdef VM_CG
+	else if (CG_Refresh())
+		nohud = true;
 #endif
 #ifdef CSQC_DAT
-		if (CSQC_DrawView())
+	else if (CSQC_DrawView())
 		nohud = true;
-	else
 #endif
-		if (uimenu != 1)
-		{
-			if (r_worldentity.model && cls.state == ca_active)
-				V_RenderView (nohud);
-			else
-			{
-				noworld = true;
-			}
-		}
+	else if (r_worldentity.model && cls.state == ca_active)
+		V_RenderView (nohud);
+	else
+		noworld = true;
 
 	D3D11_Set2D();
 
@@ -1455,7 +1433,7 @@ static qboolean	(D3D11_SCR_UpdateScreen)			(void)
 		nohud = true;
 	}
 
-	SCR_DrawTwoDimensional(uimenu, nohud);
+	SCR_DrawTwoDimensional(nohud);
 
 	V_UpdatePalette (false);
 

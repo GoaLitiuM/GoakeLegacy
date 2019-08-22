@@ -12,7 +12,7 @@ See gl_terrain.h for terminology, networking notes, etc.
 
 #include "gl_terrain.h"
 
-static terrainfuncs_t terrainfuncs;
+static plugterrainfuncs_t terrainfuncs;
 struct patchvert_s
 {
 	vec3_t v;
@@ -28,6 +28,8 @@ cvar_t mod_terrain_sundir = CVARD("mod_terrain_sundir", "0.4 0.7 2", "The direct
 cvar_t mod_terrain_ambient = CVARD("mod_terrain_ambient", "0.5", "Proportion of ambient light.");
 cvar_t mod_terrain_shadows = CVARD("mod_terrain_shadows", "0", "Cast rays to determine whether parts of the terrain should be in shadow.");
 cvar_t mod_terrain_shadow_dist = CVARD("mod_terrain_shadow_dist", "2048", "How far rays should be cast in order to look for occlusing geometry.");
+cvar_t mod_terrain_brushlights = CVARD("mod_map_lights", "0", "Calculates lighting on brushes/patches.");
+cvar_t mod_terrain_brushtexscale = CVARD("mod_map_texscale", "1", "Defines the scale of texture texels. Use 1 for quake+quake2 maps, and 0.5 for quake3 maps.");
 
 enum
 {
@@ -4375,7 +4377,7 @@ qbyte *Heightmap_ClusterPVS	(model_t *model, int num, pvsbuffer_t *buffer, pvsme
 }
 int	Heightmap_ClusterForPoint	(model_t *model, const vec3_t point, int *area)
 {
-	if (*area)
+	if (area)
 		*area = 0;
 	return -1;
 }
@@ -5546,7 +5548,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 		if (mod->submodelof)
 			mod = mod->submodelof;
 		hm->entsdirty = false;
-		LightReloadEntities(hm->relightcontext, Mod_GetEntitiesString(mod), true);
+		if (hm->relightcontext)
+			LightReloadEntities(hm->relightcontext, Mod_GetEntitiesString(mod), true);
 
 		//FIXME: figure out some way to hint this without having to relight the entire frigging world.
 		for (bt = hm->brushtextures; bt; bt = bt->next)
@@ -5648,7 +5651,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 		{
 			if (br->faces[j].relight && dorelight)
 			{
-				qbyte styles[4] = {0,255,255,255};
+				lightstyleindex_t styles[4] = {0,INVALID_LIGHTSTYLE,INVALID_LIGHTSTYLE,INVALID_LIGHTSTYLE};
 				int texsize[2] = {br->faces[j].lmextents[0]-1, br->faces[j].lmextents[1]-1};
 				vec2_t exactmins, exactmaxs;
 				int m, k;
@@ -5669,7 +5672,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 
 				dorelight = false;
 				br->faces[j].relight = false;
-				LightPlane (hm->relightcontext, hm->lightthreadmem, styles, br->faces[j].lightdata, NULL, br->planes[j], br->faces[j].stdir, exactmins, exactmaxs, br->faces[j].lmbias, texsize, br->faces[j].lmscale);	//special version that doesn't know what a face is or anything.
+				LightPlane (hm->relightcontext, hm->lightthreadmem, styles, NULL, br->faces[j].lightdata, NULL, br->planes[j], br->faces[j].stdir, exactmins, exactmaxs, br->faces[j].lmbias, texsize, br->faces[j].lmscale);	//special version that doesn't know what a face is or anything.
 				br->faces[j].relit = true;
 			}
 			if (br->faces[j].relit && br->faces[j].lightmap >= 0)
@@ -5835,11 +5838,15 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			const miptex_t *tx = NULL;
 #endif
 
-			if (!Q_strcasecmp(bt->shadername, "clip") || !Q_strcasecmp(bt->shadername, "hint") || !Q_strcasecmp(bt->shadername, "skip"))
-				bt->shader = R_RegisterShader(bt->shadername, SUF_LIGHTMAP, "{\nsurfaceparm nodraw\n}");
-			else
-				bt->shader = R_RegisterCustom (bt->shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
-//				bt->shader = R_RegisterShader_Lightmap(bt->shadername);
+			bt->shader = R_RegisterCustom (va("textures/%s", bt->shadername), SUF_LIGHTMAP, NULL, NULL);
+			if (!bt->shader)
+			{
+				if (!Q_strcasecmp(bt->shadername, "clip") || !Q_strcasecmp(bt->shadername, "hint") || !Q_strcasecmp(bt->shadername, "skip"))
+					bt->shader = R_RegisterShader(bt->shadername, SUF_LIGHTMAP, "{\nsurfaceparm nodraw\n}");
+				else
+					bt->shader = R_RegisterCustom (bt->shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
+//					bt->shader = R_RegisterShader_Lightmap(bt->shadername);
+			}
 
 			if (!Q_strncasecmp(bt->shadername, "sky", 3) && tx)
 				R_InitSky (bt->shader, bt->shadername, (qbyte*)tx + tx->offsets[0], tx->width, tx->height);
@@ -5871,8 +5878,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 
 			if (w<1) w = 64;
 			if (h<1) h = 64;
-			scale[0] = 1.0/w;	//I hate needing this.
-			scale[1] = 1.0/h;
+			scale[0] = mod_terrain_brushtexscale.value/w;	//I hate needing this.
+			scale[1] = mod_terrain_brushtexscale.value/h;
 
 			while(bt->batches)
 			{
@@ -7411,7 +7418,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 
 #ifdef RUNTIMELIGHTING
 	hm->entsdirty = true;
-	hm->relightcontext = LightStartup(NULL, mod, false, false);
+	hm->relightcontext = mod_terrain_brushlights.ival?LightStartup(NULL, mod, mod_terrain_brushlights.ival>1, false):NULL;
 	hm->lightthreadmem = BZ_Malloc(lightthreadctxsize);
 	hm->inheritedlightthreadmem = false;
 #endif
@@ -8444,8 +8451,10 @@ void Mod_Terrain_Reload_f(void)
 		Terr_PurgeTerrainModel(mod, false, true);
 }
 
-terrainfuncs_t *QDECL Terr_GetTerrainFuncs(void)
+plugterrainfuncs_t *Terr_GetTerrainFuncs(size_t structsize)
 {
+	if (structsize != sizeof(plugterrainfuncs_t))
+		return NULL;
 #ifdef SERVERONLY
 	return NULL;	//dedicated server builds have all the visual stuff stripped, which makes APIs too inconsistent. Generate then save. Or fix up the API...
 #else
@@ -8478,6 +8487,8 @@ void Terr_Init(void)
 	Cvar_Register(&mod_terrain_ambient, "Terrain");
 	Cvar_Register(&mod_terrain_shadows, "Terrain");
 	Cvar_Register(&mod_terrain_shadow_dist, "Terrain");
+	Cvar_Register(&mod_terrain_brushlights, "Terrain");
+	Cvar_Register(&mod_terrain_brushtexscale, "Terrain");
 #endif
 
 	Mod_RegisterModelFormatText(NULL, "FTE Heightmap Map (hmp)", "terrain", Terr_LoadTerrainModel);

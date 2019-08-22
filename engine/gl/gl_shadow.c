@@ -65,8 +65,6 @@ cvar_t r_shadow_realtime_dlight_specular	= CVAR ("r_shadow_realtime_dlight_specu
 cvar_t r_shadow_playershadows				= CVARD ("r_shadow_playershadows", "1", "Controls the presence of shadows on the local player.");
 cvar_t r_shadow_shadowmapping				= CVARFD ("r_shadow_shadowmapping", "1", CVAR_ARCHIVE, "Enables soft shadows instead of stencil shadows.");
 cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
-extern cvar_t r_shadow_shadowmapping_nearclip;
-extern cvar_t r_shadow_shadowmapping_bias;
 cvar_t r_sun_dir							= CVARD ("r_sun_dir", "0.2 0.5 0.8", "Specifies the direction that crepusular rays appear along");
 cvar_t r_sun_colour							= CVARFD ("r_sun_colour", "0 0 0", CVAR_ARCHIVE, "Specifies the colour of sunlight that appears in the form of crepuscular rays.");
 
@@ -2941,7 +2939,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		//front face
 		qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), surf->mesh->xyz_array);
 		qglDrawArrays(GL_POLYGON, 0, surf->mesh->numvertexes);
-//		qglDrawRangeElements(GL_TRIANGLES, 0, surf->mesh->numvertexes, surf->mesh->numindexes, GL_INDEX_TYPE, surf->mesh->indexes);
+//		qglDrawRangeElements(GL_TRIANGLES, 0, surf->mesh->numvertexes-1, surf->mesh->numindexes, GL_INDEX_TYPE, surf->mesh->indexes);
 		RQuantAdd(RQUANT_SHADOWINDICIES, surf->mesh->numvertexes);
 
 		for (v = 0; v < surf->mesh->numvertexes; v++)
@@ -3062,7 +3060,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		return;	//FIXME: uses glBegin
 
 	// draw sprites seperately, because of alpha blending
-	for (i=0 ; i<cl_numvisedicts ; i++)
+	for (i=r_refdef.firstvisedict ; i<cl_numvisedicts ; i++)
 	{
 		ent = &cl_visedicts[i];
 
@@ -3793,11 +3791,11 @@ void Sh_CalcPointLight(vec3_t point, vec3_t light)
 		colour[0] = dl->color[0];
 		colour[1] = dl->color[1];
 		colour[2] = dl->color[2];
-		if (dl->style)
+		if (dl->style>=0 && dl->style<cl_max_lightstyles)
 		{
-			colour[0] *= cl_lightstyle[dl->style-1].colours[0] * d_lightstylevalue[dl->style-1]/255.0f;
-			colour[1] *= cl_lightstyle[dl->style-1].colours[1] * d_lightstylevalue[dl->style-1]/255.0f;
-			colour[2] *= cl_lightstyle[dl->style-1].colours[2] * d_lightstylevalue[dl->style-1]/255.0f;
+			colour[0] *= cl_lightstyle[dl->style].colours[0] * d_lightstylevalue[dl->style]/255.0f;
+			colour[1] *= cl_lightstyle[dl->style].colours[1] * d_lightstylevalue[dl->style]/255.0f;
+			colour[2] *= cl_lightstyle[dl->style].colours[2] * d_lightstylevalue[dl->style]/255.0f;
 		}
 		else
 		{
@@ -3926,11 +3924,11 @@ void Sh_DrawLights(qbyte *vis)
 			colour[1] *= strength;
 			colour[2] *= strength;
 		}
-		if (dl->style)
+		if (dl->style>=0 && dl->style < cl_max_lightstyles)
 		{
-			colour[0] *= cl_lightstyle[dl->style-1].colours[0] * d_lightstylevalue[dl->style-1]/255.0f;
-			colour[1] *= cl_lightstyle[dl->style-1].colours[1] * d_lightstylevalue[dl->style-1]/255.0f;
-			colour[2] *= cl_lightstyle[dl->style-1].colours[2] * d_lightstylevalue[dl->style-1]/255.0f;
+			colour[0] *= cl_lightstyle[dl->style].colours[0] * d_lightstylevalue[dl->style]/255.0f;
+			colour[1] *= cl_lightstyle[dl->style].colours[1] * d_lightstylevalue[dl->style]/255.0f;
+			colour[2] *= cl_lightstyle[dl->style].colours[2] * d_lightstylevalue[dl->style]/255.0f;
 		}
 		else
 		{

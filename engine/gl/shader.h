@@ -272,6 +272,7 @@ typedef struct shaderpass_s {
 		T_GEN_REFLECTCUBE,	//dpreflectcube
 		T_GEN_REFLECTMASK,	//dpreflectcube mask
 		T_GEN_DISPLACEMENT,	//displacement texture (probably half-float or something so higher precision than normalmap.a)
+		T_GEN_OCCLUSION,	//occlusion mask (instead of baking it into the texture itself, required for correct pbr)
 
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 
@@ -541,20 +542,18 @@ typedef struct programshared_s
 	unsigned int supportedpermutations;
 	unsigned char *cvardata;
 	unsigned int cvardatasize;
+	int shaderver;				//glsl version
+	char *preshade;		//general prefixed #defines
+	char *shadertext;		//the glsl text
+	unsigned char failed[(PERMUTATIONS+7)/8];		//so we don't try recompiling endlessly
+	struct programpermu_s *permu[PERMUTATIONS];	//set once compiled.
+
 #ifdef VKQUAKE
 	qVkShaderModule vert;		//for slightly faster regeneration
 	qVkShaderModule frag;
 	qVkPipelineLayout layout;	//all permutations share the same layout. I'm too lazy not to.
 	qVkDescriptorSetLayout desclayout;
 	struct pipeline_s *pipelines;
-#endif
-#define DELAYEDSHADERCOMPILE
-#ifdef DELAYEDSHADERCOMPILE
-	int shaderver;				//glsl version
-	char *preshade;		//general prefixed #defines
-	char *shadertext;		//the glsl text
-	unsigned char failed[(PERMUTATIONS+7)/8];		//so we don't try recompiling endlessly
-	struct programpermu_s *permu[PERMUTATIONS];	//set once compiled.
 #endif
 } program_t;
 
@@ -797,6 +796,7 @@ typedef struct
 	unsigned int maxver;		//highest glsl version usable
 	unsigned int max_gpu_bones;	//max number of bones supported by uniforms.
 
+	int hw_bc, hw_etc, hw_astc;	//these are set only if the hardware actually supports the format, and not if we think the drivers are software-decoding them (unlike texfmt).
 	qboolean texfmt[PTI_MAX];		//which texture formats are supported (renderable not implied)
 	unsigned int texture2d_maxsize;			//max size of a 2d texture
 	unsigned int texture3d_maxsize;			//max size of a 3d texture
@@ -811,6 +811,7 @@ typedef struct
 	qboolean env_add;
 	qboolean can_mipcap;		//gl1.2+
 	qboolean can_mipbias;		//gl1.4+
+	qboolean can_genmips;		//gl3.0+
 	qboolean havecubemaps;	//since gl1.3, so pretty much everyone will have this... should probably only be set if we also have seamless or clamp-to-edge.
 
 	void	 (*pDeleteProg)		(program_t *prog);
@@ -840,6 +841,7 @@ extern const struct sh_defaultsamplers_s
 
 #ifdef VKQUAKE
 qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name);
+void VK_RegisterVulkanCvars(void);
 #endif
 
 #ifdef GLQUAKE
@@ -1026,4 +1028,6 @@ void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qbo
 void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboolean capsule, float *matrix, float r, float g, float b, float a);
 void CLQ1_AddOrientedSphere(shader_t *shader, float radius, float *matrix, float r, float g, float b, float a);
 void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float *matrix, float r, float g, float b, float a);
+
+extern cvar_t r_fastturb, r_fastsky, r_skyboxname, r_skybox_orientation;
 #endif

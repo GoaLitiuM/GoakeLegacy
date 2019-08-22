@@ -3181,7 +3181,6 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_SUB_PF:
 		case OP_SUB_PI:
 			var_c = var_a;
-			var_b = var_b;
 			if (op == &pr_opcodes[OP_SUB_PF])
 				var_b = QCC_SupplyConversion(var_b, ev_integer, true);	//FIXME: this should be an unconditional float->int conversion
 			if (var_c.cast->aux_type->type == ev_void)	//void* is treated as a byte type.
@@ -4957,6 +4956,7 @@ static void QCC_VerifyArgs_setviewprop (const char *funcname, QCC_ref_t **arglis
 		{"VF_RT_DESTCOLOUR7",	219, ev_string, ev_float, ev_vector},
 		{"VF_ENVMAP",			220, ev_string},
 		{"VF_USERDATA",			221, ev_pointer, ev_integer},
+		{"VF_SKYROOM_CAMERA",	222, ev_vector}
 	};
 
 	char temp[256];
@@ -5723,7 +5723,11 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 							parm++;
 						}
 						else
-							QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[copyop_v?copyop_v:copyop_i], src, args[parm-1].ref, NULL, STFL_PRESERVEB));
+						{
+							QCC_sref_t t = args[parm-1].ref;
+							t.ofs += ofs%3;
+							QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[copyop_v?copyop_v:copyop_i], src, t, NULL, STFL_PRESERVEB));
+						}
 					}
 					else
 					{
@@ -9999,6 +10003,8 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				QCC_PR_Statement(&pr_opcodes[OP_GOTO], nullsref, nullsref, &elsej);
 				fromj->b.ofs = &statements[numstatements] - fromj;
 			}
+			else
+				elsej = NULL;
 			val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			if (val.cast->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
 				val = QCC_SupplyConversion(val, ev_float, true);
@@ -10034,7 +10040,8 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 			}
 			QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, NULL, STFL_PRESERVEB));
 
-			elsej->a.ofs = &statements[numstatements] - elsej;
+			if (elsej)
+				elsej->a.ofs = &statements[numstatements] - elsej;
 			return QCC_DefToRef(retbuf, r);
 		}
 
@@ -14974,9 +14981,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		strictenum = QCC_PR_CheckName("class");	//c++11 style
 
 		type = QCC_PR_ParseType(false, true);	//legacy behaviour
-		if (type)
-			basetype = basetype;
-		else
+		if (!type)
 		{
 			basetype = (flag_assume_integer?type_integer:type_float);
 			if (pr_token_type == tt_name)

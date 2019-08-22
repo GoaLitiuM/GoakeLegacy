@@ -143,8 +143,6 @@ cvar_t sv_master				= CVAR("sv_master", "0");
 cvar_t sv_masterport			= CVAR("sv_masterport", "0");
 #endif
 
-cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
-
 cvar_t	sv_reliable_sound		= CVARFD("sv_reliable_sound", "0",  0, "Causes all sounds to be sent reliably, so they will not be missed due to packetloss. However, this will cause them to be delayed somewhat, and slightly bursty. This can be overriden using the 'rsnd' userinfo setting (either forced on or forced off). Note: this does not affect sounds attached to particle effects.");
 cvar_t	sv_gamespeed		= CVARAF("sv_gamespeed", "1", "slowmo", 0);
 cvar_t	sv_csqcdebug		= CVARD("sv_csqcdebug", "0", "Inject packet size information for data directed to csqc.");
@@ -1134,7 +1132,7 @@ static void SVC_Status (void)
 	int		ping;
 	int		top, bottom;
 	char frags[64];
-	char *skin, *team, *botpre;
+	char *skin, *team, *botpre, *specpre;
 
 	int slots=0;
 
@@ -1172,6 +1170,7 @@ static void SVC_Status (void)
 			else
 				botpre = "";
 
+			specpre = "";
 			if (cl->spectator)
 			{	//silly mvdsv stuff
 				if (displayflags & STATUS_SPECTATORS_AS_PLAYERS)
@@ -1183,7 +1182,7 @@ static void SVC_Status (void)
 				{
 					ping = -ping;
 					sprintf(frags, "%i", -9999);
-					name  = va("\\s\\%s", name);
+					specpre = "\\s\\";
 				}
 			}
 			else
@@ -1191,15 +1190,15 @@ static void SVC_Status (void)
 
 			if (displayflags & STATUS_SHOWTEAMS)
 			{
-				Con_Printf ("%i %s %i %i \"%s%s\" \"%s\" %i %i \"%s\"\n", cl->userid,
+				Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i \"%s\"\n", cl->userid,
 					frags, (int)(realtime - cl->connection_started)/60,
-					ping, botpre, name, skin, top, bottom, team);
+					ping, specpre, botpre, name, skin, top, bottom, team);
 			}
 			else
 			{
-				Con_Printf ("%i %s %i %i \"%s%s\" \"%s\" %i %i\n", cl->userid,
+				Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i\n", cl->userid,
 					frags, (int)(realtime - cl->connection_started)/60,
-					ping, botpre, name, skin, top, bottom);
+					ping, specpre, botpre, name, skin, top, bottom);
 			}
 		}
 		else
@@ -2803,34 +2802,6 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	}
 	newcl->zquake_extensions &= SERVER_SUPPORTED_Z_EXTENSIONS;
 
-	//ezquake's download mechanism is so smegging buggy.
-	//its causing far far far too many connectivity issues. seriously. its beyond a joke. I cannot stress that enough.
-	//as the client needs to listen for the serverinfo to know which extensions will actually be used (yay demos), we can just forget that it supports svc-level extensions, at least for anything that isn't spammed via clc_move etc before the serverinfo.
-	s = InfoBuf_ValueForKey(&newcl->userinfo, "*client");
-	if (!strncmp(s, "ezQuake", 7))
-	{
-		if (newcl->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
-		{
-			if (pext_ezquake_nochunks.ival)
-			{
-				newcl->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
-				Con_TPrintf("%s: ignoring ezquake chunked downloads extension.\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
-			}
-		}
-		if (newcl->zquake_extensions & (Z_EXT_PF_SOLID|Z_EXT_PF_ONGROUND))
-		{
-			if (newcl->fteprotocolextensions & PEXT_HULLSIZE)
-				Con_TPrintf("%s: ignoring ezquake hullsize extension (conflicts with z_ext_pf_onground).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
-			if (newcl->fteprotocolextensions & PEXT_SCALE)
-				Con_TPrintf("%s: ignoring ezquake scale extension (conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
-			if (newcl->fteprotocolextensions & PEXT_FATNESS)
-				Con_TPrintf("%s: ignoring ezquake fatness extension (conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
-			if (newcl->fteprotocolextensions & PEXT_TRANS)
-				Con_TPrintf("%s: ignoring ezquake transparency extension (buggy on players, conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
-			newcl->fteprotocolextensions &= ~(PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS);
-		}
-	}
-
 	Netchan_Setup (NS_SERVER, &newcl->netchan, &info->adr, info->qport);
 
 #ifdef HUFFNETWORK
@@ -3114,6 +3085,9 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	info.expectedreliablesequence = expectedreliablesequence;
 #endif
 
+#ifdef HUFFNETWORK
+	info.huffcrc = 0;
+#endif
 	info.mtu = 0;
 	info.ftepext1 = 0;
 	info.ftepext2 = 0;
@@ -3163,7 +3137,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 			Info_SetValueForKey(userinfo, "name", "UnnamedQ3", sizeof(userinfo));
 
 #ifdef HUFFNETWORK
-		huffcrc = HUFFCRC_QUAKE3;
+		info.huffcrc = HUFFCRC_QUAKE3;
 #endif
 #endif
 	}
@@ -3441,7 +3415,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	}
 	msg_badread=false;
 
-	if (!info.guid)
+	if (!*info.guid)
 		NET_GetConnectionCertificate(svs.sockets, &net_from, QCERT_PEERFINGERPRINT, info.guid, sizeof(info.guid));
 
 	info.adr = net_from;
@@ -5441,7 +5415,6 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_nailhack, cvargroup_servercontrol);
 	Cvar_Register (&sv_nopvs, cvargroup_servercontrol);
-	Cvar_Register (&pext_ezquake_nochunks, cvargroup_servercontrol);
 
 	Cmd_AddCommand ("sv_impulse", SV_Impulse_f);
 

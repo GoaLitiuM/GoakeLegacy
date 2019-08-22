@@ -18,8 +18,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 // net_wins.c
-struct sockaddr;
-
 #include "quakedef.h"
 #include "netinc.h"
 #include <stddef.h>
@@ -85,16 +83,18 @@ FTE_ALIGN(4) qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 #endif
 
 #if defined(_WIN32)
-	int (WINAPI *pgetaddrinfo) (
+	#define getaddrinfo pgetaddrinfo
+	#define freeaddrinfo pfreeaddrinfo
+	#define getnameinfo pgetnameinfo
+
+	static int (WSAAPI *getaddrinfo) (
 	  const char* nodename,
 	  const char* servname,
 	  const struct addrinfo* hints,
 	  struct addrinfo** res
 	);
-	void (WSAAPI *pfreeaddrinfo) (struct addrinfo*);
-#else
-	#define pgetaddrinfo getaddrinfo
-	#define pfreeaddrinfo freeaddrinfo
+	static void (WSAAPI *freeaddrinfo) (struct addrinfo*);
+	static int (WSAAPI *getnameinfo) (const struct sockaddr *addr, socklen_t addrlen, char *host, socklen_t hostlen, char *serv, socklen_t servlen, int flags);
 #endif
 
 #if defined(HAVE_IPV4) && defined(HAVE_SERVER)
@@ -132,9 +132,9 @@ cvar_t	net_enable_tls			= CVARD("net_enable_tls",			"1", "If enabled, binary dat
 #endif
 #ifdef HAVE_HTTPSV
 #ifdef SV_MASTER
-cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
+cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp ports will accept inbound http clients, potentially serving large files which could distrupt gameplay (This does not affect outgoing http(s) requests).");
 #else
-cvar_t	net_enable_http			= CVARD("net_enable_http",			"0", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
+cvar_t	net_enable_http			= CVARD("net_enable_http",			"0", "If enabled, tcp ports will accept inbound http clients, potentially serving large files which could distrupt gameplay (This does not affect outgoing http(s) requests).");
 #endif
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
 cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"0", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
@@ -159,7 +159,7 @@ static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 		}
 	}
 }
-cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: available in desired.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
+cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: clientside choice.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
 #endif
 
 #ifdef HAVE_CLIENT
@@ -264,6 +264,10 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 
 void SockadrToNetadr (struct sockaddr_qstorage *s, int sizeofsockaddr, netadr_t *a)
 {
+#ifndef HAVE_PACKET
+	memset(a, 0, sizeof(*a));
+	a->type = NA_INVALID;
+#else
 	a->scopeid = 0;
 	a->connum = 0;
 	a->prot = NP_DGRAM;
@@ -334,6 +338,7 @@ void SockadrToNetadr (struct sockaddr_qstorage *s, int sizeofsockaddr, netadr_t 
 		a->type = NA_INVALID;
 		break;
 	}
+#endif
 }
 char	*NET_SockadrToString (char *s, int len, struct sockaddr_qstorage *a, size_t sizeofa)
 {
@@ -367,6 +372,8 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 	if (a->type != b->type)
 	{
 		int i;
+		if (a->port != b->port)
+			return false;
 		if (a->type == NA_IP && b->type == NA_IPV6)
 		{
 			for (i = 0; i < 10; i++)
@@ -586,6 +593,7 @@ qboolean NET_AddressSmellsFunny(netadr_t *a)
 	}
 }
 
+#if (_POSIX_C_SOURCE >= 200112L || defined(getnameinfo)) && defined(HAVE_PACKET)
 static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 {
 	netadr_t *n = data;
@@ -598,7 +606,11 @@ static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 	else
 	{
 		ssz = NetadrToSockadr(n, &s);
-		if (getnameinfo((struct sockaddr *)&s, ssz, adrstring, NI_MAXHOST, NULL, 0, NI_NUMERICSERV|NI_DGRAM))
+		if (
+		#ifdef getnameinfo
+			!getnameinfo ||
+		#endif
+			getnameinfo((struct sockaddr *)&s, ssz, adrstring, NI_MAXHOST, NULL, 0, NI_NUMERICSERV|NI_DGRAM))
 		{
 			NET_BaseAdrToString(adrstring, NI_MAXHOST, n);
 		}
@@ -614,6 +626,14 @@ void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *da
 	*(void**)(n+1) = resolved;
 	COM_AddWork(WG_LOADER, NET_AdrToStringDoResolve, ctx, n, a, b);
 }
+#else
+void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b)
+{
+	char adrstring[512];
+	NET_BaseAdrToString(adrstring, countof(adrstring), adr);
+	resolved(ctx, Z_StrDup(adrstring), a, b);
+}
+#endif
 
 char	*NET_AdrToString (char *s, int len, netadr_t *a)
 {
@@ -1027,6 +1047,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	if (!(*s) || !addresses)
 		return result;
 
+#ifdef WEBCLIENT
 	//EVIL HACK!
 	//updates.tth uses a known self-signed certificate (to protect against dns hijacks like fteqw.com suffered).
 	//its not meant to be used for browsers etc, and I cba to register dns stuff for it.
@@ -1034,6 +1055,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	//redirect the dns to the base host without affecting http(s) hosts/certificates.
 	if (!strcmp(s, "updates.triptohell.info"))
 		s += 8;
+#endif
 
 	memset (sadr, 0, sizeof(*sadr));
 
@@ -1156,10 +1178,10 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	else
 #endif
 #ifdef HAVE_IPV6
-#ifdef pgetaddrinfo
-	if (1)
+#ifdef getaddrinfo
+	if (getaddrinfo)
 #else
-	if (pgetaddrinfo)
+	if (1)
 #endif
 	{
 		struct addrinfo *addrinfo = NULL;
@@ -1209,7 +1231,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 					len = sizeof(dupbase)-1;
 				strncpy(dupbase, s+1, len);
 				dupbase[len] = '\0';
-				error = pgetaddrinfo(dupbase, (port[1] == ':')?port+2:NULL, &udp6hint, &addrinfo);
+				error = getaddrinfo(dupbase, (port[1] == ':')?port+2:NULL, &udp6hint, &addrinfo);
 			}
 		}
 		else
@@ -1227,12 +1249,12 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 					len = sizeof(dupbase)-1;
 				strncpy(dupbase, s, len);
 				dupbase[len] = '\0';
-				error = pgetaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
+				error = getaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
 			}
 			else
 				error = EAI_NONAME;
 			if (error)	//failed, try string with no port.
-				error = pgetaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
+				error = getaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
 		}
 
 		restime = Sys_DoubleTime()-restime;
@@ -1273,7 +1295,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 #endif
 			}
 		}
-		pfreeaddrinfo (addrinfo);
+		freeaddrinfo (addrinfo);
 
 		for (i = 0; i < result; i++)
 		{
@@ -1299,7 +1321,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	else
 #endif
 	{
-#if defined(HAVE_IPV4) && !defined(pgetaddrinfo) && !defined(HAVE_IPV6)
+#if defined(HAVE_IPV4) && defined(getaddrinfo) && !defined(HAVE_IPV6)
 		char	copy[128];
 		char	*colon;
 
@@ -2172,6 +2194,8 @@ neterr_t NET_SendLoopPacket (int sock, int length, const void *data, netadr_t *t
 {
 	int		i;
 	loopback_t	*loop;
+	if (!length && !data)	//NET_EnsureRoute tests.
+		return NETERR_SENT;
 
 	sock &= 1;
 
@@ -3051,7 +3075,7 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 					found++;
 				}
 			}
-			pfreeaddrinfo(result);
+			freeaddrinfo(result);
 
 			/*if none found, fill in the 0.0.0.0 or whatever*/
 			if (!found && maxaddresses)
@@ -7174,6 +7198,28 @@ int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_gener
 	return found;
 }
 
+static enum addressscope_e NET_ClassifyAddressipv4(int ip, char **outdesc)
+{
+	int scope = ASCOPE_NET;
+	char *desc = NULL;
+	if ((ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
+		scope = ASCOPE_LINK, desc = "link-local";
+	else if ((ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
+		scope = ASCOPE_LAN, desc = "private";
+	else if ((ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
+		scope = ASCOPE_HOST, desc = "localhost";
+	else if ((ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
+		scope = ASCOPE_LAN, desc = "private";
+	else if ((ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
+		scope = ASCOPE_LAN, desc = "private";
+	else if ((ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//100.64.x.x/10
+		scope = ASCOPE_LAN, desc = "CGNAT";
+	else if (ip == BigLong(0x00000000))	//0.0.0.0/32
+		scope = ASCOPE_LAN, desc = "any";
+
+	*outdesc = desc;
+	return scope;
+}
 enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
 {
 	int scope = ASCOPE_NET;
@@ -7198,24 +7244,15 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
 			scope = ASCOPE_HOST, desc = "localhost";
 		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) == 0)	//::
 			scope = ASCOPE_NET, desc = "any";
+		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12) == 0)	//::ffff:x.y.z.w
+		{
+			scope = NET_ClassifyAddressipv4(*(int*)(adr->address.ip6+12), &desc);
+			if (!desc)
+				desc = "vp-mapped";
+		}
 	}
 	else if (adr->type == NA_IP)
-	{
-		if ((*(int*)adr->address.ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
-			scope = ASCOPE_LINK, desc = "link-local";
-		else if ((*(int*)adr->address.ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
-			scope = ASCOPE_LAN, desc = "private";
-		else if ((*(int*)adr->address.ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
-			scope = ASCOPE_HOST, desc = "localhost";
-		else if ((*(int*)adr->address.ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
-			scope = ASCOPE_LAN, desc = "private";
-		else if ((*(int*)adr->address.ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
-			scope = ASCOPE_LAN, desc = "private";
-		else if ((*(int*)adr->address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//100.64.x.x/10
-			scope = ASCOPE_LAN, desc = "CGNAT";
-		else if (*(int*)adr->address.ip == BigLong(0x00000000))	//0.0.0.0/32
-			scope = ASCOPE_LAN, desc = "any";
-	}
+		scope = NET_ClassifyAddressipv4(*(int*)adr->address.ip, &desc);
 	if (outdesc)
 		*outdesc = desc;
 	return scope;
@@ -7865,6 +7902,7 @@ void NET_Init (void)
 		{
 			{(void**)&pgetaddrinfo, "getaddrinfo"},
 			{(void**)&pfreeaddrinfo, "freeaddrinfo"},
+			{(void**)&pgetnameinfo, "getnameinfo"},
 			{NULL, NULL}
 		};
 		Sys_LoadLibrary("ws2_32.dll", fncs);

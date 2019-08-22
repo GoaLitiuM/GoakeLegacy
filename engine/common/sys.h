@@ -134,13 +134,14 @@ qboolean Sys_ConditionSignal(void *condv);		//lock first
 qboolean Sys_ConditionBroadcast(void *condv);	//lock first
 void Sys_DestroyConditional(void *condv);
 
-typedef struct threading_s
+typedef struct
 {
 	void *(QDECL *CreateMutex)(void);
 	qboolean (QDECL *LockMutex)(void *mutex);
 	qboolean (QDECL *UnlockMutex)(void *mutex);
 	void (QDECL *DestroyMutex)(void *mutex);
-} threading_t;
+#define plugthreadfuncs_name "Threading"
+} plugthreadfuncs_t;
 
 //to try to catch leaks more easily.
 #ifdef USE_MSVCRT_DEBUG
@@ -150,7 +151,7 @@ void *Sys_CreateMutexNamed(char *file, int line);
 
 #else
 	#ifdef __GNUC__	//gcc complains about if (true) when these are maros. msvc complains about static not being called in headers. gah.
-		static inline qboolean Sys_MutexStub(void) {return true;}
+		static inline qboolean Sys_MutexStub(void) {return qtrue;}
 		static inline void *Sys_CreateMutex(void) {return NULL;}
 		#define Sys_IsMainThread() Sys_MutexStub()
 		#define Sys_DestroyMutex(m) Sys_MutexStub()

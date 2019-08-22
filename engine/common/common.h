@@ -115,12 +115,12 @@ typedef unsigned char 		qbyte;
 
 #ifdef __cplusplus
 typedef enum {qfalse, qtrue} qboolean;//false and true are forcivly defined.
+//#define true qtrue
+//#define false qfalse
+#else
+typedef enum {qfalse, qtrue}	qboolean;
 #define true qtrue
 #define false qfalse
-#else
-typedef enum {false, true}	qboolean;
-#define qtrue true
-#define qfalse false
 #endif
 
 #define STRINGIFY2(s) #s
@@ -576,6 +576,7 @@ void VARGS VFS_PRINTF(vfsfile_t *vf, const char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_BINARYPATH,	//for dlls and stuff
+	FS_LIBRARYPATH,	//for system dlls and stuff
 	FS_ROOT,		//./ (effective -homedir if enabled, otherwise effective -basedir arg)
 	FS_SYSTEM,		//a system path. absolute paths are explicitly allowed and expected, but not required.
 

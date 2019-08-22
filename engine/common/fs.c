@@ -810,6 +810,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		}
 		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") ||
 				 !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") ||
+				 !Q_strcasecmp(link, "mdx") || !Q_strcasecmp(link, "md2") ||
 				 !Q_strcasecmp(link, "md5anim") || !Q_strcasecmp(link, "gltf") || !Q_strcasecmp(link, "glb") || !Q_strcasecmp(link, "ase") || !Q_strcasecmp(link, "lwo"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Model Viewer\\modelviewer\\%s", name);
 		else if (!Q_strcasecmp(link, "qc") || !Q_strcasecmp(link, "src") || !Q_strcasecmp(link, "qh") || !Q_strcasecmp(link, "h") || !Q_strcasecmp(link, "c")
@@ -821,8 +822,9 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			|| !Q_strcasecmp(link, "vmt")
 			)
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Text Editor\\edit\\%s", name);
-		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "ico") ||
+		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg")|| !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "ico") ||
 				 !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf") || !Q_strcasecmp(link, "psd") ||
+				 !Q_strcasecmp(link, "astc")|| !Q_strcasecmp(link, "htga")||
 				 !Q_strcasecmp(link, "pbm") || !Q_strcasecmp(link, "ppm") || !Q_strcasecmp(link, "pgm") || !Q_strcasecmp(link, "pam") || !Q_strcasecmp(link, "pfm") || !Q_strcasecmp(link, "hdr") )
 		{
 			//FIXME: image replacements are getting in the way here.
@@ -1731,9 +1733,10 @@ static vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen)
 {
 	flocation_t loc;
-	char *last;
 	int i;
 	char cleanname[MAX_QPATH];
+	char *last;
+	qboolean wasbase;	//to handle out-of-order base/game dirs.
 
 	if (relativeto == FS_SYSTEM)
 	{
@@ -1794,12 +1797,16 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 
 	case FS_BASEGAMEONLY:	// fte/
 		last = NULL;
+		wasbase = true;
 		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
 			if (fs_manifest && fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
 			{
 				if (!strcmp(fs_manifest->gamepath[i].path, "*"))
 					continue;
+				if (fs_manifest->gamepath[i].base && !wasbase)
+					continue;
+				wasbase = fs_manifest->gamepath[i].base;
 				last = fs_manifest->gamepath[i].path;
 				if (*last == '*')
 					last++;
@@ -1814,12 +1821,16 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		break;
 	case FS_PUBGAMEONLY:	// $gamedir/ or qw/ but not fte/
 		last = NULL;
+		wasbase = true;
 		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
 			if (fs_manifest && fs_manifest->gamepath[i].path)
 			{
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;
+				if (fs_manifest->gamepath[i].base && !wasbase)
+					continue;
+				wasbase = fs_manifest->gamepath[i].base;
 				last = fs_manifest->gamepath[i].path;
 			}
 		}
@@ -1838,6 +1849,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 			{
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;
+				wasbase = fs_manifest->gamepath[i].base;
 				last = fs_manifest->gamepath[i].path;
 			}
 		}
@@ -2406,10 +2418,8 @@ typedef struct {
 	const char *puredesc;
 	unsigned int inheritflags;
 } wildpaks_t;
-
-static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_t mtime, void *vparam, searchpathfuncs_t *funcs)
+static void FS_AddSingleDataFile (const char *descriptor, wildpaks_t *param, searchpathfuncs_t *funcs)
 {
-	wildpaks_t *param = vparam;
 	vfsfile_t *vfs;
 	searchpath_t	*search;
 	searchpathfuncs_t	*newpak;
@@ -2423,7 +2433,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_
 	for (search = com_searchpaths; search; search = search->next)
 	{
 		if (!Q_strcasecmp(search->logicalpath, pakfile))	//assumption: first member of structure is a char array
-			return true; //already loaded (base paths?)
+			return; //already loaded (base paths?)
 	}
 
 	newpak = FS_GetOldPath(param->oldpaths, pakfile, &keptflags);
@@ -2437,16 +2447,16 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_
 		{
 			fs_finds++;
 			if (!funcs->FindFile(funcs, &loc, descriptor, NULL))
-				return true;	//not found..
+				return;	//not found..
 			vfs = funcs->OpenVFS(funcs, &loc, "rb");
 			if (!vfs)
-				return true;
+				return;
 		}
 		newpak = param->OpenNew (vfs, funcs, descriptor, pakfile, "");
 		if (!newpak)
 		{
 			VFS_CLOSE(vfs);
-			return true;
+			return;
 		}
 	}
 
@@ -2456,8 +2466,83 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_
 	else
 		Q_strncpyz(purefile, descriptor, sizeof(purefile));
 	FS_AddPathHandle(param->oldpaths, purefile, pakfile, newpak, "", ((!Q_strncasecmp(descriptor, "pak", 3))?SPF_COPYPROTECTED:0)|keptflags|param->inheritflags, (unsigned int)-1);
+}
+typedef struct
+{
+	//name table, to avoid too many reallocs
+	char *names;
+	size_t numnames;
+	size_t maxnames;
 
-	return true;
+	//file table, again to avoid excess reallocs
+	struct wilddatafile_s
+	{
+		size_t nameofs;
+		size_t size;
+		time_t mtime;
+		searchpathfuncs_t *source;
+	} *files;
+	size_t numfiles;
+	size_t maxfiles;
+} filelist_t;
+static int QDECL FS_FindWildDataFiles (const char *descriptor, qofs_t size, time_t mtime, void *vparam, searchpathfuncs_t *funcs)
+{
+	filelist_t *list = vparam;
+	size_t name = list->numnames;
+	size_t file = list->numfiles;
+
+	size_t dlen = strlen(descriptor);
+
+	if (list->numnames + dlen+1 > list->maxnames)
+		Z_ReallocElements((void**)&list->names, &list->maxnames, list->numnames+dlen+1+8192, sizeof(*list->names));
+	strcpy(list->names + name, descriptor);
+	list->numnames += dlen+1;
+
+	if (list->numfiles + 1 > list->maxfiles)
+		Z_ReallocElements((void**)&list->files, &list->maxfiles, list->numfiles+1+128, sizeof(*list->files));
+	list->files[file].nameofs = name;
+	list->files[file].size = size;
+	list->files[file].mtime = mtime;
+	list->files[file].source = funcs;
+	list->numfiles += 1;
+
+	return true;	//keep looking for more
+}
+static const char *qsortsucks;
+static int QDECL FS_SortWildDataFiles(const void *va, const void *vb)
+{
+	const struct wilddatafile_s *a=va, *b=vb;
+	const char *na=qsortsucks+a->nameofs, *nb=qsortsucks+b->nameofs;
+
+	//sort by modification time...
+	if (a->mtime != b->mtime && a->mtime && b->mtime)
+		return a->mtime > b->mtime;
+
+#ifdef _MSC_VER 
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#endif
+
+	//then fall back and sort by name
+	return strcasecmp(na, nb);
+}
+static void FS_LoadWildDataFiles (filelist_t *list, wildpaks_t *wp)
+{
+	size_t f;
+	//sort them
+	qsortsucks = list->names;
+	qsort(list->files, list->numfiles, sizeof(*list->files), FS_SortWildDataFiles);
+	qsortsucks = NULL;
+
+	for (f = 0; f < list->numfiles; f++)
+		FS_AddSingleDataFile(list->names+list->files[f].nameofs, wp, list->files[f].source);
+	list->numfiles = list->numnames = 0;
+
+	Z_Free(list->files);
+	list->files = NULL;
+	Z_Free(list->names);
+	list->names = NULL;
+	list->maxfiles = list->maxnames = 0;
 }
 
 static searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname)
@@ -2634,6 +2719,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 	vfsfile_t *vfs;
 	flocation_t loc;
 	wildpaks_t wp;
+	filelist_t list = {0};
 
 	Q_strncpyz(logicalpaths, logicalpath, sizeof(logicalpaths));
 	FS_CleanDir(logicalpaths, sizeof(logicalpaths));
@@ -2669,7 +2755,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 						if (loadstuff & (1<<j))
 						{
 							wp.OpenNew = searchpathformats[j].OpenNew;
-							FS_AddWildDataFiles(filename, 0, 0, &wp, search->handle);
+							FS_AddSingleDataFile(filename, &wp, search->handle);
 						}
 						break;
 					}
@@ -2743,7 +2829,8 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 			wp.OpenNew = searchpathformats[j].OpenNew;
 
 			Q_snprintfz (pakfile, sizeof(pakfile), "*.%s", extension);
-			search->handle->EnumerateFiles(search->handle, pakfile, FS_AddWildDataFiles, &wp);
+			search->handle->EnumerateFiles(search->handle, pakfile, FS_FindWildDataFiles, &list);
+			FS_LoadWildDataFiles(&list, &wp);
 		}
 	}
 

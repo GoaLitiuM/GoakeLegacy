@@ -1258,12 +1258,14 @@ qboolean MSV_ClusterLoginSQLResult(queryrequest_t *req, int firstrow, int numrow
 	}
 	return false;
 }
-qboolean MSV_IgnoreSQLResult(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
+#endif
+
+#if 0
+static qboolean MSV_IgnoreSQLResult(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
 {
 	return false;
 }
 #endif
-
 void MSV_OpenUserDatabase(void)
 {
 #if 0

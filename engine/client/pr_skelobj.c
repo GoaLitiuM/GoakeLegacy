@@ -117,7 +117,7 @@ static void skel_copy_toabs(skelobject_t *skelobjdst, skelobject_t *skelobjsrc, 
 	galiasbone_t *boneinfo = Mod_GetBoneInfo(skelobjsrc->model, &maxbones);
 	if (!boneinfo)
 		return;
-	endbone = min(endbone, maxbones-1);
+	endbone = min(endbone, maxbones);
 	if (skelobjsrc->type == SKEL_ABSOLUTE)
 	{
 		if (skelobjsrc != skelobjdst)
@@ -334,6 +334,7 @@ static dollcreatectx_t *rag_createdoll(model_t *mod, const char *fname, int numb
 	ctx->defbody.orient = false;
 
 	memset(&ctx->defjoint, 0, sizeof(ctx->defjoint));
+	ctx->defjoint.startenabled = true;
 	ctx->defjoint.axis[1] = 1;
 	ctx->defjoint.axis2[2] = 1;
 	ctx->defjoint.ERP = 0.2;	//use ODE defaults
@@ -418,9 +419,9 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 			if (!ctx->errors++)
 			{
 				if (ctx->joint->body2 == ctx->joint->body1)
-					Con_Printf("^[Joint \"%s\" joints body \"%s\" to itself\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
+					Con_Printf("^[Joint \"%s\" joins body \"%s\" to itself\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
 				else
-					Con_Printf("^[Joint \"%s\" joints invalid body \"%s\"\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
+					Con_Printf("^[Joint \"%s\" joins invalid body \"%s\"\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
 			}
 			return true;
 		}
@@ -527,6 +528,8 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 	}
 	else if (ctx->joint && argc == 2 && !stricmp(cmd, "draw"))
 		ctx->joint->draw = atoi(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "enabled"))
+		ctx->joint->startenabled = atoi(val)?true:false;
 	else if (ctx->joint && argc == 2 && !stricmp(cmd, "ERP"))
 		ctx->joint->ERP = atof(val);
 	else if (ctx->joint && argc == 2 && !stricmp(cmd, "ERP2"))
@@ -962,7 +965,7 @@ void skel_info_f(void)
 	{
 		if (skelobjects[i].world)
 		{
-#if !defined(SERVERONLY) && defined(CSQC_DAT)
+#if defined(HAVE_CLIENT) && defined(CSQC_DAT)
 			extern world_t csqc_world;
 #endif
 			Con_Printf("doll %i:\n", i);
@@ -970,7 +973,7 @@ void skel_info_f(void)
 			if (skelobjects[i].world == &sv.world)
 				Con_Printf(" SSQC\n");
 #endif
-#if !defined(SERVERONLY) && defined(CSQC_DAT)
+#if defined(HAVE_CLIENT) && defined(CSQC_DAT)
 			if (skelobjects[i].world == &csqc_world)
 				Con_Printf(" CSQC\n");
 #endif
@@ -1293,6 +1296,8 @@ static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, we
 		VectorNormalize2(j->axis2, aaa2[2]);
 
 		sko->world->rbe->RagCreateJoint(sko->world, &sko->joint[i], j, body1, body2, aaa2);
+
+		sko->world->rbe->RagEnableJoint(&sko->joint[i], j->startenabled);
 	}
 
 	//now the joints have all their various properties, move the bones to their real positions.
@@ -1719,16 +1724,45 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		cmd = Cmd_Argv(0);
 		if (!stricmp(cmd, "enablejoint"))
 		{
-			int idx = rag_finddolljoint(sko->doll, Cmd_Argv(1));
+			int idx;
 			int enable = atoi(Cmd_Argv(2));
-			sko->world->rbe->RagEnableJoint(&sko->joint[idx], enable);
-			G_FLOAT(OFS_RETURN) = 1;
+			if (!sko->doll)
+			{
+				skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
+				if (!doll || !rag_instanciate(sko, doll, emat, wed))
+				{
+					Con_Printf("enablejoint: doll not instanciated yet\n");
+					return;
+				}
+			}
+			idx = rag_finddolljoint(sko->doll, Cmd_Argv(1));
+	
+			if (idx >= 0)
+			{
+				sko->world->rbe->RagEnableJoint(&sko->joint[idx], enable);
+				G_FLOAT(OFS_RETURN) = 1;
+			}
+			else
+			{
+				Con_Printf("enablejoint: %s is not defined as a ragdoll joint\n", Cmd_Argv(1));
+				G_FLOAT(OFS_RETURN) = 0;
+			}
 			return;
 		}
 		else if (!stricmp(cmd, "animatebody"))
 		{
-			int body = rag_finddollbody(sko->doll, Cmd_Argv(1));
+			int body;
 			float strength = atof(Cmd_Argv(2));
+			if (!sko->doll)
+			{
+				skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
+				if (!doll || !rag_instanciate(sko, doll, emat, wed))
+				{
+					Con_Printf("animatebody: doll not instanciated yet\n");
+					return;
+				}
+			}	
+			body = rag_finddollbody(sko->doll, Cmd_Argv(1));
 			if (body >= 0)
 			{
 				if (sko->body[body].animstrength)
@@ -1737,6 +1771,8 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				if (sko->body[body].animstrength)
 					sko->numanimated++;
 			}
+			else
+				Con_Printf("animatebody: %s is not defined as a ragdoll body\n", Cmd_Argv(1));
 			G_FLOAT(OFS_RETURN) = sko->numanimated;
 			return;
 		}
@@ -1744,6 +1780,15 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		{
 			float strength = atof(Cmd_Argv(1));
 			int i;
+			if (!sko->doll)
+			{
+				skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
+				if (!doll || !rag_instanciate(sko, doll, emat, wed))
+				{
+					Con_Printf("animate: doll not instanciated yet\n");
+					return;
+				}
+			}
 			sko->numanimated = 0;
 
 			for (i = 0; i < sko->numbodies; i++)
@@ -1763,9 +1808,9 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			return;
 		}
 		else if (!stricmp(cmd, "doll"))
-			doll = rag_loaddoll(sko->model, Cmd_Argv(1), sko->numbones);
+			doll = sko->model?rag_loaddoll(sko->model, Cmd_Argv(1), sko->numbones):NULL;
 		else if (!stricmp(cmd, "dollstring"))
-			doll = rag_createdollfromstring(sko->model, "", sko->numbones, ragname);
+			doll = sko->model?rag_createdollfromstring(sko->model, "", sko->numbones, ragname):NULL;
 		else if (!stricmp(cmd, "cleardoll"))
 			doll = NULL;
 		else
@@ -1805,6 +1850,12 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		rag_animate(sko, doll, emat);
 	}
 
+	if (psko == sko)
+	{
+		Con_Printf("PF_skel_ragedit: cannot use the same skeleton for animation source\n");
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+	}
 	rag_derive(sko, psko, emat);
 	G_FLOAT(OFS_RETURN) = 1;
 #endif

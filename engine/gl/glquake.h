@@ -235,6 +235,7 @@ typedef struct {
 	qboolean arb_texture_env_dot3;
 
 	qboolean arb_texture_compression;	//means we support dynamic compression, rather than any specific compressed texture formats
+	qboolean astc_decodeprecision;		//means we can tell the gpu that our astc textures actually are ldr.
 
 	qboolean geometryshaders;
 	qboolean arb_tessellation_shader;
@@ -321,7 +322,6 @@ extern	unsigned int r_viewcontents;
 int r_viewarea;
 extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	//q2
 extern	texture_t	*r_notexture_mip;
-extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 extern	texid_t	netgraphtexture;	// netgraph texture
 extern	shader_t *netgraphshader;
@@ -652,6 +652,7 @@ extern void (APIENTRY *qglFinish) (void);
 extern void (APIENTRY *qglFlush) (void);
 extern void (APIENTRY *qglFrontFace) (GLenum mode);
 extern void (APIENTRY *qglGenTextures) (GLsizei n, GLuint *textures);
+extern void (APIENTRY *qglGenerateMipmap)(GLenum target);
 extern void (APIENTRY *qglGetBooleanv) (GLenum pname, GLboolean *params);
 extern GLenum (APIENTRY *qglGetError) (void);
 extern void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);

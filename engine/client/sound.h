@@ -294,7 +294,7 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 
 extern int				snd_speed;
 
-extern vec_t sound_nominal_clip_dist;
+extern cvar_t snd_nominaldistance;
 
 extern	cvar_t loadas8bit;
 extern	cvar_t bgmvolume;
@@ -313,7 +313,8 @@ void S_LocalSound2 (const char *sound, int channel, float volume);
 qboolean S_LoadSound (sfx_t *s, qboolean forcedecode);
 
 typedef qboolean (QDECL *S_LoadSound_t) (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode);
-qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc);	//called to register additional sound input plugins
+qboolean S_RegisterSoundInputPlugin(void *module, S_LoadSound_t loadfnc); //called to register additional sound input plugins
+void S_UnregisterSoundInputModule(void *module);
 
 void S_AmbientOff (void);
 void S_AmbientOn (void);

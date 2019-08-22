@@ -727,7 +727,8 @@ static void QCBUILTIN PF_cs_remove (pubprogfuncs_t *prinst, struct globalvars_s 
 		return;
 	}
 
-	pe->DelinkTrailstate(&ed->trailstate);
+	if (pe)
+		pe->DelinkTrailstate(&ed->trailstate);
 	World_UnlinkEdict((wedict_t*)ed);
 	ED_Free (prinst, (void*)ed);
 }
@@ -1155,7 +1156,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		l->rebuildcache = true;
 		break;
 	case lfield_style:
-		l->style = G_FLOAT(OFS_PARM2)+1;
+		l->style = G_FLOAT(OFS_PARM2);
 		break;
 	case lfield_angles:
 		VectorCopy(G_VECTOR(OFS_PARM2), l->angles);
@@ -1247,7 +1248,7 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		G_FLOAT(OFS_RETURN) = l->flags;
 		break;
 	case lfield_style:
-		G_FLOAT(OFS_RETURN) = l->style-1;
+		G_FLOAT(OFS_RETURN) = l->style;
 		break;
 	case lfield_angles:
 		VectorCopy(l->angles, G_VECTOR(OFS_RETURN));
@@ -2474,7 +2475,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 			SCR_TileClear (0);
 #endif
 
-		if (!Key_Dest_Has(kdm_emenu|kdm_gmenu|kdm_cwindows))
+		if (!Key_Dest_Has(kdm_menu|kdm_cwindows))
 		{
 			if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
 			{
@@ -3570,6 +3571,8 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	if (!cl.worldmodel)
 		return;	//urm..
 
+	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
+
 	//debugging field
 	pmove.sequence = *csqcg.clientcommandframe;
 
@@ -4339,7 +4342,7 @@ static void QCBUILTIN PF_cs_lightstyle (pubprogfuncs_t *prinst, struct globalvar
 	if (prinst->callargc >= 3)	//fte is a quakeworld engine
 		VectorCopy(G_VECTOR(OFS_PARM2), rgb);
 
-	if ((unsigned)stnum >= MAX_LIGHTSTYLES)
+	if ((unsigned)stnum >= cl_max_lightstyles)
 	{
 		Con_Printf ("PF_cs_lightstyle: stnum > MAX_LIGHTSTYLES");
 		return;
@@ -4351,7 +4354,7 @@ static void QCBUILTIN PF_getlightstyle (pubprogfuncs_t *prinst, struct globalvar
 {
 	unsigned int stnum = G_FLOAT(OFS_PARM0);
 
-	if (stnum >= MAX_LIGHTSTYLES)
+	if (stnum >= cl_max_lightstyles)
 	{
 		VectorSet(G_VECTOR(OFS_PARM1), 0, 0, 0);
 		G_INT(OFS_RETURN) = 0;
@@ -4369,13 +4372,13 @@ static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct global
 	unsigned int stnum = G_FLOAT(OFS_PARM0);
 	int value;	//could be float, but that would exceed the precision of R_AnimateLight
 
-	if (stnum >= MAX_LIGHTSTYLES)
+	if (stnum >= MAX_NET_LIGHTSTYLES)
 	{
 		Con_Printf ("PF_getlightstyle: stnum > MAX_LIGHTSTYLES");
 		return;
 	}
 
-	if (!cl_lightstyle[stnum].length)
+	if (stnum < cl_max_lightstyles || !cl_lightstyle[stnum].length)
 		value = ('m'-'a')*22 * r_lightstylescale.value;
 	else if (cl_lightstyle[stnum].map[0] == '=')
 		value = atof(cl_lightstyle[stnum].map+1)*256*r_lightstylescale.value;
@@ -6463,27 +6466,27 @@ static struct {
 //	{"?",	PF_Fixme,		313},					// #313
 
 //2d (immediate) operations
-	{"drawtextfield",			PF_CL_DrawTextField,  0/*314*/},
-	{"drawline",				PF_CL_drawline,				315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
-	{"iscachedpic",				PF_CL_is_cached_pic,		316},		// #316 float(string name) iscachedpic (EXT_CSQC)
-	{"precache_pic",			PF_CL_precache_pic,			317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
-	{"r_uploadimage",			PF_CL_uploadimage,			0},
-	{"r_readimage",				PF_CL_readimage,			0},
-	{"drawgetimagesize",		PF_CL_drawgetimagesize,		318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
-	{"freepic",					PF_CL_free_pic,				319},		// #319 void(string name) freepic (EXT_CSQC)
+	{"drawtextfield",			PF_CL_DrawTextField,			0/*314*/},
+	{"drawline",				PF_CL_drawline,					315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
+	{"iscachedpic",				PF_CL_is_cached_pic,			316},		// #316 float(string name) iscachedpic (EXT_CSQC)
+	{"precache_pic",			PF_CL_precache_pic,				317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
+	{"r_uploadimage",			PF_CL_uploadimage,				0},
+	{"r_readimage",				PF_CL_readimage,				0},
+	{"drawgetimagesize",		PF_CL_drawgetimagesize,			318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
+	{"freepic",					PF_CL_free_pic,					319},		// #319 void(string name) freepic (EXT_CSQC)
 //320
-	{"drawcharacter",			PF_CL_drawcharacter,		320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
-	{"drawrawstring",			PF_CL_drawrawstring,				321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
-	{"drawpic",					PF_CL_drawpic,				322},		// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
-	{"drawrotpic",				PF_CL_drawrotpic,			0},
-	{"drawfill",				PF_CL_drawfill,				323},		// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
+	{"drawcharacter",			PF_CL_drawcharacter,			320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrawstring",			PF_CL_drawrawstring,			321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
+	{"drawpic",					PF_CL_drawpic,					322},		// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrotpic",				PF_CL_drawrotpic,				0},
+	{"drawfill",				PF_CL_drawfill,					323},		// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
 	{"drawsetcliparea",			PF_CL_drawsetcliparea,			324},	// #324 void(float x, float y, float width, float height) drawsetcliparea (EXT_CSQC_???)
-	{"drawresetcliparea",		PF_CL_drawresetcliparea,	325},		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
+	{"drawresetcliparea",		PF_CL_drawresetcliparea,		325},		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
 
-	{"drawstring",				PF_CL_drawcolouredstring,						326},	// #326
-	{"stringwidth",				PF_CL_stringwidth,					327},	// #327 EXT_CSQC_'DARKPLACES'
-	{"drawsubpic",				PF_CL_drawsubpic,						328},	// #328 EXT_CSQC_'DARKPLACES'
-	{"drawrotsubpic",			PF_CL_drawrotsubpic,						0},
+	{"drawstring",				PF_CL_drawcolouredstring,		326},	// #326
+	{"stringwidth",				PF_CL_stringwidth,				327},	// #327 EXT_CSQC_'DARKPLACES'
+	{"drawsubpic",				PF_CL_drawsubpic,				328},	// #328 EXT_CSQC_'DARKPLACES'
+	{"drawrotsubpic",			PF_CL_drawrotsubpic,			0},
 //	{"?",	PF_Fixme,						329},	// #329 EXT_CSQC_'DARKPLACES'
 
 //330
@@ -7366,7 +7369,7 @@ void ASMCALL CSQC_ThinkTimeOp(pubprogfuncs_t *progs, edict_t *ed, float var)
 	vars->nextthink = *w->g.time+var;
 }
 
-pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc)
+pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc, const char *filename)
 {
 	if (!num)
 	{
@@ -8181,7 +8184,7 @@ qboolean CSQC_DrawView(void)
 			G_FLOAT(OFS_PARM0) = vid.width;
 			G_FLOAT(OFS_PARM1) = vid.height;
 		}
-		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_emenu|kdm_gmenu|kdm_cwindows) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
+		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_menu|kdm_cwindows) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
 
 		if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)
 			PR_ExecuteProgram(csqcprogs, csqcg.f_updateviewloading);

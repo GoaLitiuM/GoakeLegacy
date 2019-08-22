@@ -145,7 +145,7 @@ IF(NOT PNG_FOUND)
 	MESSAGE(WARNING "libpng library NOT available. Good luck with screenshots.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_PNG)
 ENDIF()
-	
+
 FIND_PACKAGE(Freetype)
 IF(NOT FREETYPE_FOUND)
 	MESSAGE(WARNING "freetype library NOT available. I hope you're okay with ascii.")
@@ -168,6 +168,12 @@ ENDIF()
 
 IF(CMAKE_C_COMPILER_ID MATCHES "Clang")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-pointer-sign")
+
+	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
+	ELSE()
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+	ENDIF()
 endif()
 IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wstrict-prototypes")			#
@@ -182,7 +188,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#might as well do this, public builds use the regular Makefile.
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 	ENDIF()
@@ -201,7 +207,7 @@ IF(${ANDROID})
 
 #	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
 
-	SET(FTE_DEFINES ${FTE_DEFINES};ANDROID;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_DEFINES ${FTE_DEFINES};ANDROID;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD)
 	SET(FTE_LIBS ${FTE_LIBS} android log EGL ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_droid.c
@@ -282,7 +288,7 @@ ELSEIF(${UNIX})	#linux(ish)
 		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11)
 	ENDIF()
 
-	SET(FTE_DEFINES ${FTE_DEFINES};DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_DEFINES ${FTE_DEFINES};DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD)
 	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_linux.c
@@ -331,7 +337,7 @@ ELSEIF(${UNIX})	#linux(ish)
 		ENDIF()
 	ENDIF()
 
-	SET(FTESV_DEFINES MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTESV_DEFINES MULTITHREAD)
 	SET(FTESV_ARCH_FILES 
 		engine/server/sv_sys_unix.c
 		engine/common/sys_linux_threads.c
@@ -356,7 +362,7 @@ ELSEIF(1)	#SDL
 	INCLUDE_DIRECTORIES(${FREETYPE_INCLUDE_DIRS} ${SDL2_INCLUDE_DIRS})
 	
 	#SDL2.0.7 supports vulkan, so lets use it.
-	SET(FTE_DEFINES ${FTE_DEFINES};FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_DEFINES ${FTE_DEFINES};FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG)
 	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_sdl.c
@@ -367,7 +373,7 @@ ELSEIF(1)	#SDL
 		engine/gl/gl_vidsdl.c
 	)
 
-	SET(FTESV_DEFINES FTE_SDL;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTESV_DEFINES FTE_SDL)
 	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 
 	IF(WIN32)
@@ -433,6 +439,22 @@ ELSE()
 #	engine/gl/gl_vidwayland.c
 ENDIF()
 
+SET(FTE_GL_FILES
+#These are GL-specific, but can be left even if no gl is supported.
+	engine/gl/gl_backend.c
+	engine/gl/gl_bloom.c
+	engine/gl/gl_draw.c
+	engine/gl/gl_rmain.c
+	engine/gl/gl_rmisc.c
+	engine/gl/gl_rsurf.c
+	engine/gl/gl_screen.c
+	engine/gl/gl_vidcommon.c
+	engine/gl/glmod_doom.c
+)
+SET(FTE_VK_FILES
+	engine/vk/vk_backend.c
+	engine/vk/vk_init.c
+)
 SET(FTE_COMMON_FILES
 	#these files are common to both server-only and client+server builds.
 	engine/common/cmd.c
@@ -670,13 +692,12 @@ SET(FTE_CLIENT_FILES
 	engine/client/snd_ov.c
 	engine/client/textedit.c
 	engine/client/valid.c
-	engine/client/vid_headless.c
 	engine/client/view.c
 	engine/client/wad.c
 	engine/client/zqtp.c
 
 
-#These are generic renderer files
+#These are generic renderer files and no longer gl-specific (for the most part)
 	engine/gl/gl_alias.c
 	engine/gl/gl_font.c
 	engine/gl/gl_ngraph.c
@@ -686,19 +707,10 @@ SET(FTE_CLIENT_FILES
 	engine/gl/gl_warp.c
 	engine/gl/ltface.c
 
-#These are GL-specific, but can be left even if no gl is supported.
-	engine/gl/gl_backend.c
-	engine/gl/gl_bloom.c
-	engine/gl/gl_draw.c
-	engine/gl/gl_rmain.c
-	engine/gl/gl_rmisc.c
-	engine/gl/gl_rsurf.c
-	engine/gl/gl_screen.c
-	engine/gl/gl_vidcommon.c
-	engine/gl/glmod_doom.c
-	
-	engine/vk/vk_backend.c
-	engine/vk/vk_init.c
+#these are renderer-specific
+	engine/client/vid_headless.c
+	${FTE_GL_FILES}
+	${FTE_VK_FILES}
 )
 
 # ADD_LIBRARY(fteq3bot MODULE
@@ -749,7 +761,6 @@ ELSE()
 	FIND_PACKAGE(Bullet)
 	IF (BULLET_FOUND)
 		ADD_LIBRARY(bullet MODULE
-			plugins/qvm_api.c
 			plugins/plugin.c
 			plugins/bullet/bulletplug.cpp
 		)
@@ -758,6 +769,7 @@ ELSE()
 		SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
 		SET_TARGET_PROPERTIES(bullet PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 		TARGET_LINK_LIBRARIES(bullet m ${BULLET_LIBRARIES})
+		SET(INSTALLTARGS ${INSTALLTARGS} bullet)
 	ENDIF()
 ENDIF()
 
@@ -770,6 +782,7 @@ IF(ANDROID)
 	)
 	SET_TARGET_PROPERTIES(ftedroid PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(ftedroid ${FTE_LIBS} )
+	SET(INSTALLTARGS ${INSTALLTARGS} ftedroid)
 ELSE()
 	#systems that actually have executables...
 	ADD_EXECUTABLE(fteqw WIN32
@@ -779,6 +792,7 @@ ELSE()
 	)
 	SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS} )
+	SET(INSTALLTARGS ${INSTALLTARGS} fteqw)
 
 	ADD_EXECUTABLE(fteqw-sv
 		${FTESV_ARCH_FILES}
@@ -786,12 +800,14 @@ ELSE()
 	)
 	SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
+	SET(INSTALLTARGS ${INSTALLTARGS} fteqw-sv)
 	
 	ADD_EXECUTABLE(iqmtool
 		iqm/iqm.cpp
 		iqm/iqm.h
 	)
 	SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
+	SET(INSTALLTARGS ${INSTALLTARGS} iqmtool)
 
 	IF(NOT WIN32)
 		ADD_EXECUTABLE(ftemaster
@@ -812,6 +828,7 @@ ELSE()
 		)
 		SET_TARGET_PROPERTIES(ftemaster PROPERTIES COMPILE_DEFINITIONS "MASTERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
 		TARGET_LINK_LIBRARIES(ftemaster ${FTESV_LIBS})
+		SET(INSTALLTARGS ${INSTALLTARGS} ftemaster)
 	ENDIF()
 
 	ADD_EXECUTABLE(httpserver
@@ -820,10 +837,11 @@ ELSE()
 		engine/http/iwebiface.c
 		engine/http/ftpserver.c
 	)
-	SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON};stricmp=strcasecmp;strnicmp=strncasecmp")
+	SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON}")
 	IF(WIN32)
 		TARGET_LINK_LIBRARIES(httpserver ${ZLIB_LIBRARIES} ws2_32)
 	ENDIF()
+	#SET(INSTALLTARGS ${INSTALLTARGS} httpserver)
 
 	ADD_EXECUTABLE(fteqcc
 		engine/qclib/qcctui.c
@@ -837,7 +855,7 @@ ELSE()
 	)
 	SET_TARGET_PROPERTIES(fteqcc PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqcc ${ZLIB_LIBRARIES})
-
+	SET(INSTALLTARGS ${INSTALLTARGS} fteqcc)
 
 	IF(${WIN32})
 		ADD_EXECUTABLE(fteqccgui WIN32
@@ -855,9 +873,25 @@ ELSE()
 		)
 		SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
 		TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} ${PNG_LIBRARIES} shlwapi ole32 comctl32 comdlg32)
+		SET(INSTALLTARGS ${INSTALLTARGS} fteqccgui)
 	ELSE()
 		FIND_PACKAGE(Qt5Widgets)
-		IF (Qt5Widgets_FOUND)
+
+		FIND_PATH(QSCINTILLA_INCLUDE_DIR
+			NAMES Qsci/qsciglobal.h
+			PATHS ${Qt5Widgets_INCLUDE_DIRS}
+			PATH_SUFFIXES Qsci
+		)
+		FIND_LIBRARY(QSCINTILLA_LIBRARY
+			NAMES qscintilla2_qt5
+			PATHS
+				${QT_LIBRARY_DIR}
+				/usr/local/lib
+				/usr/local/lib/qt5
+				/usr/lib
+		)
+
+		IF (QSCINTILLA_INCLUDE_DIR AND QSCINTILLA_LIBRARY AND Qt5Widgets_FOUND)
 			ADD_EXECUTABLE(fteqccgui
 				engine/qclib/qccguiqt.cpp
 				engine/qclib/qccguistuff.c
@@ -871,10 +905,13 @@ ELSE()
 				engine/qclib/packager.c
 				engine/qclib/qcd_main.c
 			)
-			TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS})
+			TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS} ${QSCINTILLA_INCLUDE_DIR})
 			SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};${Qt5Widgets_COMPILE_DEFINITIONS}")
 			SET_PROPERTY(TARGET fteqccgui PROPERTY POSITION_INDEPENDENT_CODE TRUE)
-			TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} ${Qt5Widgets_LIBRARIES} qscintilla2_qt5)
+			TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} ${Qt5Widgets_LIBRARIES} ${QSCINTILLA_LIBRARY})
+		ELSE()
+			MESSAGE(WARNING "qscintilla/qt5widgets library not detected, no fteqccgui for you")
+			SET(INSTALLTARGS ${INSTALLTARGS} fteqccgui)
 		ENDIF()
 	ENDIF()
 ENDIF()
@@ -882,7 +919,6 @@ ENDIF()
 
 #Quake Injector Alike plugin
 #ADD_LIBRARY(qi MODULE
-#	plugins/qvm_api.c
 #	plugins/plugin.c
 #	plugins/qi/qi.c
 #	plugins/emailnot/md5.c
@@ -890,13 +926,13 @@ ENDIF()
 #)
 #SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 #SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
+#SET(INSTALLTARGS ${INSTALLTARGS} qi)
 
 #ODE Physics library plugin
 FIND_PATH(LIBODE_INCLUDE_DIR ode/ode.h)
 FIND_LIBRARY(LIBODE_LIBRARY ode)
 IF (LIBODE_INCLUDE_DIR)
 	ADD_LIBRARY(ode MODULE
-		plugins/qvm_api.c
 		plugins/plugin.c
 		engine/common/com_phys_ode.c
 		engine/common/mathlib.c
@@ -906,11 +942,11 @@ IF (LIBODE_INCLUDE_DIR)
 	SET_TARGET_PROPERTIES(ode PROPERTIES PREFIX "fteplug_")
 	SET_TARGET_PROPERTIES(ode PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(ode m ${LIBODE_LIBRARY})
+	SET(INSTALLTARGS ${INSTALLTARGS} ode)
 ENDIF()
 
 #EzQuake Hud port plugin
 #ADD_LIBRARY(ezhud MODULE
-#	plugins/qvm_api.c
 #	plugins/plugin.c
 #	plugins/ezhud/ezquakeisms.c
 #	plugins/ezhud/hud.c
@@ -921,10 +957,32 @@ ENDIF()
 #SET_TARGET_PROPERTIES(ezhud PROPERTIES PREFIX "fteplug_")
 #SET_TARGET_PROPERTIES(ezhud PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 #TARGET_LINK_LIBRARIES(ezhud m)
+#SET(INSTALLTARGS ${INSTALLTARGS} ezhud)
+
+#NameMaker string generation plugin
+#ADD_LIBRARY(namemaker MODULE
+#	plugins/plugin.c
+#	plugins/namemaker/namemaker.c
+#)
+#SET_TARGET_PROPERTIES(namemaker PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES}")
+#SET_TARGET_PROPERTIES(namemaker PROPERTIES PREFIX "fteplug_")
+#SET_TARGET_PROPERTIES(namemaker PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+#TARGET_LINK_LIBRARIES(namemaker m)
+#SET(INSTALLTARGS ${INSTALLTARGS} namemaker)
+
+#Terrain Generation plugin
+#ADD_LIBRARY(terrorgen MODULE
+#	plugins/plugin.c
+#	plugins/terrorgen/terragen.c
+#)
+#SET_TARGET_PROPERTIES(terrorgen PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+#SET_TARGET_PROPERTIES(terrorgen PROPERTIES PREFIX "fteplug_")
+#SET_TARGET_PROPERTIES(terrorgen PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+#TARGET_LINK_LIBRARIES(terrorgen m)
+#SET(INSTALLTARGS ${INSTALLTARGS} terrorgen)
 
 #IRC client plugin
 #ADD_LIBRARY(irc MODULE
-#	plugins/qvm_api.c
 #	plugins/plugin.c
 #	plugins/irc/ircclient.c
 #)
@@ -932,6 +990,7 @@ ENDIF()
 #SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
 #SET_TARGET_PROPERTIES(irc PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 #TARGET_LINK_LIBRARIES(irc m)
+#SET(INSTALLTARGS ${INSTALLTARGS} irc)
 
 #ffmpeg client plugin. no proper way to detect dependancies right now, so I've gotta try the manual way.
 FIND_PATH(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)
@@ -945,7 +1004,6 @@ IF((AVFORMAT_INCLUDE_DIR) AND (AVSWSCALE_INCLUDE_DIR))
 	FIND_LIBRARY(AVSWSCALE_LIBRARY swscale)
 
 	ADD_LIBRARY(ffmpeg MODULE
-		plugins/qvm_api.c
 		plugins/plugin.c
 		plugins/avplug/avaudio.c
 		plugins/avplug/avdecode.c
@@ -956,14 +1014,16 @@ IF((AVFORMAT_INCLUDE_DIR) AND (AVSWSCALE_INCLUDE_DIR))
 	TARGET_LINK_LIBRARIES(ffmpeg m ${AVFORMAT_LIBRARY} ${AVCODEC_LIBRARY} ${AVUTIL_LIBRARY} ${AVSWSCALE_LIBRARY})
 	SET_TARGET_PROPERTIES(ffmpeg PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 	SET_TARGET_PROPERTIES(ffmpeg PROPERTIES PREFIX "fteplug_")
+	SET(INSTALLTARGS ${INSTALLTARGS} ffmpeg)
 ELSE()
 	MESSAGE(WARNING "ffmpeg library NOT available. Quake shouldn't be playing fmv anyway.")
 ENDIF()
 
+#TODO: cef plugin
+
 #IF(NOT ANDROID)
 	#XMPP/jabber client plugin
 	# ADD_LIBRARY(xmpp MODULE
-		# plugins/qvm_api.c
 		# plugins/plugin.c
 		# plugins/jabber/jabberclient.c
 		# plugins/jabber/xml.c
@@ -979,6 +1039,12 @@ ENDIF()
 	# ELSE()
 		# TARGET_LINK_LIBRARIES(xmpp m resolv)
 	# ENDIF()
+	# SET(INSTALLTARGS ${INSTALLTARGS} xmpp)
 # ENDIF()
 
-#cef plugin
+INCLUDE(GNUInstallDirs)
+SET(FTE_INSTALL_BINDIR games CACHE STRING "Binary dir to install to.")
+INSTALL(TARGETS ${INSTALLTARGS}
+	RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}${FTE_INSTALL_BINDIR}"
+	LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
+)

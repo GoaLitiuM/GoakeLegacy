@@ -110,12 +110,10 @@ qboolean M_Vid_GetMode(qboolean forfullscreen, int num, int *w, int *h)
 extern qboolean forcesaveprompt;
 extern cvar_t pr_debugger;
 
-menu_t *M_Options_Title(int *y, int infosize)
+emenu_t *M_Options_Title(int *y, int infosize)
 {
-	struct menu_s *menu;
+	struct emenu_s *menu;
 	*y = 32;
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(infosize);
 
@@ -140,7 +138,7 @@ menu_t *M_Options_Title(int *y, int infosize)
 }
 
 //these are awkward/strange
-qboolean M_Options_AlwaysRun (menucheck_t *option, struct menu_s *menu, chk_set_t set)
+qboolean M_Options_AlwaysRun (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
 {
 	if (M_GameType() == MGT_QUAKE2)
 	{
@@ -171,7 +169,7 @@ qboolean M_Options_AlwaysRun (menucheck_t *option, struct menu_s *menu, chk_set_
 		}
 	}
 }
-qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_set_t set)
+qboolean M_Options_InvertMouse (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
 {
 	if (set == CHK_CHECKED)
 		return m_pitch.value < 0;
@@ -341,7 +339,7 @@ void M_Menu_Options_f (void)
 		// removed singleplayer cheats (move this to single player menu)
 		MB_END()
 	};
-	menu_t *menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
 	int framey = y;
 
@@ -383,7 +381,7 @@ typedef struct {
 	soundcardinfo_t *card;
 } audiomenuinfo_t;
 
-qboolean M_Audio_Key (int key, struct menu_s *menu)
+qboolean M_Audio_Key (int key, struct emenu_s *menu)
 {
 	int i;
 	audiomenuinfo_t *info = menu->data;
@@ -432,7 +430,7 @@ qboolean M_Audio_Key (int key, struct menu_s *menu)
 	return false;
 }
 
-void M_Audio_StartSound (struct menu_s *menu)
+void M_Audio_StartSound (struct emenu_s *menu)
 {
 	int i;
 	vec3_t org;
@@ -477,9 +475,7 @@ void M_Menu_Audio_Speakers_f (void)
 {
 	int i;
 	audiomenuinfo_t *info;
-	menu_t *menu;
-
-	Key_Dest_Add(kdm_emenu);
+	emenu_t *menu;
 
 	menu = M_CreateMenu(sizeof(audiomenuinfo_t));
 	info = menu->data;
@@ -505,7 +501,7 @@ struct audiomenuinfo
 	char **capdevdescs;
 #endif
 };
-void M_Menu_Audio_Remove(menu_t *menu)
+void M_Menu_Audio_Remove(emenu_t *menu)
 {
 	int i;
 	struct audiomenuinfo *info = menu->data;
@@ -524,7 +520,7 @@ void M_Menu_Audio_Remove(menu_t *menu)
 	Z_Free(info->capdevdescs);
 #endif
 }
-struct audiomenuinfo *M_Menu_Audio_Setup(menu_t *menu)
+struct audiomenuinfo *M_Menu_Audio_Setup(emenu_t *menu)
 {
 #ifdef VOICECHAT
 	extern cvar_t snd_voip_capturedevice_opts;
@@ -564,12 +560,15 @@ struct audiomenuinfo *M_Menu_Audio_Setup(menu_t *menu)
 void M_Menu_Audio_f (void)
 {
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(struct audiomenuinfo));
+	emenu_t *menu = M_Options_Title(&y, sizeof(struct audiomenuinfo));
 	struct audiomenuinfo *info = M_Menu_Audio_Setup(menu);
 	extern cvar_t nosound, snd_leftisright, snd_device, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_doppler;
 //	extern cvar_t snd_noextraupdate, snd_eax, precache;
 #ifdef VOICECHAT
-	extern cvar_t snd_voip_capturedevice, snd_voip_play, snd_voip_send, snd_voip_test, snd_voip_micamp, snd_voip_vad_threshhold, snd_voip_ducking, snd_voip_noisefilter, snd_voip_codec;
+	extern cvar_t snd_voip_capturedevice, snd_voip_play, snd_voip_send, snd_voip_test, snd_voip_micamp, snd_voip_vad_threshhold, snd_voip_ducking, snd_voip_codec;
+#ifdef HAVE_SPEEX
+	extern cvar_t snd_voip_noisefilter;
+#endif
 #endif
 
 	static const char *soundqualityoptions[] = {
@@ -691,7 +690,9 @@ void M_Menu_Audio_f (void)
 		MB_COMBOCVAR("Activation Mode", snd_voip_send, voipsendoptions, voipsendvalue, NULL),
 		MB_SLIDER("Act. Threshhold", snd_voip_vad_threshhold, 0, 30, 1, NULL),
 		MB_CHECKBOXCVAR("Audio Ducking", snd_voip_ducking, 0),
+#ifdef HAVE_SPEEX
 		MB_CHECKBOXCVAR("Noise Cancelation", snd_voip_noisefilter, 0),
+#endif
 		MB_COMBOCVAR("Codec", snd_voip_codec, voipcodecoptions, voipcodecvalue, NULL),
 #endif
 
@@ -715,7 +716,7 @@ void M_Menu_Audio_f (void)
 
 void M_Menu_Particles_f (void)
 {
-	menu_t *menu;
+	emenu_t *menu;
 	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame, r_grenadetrail, r_rockettrail, r_part_rain_quantity, r_particledesc, r_particle_tracelimit, r_part_contentswitch, r_bloodstains;
 //	extern cvar_t r_part_sparks_trifan, r_part_sparks_textured, r_particlesystem;
 
@@ -921,6 +922,7 @@ const char *presetexec[] =
 	//"d_mipcap \"0 3\";"		//logically correct, but will fuck up on ATI drivers if increased mid-map, because ATI will just ignore any levels that are not currently enabled.
 	"cl_gibfilter 0;"
 	"seta cl_deadbodyfilter 0;"
+	"gl_texture_anisotropic_filtering 4;"
 	"cl_fullpitch 1;maxpitch 90;seta minpitch -90;"	//QS has cheaty viewpitch range. some maps require it.
 
 	, //vanilla-esque options (for purists).
@@ -982,7 +984,6 @@ const char *presetexec[] =
 //	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
 	"r_deluxemapping 2;"
-	"gl_texture_anisotropic_filtering 4;"
 
 	, // realtime options
 	"r_bloom 1;"
@@ -1017,7 +1018,7 @@ static void ApplyPreset (int presetnum)
 void M_Menu_Preset_f (void)
 {
 	extern cvar_t cfg_save_auto;
-	menu_t *menu;
+	emenu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -1209,7 +1210,7 @@ void FPS_Preset_f (void)
 		Con_Printf("%s\n", presetname[i]);
 }
 
-qboolean M_PresetApply (union menuoption_s *op, struct menu_s *menu, int key)
+qboolean M_PresetApply (union menuoption_s *op, struct emenu_s *menu, int key)
 {
 	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
 
@@ -1262,7 +1263,7 @@ void M_Menu_FPS_f (void)
 	static const char *values_0_1_2[] = {"0", "1", "2", NULL};
 	static const char *values_0_1[] = {"0", "1", NULL};
 
-	menu_t *menu;
+	emenu_t *menu;
 	fpsmenuinfo_t *info;
 
 	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp, cl_maxfps, cl_yieldcpu;
@@ -1322,7 +1323,7 @@ void M_Menu_Render_f (void)
 	static const char *cshiftopts[] = {"Off", "Fullscreen", "Edges", NULL};
 	static const char *cshiftvalues[] = {"0", "1", "2", NULL};
 
-	menu_t *menu;
+	emenu_t *menu;
 	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation, scr_logcenterprint, r_fxaa, r_graphics;
 #ifdef GLQUAKE
 	extern cvar_t r_bloom;
@@ -1454,7 +1455,7 @@ void M_Menu_Textures_f (void)
 		MB_COMBOCVAR("Max Texture Size", gl_max_size, texturesizeoptions, texturesizeoptions, NULL),
 		MB_END()
 	};
-	menu_t *menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
 	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
@@ -1466,7 +1467,7 @@ typedef struct {
 	menucombo_t *dlightcombo;
 } lightingmenuinfo_t;
 
-qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	lightingmenuinfo_t *info = (lightingmenuinfo_t*)menu->data;
 
@@ -1681,7 +1682,7 @@ void M_Menu_Lighting_f (void)
 	};
 
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
+	emenu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
 
 	int lightselect, dlightselect;
 
@@ -1929,7 +1930,7 @@ static const char *mapoptions_q2[] =
 #endif
 #endif
 
-qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	singleplayerinfo_t *info = menu->data;
 
@@ -1983,7 +1984,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	singleplayerinfo_t *info;
 	int cursorpositionY;
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(*info));
+	emenu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
 
 	cursorpositionY = (y + 24);
@@ -2048,7 +2049,7 @@ menucombo_t *skillcombo;
 menucombo_t *mapcombo;
 } singleplayerq2info_t;
 
-qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	singleplayerq2info_t *info = menu->data;
 
@@ -2097,7 +2098,7 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	extern cvar_t host_mapname;
 	#endif
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(*info));
+	emenu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
 
 	cursorpositionY = (y + 24);
@@ -2171,7 +2172,7 @@ menucombo_t *skillcombo;
 menucombo_t *mapcombo;
 } singleplayerh2info_t;
 
-qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	singleplayerh2info_t *info = menu->data;
 
@@ -2379,7 +2380,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 	#endif
 	extern cvar_t host_mapname;
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(*info));
+	emenu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
 
 	cursorpositionY = (y + 24);
@@ -2560,7 +2561,7 @@ typedef struct {
 	menucombo_t *res2dsize[ASPECT_RATIOS];
 } videomenuinfo_t;
 
-void CheckCustomMode(struct menu_s *menu)
+void CheckCustomMode(struct emenu_s *menu)
 {
 	int i, sel;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
@@ -2653,7 +2654,7 @@ int M_MatchModes(int width, int height, int *outres)
 	return ratio;
 }
 
-qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
+qboolean M_VideoApply (union menuoption_s *op, struct emenu_s *menu, int key)
 {
 	extern cvar_t vid_desktopsettings;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
@@ -2981,11 +2982,10 @@ void M_Menu_Video_f (void)
 	int y;
 	int resmodechoice, res2dmodechoice;
 	int reschoices[ASPECT_RATIOS], res2dchoices[ASPECT_RATIOS];
-	menu_t *menu;
+	emenu_t *menu;
 
 	//not calling M_Options_Title because of quake2's different banner.
 	y = 32;
-	Key_Dest_Add(kdm_emenu);
 	menu = M_CreateMenu(sizeof(videomenuinfo_t));
 	switch(M_GameType())
 	{
@@ -3247,7 +3247,7 @@ static unsigned int tobit(unsigned int bitmask)
 	}
 	return 0;
 }
-static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_s *m)
+static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	static playerview_t pv;
 	entity_t ent;
@@ -3391,7 +3391,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 #ifdef RAGDOLL
 	if (mods->flop)
 		ent.framestate.g[FS_REG].frame[0] |= 0x8000;
-	if (ent.model->dollinfo)
+	if (ent.model->dollinfo && mods->ragworld.rbe)
 	{
 		float rate = 1.0/60;
 		rag_doallanimations(&mods->ragworld);
@@ -3495,15 +3495,15 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 				vec3_t dir;
 				float f;
 
-				VectorAdd(v1, ent.origin, v1);
-				VectorAdd(v2, ent.origin, v2);
-				VectorAdd(tr.endpos, ent.origin, tr.endpos);
+				VectorMA(ent.origin, ent.scale, v1, v1);
+				VectorMA(ent.origin, ent.scale, v2, v2);
+				VectorMA(ent.origin, ent.scale, tr.endpos, tr.endpos);
 
 				VectorSubtract(tr.endpos, v1, dir);
 				f = DotProduct(dir, tr.plane.normal) * -2;
 				VectorMA(dir, f, tr.plane.normal, v2);
 				VectorAdd(v2, tr.endpos, v2);
-			
+
 				CLQ1_DrawLine(s, v1, tr.endpos, 0, 1, 0, 1);
 				CLQ1_DrawLine(s, tr.endpos, v2, 1, 0, 0, 1);
 			}
@@ -3545,14 +3545,14 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			Mod_GetTag(ent.model, b, &ent.framestate, boneinfo);
 			//fixme: no axis transform
 			VectorSet(start, boneinfo[3], boneinfo[7], boneinfo[11]);
-			VectorAdd(start, ent.origin, start);
+			VectorMA(ent.origin, ent.scale, start, start);
 
 			if (p)
 			{
 				Mod_GetTag(ent.model, p, &ent.framestate, boneinfo);
 				//fixme: no axis transform
 				VectorSet(end, boneinfo[3], boneinfo[7], boneinfo[11]);
-				VectorAdd(end, ent.origin, end);
+				VectorMA(ent.origin, ent.scale, end, end);
 				CLQ1_DrawLine(lineshader, start, end, 1, (b-1 == mods->boneidx)?0:1, 1, 1);
 			}
 			if (b-1 == mods->boneidx)
@@ -3567,7 +3567,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		}
 	}
 
-	V_AddEntity(&ent);
+	V_AddAxisEntity(&ent);
 
 	R_RenderView();
 
@@ -3670,6 +3670,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 #ifdef SKELETALMODELS
 						"numbones: %i\n"
 #endif
+						"minlod: %g\n"
+						"maxlod: %g%s\n"
 						, ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2],
 						contents,
 						inf->csurface.flags,
@@ -3679,6 +3681,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 #ifdef SKELETALMODELS
 						,inf->numbones
 #endif
+						,inf->mindist,inf->maxdist,inf->maxdist?"":" (infinite)"
 						)
 					, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 			}
@@ -3805,7 +3808,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		break;
 	}
 }
-static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
+static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	modelview_t *mods = c->dptr;
 
@@ -3919,7 +3922,7 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 }
 
 #ifdef RAGDOLL
-void M_Modelviewer_Shutdown(struct menu_s *menu)
+void M_Modelviewer_Shutdown(struct emenu_s *menu)
 {
 	modelview_t *mv = menu->data;
 	rag_removedeltaent(&mv->ragent);
@@ -3941,9 +3944,7 @@ void M_Menu_ModelViewer_f(void)
 {
 	modelview_t *mv;
 	menucustom_t *c;
-	menu_t *menu;
-
-	Key_Dest_Add(kdm_emenu);
+	emenu_t *menu;
 
 	menu = M_CreateMenu(sizeof(*mv));
 	mv = menu->data;
@@ -3970,8 +3971,9 @@ void M_Menu_ModelViewer_f(void)
 #endif
 	mv->ragworld.num_edicts = 1;
 	mv->ragworld.edicts->v->solid = SOLID_BBOX;
-	VectorSet(mv->ragworld.edicts->v->mins, -1000, -1000, -101);
+	VectorSet(mv->ragworld.edicts->v->mins, -1000, -1000, -1000);
 	VectorSet(mv->ragworld.edicts->v->maxs, 1000, 1000, -100);
+	mv->ragworld.edicts->xv->dimension_hit = mv->ragworld.edicts->xv->dimension_solid = 0xff;
 
 	mv->ragworld.worldmodel = Mod_ForName("", MLV_SILENT);
 	World_RBE_Start(&mv->ragworld);
@@ -4017,19 +4019,15 @@ typedef struct
 		char *gamedir;
 	} *mod;
 	size_t nummods;
-	int y;
 } modmenu_t;
 
-static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
+static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	modmenu_t *mods = c->dptr;
-	int i, ym;
-	c->common.height = vid.height - y;
-	ym = y+c->common.height;
+	int i = c->dint;
+	c->common.width = vid.width - x - 16;
 
-	mods->y = y;
-
-	if (!mods->nummods)
+	if (!mods->nummods && !i)
 	{
 		float scale[] = {8,8};
 		R_DrawTextField(0, y, vid.width, vid.height - y,
@@ -4047,25 +4045,24 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 		return;
 	}
 
-	for (i = 0; y+8 <= ym && i < mods->nummods; y+=8, i++)
+	if (i < 0 || i > mods->nummods)
+		return;
+	if (mods->mod[i].manifest)
 	{
-		if (mods->mod[i].manifest)
-		{
-			if (mousecursor_y >= y && mousecursor_y < y+8)
-				Draw_AltFunString(x, y, mods->mod[i].manifest->formalname);
-			else
-				Draw_FunString(x, y, mods->mod[i].manifest->formalname);
-		}
+		if (mousecursor_y >= y && mousecursor_y < y+8)
+			Draw_AltFunString(x, y, mods->mod[i].manifest->formalname);
 		else
-		{
-			if (mousecursor_y >= y && mousecursor_y < y+8)
-				Draw_AltFunString(x, y, mods->mod[i].gamedir);
-			else
-				Draw_FunString(x, y, mods->mod[i].gamedir);
-		}
+			Draw_FunString(x, y, mods->mod[i].manifest->formalname);
+	}
+	else
+	{
+		if (mousecursor_y >= y && mousecursor_y < y+8)
+			Draw_AltFunString(x, y, mods->mod[i].gamedir);
+		else
+			Draw_FunString(x, y, mods->mod[i].gamedir);
 	}
 }
-static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
+static qboolean Mods_Key(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	modmenu_t *mods = c->dptr;
 	int i;
@@ -4073,7 +4070,7 @@ static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsi
 	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_A)
 	{
 		qboolean wasgameless = !*FS_GetGamedir(false);
-		i = (mousecursor_y - mods->y)/8;
+		i = c->dint;
 		if (i < 0 || i > mods->nummods)
 			return false;
 		man = mods->mod[i].manifest;
@@ -4098,7 +4095,7 @@ static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsi
 
 	return false;
 }
-static void Mods_Remove	(struct menu_s *m)
+static void Mods_Remove	(struct emenu_s *m)
 {
 	modmenu_t *mods = m->data;
 	int i;
@@ -4166,7 +4163,8 @@ void M_Menu_Mods_f (void)
 {
 	modmenu_t mods;
 	menucustom_t *c;
-	menu_t *menu;
+	emenu_t *menu;
+	size_t i;
 	extern qboolean com_homepathenabled;
 
 	memset(&mods, 0, sizeof(mods));
@@ -4178,8 +4176,6 @@ void M_Menu_Mods_f (void)
 
 	//FIXME: sort by mtime?
 
-	Key_Dest_Add(kdm_emenu);
-
 	menu = M_CreateMenu(sizeof(modmenu_t));
 	*(modmenu_t*)menu->data = mods;
 	if (COM_FCheckExists("gfx/p_option.lmp"))
@@ -4188,11 +4184,18 @@ void M_Menu_Mods_f (void)
 		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
 	}
 
-	c = MC_AddCustom(menu, 64, 32, menu->data, 0, NULL);
-	menu->cursoritem = (menuoption_t*)c;
-	c->draw = Mods_Draw;
-	c->key = Mods_Key;
-	menu->remove = Mods_Remove;
+	MC_AddFrameStart(menu, 32);
+	for (i = 0; i < mods.nummods || i<1; i++)
+	{
+		c = MC_AddCustom(menu, 64, 32+i*8, menu->data, i, NULL);
+		if (!menu->cursoritem)
+			menu->cursoritem = (menuoption_t*)c;
+		c->common.height = 8;
+		c->draw = Mods_Draw;
+		c->key = Mods_Key;
+		menu->remove = Mods_Remove;
+	}
+	MC_AddFrameEnd(menu, 32+i*8);
 }
 
 #if 0

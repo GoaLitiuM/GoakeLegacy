@@ -499,7 +499,7 @@ void CL_CalcCrouch (playerview_t *pv)
 	VectorCopy (pv->simorg, pv->oldorigin);
 
 
-	if (pv->onground && orgz - pv->oldz)// > 0)
+	if (pv->onground && orgz - pv->oldz)
 	{
 		if (pv->oldz > orgz)
 		{	//stepping down should be a little faster than stepping up.
@@ -513,7 +513,7 @@ void CL_CalcCrouch (playerview_t *pv)
 				if (pv->crouchspeed > -160*2)
 				{
 					pv->extracrouch = orgz - pv->oldz + host_frametime * 400 + 15;
-//					pv->extracrouch = max(pv->extracrouch, -5);
+					pv->extracrouch = max(pv->extracrouch, -5);
 				}
 				pv->crouchspeed = -160*2;
 			}
@@ -523,9 +523,11 @@ void CL_CalcCrouch (playerview_t *pv)
 				pv->oldz = orgz;
 
 			if (pv->oldz > orgz + 15 - pv->extracrouch)
-				pv->oldz = orgz + 15 - pv->extracrouch;
-			pv->extracrouch += host_frametime * 400;
-			pv->extracrouch = min(pv->extracrouch, 0);
+				pv->oldz = orgz + 15 + pv->extracrouch;
+			if (pv->extracrouch < -host_frametime*400)
+				pv->extracrouch += host_frametime * 400;
+			else if (pv->extracrouch < 0)
+				pv->extracrouch = 0;
 		}
 		else
 		{
@@ -549,10 +551,12 @@ void CL_CalcCrouch (playerview_t *pv)
 		
 
 //			if (orgz - pv->oldz > 15 + pv->extracrouch)
-			if (pv->oldz < orgz - 15 - pv->extracrouch)
+			if (pv->oldz < orgz - 15 + pv->extracrouch)
 				pv->oldz = orgz - 15 - pv->extracrouch;
-			pv->extracrouch -= host_frametime * 200;
-			pv->extracrouch = max(pv->extracrouch, 0);
+			if (pv->extracrouch >= host_frametime * 200)
+				pv->extracrouch -= host_frametime * 200;
+			else if (pv->extracrouch > 0)
+				pv->extracrouch = 0;
 		}
 
 		pv->crouch = pv->oldz - orgz;
@@ -632,7 +636,7 @@ void CL_CalcClientTime(void)
 		//q3 always drifts.
 		//nq+qw code can drift
 		//default is to drift in demos+SP but not live (oh noes! added latency!)
-		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1))) && cls.demoplayback != DPB_MVD))
+		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback != DPB_MVD))
 		{	//no drift logic
 			float f;
 			f = cl.gametime - cl.oldgametime;
@@ -1227,13 +1231,14 @@ void CL_PredictMovePNum (int seat)
 	//just in case we don't run any prediction
 	VectorCopy(tostate->gravitydir, pmove.gravitydir);
 
-	if (nopred)
-	{	//still need the player's size for onground detection and bobbing.
-		VectorCopy(tostate->szmins, pmove.player_mins);
-		VectorCopy(tostate->szmaxs, pmove.player_maxs);
-	}
-	else
-	{
+	//if all else fails...
+	pmove.pm_type = tostate->pm_type;
+	pmove.onground = tostate->onground;
+	VectorCopy(tostate->szmins, pmove.player_mins);
+	VectorCopy(tostate->szmaxs, pmove.player_maxs);
+
+	if (!nopred)
+	{	
 		for (i=1 ; i<UPDATE_BACKUP-1 && cl.ackedmovesequence+i < cl.movesequence; i++)
 		{
 			outframe_t *of = &cl.outframes[(cl.ackedmovesequence+i) & UPDATE_MASK];
@@ -1431,6 +1436,8 @@ void CL_PredictMove (void)
 
 	// Set up prediction for other players
 	CL_SetUpPlayerPrediction(true);
+
+	VALGRIND_MAKE_MEM_UNDEFINED(&pmove.onground, sizeof(pmove.onground));
 }
 
 

@@ -564,12 +564,14 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 	COM_FileExtension(localname, ext, sizeof(ext));
 	if (!stricmp(ext, "dll") || !stricmp(ext, "so") || strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
 	{
+		CL_DownloadFailed(filename, NULL, DLFAIL_UNTRIED);
 		Con_Printf("Denying download of \"%s\"\n", filename);
 		return false;
 	}
 
 	if (!(flags & DLLF_USEREXPLICIT) && !cl_downloads.ival)
 	{
+		CL_DownloadFailed(filename, NULL, DLFAIL_CLIENTCVAR);
 		if (flags & DLLF_VERBOSE)
 			Con_Printf("cl_downloads setting prevents download of \"%s\"\n", filename);
 		return false;
@@ -581,7 +583,10 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 #ifdef NQPROT
 		if (!webdl && cls.protocol == CP_NETQUAKE)
 			if (!cl_dp_serverextension_download)
+			{
+				CL_DownloadFailed(filename, NULL, DLFAIL_UNSUPPORTED);
 				return false;
+			}
 #endif
 
 		for (dl = cl.faileddownloads; dl; dl = dl->next)	//yeah, so it failed... Ignore it.
@@ -701,7 +706,10 @@ static void CL_WebDownloadFinished(struct dl_download *dl)
 {
 	if (dl->status == DL_FAILED)
 	{
-		CL_DownloadFailed(dl->url, &dl->qdownload);
+		if (dl->replycode == 404)	//regular file-not-found
+			CL_DownloadFailed(dl->url, &dl->qdownload, DLFAIL_SERVERFILE);
+		else	//other stuff is PROBABLY 403forbidden, but lets blame the server's config if its a tls issue etc.
+			CL_DownloadFailed(dl->url, &dl->qdownload, DLFAIL_SERVERCVAR);
 		if (dl->qdownload.flags & DLLF_ALLOWWEB)	//re-enqueue it if allowed, but this time not from the web server.
 			CL_EnqueDownload(dl->qdownload.localname, dl->qdownload.localname, dl->qdownload.flags & ~DLLF_ALLOWWEB);
 	}
@@ -745,7 +753,7 @@ static void CL_SendDownloadStartRequest(char *filename, char *localname, unsigne
 			cls.download = &wdl->qdownload;
 		}
 		else
-			CL_DownloadFailed(filename, NULL);
+			CL_DownloadFailed(filename, NULL, DLFAIL_CLIENTCVAR);
 		return;
 	}
 #endif
@@ -813,6 +821,8 @@ void CL_DownloadFinished(qdownload_t *dl)
 	else
 	{
 		CL_CheckModelResources(filename);
+
+		Mod_FileWritten(filename);
 		if (!cl.sendprespawn)
 		{
 /*
@@ -827,6 +837,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 				}
 			}
 */
+
 			for (i = 0; i < MAX_PRECACHE_MODELS; i++)	//go and load this model now.
 			{
 				if (!strcmp(cl.model_name[i], filename))
@@ -1713,7 +1724,54 @@ void CL_RequestNextDownload (void)
 
 		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
-			Con_Printf("\n\n-------------\n" CON_ERROR "Couldn't download \"%s\" - cannot fully connect\n", cl.worldmodel?cl.worldmodel->name:"unknown");
+			downloadlist_t *dl = NULL;
+			const char *worldname = cl.worldmodel?cl.worldmodel->name:"unknown";
+			if (cl.worldmodel)
+				for (dl = cl.faileddownloads; dl; dl = dl->next)	//yeah, so it failed... Ignore it.
+					if (!strcmp(dl->rname, cl.worldmodel->name))
+						break;
+			Con_Printf("\n\n-------------\n");
+			switch (dl?dl->failreason:DLFAIL_UNTRIED)
+			{
+			case DLFAIL_UNSUPPORTED:
+				Con_Printf(CON_ERROR "Download of \"%s\" not supported on this server - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_CORRUPTED:
+				Con_Printf(CON_ERROR "Download of \"%s\" corrupt/failed - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_CLIENTCVAR:
+				Con_Printf(CON_ERROR "Downloading of \"%s\" blocked by clientside cvars - tweak cl_download* before retrying\n", worldname);
+				break;
+			case DLFAIL_CLIENTFILE:
+				Con_Printf(CON_ERROR "Disk error downloading \"%s\" - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_SERVERCVAR:
+				Con_Printf(CON_ERROR "Download of \"%s\" denied by server - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_SERVERFILE:
+				Con_Printf(CON_ERROR "Download of \"%s\" unavailable - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_REDIRECTED:
+				Con_Printf(CON_ERROR "Redirection failure downloading \"%s\" - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_UNTRIED:
+				if (COM_FCheckExists(worldname))
+				{
+					if (!cl.worldmodel)
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - worldmodel not set - cannot fully connect\n", worldname);
+					else if (cl.worldmodel->loadstate == MLS_FAILED)
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - corrupt? - cannot fully connect\n", worldname);
+					else if (cl.worldmodel->loadstate == MLS_LOADING)
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - still loading - cannot fully connect\n", worldname);
+					else if (cl.worldmodel->loadstate == MLS_NOTLOADED)
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - worldmodel not loaded - cannot fully connect\n", worldname);
+					else
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - corrupt? - cannot fully connect\n", worldname);
+				}
+				else
+					Con_Printf(CON_ERROR "Couldn't find \"%s\" - cannot fully connect\n", worldname);
+				break;
+			}
 #ifdef HAVE_MEDIA_ENCODER
 			if (cls.demoplayback && Media_Capturing())
 			{
@@ -1844,7 +1902,7 @@ static char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 }
 #endif
 
-downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl)
+downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl, enum dlfailreason_e failreason)
 {
 	//add this to our failed list. (so we don't try downloading it again...)
 	downloadlist_t *failed, **link, *dl;
@@ -1852,6 +1910,7 @@ downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl)
 	failed->next = cl.faileddownloads;
 	cl.faileddownloads = failed;
 	Q_strncpyz(failed->rname, name, sizeof(failed->rname));
+	failed->failreason = failreason;
 
 	//if this is what we're currently downloading, close it up now.
 	//don't do this if we're just marking the file as unavailable for download.
@@ -2154,8 +2213,10 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 		if (flag < 0)
 		{
+			enum dlfailreason_e failreason;
 			if (flag == DLERR_REDIRECTFILE)
 			{
+				failreason = DLFAIL_REDIRECTED;
 				if (CL_AllowArbitaryDownload(dl->remotename, svname))
 				{
 					Con_Printf("Download of \"%s\" redirected to \"%s\"\n", dl->remotename, svname);
@@ -2188,20 +2249,32 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 						}
 					}
 					else if (CL_CheckOrEnqueDownloadFile(svname, NULL, 0))
+					{
 						Con_Printf("However, \"%s\" already exists. You may need to delete it.\n", svname);
+						failreason = DLFAIL_CLIENTFILE;
+					}
 				}
 				svname = dl->remotename;
 			}
 			else if (flag == DLERR_UNKNOWN)
+			{
 				Con_Printf("Server reported an error when downloading file \"%s\"\n", svname);
+				failreason = DLFAIL_CORRUPTED;
+			}
 			else if (flag == DLERR_PERMISSIONS)
+			{
 				Con_Printf("Server permissions deny downloading file \"%s\"\n", svname);
+				failreason = DLFAIL_SERVERCVAR;
+			}
 			else //if (flag == DLERR_FILENOTFOUND)
+			{
 				Con_Printf("Couldn't find file \"%s\" on the server\n", svname);
+				failreason = DLFAIL_SERVERFILE;
+			}
 
 			if (dl)
 			{
-				CL_DownloadFailed(svname, dl);
+				CL_DownloadFailed(svname, dl, failreason);
 
 				CL_RequestNextDownload();
 			}
@@ -2239,7 +2312,7 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 		if (!DL_Begun(dl))
 		{
-			CL_DownloadFailed(svname, dl);
+			CL_DownloadFailed(svname, dl, DLFAIL_CLIENTFILE);
 			return;
 		}
 
@@ -2584,7 +2657,7 @@ static void CL_ParseDownload (qboolean zlib)
 		Con_DPrintf("Download for %s redirected to %s\n", requestedname, name);
 		/*quakeforge http download redirection*/
 		if (dl)
-			CL_DownloadFailed(dl->remotename, dl);
+			CL_DownloadFailed(dl->remotename, dl, DLFAIL_REDIRECTED);
 		//FIXME: find some safe way to do this and actually test it. we should already know the local name, but we might have gained a .gz or something (this is quakeforge after all).
 //		CL_CheckOrEnqueDownloadFile(name, localname, DLLF_IGNOREFAILED);
 		return;
@@ -2609,7 +2682,7 @@ static void CL_ParseDownload (qboolean zlib)
 		Con_TPrintf ("File not found.\n");
 
 		if (dl)
-			CL_DownloadFailed(dl->remotename, dl);
+			CL_DownloadFailed(dl->remotename, dl, DLFAIL_SERVERFILE);
 		return;
 	}
 
@@ -2621,7 +2694,7 @@ static void CL_ParseDownload (qboolean zlib)
 		{
 			msg_readcount += size;
 			Con_TPrintf ("Failed to open %s\n", dl->tempname);
-			CL_DownloadFailed(dl->remotename, dl);
+			CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 			CL_RequestNextDownload ();
 			return;
 		}
@@ -2786,9 +2859,9 @@ static void CLDP_ParseDownloadBegin(char *s)
 
 	if (!dl || strcmp(fname, dl->remotename))
 	{
+#ifdef CSQC_DAT
 		if (cls.demoplayback && !dl && cl_dp_csqc_progssize && size == cl_dp_csqc_progssize && !strcmp(fname, cl_dp_csqc_progsname))
 		{	//its somewhat common for demos to contain a copy of the csprogs, so that the same version is available when trying to play the demo back.
-#ifdef CSQC_DAT
 			extern cvar_t cl_download_csprogs, cl_nocsqc;
 			if (!cl_nocsqc.ival && cl_download_csprogs.ival)
 			{
@@ -2799,10 +2872,10 @@ static void CLDP_ParseDownloadBegin(char *s)
 				//Begin downloading it...
 			}
 			else
-#endif
 				return;	//silently ignore it
 		}
 		else
+#endif
 		{
 			Con_Printf("Warning: server started sending a file we did not request. Ignoring.\n");
 			return;
@@ -2843,7 +2916,7 @@ static void CLDP_ParseDownloadBegin(char *s)
 	dl->size = size;
 	if (!DL_Begun(dl))
 	{
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 		return;
 	}
 
@@ -2892,7 +2965,7 @@ static void CLDP_ParseDownloadFinished(char *s)
 	else
 	{
 		Con_Printf("Download failed: unable to check CRC of download\n");
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 		return;
 	}
 
@@ -2900,13 +2973,13 @@ static void CLDP_ParseDownloadFinished(char *s)
 	if (size != atoi(Cmd_Argv(1)))
 	{
 		Con_Printf("Download failed: wrong file size\n");
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_CORRUPTED);
 		return;
 	}
 	if (runningcrc != atoi(Cmd_Argv(2)))
 	{
 		Con_Printf("Download failed: wrong crc\n");
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_CORRUPTED);
 		return;
 	}
 
@@ -3093,7 +3166,7 @@ static void CLQW_ParseServerData (void)
 	{
 		//if we didn't actually start downloading it yet, cancel the current download.
 		//this is to avoid qizmo not responding to the download command, resulting in hanging downloads that cause the client to then be unable to connect anywhere simply because someone's skin was set.
-		CL_DownloadFailed(cls.download->remotename, cls.download);
+		CL_DownloadFailed(cls.download->remotename, cls.download, DLFAIL_CORRUPTED);
 	}
 
 	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
@@ -3183,7 +3256,7 @@ static void CLQW_ParseServerData (void)
 	str = MSG_ReadString ();
 	Con_DPrintf("Server is using gamedir \"%s\"\n", str);
 	if (!*str)
-		str = "qw";
+		str = "qw";	//FIXME: query active manifest's basegamedir
 
 #ifndef CLIENTONLY
 	if (!sv.state)
@@ -4355,24 +4428,37 @@ static void CLQ2_ParseConfigString (void)
 	}
 	else if (i == Q2CS_SKY)
 		R_SetSky(s);
-	else if (i == Q2CS_SKYAXIS)
+	else if (i == Q2CS_SKYAXIS || i == Q2CS_SKYROTATE)
 	{
-		s = COM_Parse(s);
-		if (s)
+		if (i == Q2CS_SKYROTATE)
+			cl.skyrotate = atof(s);
+		else
 		{
-			cl.skyaxis[0] = atof(com_token);
 			s = COM_Parse(s);
 			if (s)
 			{
-				cl.skyaxis[1] = atof(com_token);
+				cl.skyaxis[0] = atof(com_token);
 				s = COM_Parse(s);
 				if (s)
-					cl.skyaxis[2] = atof(com_token);
+				{
+					cl.skyaxis[1] = atof(com_token);
+					s = COM_Parse(s);
+					if (s)
+						cl.skyaxis[2] = atof(com_token);
+				}
 			}
 		}
+
+		if (cl.skyrotate)
+		{
+			if (cl.skyaxis[0]||cl.skyaxis[1]||cl.skyaxis[2])
+				Cvar_Set(&r_skybox_orientation, va("%g %g %g %g", cl.skyaxis[0], cl.skyaxis[1], cl.skyaxis[2], cl.skyrotate));
+			else
+				Cvar_Set(&r_skybox_orientation, va("0 0 1 %g", cl.skyrotate));
+		}
+		else
+			Cvar_Set(&r_skybox_orientation, "");
 	}
-	else if (i == Q2CS_SKYROTATE)
-		cl.skyrotate = atof(s);
 	else if (i == Q2CS_STATUSBAR)
 	{
 		Q_strncpyz(cl.q2statusbar, s, sizeof(cl.q2statusbar));
@@ -4445,10 +4531,6 @@ static void CLQ2_ParseConfigString (void)
 				Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", map_checksum, serverchecksum);
 		}
 	}
-
-#ifdef VM_UI
-	UI_StringChanged(i);
-#endif
 }
 #endif
 
@@ -5653,21 +5735,20 @@ static void CL_MuzzleFlash (int entnum)
 
 	if (P_RunParticleEffectType(org, axis[0], 1, pt_muzzleflash))
 	{
+		extern cvar_t r_muzzleflash_colour;
+		extern cvar_t r_muzzleflash_fade;
+
 		dl = CL_AllocDlight (dlightkey);
 		VectorMA (org, 15, axis[0], dl->origin);
 		memcpy(dl->axis, axis, sizeof(dl->axis));
 
-		dl->radius = 200 + (rand()&31);
 		dl->minlight = 32;
 		dl->die = cl.time + 0.1;
-		dl->color[0] = 1.5;
-		dl->color[1] = 1.3;
-		dl->color[2] = 1.0;
 
-		dl->channelfade[0] = 1.5;
-		dl->channelfade[1] = 0.75;
-		dl->channelfade[2] = 0.375;
-		dl->decay = 1000;
+		VectorCopy(r_muzzleflash_colour.vec4, dl->color);
+		dl->radius = r_muzzleflash_colour.vec4[3] + (rand()&31);
+		VectorCopy(r_muzzleflash_fade.vec4, dl->channelfade);
+		dl->decay = r_muzzleflash_fade.vec4[3];
 #ifdef RTLIGHTS
 		dl->lightcolourscales[2] = 4;
 #endif
@@ -6351,6 +6432,15 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			InfoBuf_SetStarKey(&cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2));
 			CL_CheckServerInfo();
 		}
+		else if (!strncmp(stufftext, "//ls ", 5))	//for extended lightstyles
+		{
+			vec3_t rgb;
+			Cmd_TokenizeString(stufftext+2, false, false);
+			rgb[0] = ((Cmd_Argc()>3)?atof(Cmd_Argv(3)):1);
+			rgb[1] = ((Cmd_Argc()>5)?atof(Cmd_Argv(4)):rgb[0]);
+			rgb[2] = ((Cmd_Argc()>5)?atof(Cmd_Argv(5)):rgb[0]);
+			R_UpdateLightStyle(atoi(Cmd_Argv(1)), Cmd_Argv(2), rgb[0], rgb[1], rgb[2]);
+		}
 
 #ifdef NQPROT
 		//DP's download protocol
@@ -6363,7 +6453,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 		else if (cls.protocol == CP_NETQUAKE && !strcmp(stufftext, "stopdownload"))						//download command reported failure. safe to request the next.
 		{
 			if (cls.download)
-				CL_DownloadFailed(cls.download->remotename, cls.download);
+				CL_DownloadFailed(cls.download->remotename, cls.download, DLFAIL_CORRUPTED);
 		}
 
 		//DP servers use these to report the correct csprogs.dat file+version to use.
@@ -6955,7 +7045,7 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_lightstyle:
 			i = MSG_ReadByte ();
-			if (i >= MAX_LIGHTSTYLES)
+			if (i >= MAX_NET_LIGHTSTYLES)
 				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
 			R_UpdateLightStyle(i, MSG_ReadString(), 1, 1, 1);
 			break;
@@ -6963,18 +7053,18 @@ void CLQW_ParseServerMessage (void)
 		case svcfte_lightstylecol:
 			if (!(cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL))
 				Host_EndGame("PEXT_LIGHTSTYLECOL is meant to be disabled\n");
-			i = MSG_ReadByte ();
-			if (i >= MAX_LIGHTSTYLES)
-				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
 			{
 				int bits;
 				vec3_t rgb;
+				i = MSG_ReadByte ();
 				bits = MSG_ReadByte();
+				if (bits & 0x40)
+					i |= MSG_ReadByte()<<8;	//high bits of style index.
 				if (bits & 0x80)
 				{
-					rgb[0] = MSG_ReadShort()/1024.0;
-					rgb[1] = MSG_ReadShort()/1024.0;
-					rgb[2] = MSG_ReadShort()/1024.0;
+					rgb[0] = (bits&1)?MSG_ReadShort()/1024.0:0;
+					rgb[1] = (bits&2)?MSG_ReadShort()/1024.0:0;
+					rgb[2] = (bits&4)?MSG_ReadShort()/1024.0:0;
 				}
 				else
 				{
@@ -6982,6 +7072,9 @@ void CLQW_ParseServerMessage (void)
 					rgb[1] = (bits&2)?1:0;
 					rgb[2] = (bits&4)?1:0;
 				}
+
+				if (i >= MAX_NET_LIGHTSTYLES)
+					Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
 				R_UpdateLightStyle(i, MSG_ReadString(), rgb[0], rgb[1], rgb[2]);
 			}
 			break;
@@ -7464,9 +7557,6 @@ isilegible:
 		case svcq2_layout:
 			s = MSG_ReadString ();
 			Q_strncpyz (cl.q2layout[seat], s, sizeof(cl.q2layout[seat]));
-#ifdef VM_UI
-			UI_Q2LayoutChanged();
-#endif
 			break;
 		case svcq2_inventory:
 			CLQ2_ParseInventory(seat);
@@ -8098,7 +8188,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		case svc_lightstyle:
 			i = MSG_ReadByte ();
-			if (i >= MAX_LIGHTSTYLES)
+			if (i >= MAX_NET_LIGHTSTYLES)
 			{
 				Con_Printf("svc_lightstyle: %i >= MAX_LIGHTSTYLES\n", i);
 				MSG_ReadString();

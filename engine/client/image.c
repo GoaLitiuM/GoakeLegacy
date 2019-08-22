@@ -4,10 +4,6 @@
 
 //#define PURGEIMAGES	//somewhat experimental still. we're still flushing more than we should.
 
-//FIXME
-texid_t GL_FindTextureFallback (const char *identifier, unsigned int flags, void *fallback, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
-//FIXME
-
 #ifdef NPFTE
 //#define Con_Printf(f, ...)
 //hope you're on a littleendian machine
@@ -57,7 +53,7 @@ char *r_defaultimageextensions =
 	" pcx"	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
 #endif
 	;
-static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt);
+static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename);
 static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
 cvar_t r_imageextensions			= CVARCD("r_imageextensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which might exist on disk (note that this does not list all supported formats, only the extensions that should be searched for).");
 cvar_t r_image_downloadsizelimit	= CVARFD("r_image_downloadsizelimit", "131072", CVAR_NOTFROMSERVER, "The maximum allowed file size of images loaded from a web-based url. 0 disables completely, while empty imposes no limit.");
@@ -78,7 +74,10 @@ static bucket_t *imagetablebuckets[256];
 static hashtable_t imagetable;
 static image_t *imagelist;
 
-
+#ifdef DECOMPRESS_ASTC
+#define ASTC_PUBLIC
+#include "image_astc.h"
+#endif
 
 
 
@@ -127,7 +126,7 @@ static void GenerateXMPData(char *blob, size_t blobsize, int width, int height, 
 typedef struct {	//cm = colourmap
 	char	id_len;		//0
 	char	cm_type;	//1
-	char	version;	//2
+	qbyte	version;	//2
 		char pad1;
 	short	cm_idx;		//3
 	short	cm_len;		//5
@@ -256,7 +255,7 @@ static char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int
 //remember to free it
 //greyonly causes the function to fail if given anything but greyscale images
 //this is for detecting heightmaps instead of normalmaps.
-qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat)
+void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat)
 {
 	//tga files sadly lack a true magic header thing.
 	unsigned char *data;
@@ -265,8 +264,8 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 
 	tgaheader_t tgaheader;	//things are misaligned, so no pointer.
 
-	if (length < 18 || buf[1] > 1 || (buf[16] != 8 && buf[16] != 16 && buf[16] != 24 && buf[16] != 32))
-		return NULL;	//BUMMER!
+	if (length < 18 || buf[1] > 1)
+		return NULL;	//probably not a tga...
 
 	tgaheader.id_len = buf[0];
 	tgaheader.cm_type = buf[1];
@@ -290,9 +289,18 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 	case 3:	//Uncompressed, black and white images.
 	case 9:	//Runlength encoded color-mapped images.
 	case 10:	//Runlength encoded RGB images.
-	case 11:	//Compressed, black and white images.
+	case 11:	//Runlength encoded, black and white images.
 	case 32:	//Compressed color-mapped data, using Huffman, Delta, and runlength encoding.
 	case 33:	//Compressed color-mapped data, using Huffman, Delta, and runlength encoding.  4-pass quadtree-type process.
+		if (buf[16] != 8 && buf[16] != 16 && buf[16] != 24 && buf[16] != 32)
+			return NULL;	//unsupported bitdepths
+		break;
+	case 0x82:	//half-float rgb
+	case 0x83:	//half-float greyscale
+		if (forceformat != PTI_INVALID)
+			return NULL;
+		if ((buf[16]&15) || buf[16]<16 || buf[16] > 16*4)
+			return NULL;	//unsupported bitdepths
 		break;
 	default:
 		return NULL;
@@ -331,21 +339,37 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 	}
 	else if (tgaheader.version == 10 || tgaheader.version == 9 || tgaheader.version == 11)
 	{
-		//9:paletted
-		//10:bgr(a)
-		//11:greyscale
+		//9:RLE paletted
+		//10:RLE bgr(a)
+		//11:RLE greyscale
 #undef getc
 #define getc(x) *data++
 		unsigned int row, rows=tgaheader.height, column, columns=tgaheader.width, packetHeader, packetSize, j;
-		qbyte *pixbuf, *targa_rgba=BZ_Malloc(rows*columns*((forceformat==PTI_L8)?1:4)), *inrow;
+		qbyte *pixbuf, *targa_rgba;
+		unsigned int inraw;
 
 		qbyte blue, red, green, alphabyte;
 
 		byte_vec4_t palette[256];
+		enum
+		{
+			rle_p8,
+			rle_a1rgb5,
+			rle_bgr8,
+			rle_bgra8,
+			rle_l8,
+			rle_l8a8,
+		} rlemode;
+		int outbytes;
 
 		*format = PTI_RGBX8;
 		if (tgaheader.version == 9)
 		{	//RLE palette
+			if (tgaheader.bpp == 8)	//FIXME: tgaheader.bpp can be 8, 15, or 16.
+				rlemode = rle_p8;
+			else
+				return NULL;
+
 			for (row = 0; row < 256; row++)
 			{
 				palette[row][0] = row;
@@ -353,8 +377,6 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 				palette[row][2] = row;
 				palette[row][3] = 255;
 			}
-			if (tgaheader.bpp != 8)	//FIXME: tgaheader.bpp can be 8, 15, or 16.
-				return NULL;
 
 			if (forceformat == PTI_L8 || forceformat == PTI_INVALID)
 				*format = forceformat = PTI_L8;
@@ -367,6 +389,8 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 				qboolean grey = true;
 				switch(tgaheader.cm_size)
 				{
+				default:
+					return NULL;
 				case 24:
 					for (row = 0; row < tgaheader.cm_len; row++)
 					{
@@ -402,75 +426,99 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 		}
 		else if (tgaheader.version == 10)
 		{	//RLE truecolour
-			if (tgaheader.bpp == 8)
+			if (tgaheader.bpp == 16)
+				rlemode = rle_a1rgb5;
+			else if (tgaheader.bpp == 24)
+				rlemode = rle_bgr8;
+			else if (tgaheader.bpp == 32)
+				rlemode = rle_bgra8;
+			else
 				return NULL;
 
-			*format = (tgaheader.bpp==32)?PTI_RGBA8:PTI_RGBX8;
+			*format = (tgaheader.bpp==24)?PTI_RGBX8:PTI_RGBA8;
 		}
 		else if (tgaheader.version == 11)
 		{	//RLE greyscale
-			for (row = 0; row < 256; row++)
-			{
-				palette[row][0] = row;
-				palette[row][1] = row;
-				palette[row][2] = row;
-				palette[row][3] = 255;
-			}
-			if (tgaheader.bpp != 8)
+			if (tgaheader.bpp == 8)
+				rlemode = rle_l8;
+			else if (tgaheader.bpp == 16)
+				rlemode = rle_l8a8;
+			else
 				return NULL;
-		}
 
+			if (forceformat == PTI_L8)
+				*format = forceformat;
+			else if (rlemode==rle_l8a8)
+				*format = PTI_LLLA8; //should probably use PTI_L8A8, but the caller will know to optimise
+			else
+				*format = PTI_LLLX8;
+		}
+		else
+			return NULL;
+
+		if (*format == PTI_L8)
+			outbytes = 1;
+		else if (*format == PTI_L8A8)
+			outbytes = 2;
+		else
+			outbytes = 4;
+		targa_rgba=BZ_Malloc(rows*columns*outbytes);
 		for(row=rows; row-->0; )
 		{
 			if (flipped)
-				pixbuf = targa_rgba + row*columns*((forceformat==PTI_L8)?1:4);
+				pixbuf = targa_rgba + row*columns*outbytes;
 			else
-				pixbuf = targa_rgba + ((rows-1)-row)*columns*((forceformat==PTI_L8)?1:4);
+				pixbuf = targa_rgba + ((rows-1)-row)*columns*outbytes;
 			for(column=0; column<columns; )
 			{
 				packetHeader=*data++;
 				packetSize = 1 + (packetHeader & 0x7f);
 				if (packetHeader & 0x80)
 				{	// run-length packet
-					switch (tgaheader.bpp)
+					switch (rlemode)
 					{
-						case 8:	//we made sure this was version 11
-								blue = palette[*data][0];
-								green = palette[*data][1];
-								red = palette[*data][2];
-								alphabyte = palette[*data][3];
-								data++;
-								break;
+					case rle_p8:
+						blue = palette[*data][0];
+						green = palette[*data][1];
+						red = palette[*data][2];
+						alphabyte = palette[*data][3];
+						data++;
+						break;
+					case rle_l8a8:
+						blue = green = red = *data++;
+						alphabyte = *data++;
+						break;
+					case rle_l8:
+						blue = green = red = *data++;
+						alphabyte = 255;
+						break;
 
-						case 16:
-								inrow = data;
-								data+=2;
-								red = ((inrow[1] & 0x7c)>>2) *8;					//red
-								green =	(((inrow[1] & 0x03)<<3) + ((inrow[0] & 0xe0)>>5))*8;	//green
-								blue = (inrow[0] & 0x1f)*8;					//blue
-								alphabyte = (int)(inrow[1]&0x80)*2-1;			//alpha?
-								break;
-						case 24:
-								blue = *data++;
-								green = *data++;
-								red = *data++;
-								alphabyte = 255;
-								break;
-						case 32:
-								blue = *data++;
-								green = *data++;
-								red = *data++;
-								alphabyte = *data++;
-								break;
-						default:
-								blue = 127;
-								green = 127;
-								red = 127;
-								alphabyte = 127;
-								break;
+					case rle_a1rgb5:
+						inraw = data[0] | (data[1]<<8);
+						data+=2;
+						alphabyte = (inraw&0x8000)?255:0;
+						red = ((inraw>>10)&0x1f)<<3;
+						green = ((inraw>>5)&0x1f)<<3;
+						blue = ((inraw>>0)&0x1f)<<3;
+						break;
+					case rle_bgr8:
+						blue = *data++;
+						green = *data++;
+						red = *data++;
+						alphabyte = 255;
+						break;
+					case rle_bgra8:
+						blue = *data++;
+						green = *data++;
+						red = *data++;
+						alphabyte = *data++;
+						break;
+					default:
+						blue = green = red = alphabyte = 255;
+						break;
 					}
 
-					if (forceformat!=PTI_L8)	//keep colours
+					if (*format!=PTI_L8)	//keep colours
 					{
 						for(j=0;j<packetSize;j++)
 						{
@@ -516,60 +564,70 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 				}
 				else
 				{                            // non run-length packet
-					if (forceformat!=PTI_L8)	//keep colours
+					if (*format!=PTI_L8)	//keep colours
 					{
 						for(j=0;j<packetSize;j++)
 						{
-							switch (tgaheader.bpp)
+							switch (rlemode)
 							{
-								case 8:
-										blue = palette[*data][0];
-										green = palette[*data][1];
-										red = palette[*data][2];
-										*pixbuf++ = red;
-										*pixbuf++ = green;
-										*pixbuf++ = blue;
-										*pixbuf++ = palette[*data][3];
-										data++;
-										break;
-								case 16:
-										inrow = data;
-										data+=2;
-										red = ((inrow[1] & 0x7c)>>2) *8;					//red
-										green =	(((inrow[1] & 0x03)<<3) + ((inrow[0] & 0xe0)>>5))*8;	//green
-										blue = (inrow[0] & 0x1f)*8;					//blue
-										alphabyte = (int)(inrow[1]&0x80)*2-1;			//alpha?
+							case rle_p8:
+								blue = palette[*data][0];
+								green = palette[*data][1];
+								red = palette[*data][2];
+								alphabyte = palette[*data][3];
+								data++;
+								*pixbuf++ = red;
+								*pixbuf++ = green;
+								*pixbuf++ = blue;
+								*pixbuf++ = alphabyte;
+								break;
+							case rle_l8a8:
+								blue = green = red = *data++;
+								alphabyte = *data++;
+								*pixbuf++ = red;
+								*pixbuf++ = green;
+								*pixbuf++ = blue;
+								*pixbuf++ = alphabyte;
+								break;
+							case rle_l8:
+								blue = green = red = *data++;
+								*pixbuf++ = red;
+								*pixbuf++ = green;
+								*pixbuf++ = blue;
+								*pixbuf++ = 255;
+								break;
+							case rle_a1rgb5:
+								inraw = data[0] | (data[1]<<8);
+								data+=2;
+								alphabyte = (inraw&0x8000)?255:0;
+								red = ((inraw>>10)&0x1f)<<3;
+								green = ((inraw>>5)&0x1f)<<3;
+								blue = ((inraw>>0)&0x1f)<<3;
 
-										*pixbuf++ = red;
-										*pixbuf++ = green;
-										*pixbuf++ = blue;
-										*pixbuf++ = alphabyte;
-										break;
-								case 24:
-										blue = *data++;
-										green = *data++;
-										red = *data++;
-										*pixbuf++ = red;
-										*pixbuf++ = green;
-										*pixbuf++ = blue;
-										*pixbuf++ = 255;
-										break;
-								case 32:
-										blue = *data++;
-										green = *data++;
-										red = *data++;
-										alphabyte = *data++;
-										*pixbuf++ = red;
-										*pixbuf++ = green;
-										*pixbuf++ = blue;
-										*pixbuf++ = alphabyte;
-										break;
-								default:
-										blue = 127;
-										green = 127;
-										red = 127;
-										alphabyte = 127;
-										break;
+								*pixbuf++ = red;
+								*pixbuf++ = green;
+								*pixbuf++ = blue;
+								*pixbuf++ = alphabyte;
+								break;
+							case rle_bgr8:
+								blue = *data++;
+								green = *data++;
+								red = *data++;
+								*pixbuf++ = red;
+								*pixbuf++ = green;
+								*pixbuf++ = blue;
+								*pixbuf++ = 255;
+								break;
+							case rle_bgra8:
+								blue = *data++;
+								green = *data++;
+								red = *data++;
+								alphabyte = *data++;
+								*pixbuf++ = red;
+								*pixbuf++ = green;
+								*pixbuf++ = blue;
+								*pixbuf++ = alphabyte;
+								break;
 							}
 							column++;
 							if (column==columns)
@@ -590,44 +648,47 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 					{
 						for(j=0;j<packetSize;j++)
 						{
-							switch (tgaheader.bpp)
+							switch (rlemode)
 							{
-								case 8:
-										blue = palette[*data][0];
-										green = palette[*data][1];
-										red = palette[*data][2];
-										*pixbuf++ = (blue + green + red)/3;
-										data++;
-										break;
-								case 16:
-										inrow = data;
-										data+=2;
-										red = ((inrow[1] & 0x7c)>>2) *8;					//red
-										green =	(((inrow[1] & 0x03)<<3) + ((inrow[0] & 0xe0)>>5))*8;	//green
-										blue = (inrow[0] & 0x1f)*8;					//blue
-										alphabyte = (int)(inrow[1]&0x80)*2-1;			//alpha?
+							case rle_p8:
+								blue = palette[*data][0];
+								green = palette[*data][1];
+								red = palette[*data][2];
+								*pixbuf++ = (blue + green + red)/3;
+								data++;
+								break;
+							case rle_l8a8:
+								blue = green = red = *data++;
+								alphabyte = *data++;
+								*pixbuf++ = green;
+								break;
+							case rle_l8:
+								blue = green = red = *data++;
+								*pixbuf++ = green;
+								break;
+							case rle_a1rgb5:
+								inraw = data[0] | (data[1]<<8);
+								data+=2;
+								alphabyte = (inraw&0x8000)?255:0;
+								red = ((inraw>>10)&0x1f)<<3;
+								green = ((inraw>>5)&0x1f)<<3;
+								blue = ((inraw>>0)&0x1f)<<3;
 
-										*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
-										break;
-								case 24:
-										blue = *data++;
-										green = *data++;
-										red = *data++;
-										*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
-										break;
-								case 32:
-										blue = *data++;
-										green = *data++;
-										red = *data++;
-										alphabyte = *data++;
-										*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
-										break;
-								default:
-										blue = 127;
-										green = 127;
-										red = 127;
-										alphabyte = 127;
-										break;
+								*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
+								break;
+							case rle_bgr8:
+								blue = *data++;
+								green = *data++;
+								red = *data++;
+								*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
+								break;
+							case rle_bgra8:
+								blue = *data++;
+								green = *data++;
+								red = *data++;
+								alphabyte = *data++;
+								*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
+								break;
 							}
 							column++;
 							if (column==columns)
@@ -651,15 +712,116 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 
 		return targa_rgba;
 	}
+	else if ((tgaheader.version == 0x82||tgaheader.version == 0x83) && forceformat && forceformat!=PTI_RGBA16F)
+		Con_Printf("HTGA: required output format is not half-float\n");
+	else if ((tgaheader.version == 0x82||tgaheader.version == 0x83) && !(tgaheader.bpp&15) && tgaheader.bpp>=16 && tgaheader.bpp<=16*4)
+	{	//packed r[g[b[a]]]f
+		unsigned short *initbuf, *inrow, *outrow;
+		int x, y, mul;
+
+		if (tgaheader.version == 0x83 && tgaheader.bpp==16)
+			*format = forceformat = PTI_R16F;
+		else
+			*format = forceformat = PTI_RGBA16F; //gray+alpha needs to be rgbaf
+
+		initbuf = BZ_Malloc(tgaheader.height*tgaheader.width* ((forceformat==PTI_R16F)?2:8));
+
+		mul = tgaheader.bpp/8;
+//flip +convert to 32 bit
+		outrow = &initbuf[(int)(0)*tgaheader.width*mul];
+		for (y = 0; y < tgaheader.height; y+=1)
+		{
+			if (flipped)
+				inrow = (unsigned short*)&data[(int)(tgaheader.height-y-1)*tgaheader.width*mul];
+			else
+				inrow = (unsigned short*)&data[(int)(y)*tgaheader.width*mul];
+
+			switch(mul)
+			{
+			default:	//bug!
+				for (x = 0; x < tgaheader.width; x+=1)
+				{
+					*outrow++ = 0;
+					*outrow++ = 0;
+					*outrow++ = 0;
+					*outrow++ = 0xf<<10;
+				}
+				break;
+			case 2:	//Lum
+				if (forceformat == PTI_R16F)
+				{
+					for (x = 0; x < tgaheader.width; x+=1)
+						*outrow++ = *inrow++;
+				}
+				else
+				{
+					for (x = 0; x < tgaheader.width; x+=1)
+					{
+						*outrow++ = *inrow;
+						*outrow++ = *inrow;
+						*outrow++ = *inrow;
+						*outrow++ = 0xf<<10; //1.0
+						inrow+=1;
+					}
+				}
+				break;
+			case 4:
+				if (tgaheader.version == 0x83)
+				{	//treat as LumAlpha
+					for (x = 0; x < tgaheader.width; x+=1)
+					{
+						*outrow++ = inrow[0];
+						*outrow++ = inrow[0];
+						*outrow++ = inrow[0];
+						*outrow++ = inrow[1];
+						inrow+=2;
+					}
+				}
+				else
+				{	//RG
+					for (x = 0; x < tgaheader.width; x+=1)
+					{
+						*outrow++ = inrow[0];
+						*outrow++ = inrow[1];
+						*outrow++ = 0;
+						*outrow++ = 0xf<<10; //1.0
+						inrow+=2;
+					}
+				}
+				break;
+			case 6: //BGR
+				for (x = 0; x < tgaheader.width; x+=1)
+				{
+					*outrow++ = inrow[2];
+					*outrow++ = inrow[1];
+					*outrow++ = inrow[0];
+					*outrow++ = 0xf<<10; //1.0
+					inrow+=3;
+				}
+				break;
+			case 8: //BGRA16F, swizzle to rgba
+				for (x = 0; x < tgaheader.width; x+=1)
+				{
+					*outrow++ = inrow[2];
+					*outrow++ = inrow[1];
+					*outrow++ = inrow[0];
+					*outrow++ = inrow[3];
+					inrow+=4;
+				}
+				break;
+			}
+		}
+		return initbuf;
+	}
 	else if (tgaheader.version == 2)
 	{	//packed format
-		qbyte *initbuf=BZ_Malloc(tgaheader.height*tgaheader.width* ((forceformat==PTI_L8)?1:4));
-		qbyte *inrow, *outrow;
+		qbyte *initbuf, *inrow, *outrow;
 		int x, y, mul;
 		qbyte blue, red, green;
 
 		if (tgaheader.bpp == 8)
 			return NULL;
+		initbuf=BZ_Malloc(tgaheader.height*tgaheader.width* ((forceformat==PTI_L8)?1:4));
 
 		mul = tgaheader.bpp/8;
 //flip +convert to 32 bit
@@ -794,7 +956,7 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_rest
 	qboolean success = false;
 	size_t c, i;
 	vfsfile_t *vfs;
-	if (fmt != TF_BGRA32 && fmt != TF_RGB24 && fmt != TF_RGBA32 && fmt != TF_BGR24 && fmt != TF_RGBX32 && fmt != TF_BGRX32)
+	if (fmt != PTI_BGRA8 && fmt != PTI_RGB8 && fmt != PTI_RGBA8 && fmt != PTI_BGR8 && fmt != PTI_RGBX8 && fmt != PTI_BGRX8 && fmt != PTI_R16F && fmt != PTI_RGBA16F)
 		return false;
 	FS_CreatePath(filename, fsroot);
 	vfs = FS_OpenVFS(filename, "wb", fsroot);
@@ -805,26 +967,43 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_rest
 		unsigned char header[18];
 		memset (header, 0, 18);
 
-		if (fmt == TF_BGRA32 || fmt == TF_RGBA32)
+		if (fmt == PTI_RGBA16F)
 		{
-			rgb = fmt==TF_RGBA32;
-			ipx = 4;
-			opx = 4;
+			header[2] = 0x82;
+			opx = 8;
+			ipx = 8;
+			rgb = true;
 		}
-		else if (fmt == TF_RGBX32 || fmt == TF_BGRX32)
+		else if (fmt == PTI_R16F)
 		{
-			rgb = fmt==TF_RGBX32;
-			ipx = 4;
-			opx = 3;
+			header[2] = 0x83;
+			opx = 2;
+			ipx = 2;
+			rgb = false;
 		}
 		else
 		{
-			rgb = fmt==TF_RGB24;
-			ipx = 3;
-			opx = 3;
+			header[2] = 2;			// uncompressed type
+			if (fmt == PTI_BGRA8 || fmt == PTI_RGBA8 || fmt==PTI_LLLA8)
+			{
+				rgb = fmt==TF_RGBA32;
+				ipx = 4;
+				opx = 4;
+			}
+			else if (fmt == PTI_RGBX8 || fmt == PTI_BGRX8 || fmt==PTI_LLLX8)
+			{
+				rgb = fmt==PTI_RGBX8;
+				ipx = 4;
+				opx = 3;
+			}
+			else
+			{
+				rgb = fmt==PTI_RGB8;
+				ipx = 3;
+				opx = 3;
+			}
 		}
 
-		header[2] = 2;			// uncompressed type
 		header[12] = width&255;
 		header[13] = width>>8;
 		header[14] = height&255;
@@ -857,12 +1036,28 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_rest
 			if (rgb)
 			{	//rgb24, rgbx32, rgba32
 				// compact, and swap
-				c = (size_t)width*height;
-				for (i=0 ; i<c ; i++)
+				if (opx == 8)
 				{
-					rgb_out[i*opx+2] = rgb_buffer[i*ipx+0];
-					rgb_out[i*opx+1] = rgb_buffer[i*ipx+1];
-					rgb_out[i*opx+0] = rgb_buffer[i*ipx+2];
+					c = (size_t)width*height;
+					for (i=0 ; i<c ; i++)
+					{
+						rgb_out[i*opx+5] = rgb_buffer[i*ipx+1];
+						rgb_out[i*opx+4] = rgb_buffer[i*ipx+0];
+						rgb_out[i*opx+3] = rgb_buffer[i*ipx+3];
+						rgb_out[i*opx+2] = rgb_buffer[i*ipx+2];
+						rgb_out[i*opx+1] = rgb_buffer[i*ipx+5];
+						rgb_out[i*opx+0] = rgb_buffer[i*ipx+4];
+					}
+				}
+				else
+				{
+					c = (size_t)width*height;
+					for (i=0 ; i<c ; i++)
+					{
+						rgb_out[i*opx+2] = rgb_buffer[i*ipx+0];
+						rgb_out[i*opx+1] = rgb_buffer[i*ipx+1];
+						rgb_out[i*opx+0] = rgb_buffer[i*ipx+2];
+					}
 				}
 			}
 			else
@@ -3411,20 +3606,34 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_BC6_RGB_SFLOAT:	header.glinternalformat = 0x8E8E/*GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB*/; break;
 	case PTI_BC7_RGBA:			header.glinternalformat = 0x8E8C/*GL_COMPRESSED_RGBA_BPTC_UNORM_ARB*/; break;
 	case PTI_BC7_RGBA_SRGB:		header.glinternalformat = 0x8E8D/*GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB*/; break;
-	case PTI_ASTC_4X4:			header.glinternalformat = 0x93B0/*GL_COMPRESSED_RGBA_ASTC_4x4_KHR*/; break;
-	case PTI_ASTC_5X4:			header.glinternalformat = 0x93B1/*GL_COMPRESSED_RGBA_ASTC_5x4_KHR*/; break;
-	case PTI_ASTC_5X5:			header.glinternalformat = 0x93B2/*GL_COMPRESSED_RGBA_ASTC_5x5_KHR*/; break;
-	case PTI_ASTC_6X5:			header.glinternalformat = 0x93B3/*GL_COMPRESSED_RGBA_ASTC_6x5_KHR*/; break;
-	case PTI_ASTC_6X6:			header.glinternalformat = 0x93B4/*GL_COMPRESSED_RGBA_ASTC_6x6_KHR*/; break;
-	case PTI_ASTC_8X5:			header.glinternalformat = 0x93B5/*GL_COMPRESSED_RGBA_ASTC_8x5_KHR*/; break;
-	case PTI_ASTC_8X6:			header.glinternalformat = 0x93B6/*GL_COMPRESSED_RGBA_ASTC_8x6_KHR*/; break;
-	case PTI_ASTC_10X5:			header.glinternalformat = 0x93B7/*GL_COMPRESSED_RGBA_ASTC_10x5_KHR*/; break;
-	case PTI_ASTC_10X6:			header.glinternalformat = 0x93B8/*GL_COMPRESSED_RGBA_ASTC_10x6_KHR*/; break;
-	case PTI_ASTC_8X8:			header.glinternalformat = 0x93B9/*GL_COMPRESSED_RGBA_ASTC_8x8_KHR*/; break;
-	case PTI_ASTC_10X8:			header.glinternalformat = 0x93BA/*GL_COMPRESSED_RGBA_ASTC_10x8_KHR*/; break;
-	case PTI_ASTC_10X10:		header.glinternalformat = 0x93BB/*GL_COMPRESSED_RGBA_ASTC_10x10_KHR*/; break;
-	case PTI_ASTC_12X10:		header.glinternalformat = 0x93BC/*GL_COMPRESSED_RGBA_ASTC_12x10_KHR*/; break;
-	case PTI_ASTC_12X12:		header.glinternalformat = 0x93BD/*GL_COMPRESSED_RGBA_ASTC_12x12_KHR*/; break;
+	case PTI_ASTC_4X4_HDR:		//sadly gl/ktx does not distinguish between ldr+hdr, which presents problems that will have to be handled by the loader.
+	case PTI_ASTC_4X4_LDR:		header.glinternalformat = 0x93B0/*GL_COMPRESSED_RGBA_ASTC_4x4_KHR*/; break;
+	case PTI_ASTC_5X4_HDR:
+	case PTI_ASTC_5X4_LDR:		header.glinternalformat = 0x93B1/*GL_COMPRESSED_RGBA_ASTC_5x4_KHR*/; break;
+	case PTI_ASTC_5X5_HDR:
+	case PTI_ASTC_5X5_LDR:		header.glinternalformat = 0x93B2/*GL_COMPRESSED_RGBA_ASTC_5x5_KHR*/; break;
+	case PTI_ASTC_6X5_HDR:
+	case PTI_ASTC_6X5_LDR:		header.glinternalformat = 0x93B3/*GL_COMPRESSED_RGBA_ASTC_6x5_KHR*/; break;
+	case PTI_ASTC_6X6_HDR:
+	case PTI_ASTC_6X6_LDR:		header.glinternalformat = 0x93B4/*GL_COMPRESSED_RGBA_ASTC_6x6_KHR*/; break;
+	case PTI_ASTC_8X5_HDR:
+	case PTI_ASTC_8X5_LDR:		header.glinternalformat = 0x93B5/*GL_COMPRESSED_RGBA_ASTC_8x5_KHR*/; break;
+	case PTI_ASTC_8X6_HDR:
+	case PTI_ASTC_8X6_LDR:		header.glinternalformat = 0x93B6/*GL_COMPRESSED_RGBA_ASTC_8x6_KHR*/; break;
+	case PTI_ASTC_8X8_HDR:
+	case PTI_ASTC_8X8_LDR:		header.glinternalformat = 0x93B7/*GL_COMPRESSED_RGBA_ASTC_8x8_KHR*/; break;
+	case PTI_ASTC_10X5_HDR:
+	case PTI_ASTC_10X5_LDR:		header.glinternalformat = 0x93B8/*GL_COMPRESSED_RGBA_ASTC_10x5_KHR*/; break;
+	case PTI_ASTC_10X6_HDR:
+	case PTI_ASTC_10X6_LDR:		header.glinternalformat = 0x93B9/*GL_COMPRESSED_RGBA_ASTC_10x6_KHR*/; break;
+	case PTI_ASTC_10X8_HDR:
+	case PTI_ASTC_10X8_LDR:		header.glinternalformat = 0x93BA/*GL_COMPRESSED_RGBA_ASTC_10x8_KHR*/; break;
+	case PTI_ASTC_10X10_HDR:
+	case PTI_ASTC_10X10_LDR:	header.glinternalformat = 0x93BB/*GL_COMPRESSED_RGBA_ASTC_10x10_KHR*/; break;
+	case PTI_ASTC_12X10_HDR:
+	case PTI_ASTC_12X10_LDR:	header.glinternalformat = 0x93BC/*GL_COMPRESSED_RGBA_ASTC_12x10_KHR*/; break;
+	case PTI_ASTC_12X12_HDR:
+	case PTI_ASTC_12X12_LDR:	header.glinternalformat = 0x93BD/*GL_COMPRESSED_RGBA_ASTC_12x12_KHR*/; break;
 	case PTI_ASTC_4X4_SRGB:		header.glinternalformat = 0x93D0/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR*/; break;
 	case PTI_ASTC_5X4_SRGB:		header.glinternalformat = 0x93D1/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR*/; break;
 	case PTI_ASTC_5X5_SRGB:		header.glinternalformat = 0x93D2/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR*/; break;
@@ -3432,14 +3641,13 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_ASTC_6X6_SRGB:		header.glinternalformat = 0x93D4/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR*/; break;
 	case PTI_ASTC_8X5_SRGB:		header.glinternalformat = 0x93D5/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR*/; break;
 	case PTI_ASTC_8X6_SRGB:		header.glinternalformat = 0x93D6/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR*/; break;
-	case PTI_ASTC_10X5_SRGB:	header.glinternalformat = 0x93D7/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR*/; break;
-	case PTI_ASTC_10X6_SRGB:	header.glinternalformat = 0x93D8/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR*/; break;
-	case PTI_ASTC_8X8_SRGB:		header.glinternalformat = 0x93D9/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR*/; break;
+	case PTI_ASTC_8X8_SRGB:		header.glinternalformat = 0x93D7/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR*/; break;
+	case PTI_ASTC_10X5_SRGB:	header.glinternalformat = 0x93D8/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR*/; break;
+	case PTI_ASTC_10X6_SRGB:	header.glinternalformat = 0x93D9/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR*/; break;
 	case PTI_ASTC_10X8_SRGB:	header.glinternalformat = 0x93DA/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR*/; break;
 	case PTI_ASTC_10X10_SRGB:	header.glinternalformat = 0x93DB/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR*/; break;
 	case PTI_ASTC_12X10_SRGB:	header.glinternalformat = 0x93DC/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR*/; break;
 	case PTI_ASTC_12X12_SRGB:	header.glinternalformat = 0x93DD/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR*/; break;
-
 	case PTI_BGRA8:				header.glinternalformat = 0x8058/*GL_RGBA8*/;				header.glbaseinternalformat = 0x1908/*GL_RGBA*/;			header.glformat = 0x80E1/*GL_BGRA*/;			header.gltype = 0x1401/*GL_UNSIGNED_BYTE*/;					header.gltypesize = 1; break;
 	case PTI_RGBA8:				header.glinternalformat = 0x8058/*GL_RGBA8*/;				header.glbaseinternalformat = 0x1908/*GL_RGBA*/;			header.glformat = 0x1908/*GL_RGBA*/;			header.gltype = 0x1401/*GL_UNSIGNED_BYTE*/;					header.gltypesize = 1; break;
 	case PTI_BGRA8_SRGB:		header.glinternalformat = 0x8C43/*GL_SRGB8_ALPHA8*/;		header.glbaseinternalformat = 0x1908/*GL_RGBA*/;			header.glformat = 0x80E1/*GL_BGRA*/;			header.gltype = 0x1401/*GL_UNSIGNED_BYTE*/;					header.gltypesize = 1; break;
@@ -3581,20 +3789,20 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	case 0x8E8E/*GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB*/:		encoding = PTI_BC6_RGB_SFLOAT;		break;
 	case 0x8E8C/*GL_COMPRESSED_RGBA_BPTC_UNORM_ARB*/:			encoding = PTI_BC7_RGBA;			break;
 	case 0x8E8D/*GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB*/:		encoding = PTI_BC7_RGBA_SRGB;		break;
-	case 0x93B0/*GL_COMPRESSED_RGBA_ASTC_4x4_KHR*/:				encoding = PTI_ASTC_4X4;			break;
-	case 0x93B1/*GL_COMPRESSED_RGBA_ASTC_5x4_KHR*/:				encoding = PTI_ASTC_5X4;			break;
-	case 0x93B2/*GL_COMPRESSED_RGBA_ASTC_5x5_KHR*/:				encoding = PTI_ASTC_5X5;			break;
-	case 0x93B3/*GL_COMPRESSED_RGBA_ASTC_6x5_KHR*/:				encoding = PTI_ASTC_6X5;			break;
-	case 0x93B4/*GL_COMPRESSED_RGBA_ASTC_6x6_KHR*/:				encoding = PTI_ASTC_6X6;			break;
-	case 0x93B5/*GL_COMPRESSED_RGBA_ASTC_8x5_KHR*/:				encoding = PTI_ASTC_8X5;			break;
-	case 0x93B6/*GL_COMPRESSED_RGBA_ASTC_8x6_KHR*/:				encoding = PTI_ASTC_8X6;			break;
-	case 0x93B7/*GL_COMPRESSED_RGBA_ASTC_10x5_KHR*/:			encoding = PTI_ASTC_10X5;			break;
-	case 0x93B8/*GL_COMPRESSED_RGBA_ASTC_10x6_KHR*/:			encoding = PTI_ASTC_10X6;			break;
-	case 0x93B9/*GL_COMPRESSED_RGBA_ASTC_8x8_KHR*/:				encoding = PTI_ASTC_8X8;			break;
-	case 0x93BA/*GL_COMPRESSED_RGBA_ASTC_10x8_KHR*/:			encoding = PTI_ASTC_10X8;			break;
-	case 0x93BB/*GL_COMPRESSED_RGBA_ASTC_10x10_KHR*/:			encoding = PTI_ASTC_10X10;			break;
-	case 0x93BC/*GL_COMPRESSED_RGBA_ASTC_12x10_KHR*/:			encoding = PTI_ASTC_12X10;			break;
-	case 0x93BD/*GL_COMPRESSED_RGBA_ASTC_12x12_KHR*/:			encoding = PTI_ASTC_12X12;			break;
+	case 0x93B0/*GL_COMPRESSED_RGBA_ASTC_4x4_KHR*/:				encoding = PTI_ASTC_4X4_LDR;		break;
+	case 0x93B1/*GL_COMPRESSED_RGBA_ASTC_5x4_KHR*/:				encoding = PTI_ASTC_5X4_LDR;		break;
+	case 0x93B2/*GL_COMPRESSED_RGBA_ASTC_5x5_KHR*/:				encoding = PTI_ASTC_5X5_LDR;		break;
+	case 0x93B3/*GL_COMPRESSED_RGBA_ASTC_6x5_KHR*/:				encoding = PTI_ASTC_6X5_LDR;		break;
+	case 0x93B4/*GL_COMPRESSED_RGBA_ASTC_6x6_KHR*/:				encoding = PTI_ASTC_6X6_LDR;		break;
+	case 0x93B5/*GL_COMPRESSED_RGBA_ASTC_8x5_KHR*/:				encoding = PTI_ASTC_8X5_LDR;		break;
+	case 0x93B6/*GL_COMPRESSED_RGBA_ASTC_8x6_KHR*/:				encoding = PTI_ASTC_8X6_LDR;		break;
+	case 0x93B7/*GL_COMPRESSED_RGBA_ASTC_8x8_KHR*/:				encoding = PTI_ASTC_8X8_LDR;		break;
+	case 0x93B8/*GL_COMPRESSED_RGBA_ASTC_10x5_KHR*/:			encoding = PTI_ASTC_10X5_LDR;		break;
+	case 0x93B9/*GL_COMPRESSED_RGBA_ASTC_10x6_KHR*/:			encoding = PTI_ASTC_10X6_LDR;		break;
+	case 0x93BA/*GL_COMPRESSED_RGBA_ASTC_10x8_KHR*/:			encoding = PTI_ASTC_10X8_LDR;		break;
+	case 0x93BB/*GL_COMPRESSED_RGBA_ASTC_10x10_KHR*/:			encoding = PTI_ASTC_10X10_LDR;		break;
+	case 0x93BC/*GL_COMPRESSED_RGBA_ASTC_12x10_KHR*/:			encoding = PTI_ASTC_12X10_LDR;		break;
+	case 0x93BD/*GL_COMPRESSED_RGBA_ASTC_12x12_KHR*/:			encoding = PTI_ASTC_12X12_LDR;		break;
 	case 0x93D0/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR*/:		encoding = PTI_ASTC_4X4_SRGB;		break;
 	case 0x93D1/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR*/:		encoding = PTI_ASTC_5X4_SRGB;		break;
 	case 0x93D2/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR*/:		encoding = PTI_ASTC_5X5_SRGB;		break;
@@ -3602,9 +3810,9 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	case 0x93D4/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR*/:		encoding = PTI_ASTC_6X6_SRGB;		break;
 	case 0x93D5/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR*/:		encoding = PTI_ASTC_8X5_SRGB;		break;
 	case 0x93D6/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR*/:		encoding = PTI_ASTC_8X6_SRGB;		break;
-	case 0x93D7/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR*/:	encoding = PTI_ASTC_10X5_SRGB;		break;
-	case 0x93D8/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR*/:	encoding = PTI_ASTC_10X6_SRGB;		break;
-	case 0x93D9/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR*/:		encoding = PTI_ASTC_8X8_SRGB;		break;
+	case 0x93D7/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR*/:		encoding = PTI_ASTC_8X8_SRGB;		break;
+	case 0x93D8/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR*/:	encoding = PTI_ASTC_10X5_SRGB;		break;
+	case 0x93D9/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR*/:	encoding = PTI_ASTC_10X6_SRGB;		break;
 	case 0x93DA/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR*/:	encoding = PTI_ASTC_10X8_SRGB;		break;
 	case 0x93DB/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR*/:	encoding = PTI_ASTC_10X10_SRGB;		break;
 	case 0x93DC/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR*/:	encoding = PTI_ASTC_12X10_SRGB;		break;
@@ -3774,6 +3982,86 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 		return NULL;
 	}
 
+#ifdef ASTC_WITH_HDRTEST
+	if (encoding >= PTI_ASTC_4X4_LDR && encoding <= PTI_ASTC_12X12_LDR)
+	{
+		for (face = 0; face < header->numberoffaces; face++)
+		{
+			if (ASTC_BlocksAreHDR(mips->mip[face].data, mips->mip[face].datasize, blockwidth, blockheight, 1))
+			{	//convert it to one of the hdr formats if we can.
+				mips->encoding = PTI_ASTC_4X4_HDR+(encoding-PTI_ASTC_4X4_LDR);
+				break;
+			}
+		}
+	}
+#endif
+
+	return mips;
+}
+#endif
+
+#ifdef IMAGEFMT_ASTC
+static struct pendingtextureinfo *Image_ReadASTCFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
+{
+	struct pendingtextureinfo *mips;
+	int encoding = PTI_INVALID, blockbytes, blockwidth, blockheight;
+	static const struct {
+		int w, h, d;
+		int fmt;
+	} sizes[] =
+	{
+		{4,4,1,PTI_ASTC_4X4_LDR},
+		{5,4,1,PTI_ASTC_5X4_LDR},
+		{5,5,1,PTI_ASTC_5X5_LDR},
+		{6,5,1,PTI_ASTC_6X5_LDR},
+		{6,6,1,PTI_ASTC_6X6_LDR},
+		{8,5,1,PTI_ASTC_8X5_LDR},
+		{8,6,1,PTI_ASTC_8X6_LDR},
+		{10,5,1,PTI_ASTC_10X5_LDR},
+		{10,6,1,PTI_ASTC_10X6_LDR},
+		{8,8,1,PTI_ASTC_8X8_LDR},
+		{10,8,1,PTI_ASTC_10X8_LDR},
+		{10,10,1,PTI_ASTC_10X10_LDR},
+		{12,10,1,PTI_ASTC_12X10_LDR},
+		{12,12,1,PTI_ASTC_12X12_LDR},
+	};
+	int i;
+	int size[3] = {
+		filedata[7]|(filedata[8]<<8)|(filedata[9]<<16),
+		filedata[10]|(filedata[11]<<8)|(filedata[12]<<16),
+		filedata[13]|(filedata[14]<<8)|(filedata[15]<<16)};
+	for (i = 0; i < countof(sizes); i++)
+	{
+		if (sizes[i].w == filedata[4] && sizes[i].h == filedata[5] && sizes[i].d == filedata[6])
+		{
+			encoding = sizes[i].fmt;
+			break;
+		}
+	}
+	if (!encoding)
+		return NULL;	//block size not known
+	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
+	if (16+((size[0]+blockwidth-1)/blockwidth)*((size[1]+blockheight-1)/blockheight)*blockbytes != filesize)
+		return NULL;	//err, not the right size!
+
+	mips = Z_Malloc(sizeof(*mips));
+	mips->mipcount = 1;	//this format doesn't support mipmaps. so there's only one level.
+	mips->type = PTI_2D;
+	mips->extrafree = filedata;
+	mips->encoding = encoding;
+	mips->mip[0].data = filedata+16;
+	mips->mip[0].datasize = filesize-16;
+	mips->mip[0].width = size[0];
+	mips->mip[0].height = size[1];
+	mips->mip[0].depth = size[2];
+	mips->mip[0].needfree = false;
+
+#ifdef ASTC_WITH_HDRTEST
+	if (ASTC_BlocksAreHDR(mips->mip[0].data, mips->mip[0].datasize, blockwidth, blockheight, 1))
+	{	//convert it to one of the hdr formats if we can.
+		mips->encoding = PTI_ASTC_4X4_HDR+(encoding-PTI_ASTC_4X4_LDR);
+	}
+#endif
 	return mips;
 }
 #endif
@@ -3854,7 +4142,11 @@ typedef struct {
 	unsigned int dwFlags;
 	unsigned int dwFourCC;
 
-	unsigned int unk[5];
+	unsigned int bitcount;
+	unsigned int redmask;
+	unsigned int greenmask;
+	unsigned int bluemask;
+	unsigned int alphamask;
 } ddspixelformat;
 
 typedef struct {
@@ -3906,7 +4198,29 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	if (nummips < 1)
 		nummips = 1;
 
-	if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('1'<<24)))
+	if (!(fmtheader.ddpfPixelFormat.dwFlags & 4))
+	{
+#define IsPacked(bits,r,g,b,a)	fmtheader.ddpfPixelFormat.bitcount==bits&&fmtheader.ddpfPixelFormat.redmask==r&&fmtheader.ddpfPixelFormat.greenmask==g&&fmtheader.ddpfPixelFormat.bluemask==b&&fmtheader.ddpfPixelFormat.alphamask==a
+		if (IsPacked(24, 0xff0000, 0x00ff00, 0x0000ff, 0))
+			encoding = PTI_BGR8;
+		else if (IsPacked(24, 0x000000, 0x00ff00, 0xff0000, 0))
+			encoding = PTI_RGB8;
+		else if (IsPacked(32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000))
+			encoding = PTI_BGRA8;
+		else if (IsPacked(32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000))
+			encoding = PTI_RGBA8;
+		else if (IsPacked(32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0))
+			encoding = PTI_BGRX8;
+		else if (IsPacked(32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0))
+			encoding = PTI_RGBX8;
+		else
+		{
+			Con_Printf("Unsupported non-fourcc dds in %s\n", fname);
+			return NULL;
+		}
+#undef IsPacked
+	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('1'<<24)))
 	{
 		encoding = PTI_BC1_RGBA;	//alpha or not? Assume yes, and let the drivers decide.
 //		pad = 8;
@@ -4020,6 +4334,35 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 		case 99/*DXGI_FORMAT_BC7_UNORM_SRGB*/:
 			encoding = PTI_BC7_RGBA_SRGB;
 			break;
+
+		case 134:	encoding = PTI_ASTC_4X4_LDR;	break;
+		case 135:	encoding = PTI_ASTC_4X4_SRGB;	break;
+		case 138:	encoding = PTI_ASTC_5X4_LDR;	break;
+		case 139:	encoding = PTI_ASTC_5X4_SRGB;	break;
+		case 142:	encoding = PTI_ASTC_5X5_LDR;	break;
+		case 143:	encoding = PTI_ASTC_5X5_SRGB;	break;
+		case 146:	encoding = PTI_ASTC_6X5_LDR;	break;
+		case 147:	encoding = PTI_ASTC_6X5_SRGB;	break;
+		case 150:	encoding = PTI_ASTC_6X6_LDR;	break;
+		case 151:	encoding = PTI_ASTC_6X6_SRGB;	break;
+		case 154:	encoding = PTI_ASTC_8X5_LDR;	break;
+		case 155:	encoding = PTI_ASTC_8X5_SRGB;	break;
+		case 158:	encoding = PTI_ASTC_8X6_LDR;	break;
+		case 159:	encoding = PTI_ASTC_8X6_SRGB;	break;
+		case 162:	encoding = PTI_ASTC_8X8_LDR;	break;
+		case 163:	encoding = PTI_ASTC_8X8_SRGB;	break;
+		case 166:	encoding = PTI_ASTC_10X5_LDR;	break;
+		case 167:	encoding = PTI_ASTC_10X5_SRGB;	break;
+		case 170:	encoding = PTI_ASTC_10X6_LDR;	break;
+		case 171:	encoding = PTI_ASTC_10X6_SRGB;	break;
+		case 174:	encoding = PTI_ASTC_10X8_LDR;	break;
+		case 175:	encoding = PTI_ASTC_10X8_SRGB;	break;
+		case 178:	encoding = PTI_ASTC_10X10_LDR;	break;
+		case 179:	encoding = PTI_ASTC_10X10_SRGB;	break;
+		case 182:	encoding = PTI_ASTC_12X10_LDR;	break;
+		case 183:	encoding = PTI_ASTC_12X10_SRGB;	break;
+		case 186:	encoding = PTI_ASTC_12X12_LDR;	break;
+		case 187:	encoding = PTI_ASTC_12X12_SRGB;	break;
 
 		default:
 			Con_Printf("Unsupported dds10 dxgi in %s - %u\n", fname, fmt10header.dxgiformat);
@@ -4171,20 +4514,20 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_EAC_R11_SNORM:
 	case PTI_EAC_RG11:
 	case PTI_EAC_RG11_SNORM:
-	case PTI_ASTC_4X4:
-	case PTI_ASTC_5X4:
-	case PTI_ASTC_5X5:
-	case PTI_ASTC_6X5:
-	case PTI_ASTC_6X6:
-	case PTI_ASTC_8X5:
-	case PTI_ASTC_8X6:
-	case PTI_ASTC_10X5:
-	case PTI_ASTC_10X6:
-	case PTI_ASTC_8X8:
-	case PTI_ASTC_10X8:
-	case PTI_ASTC_10X10:
-	case PTI_ASTC_12X10:
-	case PTI_ASTC_12X12:
+	case PTI_ASTC_4X4_LDR:
+	case PTI_ASTC_5X4_LDR:
+	case PTI_ASTC_5X5_LDR:
+	case PTI_ASTC_6X5_LDR:
+	case PTI_ASTC_6X6_LDR:
+	case PTI_ASTC_8X5_LDR:
+	case PTI_ASTC_8X6_LDR:
+	case PTI_ASTC_10X5_LDR:
+	case PTI_ASTC_10X6_LDR:
+	case PTI_ASTC_8X8_LDR:
+	case PTI_ASTC_10X8_LDR:
+	case PTI_ASTC_10X10_LDR:
+	case PTI_ASTC_12X10_LDR:
+	case PTI_ASTC_12X12_LDR:
 	case PTI_ASTC_4X4_SRGB:
 	case PTI_ASTC_5X4_SRGB:
 	case PTI_ASTC_5X5_SRGB:
@@ -4198,7 +4541,21 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_ASTC_10X8_SRGB:
 	case PTI_ASTC_10X10_SRGB:
 	case PTI_ASTC_12X10_SRGB:
-	case PTI_ASTC_12X12_SRGB:	return false;	//unsupported
+	case PTI_ASTC_12X12_SRGB:
+	case PTI_ASTC_4X4_HDR:
+	case PTI_ASTC_5X4_HDR:
+	case PTI_ASTC_5X5_HDR:
+	case PTI_ASTC_6X5_HDR:
+	case PTI_ASTC_6X6_HDR:
+	case PTI_ASTC_8X5_HDR:
+	case PTI_ASTC_8X6_HDR:
+	case PTI_ASTC_10X5_HDR:
+	case PTI_ASTC_10X6_HDR:
+	case PTI_ASTC_8X8_HDR:
+	case PTI_ASTC_10X8_HDR:
+	case PTI_ASTC_10X10_HDR:
+	case PTI_ASTC_12X10_HDR:
+	case PTI_ASTC_12X12_HDR:	return false;	//unsupported
 	case PTI_BC1_RGB:
 	case PTI_BC1_RGBA:			h10.dxgiformat = 71/*DXGI_FORMAT_BC1_UNORM*/; break;
 	case PTI_BC1_RGB_SRGB:
@@ -5126,6 +5483,9 @@ static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int fla
 	if (flags & IF_NOMIPMAP)
 		return;
 
+	if (sh_config.can_genmips && mips->encoding != PTI_P8)
+		return;
+
 	switch(mips->encoding)
 	{
 	case PTI_P8:
@@ -5151,8 +5511,6 @@ static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int fla
 		}
 		return;
 	case PTI_R8:
-		if (sh_config.can_mipcap)
-			return;	//if we can cap mips, do that. it'll save lots of expensive lookups and uglyness.
 		for (mip = mips->mipcount; mip < 32; mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
@@ -5969,7 +6327,12 @@ typedef union
 	byte_vec4_t v;
 	unsigned int u;
 } pixel32_t;
-#define etc_expandv(p,x,y,z) p.v[0]|=p.v[0]>>x,p.v[1]|=p.v[1]>>y,p.v[2]|=p.v[2]>>z
+typedef union
+{
+	unsigned short v[4];
+	quint64_t u;
+} pixel64_t;
+#define etc_expandv(p,x,y,z) p.v[0]|=p.v[0]>>(x),p.v[1]|=p.v[1]>>(y),p.v[2]|=p.v[2]>>(z)
 #ifdef DECOMPRESS_ETC2
 //FIXME: this is littleendian only...
 static void Image_Decode_ETC2_Block_TH_Internal(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, pixel32_t base1, pixel32_t base2, int d, qboolean tmode)
@@ -6209,22 +6572,22 @@ static void Image_Decode_EAC8U_Block_Internal(qbyte *fte_restrict in, qbyte *fte
 #undef EAC_Row
 #undef EAC_Pix
 }
-static void Image_Decode_ETC2_RGB8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_ETC2_RGB8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	Image_Decode_ETC2_Block_Internal(in, out, w, false);
 }
 //punchthrough alpha works by removing interleaved mode releasing a bit that says whether a block can have alpha=0, .
-static void Image_Decode_ETC2_RGB8A1_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_ETC2_RGB8A1_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	Image_Decode_ETC2_Block_Internal(in, out, w, true);
 }
 //ETC2 RGBA's alpha and R11(and RG11) work the same way as each other, but with varying extra blocks with either 8 or 11 bits of valid precision.
-static void Image_Decode_ETC2_RGB8A8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_ETC2_RGB8A8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	Image_Decode_ETC2_Block_Internal(in+8, out, w, false);
 	Image_Decode_EAC8U_Block_Internal(in, out->v+3, w*4, false);
 }
-static void Image_Decode_EAC_R11U_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_EAC_R11U_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	pixel32_t r;
 	int i = 0;
@@ -6233,7 +6596,7 @@ static void Image_Decode_EAC_R11U_Block(qbyte *fte_restrict in, pixel32_t *fte_r
 		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
 	Image_Decode_EAC8U_Block_Internal(in, out->v, w*4, false);
 }
-static void Image_Decode_EAC_RG11U_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_EAC_RG11U_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	pixel32_t r;
 	int i = 0;
@@ -6270,37 +6633,26 @@ static void Image_Decode_S3TC_Block_Internal(qbyte *fte_restrict in, pixel32_t *
 
 	bits = in[4] | (in[5]<<8) | (in[6]<<16) | (in[7]<<24);
 
-#define BC1_Pix(r,i)	r.u = tab[(bits>>(i*2))&3].u;
+#define BC1_Pix(r,i)	r.u = tab[(bits>>((i)*2))&3].u
+#define BC1_Row(r,i)	BC1_Pix(r[0],i+0);BC1_Pix(r[1],i+1);BC1_Pix(r[2],i+2);BC1_Pix(r[3],i+3)
 
-	BC1_Pix(out[0], 0);
-	BC1_Pix(out[1], 1);
-	BC1_Pix(out[2], 2);
-	BC1_Pix(out[3], 3);
+	BC1_Row(out, 0);
 	out += w;
-	BC1_Pix(out[0], 4);
-	BC1_Pix(out[1], 5);
-	BC1_Pix(out[2], 6);
-	BC1_Pix(out[3], 7);
+	BC1_Row(out, 4);
 	out += w;
-	BC1_Pix(out[0], 8);
-	BC1_Pix(out[1], 9);
-	BC1_Pix(out[2], 10);
-	BC1_Pix(out[3], 11);
+	BC1_Row(out, 8);
 	out += w;
-	BC1_Pix(out[0], 12);
-	BC1_Pix(out[1], 13);
-	BC1_Pix(out[2], 14);
-	BC1_Pix(out[3], 15);
+	BC1_Row(out, 12);
 }
-static void Image_Decode_BC1_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_BC1_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	Image_Decode_S3TC_Block_Internal(in, out, w, 0xff);
 }
-static void Image_Decode_BC1A_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_BC1A_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	Image_Decode_S3TC_Block_Internal(in, out, w, 0);
 }
-static void Image_Decode_BC2_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_BC2_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	Image_Decode_S3TC_Block_Internal(in+8, out, w, 0xff);
 
@@ -6309,7 +6661,7 @@ static void Image_Decode_BC2_Block(qbyte *fte_restrict in, pixel32_t *fte_restri
 	out[0].v[3] = in[0]&0x0f; out[0].v[3] |= out[0].v[3]<<4;	\
 	out[1].v[3] = in[0]&0xf0; out[1].v[3] |= out[1].v[3]>>4;	\
 	out[2].v[3] = in[1]&0x0f; out[2].v[3] |= out[2].v[3]<<4;	\
-	out[3].v[3] = in[1]&0xf0; out[3].v[3] |= out[3].v[3]>>4;
+	out[3].v[3] = in[1]&0xf0; out[3].v[3] |= out[3].v[3]>>4
 
 	BC2_AlphaRow();
 	in += 2;out += w;
@@ -6384,61 +6736,1068 @@ static void Image_Decode_RGTC_Block_Internal(qbyte *fte_restrict in, qbyte *fte_
 }
 #ifdef DECOMPRESS_S3TC
 //s3tc rgb channel, with an rgtc alpha channel that depends upon both encodings (really the origin of rgtc, but mneh).
-static void Image_Decode_BC3_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_BC3_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {
 	Image_Decode_S3TC_Block_Internal(in+8, out, w, 0xff);
 	Image_Decode_RGTC_Block_Internal(in, out->v+3, w*4, false);
 }
 #endif
-static void Image_Decode_BC4U_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_BC4_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {	//BC4: BC3's alpha channel but used as red only.
 	pixel32_t r;
 	int i = 0;
 	Vector4Set(r.v, 0, 0, 0, 0xff);
 	for (i = 0; i < 4; i++)
 		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
-	Image_Decode_RGTC_Block_Internal(in, out->v+0, w*4, false);
+	Image_Decode_RGTC_Block_Internal(in, out->v+0, w*4, fmt==PTI_BC4_R8_SNORM);
 }
-static void Image_Decode_BC4S_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
-{	//BC4: BC3's alpha channel but used as red only.
-	pixel32_t r;
-	int i = 0;
-	Vector4Set(r.v, 0, 0, 0, 0xff);
-	for (i = 0; i < 4; i++)
-		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
-	Image_Decode_RGTC_Block_Internal(in, out->v+0, w*4, true);
-}
-static void Image_Decode_BC5U_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_BC5_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {	//BC5: two of BC3's alpha channels but used as red+green only.
 	pixel32_t r;
 	int i = 0;
 	Vector4Set(r.v, 0, 0, 0, 0xff);
 	for (i = 0; i < 4; i++)
 		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
-	Image_Decode_RGTC_Block_Internal(in+0, out->v+0, w*4, false);
-	Image_Decode_RGTC_Block_Internal(in+8, out->v+1, w*4, false);
-}
-static void Image_Decode_BC5S_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
-{	//BC5: two of BC3's alpha channels but used as red+green only.
-	pixel32_t r;
-	int i = 0;
-	Vector4Set(r.v, 0, 0, 0, 0xff);
-	for (i = 0; i < 4; i++)
-		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
-	Image_Decode_RGTC_Block_Internal(in+0, out->v+0, w*4, true);
-	Image_Decode_RGTC_Block_Internal(in+8, out->v+1, w*4, true);
+	Image_Decode_RGTC_Block_Internal(in+0, out->v+0, w*4, fmt==PTI_BC5_RG8_SNORM);
+	Image_Decode_RGTC_Block_Internal(in+8, out->v+1, w*4, fmt==PTI_BC5_RG8_SNORM);
 }
 #endif
 
-static void Image_Decode_RGB8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+#ifdef DECOMPRESS_BPTC
+fte_inlinestatic int ReadBits(qbyte *in, int *bit, int n)
+{
+	int mask = (1<<n)-1;
+	int second;
+	int first = *bit;
+	*bit += n;
+	in += first>>3;
+	first &= 7;
+	second = max(0,n - (8-first));
+	return ((in[0]>>first)&mask) ^ (in[1]<<(n-second)&mask);
+}
+fte_inlinestatic int ReadBitsL(qbyte *in, int *bit, int n)
+{
+	int r = ReadBits(in, bit, 8);
+	return (r)|(ReadBits(in, bit, n-8)<<8);
+}
+static void Image_Decode_BC6_Block(qbyte *fte_restrict in, pixel64_t *fte_restrict out, int w, uploadfmt_t fmt)
+{
+	qboolean signextend = fmt==PTI_BC6_RGB_SFLOAT;
+	static const int anchors[32] =
+	{
+		15,15,15,15,
+		15,15,15,15,
+		15,15,15,15,
+		15,15,15,15,
+		15, 2, 8, 2,
+		2, 8, 8,15,
+		2, 8, 2, 2,
+		8, 8, 2, 2,
+	};
+	static const qbyte p2[] = {
+		0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,
+		0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,
+		0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,
+		0,0,0,1,0,0,1,1,0,0,1,1,0,1,1,1,
+		0,0,0,0,0,0,0,1,0,0,0,1,0,0,1,1,
+		0,0,1,1,0,1,1,1,0,1,1,1,1,1,1,1,
+		0,0,0,1,0,0,1,1,0,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,1,0,0,1,1,0,1,1,1,
+		0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,
+		0,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,1,0,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,
+		0,0,0,1,0,1,1,1,1,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,
+		0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,
+		0,0,0,0,1,0,0,0,1,1,1,0,1,1,1,1,
+		0,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,0,
+		0,1,1,1,0,0,1,1,0,0,0,1,0,0,0,0,
+		0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,
+		0,0,0,0,1,0,0,0,1,1,0,0,1,1,1,0,
+		0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,
+		0,1,1,1,0,0,1,1,0,0,1,1,0,0,0,1,
+		0,0,1,1,0,0,0,1,0,0,0,1,0,0,0,0,
+		0,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,
+		0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,
+		0,0,1,1,0,1,1,0,0,1,1,0,1,1,0,0,
+		0,0,0,1,0,1,1,1,1,1,1,0,1,0,0,0,
+		0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,
+		0,1,1,1,0,0,0,1,1,0,0,0,1,1,1,0,
+		0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,
+		0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
+		0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1,
+		0,1,0,1,1,0,1,0,0,1,0,1,1,0,1,0,
+		0,0,1,1,0,0,1,1,1,1,0,0,1,1,0,0,
+		0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+		0,1,0,1,0,1,0,1,1,0,1,0,1,0,1,0,
+		0,1,1,0,1,0,0,1,0,1,1,0,1,0,0,1,
+		0,1,0,1,1,0,1,0,1,0,1,0,0,1,0,1,
+		0,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,
+		0,0,0,1,0,0,1,1,1,1,0,0,1,0,0,0,
+		0,0,1,1,0,0,1,0,0,1,0,0,1,1,0,0,
+		0,0,1,1,1,0,1,1,1,1,0,1,1,1,0,0,
+		0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0,
+		0,0,1,1,1,1,0,0,1,1,0,0,0,0,1,1,
+		0,1,1,0,0,1,1,0,1,0,0,1,1,0,0,1,
+		0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0,
+		0,1,0,0,1,1,1,0,0,1,0,0,0,0,0,0,
+		0,0,1,0,0,1,1,1,0,0,1,0,0,0,0,0,
+		0,0,0,0,0,0,1,0,0,1,1,1,0,0,1,0,
+		0,0,0,0,0,1,0,0,1,1,1,0,0,1,0,0,
+		0,1,1,0,1,1,0,0,1,0,0,1,0,0,1,1,
+		0,0,1,1,0,1,1,0,1,1,0,0,1,0,0,1,
+		0,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,
+		0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,0,
+		0,1,1,0,1,1,0,0,1,1,0,0,1,0,0,1,
+		0,1,1,0,0,0,1,1,0,0,1,1,1,0,0,1,
+		0,1,1,1,1,1,1,0,1,0,0,0,0,0,0,1,
+		0,0,0,1,1,0,0,0,1,1,1,0,0,1,1,1,
+		0,0,0,0,1,1,1,1,0,0,1,1,0,0,1,1,
+		0,0,1,1,0,0,1,1,1,1,1,1,0,0,0,0,
+		0,0,1,0,0,0,1,0,1,1,1,0,1,1,1,0,
+		0,1,0,0,0,1,0,0,0,1,1,1,0,1,1,1,
+    };
+    static const int w3[] = {0, 9, 18, 27, 37, 46, 55, 64};
+    static const int w4[] = {0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64};
+    static const int *wsz[] = {w3,w3,w3, w3,w4};
+    const int *weight;
+
+	unsigned short rgb[4][3] = {{0}};
+	unsigned short palette[16][3];
+	int i, j, cb, ib;
+	int bit = 0, cbits[4];
+	int ss;
+	int shapeindex;
+	int tr;
+	int mode = ReadBits(in, &bit, 2);
+	if (mode >= 2)
+		mode |=ReadBits(in, &bit, 3)<<2;
+
+	//n[a:b]
+	//n is the output name (number=group, r/g/b=0/1/2 channel)
+	//a:b is the inclusive bit range, typically little-endian input
+	//so bit counts are a+1-b, shifted up by b.
+	//if b is ommitted then its equivelent to a (read as a:a, or in other words a single bit shifted up by b)
+	//if its backwards then the bits are big-endian for some reason and need to be switched (rare, handled here by reading individual bits)
+	//bit counts larger than 9 may need to read from more than two bytes, which requires special handling, hence the alternative function.
+	//it is hoped that the compiler will be able to inline these into trivial mask+shifts for less code than it would take to call ReadBits, at least when its from a single byte.
+	switch(mode)
+	{
+	case 0:	//1
+		Vector4Set(cbits, 5,5,5, 10);
+		tr = 1;
+		ss = 2;
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<4;	//g2[4],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<4;	//b2[4],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<4;	//b3[4],
+		rgb[0][0] |= ReadBitsL(in, &bit,10)<<0;	//r0[9:0],
+		rgb[0][1] |= ReadBitsL(in, &bit,10)<<0;	//g0[9:0],
+		rgb[0][2] |= ReadBitsL(in, &bit,10)<<0;	//b0[9:0],
+		rgb[1][0] |= ReadBits(in, &bit, 5)<<0;	//r1[4:0],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<4;	//g3[4],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 5)<<0;	//g1[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 5)<<0;	//b1[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 5)<<0;	//r2[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[3][0] |= ReadBits(in, &bit, 5)<<0;	//r3[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 1:	//2
+		Vector4Set(cbits, 6,6,6, 7);
+		tr = 1;
+		ss = 2;
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<5;	//g2[5],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<4;	//g3[4],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<5;	//g3[5],
+		rgb[0][0] |= ReadBits(in, &bit, 7)<<0;	//r0[6:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<4;	//b2[4],
+		rgb[0][1] |= ReadBits(in, &bit, 7)<<0;	//g0[6:0],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<5;	//b2[5],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<4;	//g2[4],
+		rgb[0][2] |= ReadBits(in, &bit, 7)<<0;	//b0[6:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<5;	//b3[5],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<4;	//b3[4],
+		rgb[1][0] |= ReadBits(in, &bit, 6)<<0;	//r1[5:0],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 6)<<0;	//g1[5:0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 6)<<0;	//b1[5:0],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 6)<<0;	//r2[5:0],
+		rgb[3][0] |= ReadBits(in, &bit, 6)<<0;	//r3[5:0]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 2:	//3
+		Vector4Set(cbits, 5,4,4, 11);
+		tr = 1;
+		ss = 2;
+		rgb[0][0] |= ReadBitsL(in, &bit,10)<<0;	//r0[9:0],
+		rgb[0][1] |= ReadBitsL(in, &bit,10)<<0;	//g0[9:0],
+		rgb[0][2] |= ReadBitsL(in, &bit,10)<<0;	//b0[9:0],
+		rgb[1][0] |= ReadBits(in, &bit, 5)<<0;	//r1[4:0],
+		rgb[0][0] |= ReadBits(in, &bit, 1)<<10;	//r0[10],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 4)<<0;	//g1[3:0],
+		rgb[0][1] |= ReadBits(in, &bit, 1)<<10;	//g0[10],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 4)<<0;	//b1[3:0],
+		rgb[0][2] |= ReadBits(in, &bit, 1)<<10;	//b0[10],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 5)<<0;	//r2[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[3][0] |= ReadBits(in, &bit, 5)<<0;	//r3[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 6:	//4
+		Vector4Set(cbits, 4,5,4, 11);
+		tr = 1;
+		ss = 2;
+		rgb[0][0] |= ReadBitsL(in, &bit,10)<<0;	//r0[9:0],
+		rgb[0][1] |= ReadBitsL(in, &bit,10)<<0;	//g0[9:0],
+		rgb[0][2] |= ReadBitsL(in, &bit,10)<<0;	//b0[9:0],
+		rgb[1][0] |= ReadBits(in, &bit, 4)<<0;	//r1[3:0],
+		rgb[0][0] |= ReadBits(in, &bit, 1)<<10;	//r0[10],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<4;	//g3[4],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 5)<<0;	//g1[4:0],
+		rgb[0][1] |= ReadBits(in, &bit, 1)<<10;	//g0[10],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 4)<<0;	//b1[3:0],
+		rgb[0][2] |= ReadBits(in, &bit, 1)<<10;	//b0[10],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 4)<<0;	//r2[3:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[3][0] |= ReadBits(in, &bit, 4)<<0;	//r3[3:0],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<4;	//g2[4],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 10: //5
+		Vector4Set(cbits, 4,4,5, 11);
+		tr = 1;
+		ss = 2;
+		rgb[0][0] |= ReadBitsL(in, &bit,10)<<0;	//r0[9:0],
+		rgb[0][1] |= ReadBitsL(in, &bit,10)<<0;	//g0[9:0],
+		rgb[0][2] |= ReadBitsL(in, &bit,10)<<0;	//b0[9:0],
+		rgb[1][0] |= ReadBits(in, &bit, 4)<<0;	//r1[3:0],
+		rgb[0][0] |= ReadBits(in, &bit, 1)<<10;	//r0[10],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<4;	//b2[4],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 4)<<0;	//g1[3:0],
+		rgb[0][1] |= ReadBits(in, &bit, 1)<<10;	//g0[10],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 5)<<0;	//b1[4:0],
+		rgb[0][2] |= ReadBits(in, &bit, 1)<<10;	//b0[10],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 4)<<0;	//r2[3:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[3][0] |= ReadBits(in, &bit, 4)<<0;	//r3[3:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<4;	//b3[4],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 14:	//6
+		Vector4Set(cbits, 5,5,5, 9);
+		tr = 1;
+		ss = 2;
+		rgb[0][0] |= ReadBits(in, &bit, 9)<<0;	//r0[8:0],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<4;	//b2[4],
+		rgb[0][1] |= ReadBits(in, &bit, 9)<<0;	//g0[8:0],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<4;	//g2[4],
+		rgb[0][2] |= ReadBits(in, &bit, 9)<<0;	//b0[8:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<4;	//b3[4],
+		rgb[1][0] |= ReadBits(in, &bit, 5)<<0;	//r1[4:0],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<4;	//g3[4],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 5)<<0;	//g1[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 5)<<0;	//b1[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 5)<<0;	//r2[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[3][0] |= ReadBits(in, &bit, 5)<<0;	//r3[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 18:	//7
+		Vector4Set(cbits, 6,5,5, 8);
+		tr = 1;
+		ss = 2;
+		rgb[0][0] |= ReadBits(in, &bit, 8)<<0;	//r0[7:0],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<4;	//g3[4],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<4;	//b2[4],
+		rgb[0][1] |= ReadBits(in, &bit, 8)<<0;	//g0[7:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<4;	//g2[4],
+		rgb[0][2] |= ReadBits(in, &bit, 8)<<0;	//b0[7:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<4;	//b3[4],
+		rgb[1][0] |= ReadBits(in, &bit, 6)<<0;	//r1[5:0],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 5)<<0;	//g1[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 5)<<0;	//b1[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 6)<<0;	//r2[5:0],
+		rgb[3][0] |= ReadBits(in, &bit, 6)<<0;	//r3[5:0]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 22:	//8
+		Vector4Set(cbits, 5,6,5, 8);
+		tr = 1;
+		ss = 2;
+		rgb[0][0] |= ReadBits(in, &bit, 8)<<0;	//r0[7:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<4;	//b2[4],
+		rgb[0][1] |= ReadBits(in, &bit, 8)<<0;	//g0[7:0],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<5;	//g2[5],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<4;	//g2[4],
+		rgb[0][2] |= ReadBits(in, &bit, 8)<<0;	//b0[7:0],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<5;	//g3[5],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<4;	//b3[4],
+		rgb[1][0] |= ReadBits(in, &bit, 5)<<0;	//r1[4:0],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<4;	//g3[4],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 6)<<0;	//g1[5:0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 5)<<0;	//b1[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 5)<<0;	//r2[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[3][0] |= ReadBits(in, &bit, 5)<<0;	//r3[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 26:	//9
+		Vector4Set(cbits, 5,5,6, 8);
+		tr = 1;
+		ss = 2;
+		rgb[0][0] |= ReadBits(in, &bit, 8)<<0;	//r0[7:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<4;	//b2[4],
+		rgb[0][1] |= ReadBits(in, &bit, 8)<<0;	//g0[7:0],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<5;	//b2[5],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<4;	//g2[4],
+		rgb[0][2] |= ReadBits(in, &bit, 8)<<0;	//b0[7:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<5;	//b3[5],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<4;	//b3[4],
+		rgb[1][0] |= ReadBits(in, &bit, 5)<<0;	//r1[4:0],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<4;	//g3[4],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 5)<<0;	//g1[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 6)<<0;	//b1[5:0],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 5)<<0;	//r2[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[3][0] |= ReadBits(in, &bit, 5)<<0;	//r3[4:0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 30:	//10
+		Vector4Set(cbits, 6,6,6, 6);
+		tr = 0;
+		ss = 2;
+		rgb[0][0] |= ReadBits(in, &bit, 6)<<0;	//r0[5:0],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<4;	//g3[4],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<0;	//b3[0],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<1;	//b3[1],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<4;	//b2[4],
+		rgb[0][1] |= ReadBits(in, &bit, 6)<<0;	//g0[5:0],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<5;	//g2[5],
+		rgb[2][2] |= ReadBits(in, &bit, 1)<<5;	//b2[5],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<2;	//b3[2],
+		rgb[2][1] |= ReadBits(in, &bit, 1)<<4;	//g2[4],
+		rgb[0][2] |= ReadBits(in, &bit, 6)<<0;	//b0[5:0],
+		rgb[3][1] |= ReadBits(in, &bit, 1)<<5;	//g3[5],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<3;	//b3[3],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<5;	//b3[5],
+		rgb[3][2] |= ReadBits(in, &bit, 1)<<4;	//b3[4],
+		rgb[1][0] |= ReadBits(in, &bit, 6)<<0;	//r1[5:0],
+		rgb[2][1] |= ReadBits(in, &bit, 4)<<0;	//g2[3:0],
+		rgb[1][1] |= ReadBits(in, &bit, 6)<<0;	//g1[5:0],
+		rgb[3][1] |= ReadBits(in, &bit, 4)<<0;	//g3[3:0],
+		rgb[1][2] |= ReadBits(in, &bit, 6)<<0;	//b1[5:0],
+		rgb[2][2] |= ReadBits(in, &bit, 4)<<0;	//b2[3:0],
+		rgb[2][0] |= ReadBits(in, &bit, 6)<<0;	//r2[5:0],
+		rgb[3][0] |= ReadBits(in, &bit, 6)<<0;	//r3[5:0]
+		shapeindex = ReadBits(in, &bit, 5);
+		break;
+	case 3: //11
+		Vector4Set(cbits, 10,10,10, 10);
+		tr = 0;
+		ss = 1;
+		rgb[0][0] |= ReadBitsL(in, &bit,10)<<0;	//r0[9:0]
+		rgb[0][1] |= ReadBitsL(in, &bit,10)<<0;	//g0[9:0]
+		rgb[0][2] |= ReadBitsL(in, &bit,10)<<0;	//b0[9:0]
+		rgb[1][0] |= ReadBitsL(in, &bit,10)<<0;	//r1[9:0]
+		rgb[1][1] |= ReadBitsL(in, &bit,10)<<0;	//g1[9:0]
+		rgb[1][2] |= ReadBitsL(in, &bit,10)<<0;	//b1[9:0]
+		shapeindex = 0;
+		break;
+	case 7: //12
+		Vector4Set(cbits, 9,9,9, 11);
+		tr = 1;
+		ss = 1;
+		rgb[0][0] |= ReadBitsL(in, &bit,10)<<0;	//r0[9:0],
+		rgb[0][1] |= ReadBitsL(in, &bit,10)<<0;	//g0[9:0],
+		rgb[0][2] |= ReadBitsL(in, &bit,10)<<0;	//b0[9:0],
+		rgb[1][0] |= ReadBits(in, &bit, 9)<<0;	//r1[8:0],
+		rgb[0][0] |= ReadBits(in, &bit, 1)<<10;	//r0[10],
+		rgb[1][1] |= ReadBits(in, &bit, 9)<<0;	//g1[8:0],
+		rgb[0][1] |= ReadBits(in, &bit, 1)<<10;	//g0[10],
+		rgb[1][2] |= ReadBits(in, &bit, 9)<<0;	//b1[8:0],
+		rgb[0][2] |= ReadBits(in, &bit, 1)<<10;	//b0[10]
+		shapeindex = 0;
+		break;
+	case 11: //13
+		Vector4Set(cbits, 8,8,8, 12);
+		tr = 1;
+		ss = 1;
+		rgb[0][0] |= ReadBitsL(in, &bit,10)<<0;	//r0[9:0],
+		rgb[0][1] |= ReadBitsL(in, &bit,10)<<0;	//g0[9:0],
+		rgb[0][2] |= ReadBitsL(in, &bit,10)<<0;	//b0[9:0],
+		rgb[1][0] |= ReadBits(in, &bit, 8)<<0;	//r1[7:0],
+		rgb[0][0] |=(ReadBits(in, &bit, 1)<<11)	//r0[10:11],
+		          | (ReadBits(in, &bit, 1)<<10);
+		rgb[1][1] |= ReadBits(in, &bit, 8)<<0;	//g1[7:0],
+		rgb[0][1] |=(ReadBits(in, &bit, 1)<<11)	//g0[10:11],
+		          | (ReadBits(in, &bit, 1)<<10);
+		rgb[1][2] |= ReadBits(in, &bit, 8)<<0;	//b1[7:0],
+		rgb[0][2] |=(ReadBits(in, &bit, 1)<<11)	//b0[10:11],
+		          | (ReadBits(in, &bit, 1)<<10);
+		shapeindex = 0;
+		break;
+	case 15: //14
+		//UNTESTED
+		Vector4Set(cbits, 4,4,4, 16);
+		tr = 1;
+		ss = 1;
+		rgb[0][0] |= ReadBitsL(in, &bit,10)<<0;	//r0[9:0],
+		rgb[0][1] |= ReadBitsL(in, &bit,10)<<0;	//g0[9:0],
+		rgb[0][2] |= ReadBitsL(in, &bit,10)<<0;	//b0[9:0],
+		rgb[1][0] |= ReadBits(in, &bit, 4)<<0;	//r1[3:0],
+		rgb[0][0] |=(ReadBits(in, &bit, 1)<<15)	//r0[10:15],
+		          | (ReadBits(in, &bit, 1)<<14)
+		          | (ReadBits(in, &bit, 1)<<13)
+		          | (ReadBits(in, &bit, 1)<<12)
+		          | (ReadBits(in, &bit, 1)<<11)
+		          | (ReadBits(in, &bit, 1)<<10);
+		rgb[1][1] |= ReadBits(in, &bit, 4)<<0;	//g1[3:0],
+		rgb[0][1] |=(ReadBits(in, &bit, 1)<<15)	//g0[10:15],
+		          | (ReadBits(in, &bit, 1)<<14)
+		          | (ReadBits(in, &bit, 1)<<13)
+		          | (ReadBits(in, &bit, 1)<<12)
+		          | (ReadBits(in, &bit, 1)<<11)
+		          | (ReadBits(in, &bit, 1)<<10);
+		rgb[1][2] |= ReadBits(in, &bit, 4)<<0;	//b1[3:0],
+		rgb[0][2] |=(ReadBits(in, &bit, 1)<<15)	//b0[10:15]
+		          | (ReadBits(in, &bit, 1)<<14)
+		          | (ReadBits(in, &bit, 1)<<13)
+		          | (ReadBits(in, &bit, 1)<<12)
+		          | (ReadBits(in, &bit, 1)<<11)
+		          | (ReadBits(in, &bit, 1)<<10);
+		shapeindex = 0;
+		break;
+
+	default:
+		//reserved modes
+		for (i = 0; i < 16; )
+		{
+			Vector4Set(out[i].v, 0, 0, 0, 0xf<<10);
+			i++;
+			if (!(i & 3))
+				out += w-4;
+		}
+		return;
+	}
+
+	ib = (ss==2)?3:4;
+	cb = 1<<ib;
+	weight = wsz[ib];
+	if (signextend)
+	{
+		int v[2], q, k, g, s;
+		for (g = 0; g < ss; g++)	//subsets
+		{
+			for (j = 0; j < 3; j++)	//channels
+			{
+				for (k = 0; k < 2; k++)	//start/end
+				{
+					v[k] = rgb[k+g*2][j];
+					if ((k || g) && tr)
+					{	//the specified colour values are deltas from the first colour value
+						if (v[k] & (1<<(cbits[j]-1)))	//high bit set
+							v[k] |= ~0<<cbits[j];		//sign extend it...
+						v[k] = (int)rgb[0][j] + v[k];		//add it to the base
+						v[k] &= ((1<<cbits[3])-1);		//and mask it to avoid overflows...
+					}
+					if (v[k] & (1<<(cbits[3]-1)))	//high bit set
+						v[k] |= ~0<<cbits[3];		//sign extend it
+
+					if (cbits[3] >= 16)
+						;
+					else
+					{
+						s = v[k] < 0;
+						if (s)
+							v[k]=-v[k];
+						if (v[k] == 0)
+							v[k] = 0;
+						else if (v[k] >= (1<<(cbits[3]-1))-1)
+							v[k] = 0x7fff;
+						else
+							v[k] = (v[k] * (0x7fff+1) + (0x7fff+1)/2) >> (cbits[3]-1);
+						if (s)
+							v[k] = -v[k];
+					}
+				}
+				for (i = 0; i < cb; i++)	//indexbits
+				{
+					q = (v[0]*(64-weight[i]) + v[1]*weight[i])>>6;	//this ignores sign, which seems somewhat dodgy.
+					q = (q < 0) ? -(((-q) * 31) >> 5) : (q * 31) >> 5;
+					palette[i+g*8][j] = q;
+				}
+			}
+		}
+	}
+	else
+	{
+		int v[2], q, k, g;
+		for (g = 0; g < ss; g++)	//subsets
+		{
+			for (j = 0; j < 3; j++)	//channels
+			{
+				for (k = 0; k < 2; k++)	//start/end
+				{
+					v[k] = rgb[k+g*2][j];
+					if ((k || g) && tr)
+					{	//the specified colour values are deltas from the first colour value
+						if (v[k] & (1<<(cbits[j]-1)))	//high bit set
+							v[k] |= ~0<<cbits[j];		//sign extend it...
+						v[k] = (int)rgb[0][j] + v[k];		//add it to the base
+						v[k] &= ((1<<cbits[3])-1);		//and mask it to avoid overflows...
+//						if (v[k] & (1<<(bits-1)))	//high bit set
+//							v[k] |= ~0<<bits;		//sign extend it
+					}
+
+					if (cbits[3] >= 15)
+						;
+					else if (v[k] == 0)
+						v[k] = 0;
+					else if (v[k] == (1<<cbits[3])-1)
+						v[k] = 0xffff;
+					else
+						v[k] = (v[k] * (0xffff+1) + (0xffff+1)/2) >> cbits[3];
+				}
+				for (i = 0; i < cb; i++)	//indexbits
+				{
+					q = (v[0]*(64-weight[i]) + v[1]*weight[i])>>6;
+					q = (q*31)>>6;
+					palette[i+g*8][j] = q;
+				}
+			}
+		}
+	}
+
+	if (ss == 2)
+	{
+		const qbyte *p = p2+shapeindex*16;
+		for (i = 0; i < 16; )
+		{
+			int pidx = p[i];
+			int idx;
+			if (i == 0 || i == anchors[shapeindex])
+				idx = ReadBits(in, &bit, ib-1);
+			else
+				idx = ReadBits(in, &bit, ib);
+			if (pidx)
+				idx += 8;
+			out[i].v[0] = palette[idx][0];
+			out[i].v[1] = palette[idx][1];
+			out[i].v[2] = palette[idx][2];
+			out[i].v[3] = 0xf<<10;	//must be 1
+			i++;
+			if (!(i & 3))
+				out += w-4;
+		}
+	}
+	else
+	{
+		for (i = 0; i < 16; )
+		{
+			int idx;
+			if (i == 0)
+				idx = ReadBits(in, &bit, ib-1);
+			else
+				idx = ReadBits(in, &bit, ib);
+			out[i].v[0] = palette[idx][0];
+			out[i].v[1] = palette[idx][1];
+			out[i].v[2] = palette[idx][2];
+			out[i].v[3] = 0xf<<10;	//must be 1
+			i++;
+			if (!(i & 3))
+				out += w-4;
+		}
+	}
+}
+static void Image_Decode_BC7_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
+{
+	static const qbyte p1[] = {
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	};
+	static const qbyte p2[] = {
+		0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,
+		0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,
+		0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,
+		0,0,0,1,0,0,1,1,0,0,1,1,0,1,1,1,
+		0,0,0,0,0,0,0,1,0,0,0,1,0,0,1,1,
+		0,0,1,1,0,1,1,1,0,1,1,1,1,1,1,1,
+		0,0,0,1,0,0,1,1,0,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,1,0,0,1,1,0,1,1,1,
+		0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,
+		0,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,1,0,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,
+		0,0,0,1,0,1,1,1,1,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,
+		0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,
+		0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,
+		0,0,0,0,1,0,0,0,1,1,1,0,1,1,1,1,
+		0,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,0,
+		0,1,1,1,0,0,1,1,0,0,0,1,0,0,0,0,
+		0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,
+		0,0,0,0,1,0,0,0,1,1,0,0,1,1,1,0,
+		0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,
+		0,1,1,1,0,0,1,1,0,0,1,1,0,0,0,1,
+		0,0,1,1,0,0,0,1,0,0,0,1,0,0,0,0,
+		0,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,
+		0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,
+		0,0,1,1,0,1,1,0,0,1,1,0,1,1,0,0,
+		0,0,0,1,0,1,1,1,1,1,1,0,1,0,0,0,
+		0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,
+		0,1,1,1,0,0,0,1,1,0,0,0,1,1,1,0,
+		0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,
+		0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
+		0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1,
+		0,1,0,1,1,0,1,0,0,1,0,1,1,0,1,0,
+		0,0,1,1,0,0,1,1,1,1,0,0,1,1,0,0,
+		0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+		0,1,0,1,0,1,0,1,1,0,1,0,1,0,1,0,
+		0,1,1,0,1,0,0,1,0,1,1,0,1,0,0,1,
+		0,1,0,1,1,0,1,0,1,0,1,0,0,1,0,1,
+		0,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,
+		0,0,0,1,0,0,1,1,1,1,0,0,1,0,0,0,
+		0,0,1,1,0,0,1,0,0,1,0,0,1,1,0,0,
+		0,0,1,1,1,0,1,1,1,1,0,1,1,1,0,0,
+		0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0,
+		0,0,1,1,1,1,0,0,1,1,0,0,0,0,1,1,
+		0,1,1,0,0,1,1,0,1,0,0,1,1,0,0,1,
+		0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0,
+		0,1,0,0,1,1,1,0,0,1,0,0,0,0,0,0,
+		0,0,1,0,0,1,1,1,0,0,1,0,0,0,0,0,
+		0,0,0,0,0,0,1,0,0,1,1,1,0,0,1,0,
+		0,0,0,0,0,1,0,0,1,1,1,0,0,1,0,0,
+		0,1,1,0,1,1,0,0,1,0,0,1,0,0,1,1,
+		0,0,1,1,0,1,1,0,1,1,0,0,1,0,0,1,
+		0,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,
+		0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,0,
+		0,1,1,0,1,1,0,0,1,1,0,0,1,0,0,1,
+		0,1,1,0,0,0,1,1,0,0,1,1,1,0,0,1,
+		0,1,1,1,1,1,1,0,1,0,0,0,0,0,0,1,
+		0,0,0,1,1,0,0,0,1,1,1,0,0,1,1,1,
+		0,0,0,0,1,1,1,1,0,0,1,1,0,0,1,1,
+		0,0,1,1,0,0,1,1,1,1,1,1,0,0,0,0,
+		0,0,1,0,0,0,1,0,1,1,1,0,1,1,1,0,
+		0,1,0,0,0,1,0,0,0,1,1,1,0,1,1,1,
+    };
+    static const qbyte p3[] = {
+		0,0,1,1,0,0,1,1,0,2,2,1,2,2,2,2,
+		0,0,0,1,0,0,1,1,2,2,1,1,2,2,2,1,
+		0,0,0,0,2,0,0,1,2,2,1,1,2,2,1,1,
+		0,2,2,2,0,0,2,2,0,0,1,1,0,1,1,1,
+		0,0,0,0,0,0,0,0,1,1,2,2,1,1,2,2,
+		0,0,1,1,0,0,1,1,0,0,2,2,0,0,2,2,
+		0,0,2,2,0,0,2,2,1,1,1,1,1,1,1,1,
+		0,0,1,1,0,0,1,1,2,2,1,1,2,2,1,1,
+		0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,
+		0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,
+		0,0,0,0,1,1,1,1,2,2,2,2,2,2,2,2,
+		0,0,1,2,0,0,1,2,0,0,1,2,0,0,1,2,
+		0,1,1,2,0,1,1,2,0,1,1,2,0,1,1,2,
+		0,1,2,2,0,1,2,2,0,1,2,2,0,1,2,2,
+		0,0,1,1,0,1,1,2,1,1,2,2,1,2,2,2,
+		0,0,1,1,2,0,0,1,2,2,0,0,2,2,2,0,
+		0,0,0,1,0,0,1,1,0,1,1,2,1,1,2,2,
+		0,1,1,1,0,0,1,1,2,0,0,1,2,2,0,0,
+		0,0,0,0,1,1,2,2,1,1,2,2,1,1,2,2,
+		0,0,2,2,0,0,2,2,0,0,2,2,1,1,1,1,
+		0,1,1,1,0,1,1,1,0,2,2,2,0,2,2,2,
+		0,0,0,1,0,0,0,1,2,2,2,1,2,2,2,1,
+		0,0,0,0,0,0,1,1,0,1,2,2,0,1,2,2,
+		0,0,0,0,1,1,0,0,2,2,1,0,2,2,1,0,
+		0,1,2,2,0,1,2,2,0,0,1,1,0,0,0,0,
+		0,0,1,2,0,0,1,2,1,1,2,2,2,2,2,2,
+		0,1,1,0,1,2,2,1,1,2,2,1,0,1,1,0,
+		0,0,0,0,0,1,1,0,1,2,2,1,1,2,2,1,
+		0,0,2,2,1,1,0,2,1,1,0,2,0,0,2,2,
+		0,1,1,0,0,1,1,0,2,0,0,2,2,2,2,2,
+		0,0,1,1,0,1,2,2,0,1,2,2,0,0,1,1,
+		0,0,0,0,2,0,0,0,2,2,1,1,2,2,2,1,
+		0,0,0,0,0,0,0,2,1,1,2,2,1,2,2,2,
+		0,2,2,2,0,0,2,2,0,0,1,2,0,0,1,1,
+		0,0,1,1,0,0,1,2,0,0,2,2,0,2,2,2,
+		0,1,2,0,0,1,2,0,0,1,2,0,0,1,2,0,
+		0,0,0,0,1,1,1,1,2,2,2,2,0,0,0,0,
+		0,1,2,0,1,2,0,1,2,0,1,2,0,1,2,0,
+		0,1,2,0,2,0,1,2,1,2,0,1,0,1,2,0,
+		0,0,1,1,2,2,0,0,1,1,2,2,0,0,1,1,
+		0,0,1,1,1,1,2,2,2,2,0,0,0,0,1,1,
+		0,1,0,1,0,1,0,1,2,2,2,2,2,2,2,2,
+		0,0,0,0,0,0,0,0,2,1,2,1,2,1,2,1,
+		0,0,2,2,1,1,2,2,0,0,2,2,1,1,2,2,
+		0,0,2,2,0,0,1,1,0,0,2,2,0,0,1,1,
+		0,2,2,0,1,2,2,1,0,2,2,0,1,2,2,1,
+		0,1,0,1,2,2,2,2,2,2,2,2,0,1,0,1,
+		0,0,0,0,2,1,2,1,2,1,2,1,2,1,2,1,
+		0,1,0,1,0,1,0,1,0,1,0,1,2,2,2,2,
+		0,2,2,2,0,1,1,1,0,2,2,2,0,1,1,1,
+		0,0,0,2,1,1,1,2,0,0,0,2,1,1,1,2,
+		0,0,0,0,2,1,1,2,2,1,1,2,2,1,1,2,
+		0,2,2,2,0,1,1,1,0,1,1,1,0,2,2,2,
+		0,0,0,2,1,1,1,2,1,1,1,2,0,0,0,2,
+		0,1,1,0,0,1,1,0,0,1,1,0,2,2,2,2,
+		0,0,0,0,0,0,0,0,2,1,1,2,2,1,1,2,
+		0,1,1,0,0,1,1,0,2,2,2,2,2,2,2,2,
+		0,0,2,2,0,0,1,1,0,0,1,1,0,0,2,2,
+		0,0,2,2,1,1,2,2,1,1,2,2,0,0,2,2,
+		0,0,0,0,0,0,0,0,0,0,0,0,2,1,1,2,
+		0,0,0,2,0,0,0,1,0,0,0,2,0,0,0,1,
+		0,2,2,2,1,2,2,2,0,2,2,2,1,2,2,2,
+		0,1,0,1,2,2,2,2,2,2,2,2,2,2,2,2,
+		0,1,1,1,2,0,1,1,2,2,0,1,2,2,2,0,
+    };
+
+    static const qbyte *psz[] = {p1,p1,p2,p3};
+
+	static const qbyte anchortable[][64] = {{
+		15,15,15,15,15,15,15,15,
+		15,15,15,15,15,15,15,15,
+		15, 2, 8, 2, 2, 8, 8,15,
+		 2, 8, 2, 2, 8, 8, 2, 2,
+		15,15, 6, 8, 2, 8,15,15,
+		 2, 8, 2, 2, 2,15,15, 6,
+		 6, 2, 6, 8,15,15, 2, 2,
+		15,15,15,15,15, 2, 2,15,
+    },{
+		 3, 3,15,15, 8, 3,15,15,
+		 8, 8, 6, 6, 6, 5, 3, 3,
+		 3, 3, 8,15, 3, 3, 6,10,
+		 5, 8, 8, 6, 8, 5,15,15,
+		 8,15, 3, 5, 6,10, 8,15,
+		15, 3,15, 5,15,15,15,15,
+		 3,15, 5, 5, 5, 8, 5,10,
+		 5,10, 8,13,15,12, 3, 3,
+	},{
+		15, 8, 8, 3,15,15, 3, 8,
+		15,15,15,15,15,15,15, 8,
+		15, 8,15, 3,15, 8,15, 8,
+		 3,15, 6,10,15,15,10, 8,
+		15, 3,15,10,10, 8, 9,10,
+		 6,15, 8,15, 3, 6, 6, 8,
+		15, 3,15,15,15,15,15,15,
+		15,15,15,15, 3,15,15, 8,
+    }};
+	int anchor[3];
+
+	static const int w1[] = {0, 64};
+    static const int w2[] = {0, 21, 43, 64};
+    static const int w3[] = {0, 9, 18, 27, 37, 46, 55, 64};
+    static const int w4[] = {0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64};
+    static const int *wsz[] = {w1,w1, w2,w3,w4};
+    static const struct {
+		int numsubsets;
+		int partitionbits;
+		int rotationbits;
+		int indexselectionbits;
+		int colourbits;
+		int alphabits;
+		int pmode;
+		int indexbits[2];
+    } m[9] =
+    {
+		{3, 4, 0, 0, 4, 0, 1, {3, 0}},	//mode 0 - 3*rgb4
+		{2, 6, 0, 0, 6, 0, 2, {3, 0}},	//mode 1 - 2*rgb6
+		{3, 6, 0, 0, 5, 0, 0, {2, 0}},	//mode 2 - 3*rgb5
+		{2, 6, 0, 0, 7, 0, 1, {2, 0}},	//mode 3 - 2*rgb7
+		{1, 0, 2, 1, 5, 6, 0, {2, 3}},	//mode 4 - 1*rgb5+a6
+		{1, 0, 2, 0, 7, 8, 0, {2, 2}},	//mode 5 - 1*rgb7+a8
+		{1, 0, 0, 0, 7, 7, 1, {4, 0}},	//mode 6 - 1*rgb7a7
+		{2, 6, 0, 0, 5, 5, 1, {2, 0}},	//mode 7 - 2*rgb5a5
+		{1, 0, 0, 0, 0, 0, 0, {0, 0}},	//mode 8 - reserved
+    };
+
+	pixel32_t palette[3][2];
+	pixel32_t tab[3][16];
+	int mode, i, j, bit, partition, ss, cb;
+	const int *weight;
+	const qbyte *p;
+	int rot;
+	int idxsel;
+	for (mode = 0; mode < 8; mode++)
+		if (*in & (1u<<mode))
+			break;
+	ss = m[mode].numsubsets;
+	bit = mode+1;
+	partition = ReadBits(in, &bit, m[mode].partitionbits);
+	rot = ReadBits(in, &bit, m[mode].rotationbits);
+	idxsel = ReadBits(in, &bit, m[mode].indexselectionbits);
+	p = psz[ss] + partition*16;
+	for (j = 0; j < 3; j++)
+		for (i = 0; i < ss; i++)
+		{
+			palette[i][0].v[j] = ReadBits(in, &bit, m[mode].colourbits) << (8-m[mode].colourbits);
+			palette[i][1].v[j] = ReadBits(in, &bit, m[mode].colourbits) << (8-m[mode].colourbits);
+		}
+	for (i = 0; i < ss; i++)
+	{
+		if (m[mode].alphabits)
+		{
+			palette[i][0].v[3] = ReadBits(in, &bit, m[mode].alphabits) << (8-m[mode].alphabits);
+			palette[i][1].v[3] = ReadBits(in, &bit, m[mode].alphabits) << (8-m[mode].alphabits);
+		}
+		else palette[i][0].v[3] = palette[i][1].v[3] = 255;
+	}
+
+	if(m[mode].pmode)
+	{
+		for (i = 0; i < m[mode].numsubsets; i++)
+		{
+			qbyte p = ReadBits(in, &bit, 1);
+			for (j = 0; j < 3; j++)
+				palette[i][0].v[j] |= p<<(7-m[mode].colourbits);
+			palette[i][0].v[3] |= p<<(7-m[mode].alphabits);
+
+			if (m[mode].pmode!=2)
+				p = ReadBits(in, &bit, 1);
+			for (j = 0; j < 3; j++)
+				palette[i][1].v[j] |= p<<(7-m[mode].colourbits);
+			palette[i][1].v[3] |= p<<(7-m[mode].alphabits);
+		}
+		etc_expandv(palette[i][0], m[mode].colourbits+1, m[mode].colourbits+1, m[mode].colourbits+1); palette[i][0].v[3]|=palette[i][0].v[3]>>(m[mode].alphabits+1);
+		etc_expandv(palette[i][1], m[mode].colourbits+1, m[mode].colourbits+1, m[mode].colourbits+1); palette[i][0].v[3]|=palette[i][0].v[3]>>(m[mode].alphabits+1);
+	}
+	else
+	{
+		etc_expandv(palette[i][0], m[mode].colourbits, m[mode].colourbits, m[mode].colourbits); palette[i][0].v[3]|=palette[i][0].v[3]>>m[mode].alphabits;
+		etc_expandv(palette[i][1], m[mode].colourbits, m[mode].colourbits, m[mode].colourbits);	palette[i][1].v[3]|=palette[i][0].v[3]>>m[mode].alphabits;
+	}
+
+	cb = m[mode].indexbits[idxsel];
+	weight = wsz[cb];
+
+	//build lerps table (could do it per pixel?)
+	for (i = 0; i < m[mode].numsubsets; i++)
+	{
+		for (j = 0; j < (1<<cb); j++)
+		{
+			tab[i][j].v[0] = (palette[i][0].v[0]*(64-weight[j]) + palette[i][1].v[0]*weight[j] + 32)>>6;
+			tab[i][j].v[1] = (palette[i][0].v[1]*(64-weight[j]) + palette[i][1].v[1]*weight[j] + 32)>>6;
+			tab[i][j].v[2] = (palette[i][0].v[2]*(64-weight[j]) + palette[i][1].v[2]*weight[j] + 32)>>6;
+			tab[i][j].v[3] = (palette[i][0].v[3]*(64-weight[j]) + palette[i][1].v[3]*weight[j] + 32)>>6;
+		}
+
+		//this stuff is annoying, but saves a bit or two
+		if (!cb)
+			anchor[i] = 16;	//don't allow the cb-1 to read negative bits!
+		else if (i)
+			anchor[i] = anchortable[(ss>2)?i:0][partition];
+		else
+			anchor[i] = 0;
+	}
+
+	//okay, tables are all set up, spew out the pixels
+	for (i = 0; i < 16; )
+	{
+		int pidx = p[i];
+		int idx;
+		if (i == anchor[pidx])
+			idx = ReadBits(in, &bit, cb-1);
+		else
+			idx = ReadBits(in, &bit, cb);
+		out[i].u = tab[pidx][idx].u;
+		i++;
+		if (!(i & 3))
+			out += w-4;
+	}
+
+	//mode has separate alpha indexes, spew those out too, clobbering any alpha from dodgy rgb blends
+	if (m[mode].indexbits[idxsel^1])
+	{	//FIXME: untested
+		out -= w*4;
+		cb = m[mode].indexbits[idxsel^1];
+		weight = wsz[cb];
+		for (i = 0; i < m[mode].numsubsets; i++)
+		{
+			for (j = 0; j < (1<<cb); j++)
+				tab[i][j].v[3] = (palette[i][0].v[3]*(64-weight[j]) + palette[i][1].v[3]*weight[j] + 32)>>6;
+		}
+
+		for (i = 0; i < 16; )
+		{
+			int idx;
+			if (i == 0)
+				idx = ReadBits(in, &bit, cb-1);
+			else
+				idx = ReadBits(in, &bit, cb);
+			out[i].v[3] = tab[p[i]][idx].v[3];
+			i++;
+			if (!(i & 3))
+				out += w-4;
+		}
+	}
+
+	//some modes allow swapping the alpha with an rgb channel (per block)
+	if (rot)
+	{	//FIXME: untested
+		qbyte t;
+		rot--; //0=disable, 1=red, 2=green, 3=blue
+		out -= w*4;
+		for (i = 0; i < 16; )
+		{
+			t = out[i].v[3];
+			out[i].v[3] = out[i].v[rot];
+			out[i].v[rot] = t;
+
+			i++;
+			if (!(i & 3))
+				out += w-4;
+		}
+	}
+}
+#endif
+
+#ifdef DECOMPRESS_ASTC
+#ifdef ASTC_WITH_LDR
+static void Image_Decode_ASTC_LDR_U8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int stride, uploadfmt_t fmt)
+{
+	int bw, bh, blockbytes;
+	Image_BlockSizeForEncoding(fmt, &blockbytes, &bw, &bh);
+	ASTC_Decode_LDR8(in, out->v, stride, bw, bh);
+}
+#endif
+#ifdef ASTC_WITH_HDR
+static void Image_Decode_ASTC_HDR_HF_Block(qbyte *fte_restrict in, pixel64_t *fte_restrict out, int stride, uploadfmt_t fmt)
+{
+	int bw, bh, blockbytes;
+	Image_BlockSizeForEncoding(fmt, &blockbytes, &bw, &bh);
+	ASTC_Decode_HDR(in, out->v, stride, bw, bh);
+}
+
+static unsigned int RGB16F_to_E5BGR9(unsigned short Cr, unsigned short Cg, unsigned short Cb)
+{
+	int Re,Ge,Be, Rex,Gex,Bex, Xm, Xe;
+	uint32_t rshift, gshift, bshift, expo;
+	int Rm, Gm, Bm;
+
+	if( Cr > 0x7c00 ) Cr = 0; else if( Cr == 0x7c00 ) Cr = 0x7bff;
+	if( Cg > 0x7c00 ) Cg = 0; else if( Cg == 0x7c00 ) Cg = 0x7bff;
+	if( Cb > 0x7c00 ) Cb = 0; else if( Cb == 0x7c00 ) Cb = 0x7bff;
+	Re = (Cr >> 10) & 0x1F;
+	Ge = (Cg >> 10) & 0x1F;
+	Be = (Cb >> 10) & 0x1F;
+	Rex = Re == 0 ? 1 : Re;
+	Gex = Ge == 0 ? 1 : Ge;
+	Bex = Be == 0 ? 1 : Be;
+	Xm = ((Cr | Cg | Cb) & 0x200) >> 9;
+	Xe = Re | Ge | Be;
+
+	if (Xe == 0)
+	{
+		expo = rshift = gshift = bshift = Xm;
+	}
+	else if (Re >= Ge && Re >= Be)
+	{
+		expo = Rex + 1;
+		rshift = 2;
+		gshift = Rex - Gex + 2;
+		bshift = Rex - Bex + 2;
+	}
+	else if (Ge >= Be)
+	{
+		expo = Gex + 1;
+		rshift = Gex - Rex + 2;
+		gshift = 2;
+		bshift = Gex - Bex + 2;
+	}
+	else
+	{
+		expo = Bex + 1;
+		rshift = Bex - Rex + 2;
+		gshift = Bex - Gex + 2;
+		bshift = 2;
+	}
+
+	Rm = (Cr & 0x3FF) | (Re == 0 ? 0 : 0x400);
+	Gm = (Cg & 0x3FF) | (Ge == 0 ? 0 : 0x400);
+	Bm = (Cb & 0x3FF) | (Be == 0 ? 0 : 0x400);
+	Rm = (Rm >> rshift) & 0x1FF;
+	Gm = (Gm >> gshift) & 0x1FF;
+	Bm = (Bm >> bshift) & 0x1FF;
+
+	return (expo << 27) | (Bm << 18) | (Gm << 9) | (Rm << 0);
+}
+static void Image_Decode_ASTC_HDR_E5_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int stride, uploadfmt_t fmt)
+{
+	unsigned short hdr[12][12][4];
+	int bw, bh, blockbytes;
+	int x, y;
+	Image_BlockSizeForEncoding(fmt, &blockbytes, &bw, &bh);
+	ASTC_Decode_HDR(in, hdr[0][0], 12, bw, bh);
+
+	for (y = 0; y < bh; y++, out += stride)
+		for (x = 0; x < bw; x++)
+			out[x].u = RGB16F_to_E5BGR9(hdr[y][x][0], hdr[y][x][1], hdr[y][x][2]);
+}
+#endif
+#endif
+
+static void Image_Decode_RGB8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t srcfmt)
 {
 	Vector4Set(out->v, in[0], in[1], in[2], 0xff);
 }
-static void Image_Decode_L8A8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_L8A8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t srcfmt)
 {
 	Vector4Set(out->v, in[0], in[0], in[0], in[1]);
 }
-static void Image_Decode_L8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+static void Image_Decode_L8_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t srcfmt)
 {
 	Vector4Set(out->v, in[0], in[0], in[0], 0xff);
 }
@@ -6553,34 +7912,48 @@ void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, 
 		break;
 
 // ASTC is crazy with its format subtypes... note that all are potentially rgba, selected on a per-block basis
+	case PTI_ASTC_4X4_HDR:
 	case PTI_ASTC_4X4_SRGB:
-	case PTI_ASTC_4X4:		w = 4; h = 4; b = 16; break;
+	case PTI_ASTC_4X4_LDR:		w = 4; h = 4; b = 16; break;
+	case PTI_ASTC_5X4_HDR:
 	case PTI_ASTC_5X4_SRGB:
-	case PTI_ASTC_5X4:		w = 5; h = 4; b = 16; break;
+	case PTI_ASTC_5X4_LDR:		w = 5; h = 4; b = 16; break;
+	case PTI_ASTC_5X5_HDR:
 	case PTI_ASTC_5X5_SRGB:
-	case PTI_ASTC_5X5:		w = 5; h = 5; b = 16; break;
+	case PTI_ASTC_5X5_LDR:		w = 5; h = 5; b = 16; break;
+	case PTI_ASTC_6X5_HDR:
 	case PTI_ASTC_6X5_SRGB:
-	case PTI_ASTC_6X5:		w = 6; h = 5; b = 16; break;
+	case PTI_ASTC_6X5_LDR:		w = 6; h = 5; b = 16; break;
+	case PTI_ASTC_6X6_HDR:
 	case PTI_ASTC_6X6_SRGB:
-	case PTI_ASTC_6X6:		w = 6; h = 6; b = 16; break;
+	case PTI_ASTC_6X6_LDR:		w = 6; h = 6; b = 16; break;
+	case PTI_ASTC_8X5_HDR:
 	case PTI_ASTC_8X5_SRGB:
-	case PTI_ASTC_8X5:		w = 8; h = 5; b = 16; break;
+	case PTI_ASTC_8X5_LDR:		w = 8; h = 5; b = 16; break;
+	case PTI_ASTC_8X6_HDR:
 	case PTI_ASTC_8X6_SRGB:
-	case PTI_ASTC_8X6:		w = 8; h = 6; b = 16; break;
+	case PTI_ASTC_8X6_LDR:		w = 8; h = 6; b = 16; break;
+	case PTI_ASTC_10X5_HDR:
 	case PTI_ASTC_10X5_SRGB:
-	case PTI_ASTC_10X5:		w = 10; h = 5; b = 16; break;
+	case PTI_ASTC_10X5_LDR:		w = 10; h = 5; b = 16; break;
+	case PTI_ASTC_10X6_HDR:
 	case PTI_ASTC_10X6_SRGB:
-	case PTI_ASTC_10X6:		w = 10; h = 6; b = 16; break;
+	case PTI_ASTC_10X6_LDR:		w = 10; h = 6; b = 16; break;
+	case PTI_ASTC_8X8_HDR:
 	case PTI_ASTC_8X8_SRGB:
-	case PTI_ASTC_8X8:		w = 8; h = 8; b = 16; break;
+	case PTI_ASTC_8X8_LDR:		w = 8; h = 8; b = 16; break;
+	case PTI_ASTC_10X8_HDR:
 	case PTI_ASTC_10X8_SRGB:
-	case PTI_ASTC_10X8:		w = 10; h = 8; b = 16; break;
+	case PTI_ASTC_10X8_LDR:		w = 10; h = 8; b = 16; break;
+	case PTI_ASTC_10X10_HDR:
 	case PTI_ASTC_10X10_SRGB:
-	case PTI_ASTC_10X10:	w = 10; h = 10; b = 16; break;
+	case PTI_ASTC_10X10_LDR:	w = 10; h = 10; b = 16; break;
+	case PTI_ASTC_12X10_HDR:
 	case PTI_ASTC_12X10_SRGB:
-	case PTI_ASTC_12X10:	w = 12; h = 10; b = 16; break;
+	case PTI_ASTC_12X10_LDR:	w = 12; h = 10; b = 16; break;
+	case PTI_ASTC_12X12_HDR:
 	case PTI_ASTC_12X12_SRGB:
-	case PTI_ASTC_12X12:	w = 12; h = 12; b = 16; break;
+	case PTI_ASTC_12X12_LDR:	w = 12; h = 12; b = 16; break;
 
 	case PTI_EMULATED:
 #ifdef FTE_TARGET_WEB
@@ -6662,34 +8035,48 @@ const char *Image_FormatName(uploadfmt_t fmt)
 	case PTI_ETC2_RGB8A8_SRGB:	return "ETC2_RGB8A8_SRGB";
 	case PTI_EAC_RG11:			return "EAC_RG11";
 	case PTI_EAC_RG11_SNORM:	return "EAC_RG11_SNORM";
+	case PTI_ASTC_4X4_HDR:		return "ASTC_4X4_HDR";
 	case PTI_ASTC_4X4_SRGB:		return "ASTC_4X4_SRGB";
-	case PTI_ASTC_4X4:			return "ASTC_4X4";
+	case PTI_ASTC_4X4_LDR:		return "ASTC_4X4_LDR";
+	case PTI_ASTC_5X4_HDR:		return "ASTC_5X4_HDR";
 	case PTI_ASTC_5X4_SRGB:		return "ASTC_5X4_SRGB";
-	case PTI_ASTC_5X4:			return "ASTC_5X4";
+	case PTI_ASTC_5X4_LDR:		return "ASTC_5X4_LDR";
+	case PTI_ASTC_5X5_HDR:		return "ASTC_5X5_HDR";
 	case PTI_ASTC_5X5_SRGB:		return "ASTC_5X5_SRGB";
-	case PTI_ASTC_5X5:			return "ASTC_5X5";
+	case PTI_ASTC_5X5_LDR:		return "ASTC_5X5_LDR";
+	case PTI_ASTC_6X5_HDR:		return "ASTC_6X5_HDR";
 	case PTI_ASTC_6X5_SRGB:		return "ASTC_6X5_SRGB";
-	case PTI_ASTC_6X5:			return "ASTC_6X5";
+	case PTI_ASTC_6X5_LDR:		return "ASTC_6X5_LDR";
+	case PTI_ASTC_6X6_HDR:		return "ASTC_6X6_HDR";
 	case PTI_ASTC_6X6_SRGB:		return "ASTC_6X6_SRGB";
-	case PTI_ASTC_6X6:			return "ASTC_6X6";
+	case PTI_ASTC_6X6_LDR:		return "ASTC_6X6_LDR";
+	case PTI_ASTC_8X5_HDR:		return "ASTC_8X5_HDR";
 	case PTI_ASTC_8X5_SRGB:		return "ASTC_8X5_SRGB";
-	case PTI_ASTC_8X5:			return "ASTC_8X5";
+	case PTI_ASTC_8X5_LDR:		return "ASTC_8X5_LDR";
+	case PTI_ASTC_8X6_HDR:		return "ASTC_8X6_HDR";
 	case PTI_ASTC_8X6_SRGB:		return "ASTC_8X6_SRGB";
-	case PTI_ASTC_8X6:			return "ASTC_8X6";
+	case PTI_ASTC_8X6_LDR:		return "ASTC_8X6_LDR";
+	case PTI_ASTC_10X5_HDR:		return "ASTC_10X5_HDR";
 	case PTI_ASTC_10X5_SRGB:	return "ASTC_10X5_SRGB";
-	case PTI_ASTC_10X5:			return "ASTC_10X5";
+	case PTI_ASTC_10X5_LDR:		return "ASTC_10X5_LDR";
+	case PTI_ASTC_10X6_HDR:		return "ASTC_10X6_HDR";
 	case PTI_ASTC_10X6_SRGB:	return "ASTC_10X6_SRGB";
-	case PTI_ASTC_10X6:			return "ASTC_10X6";
+	case PTI_ASTC_10X6_LDR:		return "ASTC_10X6_LDR";
+	case PTI_ASTC_8X8_HDR:		return "ASTC_8X8_HDR";
 	case PTI_ASTC_8X8_SRGB:		return "ASTC_8X8_SRGB";
-	case PTI_ASTC_8X8:			return "ASTC_8X8";
+	case PTI_ASTC_8X8_LDR:		return "ASTC_8X8_LDR";
+	case PTI_ASTC_10X8_HDR:		return "ASTC_10X8_HDR";
 	case PTI_ASTC_10X8_SRGB:	return "ASTC_10X8_SRGB";
-	case PTI_ASTC_10X8:			return "ASTC_10X8";
+	case PTI_ASTC_10X8_LDR:		return "ASTC_10X8_LDR";
+	case PTI_ASTC_10X10_HDR:	return "ASTC_10X10_HDR";
 	case PTI_ASTC_10X10_SRGB:	return "ASTC_10X10_SRGB";
-	case PTI_ASTC_10X10:		return "ASTC_10X10";
+	case PTI_ASTC_10X10_LDR:	return "ASTC_10X10_LDR";
+	case PTI_ASTC_12X10_HDR:	return "ASTC_12X10_HDR";
 	case PTI_ASTC_12X10_SRGB:	return "ASTC_12X10_SRGB";
-	case PTI_ASTC_12X10:		return "ASTC_12X10";
+	case PTI_ASTC_12X10_LDR:	return "ASTC_12X10_LDR";
+	case PTI_ASTC_12X12_HDR:	return "ASTC_12X12_HDR";
 	case PTI_ASTC_12X12_SRGB:	return "ASTC_12X12_SRGB";
-	case PTI_ASTC_12X12:		return "ASTC_12X12";
+	case PTI_ASTC_12X12_LDR:	return "ASTC_12X12_LDR";
 
 #ifdef FTE_TARGET_WEB
 	case PTI_WHOLEFILE:			return "Whole File";
@@ -6701,13 +8088,14 @@ const char *Image_FormatName(uploadfmt_t fmt)
 	return "Unknown";
 }
 
-static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int w, int h, void(*decodeblock)(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w), uploadfmt_t encoding)
+static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int w, int h, void(*decodeblock)(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t srcfmt), uploadfmt_t encoding)
 {
 #define TMPBLOCKSIZE 16u
 	pixel32_t *ret, *out;
 	pixel32_t tmp[TMPBLOCKSIZE*TMPBLOCKSIZE];
 	int x, y, i, j;
 	int sizediff;
+	int rows, columns;
 
 	unsigned int blockbytes, blockwidth, blockheight;
 	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
@@ -6725,13 +8113,17 @@ static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int 
 
 	ret = out = BZ_Malloc(w*h*sizeof(*out));
 
-	for (y = 0; y < (h&~(blockheight-1)); y+=blockheight, out += w*(blockheight-1))
+	rows = h/blockheight;
+	rows *= blockheight;
+	columns = w/blockwidth;
+	columns *= blockwidth;
+	for (y = 0; y < rows; y+=blockheight, out += w*(blockheight-1))
 	{
-		for (x = 0; x < (w&~(blockwidth-1)); x+=blockwidth, in+=blockbytes, out+=blockwidth)
-			decodeblock(in, out, w);
+		for (x = 0; x < columns; x+=blockwidth, in+=blockbytes, out+=blockwidth)
+			decodeblock(in, out, w, encoding);
 		if (w%blockwidth)
 		{
-			decodeblock(in, tmp, TMPBLOCKSIZE);
+			decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
 			for (i = 0; x < w; x++, out++, i++)
 			{
 				for (j = 0; j < blockheight; j++)
@@ -6745,7 +8137,72 @@ static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int 
 		h %= blockheight;
 		for (x = 0; x < w; )
 		{
-			decodeblock(in, tmp, TMPBLOCKSIZE);
+			decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
+			i = 0;
+			do
+			{
+				if (x == w)
+					break;
+				for (y = 0; y < h; y++)
+					out[w*y] = tmp[i+TMPBLOCKSIZE*y];
+				out++;
+				i++;
+			} while (++x % blockwidth);
+			in+=blockbytes;
+		}
+	}
+	return ret;
+}
+static pixel64_t *Image_Block_Decode64(qbyte *fte_restrict in, size_t insize, int w, int h, void(*decodeblock)(qbyte *fte_restrict in, pixel64_t *fte_restrict out, int w, uploadfmt_t srcfmt), uploadfmt_t encoding)
+{
+#define TMPBLOCKSIZE 16u
+	pixel64_t *ret, *out;
+	pixel64_t tmp[TMPBLOCKSIZE*TMPBLOCKSIZE];
+	int x, y, i, j;
+	int sizediff;
+	int rows, columns;
+
+	unsigned int blockbytes, blockwidth, blockheight;
+	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
+
+	if (blockwidth > TMPBLOCKSIZE || blockheight > TMPBLOCKSIZE)
+		Sys_Error("Image_Block_Decode only supports up to %u*%u blocks.\n", TMPBLOCKSIZE,TMPBLOCKSIZE);
+
+	sizediff = insize - blockbytes*((w+blockwidth-1)/blockwidth)*((h+blockheight-1)/blockheight);
+	if (sizediff)
+	{
+		Con_Printf("Image_Block_Decode: %s data size is %u, expected %u\n\n", Image_FormatName(encoding), (unsigned int)insize, (unsigned int)(insize-sizediff));
+		if (sizediff < 0)
+			return NULL;
+	}
+
+	ret = out = BZ_Malloc(w*h*sizeof(*out));
+
+	rows = h/blockheight;
+	rows *= blockheight;
+	columns = w/blockwidth;
+	columns *= blockwidth;
+	for (y = 0; y < rows; y+=blockheight, out += w*(blockheight-1))
+	{
+		for (x = 0; x < columns; x+=blockwidth, in+=blockbytes, out+=blockwidth)
+			decodeblock(in, out, w, encoding);
+		if (w%blockwidth)
+		{
+			decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
+			for (i = 0; x < w; x++, out++, i++)
+			{
+				for (j = 0; j < blockheight; j++)
+					out[w*j] = tmp[i+TMPBLOCKSIZE*j];
+			}
+			in+=blockbytes;
+		}
+	}
+	if (h%blockheight)
+	{	//now walk along the bottom of the image
+		h %= blockheight;
+		for (x = 0; x < w; )
+		{
+			decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
 			i = 0;
 			do
 			{
@@ -6762,7 +8219,7 @@ static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int 
 	return ret;
 }
 
-static void Image_DecompressFormat(struct pendingtextureinfo *mips)
+static qboolean Image_DecompressFormat(struct pendingtextureinfo *mips, const char *imagename)
 {
 	//various compressed formats might not be supported by various gpus/apis.
 	//sometimes the gpu might only partially support the format (eg: d3d requires mip 0 be a multiple of the block size)
@@ -6772,7 +8229,8 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 
 	//iiuc any basic s3tc patents have now expired, so it is legally safe to decode (though fancy compression logic may still have restrictions, but we don't compress).
 	static float throttle;
-	void (*decodefunc)(qbyte *fte_restrict, pixel32_t *fte_restrict, int) = NULL;
+	void (*decodefunc)(qbyte *fte_restrict, pixel32_t *fte_restrict, int, uploadfmt_t) = NULL;
+	void (*decodefunc64)(qbyte *fte_restrict, pixel64_t *fte_restrict, int, uploadfmt_t) = NULL;
 	int rcoding = mips->encoding;
 	int mip;
 	switch(mips->encoding)
@@ -6873,24 +8331,18 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 		decodefunc = Image_Decode_BC3_Block;
 		rcoding = (mips->encoding==PTI_BC3_RGBA_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
 #else
-		Con_ThrottlePrintf(&throttle, 0, "BC3 decompression is not supported in this build\n");
+		Con_ThrottlePrintf(&throttle, 0, "Fallback BC3 decompression is not supported in this build\n");
 #endif
 		break;
 #ifdef DECOMPRESS_RGTC
 	case PTI_BC4_R8_SNORM:
-		decodefunc = Image_Decode_BC4S_Block;
-		rcoding = PTI_RGBX8;
-		break;
 	case PTI_BC4_R8:
-		decodefunc = Image_Decode_BC4U_Block;
+		decodefunc = Image_Decode_BC4_Block;
 		rcoding = PTI_RGBX8;
 		break;
 	case PTI_BC5_RG8_SNORM:
-		decodefunc = Image_Decode_BC5S_Block;
-		rcoding = PTI_RGBX8;
-		break;
 	case PTI_BC5_RG8:
-		decodefunc = Image_Decode_BC5U_Block;
+		decodefunc = Image_Decode_BC5_Block;
 		rcoding = PTI_RGBX8;
 		break;
 #else
@@ -6898,46 +8350,140 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 	case PTI_BC4_R8:
 	case PTI_BC5_RG8_SNORM:
 	case PTI_BC5_RG8:
-		Con_ThrottlePrintf(&throttle, 0, "BC4/BC5 decompression is not supported in this build\n");
+		Con_ThrottlePrintf(&throttle, 0, "Fallback BC4/BC5 decompression is not supported in this build\n");
 		break;
 #endif
-#if 0//def DECOMPRESS_BPTC
 	case PTI_BC6_RGB_UFLOAT:
+#ifdef DECOMPRESS_BPTC
+		decodefunc64 = Image_Decode_BC6_Block;
+		rcoding = PTI_RGBA16F;
+#else
+		Con_ThrottlePrintf(&throttle, 0, "Fallback BC6_UFLOAT decompression is not supported\n");
+#endif
+		break;
 	case PTI_BC6_RGB_SFLOAT:
+#ifdef DECOMPRESS_BPTC
+		decodefunc64 = Image_Decode_BC6_Block;
+		rcoding = PTI_RGBA16F;
+#else
+		Con_ThrottlePrintf(&throttle, 0, "Fallback BC6_SFLOAT decompression is not supported\n");
+#endif
+		break;
+	case PTI_BC7_RGBA:
+	case PTI_BC7_RGBA_SRGB:
+#ifdef DECOMPRESS_BPTC
+		decodefunc = Image_Decode_BC7_Block;
+		rcoding = (mips->encoding==PTI_BC7_RGBA_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
+#else
+		Con_ThrottlePrintf(&throttle, 0, "Fallback BC7 decompression is not supported\n");
+#endif
+		break;
+
+	case PTI_ASTC_4X4_HDR:
+	case PTI_ASTC_5X4_HDR:
+	case PTI_ASTC_5X5_HDR:
+	case PTI_ASTC_6X5_HDR:
+	case PTI_ASTC_6X6_HDR:
+	case PTI_ASTC_8X5_HDR:
+	case PTI_ASTC_8X6_HDR:
+	case PTI_ASTC_10X5_HDR:
+	case PTI_ASTC_10X6_HDR:
+	case PTI_ASTC_8X8_HDR:
+	case PTI_ASTC_10X8_HDR:
+	case PTI_ASTC_10X10_HDR:
+	case PTI_ASTC_12X10_HDR:
+	case PTI_ASTC_12X12_HDR:
+#if defined(DECOMPRESS_ASTC) && defined(ASTC_WITH_HDR)
+		decodefunc = Image_Decode_ASTC_HDR_E5_Block;
+		rcoding = PTI_E5BGR9;
+
+		decodefunc64 = Image_Decode_ASTC_HDR_HF_Block;
 		rcoding = PTI_RGBA16F;
 		break;
-	case PTI_BC7_RGBA:
-	case PTI_BC7_RGBA_SRGB:
-		rcoding = PTI_ZOMGWTF;
-		break;
+#endif
+	case PTI_ASTC_4X4_LDR:
+	case PTI_ASTC_5X4_LDR:
+	case PTI_ASTC_5X5_LDR:
+	case PTI_ASTC_6X5_LDR:
+	case PTI_ASTC_6X6_LDR:
+	case PTI_ASTC_8X5_LDR:
+	case PTI_ASTC_8X6_LDR:
+	case PTI_ASTC_10X5_LDR:
+	case PTI_ASTC_10X6_LDR:
+	case PTI_ASTC_8X8_LDR:
+	case PTI_ASTC_10X8_LDR:
+	case PTI_ASTC_10X10_LDR:
+	case PTI_ASTC_12X10_LDR:
+	case PTI_ASTC_12X12_LDR:
+#ifdef DECOMPRESS_ASTC
+#ifdef ASTC_WITH_LDR
+		decodefunc = Image_Decode_ASTC_LDR_U8_Block;
+		rcoding = PTI_RGBA8;
 #else
-	case PTI_BC6_RGB_UFLOAT:
-	case PTI_BC6_RGB_SFLOAT:
-	case PTI_BC7_RGBA:
-	case PTI_BC7_RGBA_SRGB:
-		Con_ThrottlePrintf(&throttle, 0, "BC6/BC7 decompression is not supported\n");
+		decodefunc64 = Image_Decode_ASTC_HDR_HF_Block;
+		rcoding = PTI_RGBA16F;
+#endif
 		break;
 #endif
+	case PTI_ASTC_4X4_SRGB:
+	case PTI_ASTC_5X4_SRGB:
+	case PTI_ASTC_5X5_SRGB:
+	case PTI_ASTC_6X5_SRGB:
+	case PTI_ASTC_6X6_SRGB:
+	case PTI_ASTC_8X5_SRGB:
+	case PTI_ASTC_8X6_SRGB:
+	case PTI_ASTC_10X5_SRGB:
+	case PTI_ASTC_10X6_SRGB:
+	case PTI_ASTC_8X8_SRGB:
+	case PTI_ASTC_10X8_SRGB:
+	case PTI_ASTC_10X10_SRGB:
+	case PTI_ASTC_12X10_SRGB:
+	case PTI_ASTC_12X12_SRGB:
+#if defined(DECOMPRESS_ASTC) && defined(ASTC_WITH_LDR)
+		decodefunc = Image_Decode_ASTC_LDR_U8_Block;
+		rcoding = PTI_RGBA8_SRGB;
+#else
+		Con_ThrottlePrintf(&throttle, 0, "Fallback ASTC decompression is not supported\n");
+#endif
+		break;
+	case PTI_INVALID:
+		Con_ThrottlePrintf(&throttle, 0, "Attempting to decompress invalid format\n");
+		break;
 	}
-	if (decodefunc)
+	if (decodefunc || decodefunc64)
 	{
+		if (imagename)
+			Con_DPrintf("Software-decoding %s (%s)\r", imagename, Image_FormatName(mips->encoding));
 		for (mip = 0; mip < mips->mipcount; mip++)
 		{
-			pixel32_t *out = Image_Block_Decode(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, decodefunc, mips->encoding);
+			size_t sz;
+			void *out;
+			if (decodefunc64)
+			{
+				sz = sizeof(pixel64_t);
+				out = Image_Block_Decode64(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, decodefunc64, mips->encoding);
+			}
+			else
+			{
+				sz = sizeof(pixel32_t);
+				out = Image_Block_Decode(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, decodefunc, mips->encoding);
+			}
 			if (mips->mip[mip].needfree)
 				BZ_Free(mips->mip[mip].data);
 			mips->mip[mip].data = out;
 			mips->mip[mip].needfree = true;
-			mips->mip[mip].datasize = mips->mip[mip].width*mips->mip[mip].height*sizeof(*out);
+			mips->mip[mip].datasize = mips->mip[mip].width*mips->mip[mip].height*sz;
 		}
 		if (mips->extrafree)
 			BZ_Free(mips->extrafree);	//might as well free this now, as nothing is poking it any more.
 		mips->extrafree = NULL;
 		mips->encoding = rcoding;
+		return true;
 	}
+	return false;
 }
 
-static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt)
+static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename)
 {
 	int mip;
 
@@ -6946,7 +8492,7 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 
 	if (flags & IF_PALETTIZE)
 	{
-		Image_DecompressFormat(mips);	//force-decompress it, so that we can palettise it.
+		Image_DecompressFormat(mips, NULL);	//force-decompress it, so that we can palettise it.
 		if (mips->encoding == PTI_RGBX8 || mips->encoding == PTI_RGBA8)
 		{
 			mips->encoding = PTI_P8;
@@ -6981,10 +8527,12 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 	//if that format isn't supported/desired, try converting it.
 	if (sh_config.texfmt[mips->encoding])
 	{
-		if (!sh_config.texture_allow_block_padding && mips->mipcount)
+		if (mips->encoding >= PTI_ASTC_FIRST && mips->encoding <= PTI_ASTC_LAST)
+			return;	//ignore texture_allow_block_padding for astc.
+		else if (!sh_config.texture_allow_block_padding && mips->mipcount && mips->encoding)
 		{	//direct3d is annoying, and will reject any block-compressed format with a base mip size that is not a multiple of the block size.
 			//its fine with weirdly sized mips though. I have no idea why there's this restriction, but whatever.
-			//we need to de
+			//we need to manually decompress in order to correctly handle such images
 			int blockbytes, blockwidth, blockheight;
 			Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
 			if (!(mips->mip[0].width % blockwidth) && !(mips->mip[0].height % blockheight))
@@ -6996,7 +8544,7 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 	}
 
 	//when the format can't be used, decompress it if its one of those awkward compressed formats.
-	Image_DecompressFormat(mips);
+	Image_DecompressFormat(mips, imagename);
 	if (sh_config.texfmt[mips->encoding])
 		return;	//okay, that got it.
 
@@ -7548,34 +9096,48 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_ETC2_RGB8A1_SRGB: //would need to force the 'opaque' bit in each block and treat as PTI_ETC2_RGB8.
 		case PTI_ETC2_RGB8A8: //could strip to PTI_ETC2_RGB8
 		case PTI_ETC2_RGB8A8_SRGB: //could strip to PTI_ETC2_SRGB8
-		case PTI_ASTC_4X4:
+		case PTI_ASTC_4X4_LDR:
 		case PTI_ASTC_4X4_SRGB:
-		case PTI_ASTC_5X4:
+		case PTI_ASTC_4X4_HDR:
+		case PTI_ASTC_5X4_LDR:
 		case PTI_ASTC_5X4_SRGB:
-		case PTI_ASTC_5X5:
+		case PTI_ASTC_5X4_HDR:
+		case PTI_ASTC_5X5_LDR:
 		case PTI_ASTC_5X5_SRGB:
-		case PTI_ASTC_6X5:
+		case PTI_ASTC_5X5_HDR:
+		case PTI_ASTC_6X5_LDR:
 		case PTI_ASTC_6X5_SRGB:
-		case PTI_ASTC_6X6:
+		case PTI_ASTC_6X5_HDR:
+		case PTI_ASTC_6X6_LDR:
 		case PTI_ASTC_6X6_SRGB:
-		case PTI_ASTC_8X5:
+		case PTI_ASTC_6X6_HDR:
+		case PTI_ASTC_8X5_LDR:
 		case PTI_ASTC_8X5_SRGB:
-		case PTI_ASTC_8X6:
+		case PTI_ASTC_8X5_HDR:
+		case PTI_ASTC_8X6_LDR:
 		case PTI_ASTC_8X6_SRGB:
-		case PTI_ASTC_10X5:
+		case PTI_ASTC_8X6_HDR:
+		case PTI_ASTC_10X5_LDR:
 		case PTI_ASTC_10X5_SRGB:
-		case PTI_ASTC_10X6:
+		case PTI_ASTC_10X5_HDR:
+		case PTI_ASTC_10X6_LDR:
 		case PTI_ASTC_10X6_SRGB:
-		case PTI_ASTC_8X8:
+		case PTI_ASTC_10X6_HDR:
+		case PTI_ASTC_8X8_LDR:
 		case PTI_ASTC_8X8_SRGB:
-		case PTI_ASTC_10X8:
+		case PTI_ASTC_8X8_HDR:
+		case PTI_ASTC_10X8_LDR:
 		case PTI_ASTC_10X8_SRGB:
-		case PTI_ASTC_10X10:
+		case PTI_ASTC_10X8_HDR:
+		case PTI_ASTC_10X10_LDR:
 		case PTI_ASTC_10X10_SRGB:
-		case PTI_ASTC_12X10:
+		case PTI_ASTC_10X10_HDR:
+		case PTI_ASTC_12X10_LDR:
 		case PTI_ASTC_12X10_SRGB:
-		case PTI_ASTC_12X12:
+		case PTI_ASTC_12X10_HDR:
+		case PTI_ASTC_12X12_LDR:
 		case PTI_ASTC_12X12_SRGB:
+		case PTI_ASTC_12X12_HDR:
 #ifdef FTE_TARGET_WEB
 		case PTI_WHOLEFILE:
 #endif
@@ -7649,20 +9211,20 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_ETC2_RGB8:		nf = PTI_ETC2_RGB8_SRGB; break;
 		case PTI_ETC2_RGB8A1:	nf = PTI_ETC2_RGB8A1_SRGB; break;
 		case PTI_ETC2_RGB8A8:	nf = PTI_ETC2_RGB8A8_SRGB; break;
-		case PTI_ASTC_4X4:		nf = PTI_ASTC_4X4_SRGB; break;
-		case PTI_ASTC_5X4:		nf = PTI_ASTC_5X4_SRGB; break;
-		case PTI_ASTC_5X5:		nf = PTI_ASTC_5X5_SRGB; break;
-		case PTI_ASTC_6X5:		nf = PTI_ASTC_6X5_SRGB; break;
-		case PTI_ASTC_6X6:		nf = PTI_ASTC_6X6_SRGB; break;
-		case PTI_ASTC_8X5:		nf = PTI_ASTC_8X5_SRGB; break;
-		case PTI_ASTC_8X6:		nf = PTI_ASTC_8X6_SRGB; break;
-		case PTI_ASTC_10X5:		nf = PTI_ASTC_10X5_SRGB; break;
-		case PTI_ASTC_10X6:		nf = PTI_ASTC_10X6_SRGB; break;
-		case PTI_ASTC_8X8:		nf = PTI_ASTC_8X8_SRGB; break;
-		case PTI_ASTC_10X8:		nf = PTI_ASTC_10X8_SRGB; break;
-		case PTI_ASTC_10X10:	nf = PTI_ASTC_10X10_SRGB; break;
-		case PTI_ASTC_12X10:	nf = PTI_ASTC_12X10_SRGB; break;
-		case PTI_ASTC_12X12:	nf = PTI_ASTC_12X12_SRGB; break;
+		case PTI_ASTC_4X4_LDR:	nf = PTI_ASTC_4X4_SRGB; break;
+		case PTI_ASTC_5X4_LDR:	nf = PTI_ASTC_5X4_SRGB; break;
+		case PTI_ASTC_5X5_LDR:	nf = PTI_ASTC_5X5_SRGB; break;
+		case PTI_ASTC_6X5_LDR:	nf = PTI_ASTC_6X5_SRGB; break;
+		case PTI_ASTC_6X6_LDR:	nf = PTI_ASTC_6X6_SRGB; break;
+		case PTI_ASTC_8X5_LDR:	nf = PTI_ASTC_8X5_SRGB; break;
+		case PTI_ASTC_8X6_LDR:	nf = PTI_ASTC_8X6_SRGB; break;
+		case PTI_ASTC_10X5_LDR:	nf = PTI_ASTC_10X5_SRGB; break;
+		case PTI_ASTC_10X6_LDR:	nf = PTI_ASTC_10X6_SRGB; break;
+		case PTI_ASTC_8X8_LDR:	nf = PTI_ASTC_8X8_SRGB; break;
+		case PTI_ASTC_10X8_LDR:	nf = PTI_ASTC_10X8_SRGB; break;
+		case PTI_ASTC_10X10_LDR:nf = PTI_ASTC_10X10_SRGB; break;
+		case PTI_ASTC_12X10_LDR:nf = PTI_ASTC_12X10_SRGB; break;
+		case PTI_ASTC_12X12_LDR:nf = PTI_ASTC_12X12_SRGB; break;
 		default:
 			if (freedata)
 				BZ_Free(rgbadata);
@@ -7861,7 +9423,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 		return false;
 	}
 	Image_GenerateMips(mips, flags);
-	Image_ChangeFormat(mips, flags, fmt);
+	Image_ChangeFormat(mips, flags, fmt, tex->ident);
 
 	tex->width = imgwidth;
 	tex->height = imgheight;
@@ -7905,6 +9467,10 @@ static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char
 	if (!mips && filedata[0] == 'V' && filedata[1] == 'T' && filedata[2] == 'F' && filedata[3] == '\0')
 		mips = Image_ReadVTFFile(flags, fname, filedata, filesize);
 #endif
+#ifdef IMAGEFMT_ASTC
+	if (!mips && filesize>= 16 && filedata[0] == 0x13 && filedata[1] == 0xab && filedata[2] == 0xa1 && filedata[3] == 0x5c)
+		mips = Image_ReadASTCFile(flags, fname, filedata, filesize);
+#endif
 
 	//the above formats are assumed to have consumed filedata somehow (probably storing into mips->extradata)
 	if (mips)
@@ -7919,7 +9485,7 @@ static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char
 			memmove(mips->mip, mips->mip+i, sizeof(*mips->mip)*mips->mipcount);
 		}
 
-		Image_ChangeFormat(mips, flags, TF_INVALID);
+		Image_ChangeFormat(mips, flags, TF_INVALID, fname);
 		return mips;
 	}
 
@@ -7994,7 +9560,7 @@ static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char
 		if (Image_GenMip0(mips, flags, rgbadata, NULL, imgwidth, imgheight, format, true))
 		{
 			Image_GenerateMips(mips, flags);
-			Image_ChangeFormat(mips, flags, format);
+			Image_ChangeFormat(mips, flags, format, fname);
 			BZ_Free(filedata);
 			return mips;
 		}
@@ -8237,7 +9803,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 				Q_strncpyz(bestname, fname, bestnamesize);
 				bestdepth = depth;
 				*bestloc = loc;
-				bestflags = 0;
+				*bestflags = 0;
 			}
 #endif
 
@@ -8299,7 +9865,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 								Q_strncpyz(bestname, fname, bestnamesize);
 								bestdepth = depth;
 								*bestloc = loc;
-								bestflags = 0;
+								*bestflags = 0;
 							}
 						}
 					}
@@ -8318,7 +9884,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 							Q_strncpyz(bestname, fname, bestnamesize);
 							bestdepth = depth;
 							*bestloc = loc;
-							bestflags = 0;
+							*bestflags = 0;
 						}
 					}
 				}
@@ -8383,7 +9949,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 					Q_strncpyz(bestname, fname, bestnamesize);
 					bestdepth = depth;
 					*bestloc = loc;
-					bestflags = 0;
+					*bestflags = 0;
 				}
 			}
 		}
@@ -8866,7 +10432,7 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	if (!Image_GenMip0(&mips, flags, data, palette, width, height, fmt, false))
 		return;
 	Image_GenerateMips(&mips, flags);
-	Image_ChangeFormat(&mips, flags, fmt);
+	Image_ChangeFormat(&mips, flags, fmt, tex->ident);
 	rf->IMG_LoadTextureMips(tex, &mips);
 	tex->format = fmt;
 	tex->width = width;
@@ -9034,10 +10600,11 @@ void Image_List_f(void)
 			failed++;
 			continue;
 		}
+		Con_Printf("^[\\imgptr\\%#"PRIxSIZE"^]", (size_t)tex);
 		if (tex->subpath)
 			Con_Printf("^h(%s)^h", tex->subpath);
 		Con_DLPrintf(1, " %x", tex->flags);
-		
+
 		if (Image_LocateHighResTexture(tex, &loc, fname, sizeof(fname), &loadflags))
 		{
 			char defuck[MAX_OSPATH], *bullshit;
@@ -9103,6 +10670,8 @@ void Image_List_f(void)
 void Image_Formats_f(void)
 {
 	size_t i;
+	float bpp;
+	int blockbytes, blockwidth, blockheight;
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -9156,7 +10725,9 @@ void Image_Formats_f(void)
 		default:
 			break;
 		}
-		Con_Printf("%20s: %s\n", Image_FormatName(i), sh_config.texfmt[i]?S_COLOR_GREEN"Enabled":S_COLOR_RED"Disabled");
+		Image_BlockSizeForEncoding(i, &blockbytes, &blockwidth, &blockheight);
+		bpp = blockbytes*8.0/(blockwidth*blockheight);
+		Con_Printf("%20s: %s"S_COLOR_GRAY" (%.3g-bpp)\n", Image_FormatName(i), sh_config.texfmt[i]?S_COLOR_GREEN"Enabled":S_COLOR_RED"Disabled", bpp);
 	}
 }
 

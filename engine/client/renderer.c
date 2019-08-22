@@ -36,7 +36,6 @@ qboolean vid_isfullscreen;
 
 #define GLRENDEREROPTIONS	"GL Renderer Options" //fixme: often used for generic cvars that apply to more than just gl...
 #define D3DRENDEREROPTIONS	"D3D Renderer Options"
-#define VKRENDEREROPTIONS	"Vulkan-Specific Renderer Options"
 
 unsigned int	d_8to24rgbtable[256];
 unsigned int	d_8to24srgbtable[256];
@@ -57,7 +56,6 @@ void R_ForceSky_f(void)
 {
 	if (Cmd_Argc() < 2)
 	{
-		extern cvar_t r_skyboxname;
 		if (*r_skyboxname.string)
 			Con_Printf("Current user skybox is %s\n", r_skyboxname.string);
 		else if (*cl.skyname)
@@ -69,6 +67,11 @@ void R_ForceSky_f(void)
 	{
 		R_SetSky(Cmd_Argv(1));
 	}
+}
+static void QDECL R_Lightmap_Format_Changed(struct cvar_s *var, char *oldvalue)
+{
+	if (qrenderer)
+		Surf_BuildLightmaps();
 }
 
 #ifdef FTE_TARGET_WEB	//webgl sucks too much to get a stable framerate without vsync.
@@ -128,7 +131,7 @@ cvar_t r_lightmap							= CVARF ("r_lightmap", "0",
 cvar_t r_wireframe							= CVARAFD ("r_wireframe", "0",
 													"r_showtris", CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
 cvar_t r_outline							= CVARD ("gl_outline", "0", "Draw some stylised outlines.");
-cvar_t r_outline_width						= CVARD ("gl_outline_width", "0", "The width of those outlines.");
+cvar_t r_outline_width						= CVARD ("gl_outline_width", "2", "The width of those outlines.");
 cvar_t r_wireframe_smooth					= CVAR ("r_wireframe_smooth", "0");
 cvar_t r_refract_fbo						= CVARD ("r_refract_fbo", "1", "Use an fbo for refraction. If 0, just renders as a portal and uses a copy of the current framebuffer.");
 cvar_t r_refractreflect_scale				= CVARD ("r_refractreflect_scale", "0.5", "Use a different scale for refraction and reflection texturemaps. Because $reasons.");
@@ -181,7 +184,11 @@ cvar_t r_hdr_irisadaptation_minvalue		= CVAR	("r_hdr_irisadaptation_minvalue", "
 cvar_t r_hdr_irisadaptation_maxvalue		= CVAR	("r_hdr_irisadaptation_maxvalue", "4");
 cvar_t r_hdr_irisadaptation_fade_down		= CVAR	("r_hdr_irisadaptation_fade_down", "0.5");
 cvar_t r_hdr_irisadaptation_fade_up			= CVAR	("r_hdr_irisadaptation_fade_up", "0.1");
-cvar_t r_loadlits							= CVARF	("r_loadlit", "1", CVAR_ARCHIVE);
+#ifdef RUNTIMELIGHTING
+cvar_t r_loadlits							= CVARFD("r_loadlit", "1", CVAR_ARCHIVE, "Whether to load lit files.\n0: Do not load external rgb lightmap data.\n1: Load but don't generate.\n2: Generate ldr lighting (if none found).\n3: Generate hdr lighting (if none found).\nNote that regeneration of lightmap data may be unreliable if the map was made for more advanced lighting tools.\nDeluxemap information will also be generated, as appropriate.");
+#else
+cvar_t r_loadlits							= CVARFD("r_loadlit", "1", CVAR_ARCHIVE, "Whether to load lit files.");
+#endif
 cvar_t r_menutint							= CVARF	("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= CVARD	("r_netgraph", "0", "Displays a graph of packet latency. A value of 2 will give additional info about what sort of data is being received from the server.");
@@ -195,6 +202,7 @@ cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
 cvar_t r_skyboxname							= CVARFC ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM, R_SkyBox_Changed);
+cvar_t r_skybox_orientation					= CVARFD ("r_glsl_skybox_orientation", "0 0 0 0", CVAR_SHADERSYSTEM, "Defines the axis around which skyboxes will rotate (the first three values). The fourth value defines the speed the skybox rotates at, in degrees per second.");
 cvar_t r_softwarebanding_cvar				= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM|CVAR_RENDERERLATCH|CVAR_ARCHIVE, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
 qboolean r_softwarebanding;
 cvar_t r_speeds								= CVAR ("r_speeds", "0");
@@ -228,14 +236,14 @@ cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2")
 
 cvar_t r_lightmap_nearest					= CVARFD ("gl_lightmap_nearest", "0", CVAR_ARCHIVE, "Use nearest sampling for lightmaps. This will give a more blocky look. Meaningless when gl_lightmap_average is enabled.");
 cvar_t r_lightmap_average					= CVARFD ("gl_lightmap_average", "0", CVAR_ARCHIVE, "Determine lightmap values based upon the center of the polygon. This will give a more buggy look, quite probably.");
-cvar_t r_lightmap_format					= CVARFD ("r_lightmap_format", "", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, "Overrides the default texture format used for lightmaps. rgb9e5 is a good choice for HDR.");
+cvar_t r_lightmap_format					= CVARFCD ("r_lightmap_format", "", CVAR_ARCHIVE, R_Lightmap_Format_Changed, "Overrides the default texture format used for lightmaps. rgb9e5 is a good choice for HDR.");
 
 //otherwise it would defeat the point.
 cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
 												CVAR_NOTFROMSERVER);
 cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "2");
 cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
-cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "Specifies whether to print centerprints on the console.\n0: never\n1: single-player or coop only.\n2: always.\n");
+cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "Specifies whether to print centerprints on the console.\n0: never\n1: single-player or coop only.\n2: always.");
 cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
@@ -255,11 +263,11 @@ cvar_t scr_sshot_prefix						= CVAR  ("scr_sshot_prefix", "screenshots/fte-");
 cvar_t scr_viewsize							= CVARFC("viewsize", "100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
 
 #ifdef ANDROID
-cvar_t vid_conautoscale						= CVARF ("vid_conautoscale", "2",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+cvar_t vid_conautoscale						= CVARAF ("vid_conautoscale", "2",
+												"scr_conscale"/*qs*/ /*"vid_conscale"ez*/, CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 #else
-cvar_t vid_conautoscale						= CVARFD ("vid_conautoscale", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, "Changes the 2d scale, including hud, console, and fonts. To specify an explicit font size, divide the desired 'point' size by 8 to get the scale. High values will be clamped to maintain at least a 320*200 virtual size.");
+cvar_t vid_conautoscale						= CVARAFD ("vid_conautoscale", "0",
+												"scr_conscale"/*qs*/ /*"vid_conscale"ez*/, CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, "Changes the 2d scale, including hud, console, and fonts. To specify an explicit font size, divide the desired 'point' size by 8 to get the scale. High values will be clamped to maintain at least a 320*200 virtual size.");
 #endif
 cvar_t vid_conheight						= CVARF ("vid_conheight", "0",
 												CVAR_ARCHIVE);
@@ -407,8 +415,8 @@ cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR
 #endif
 
 // The callbacks are not in D3D yet (also ugly way of seperating this)
-cvar_t gl_texture_anisotropic_filtering		= CVARFCD("gl_texture_anisotropic_filtering", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
+cvar_t gl_texture_anisotropic_filtering		= CVARAFCD("gl_texture_anisotropy", "4",
+												"gl_texture_anisotropic_filtering"/*old*/, CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												Image_TextureMode_Callback, "Allows for higher quality textures on surfaces that slope away from the camera (like the floor). Set to 16 or something. Only supported with trilinear filtering.");
 cvar_t gl_texturemode						= CVARFCD("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE, Image_TextureMode_Callback,
@@ -430,6 +438,8 @@ cvar_t r_portalrecursion					= CVARD  ("r_portalrecursion", "1", "The number of 
 cvar_t r_portaldrawplanes					= CVARD  ("r_portaldrawplanes", "0", "Draw front and back planes in portals. Debug feature.");
 cvar_t r_portalonly							= CVARD  ("r_portalonly", "0", "Don't draw things which are not portals. Debug feature.");
 cvar_t r_noaliasshadows						= CVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
+cvar_t r_lodscale							= CVARFD ("r_lodscale", "5", CVAR_ARCHIVE, "Scales the level-of-detail reduction on models (for those that have lod).");
+cvar_t r_lodbias							= CVARFD ("r_lodbias", "0", CVAR_ARCHIVE, "Biases the level-of-detail on models (for those that have lod).");
 cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
 cvar_t r_showfields							= CVARD("r_showfields", "0", "Debugging. Shows entity fields boxes (entity closest to crosshair). 1=ssqc, 2=csqc.");
@@ -449,7 +459,7 @@ cvar_t r_glsl_offsetmapping_reliefmapping	= CVARFD("r_glsl_offsetmapping_reliefm
 cvar_t r_glsl_turbscale_reflect				= CVARFD  ("r_glsl_turbscale_reflect", "1", CVAR_ARCHIVE, "Controls the strength of the water reflection ripples (used by the altwater glsl code).");
 cvar_t r_glsl_turbscale_refract				= CVARFD  ("r_glsl_turbscale_refract", "1", CVAR_ARCHIVE, "Controls the strength of the underwater ripples (used by the altwater glsl code).");
 
-cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.\n");
+cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.");
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
 cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
 cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
@@ -471,21 +481,6 @@ extern cvar_t gl_dither;
 cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
 #endif
 
-#ifdef VKQUAKE
-cvar_t vk_stagingbuffers					= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
-cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",			"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
-cvar_t vk_debug								= CVARFD("vk_debug",					"0", CVAR_VIDEOLATCH, "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
-cvar_t vk_dualqueue							= CVARFD("vk_dualqueue",				"", CVAR_VIDEOLATCH, "Attempt to use a separate queue for presentation. Blank for default.");
-cvar_t vk_busywait							= CVARD ("vk_busywait",					"", "Force busy waiting until the GPU finishes doing its thing.");
-cvar_t vk_waitfence							= CVARD ("vk_waitfence",				"", "Waits on fences, instead of semaphores. This is more likely to result in gpu stalls while the cpu waits.");
-cvar_t vk_usememorypools					= CVARFD("vk_usememorypools",			"",	CVAR_VIDEOLATCH, "Allocates memory pools for sub allocations. Vulkan has a limit to the number of memory allocations allowed so this should always be enabled, however at this time FTE is unable to reclaim pool memory, and would require periodic vid_restarts to flush them.");
-cvar_t vk_nv_glsl_shader					= CVARFD("vk_loadglsl",					"", CVAR_VIDEOLATCH, "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
-cvar_t vk_khr_get_memory_requirements2		= CVARFD("vk_khr_get_memory_requirements2", "", CVAR_VIDEOLATCH, "Enable extended memory info querires");
-cvar_t vk_khr_dedicated_allocation			= CVARFD("vk_khr_dedicated_allocation",	"", CVAR_VIDEOLATCH, "Flag vulkan memory allocations as dedicated, where applicable.");
-cvar_t vk_khr_push_descriptor				= CVARFD("vk_khr_push_descriptor",		"", CVAR_VIDEOLATCH, "Enables better descriptor streaming.");
-cvar_t vk_amd_rasterization_order			= CVARFD("vk_amd_rasterization_order",	"",	CVAR_VIDEOLATCH, "Enables the use of relaxed rasterization ordering, for a small speedup at the minor risk of a little zfighting.");
-#endif
-
 #ifdef D3D9QUAKE
 cvar_t d3d9_hlsl							= CVAR("d3d_hlsl", "1");
 #endif
@@ -500,6 +495,8 @@ void GLD3DRenderer_Init(void)
 #endif
 
 #if defined(GLQUAKE)
+extern cvar_t gl_blacklist_texture_compression;
+extern cvar_t gl_blacklist_generatemipmap;
 void GLRenderer_Init(void)
 {
 	//gl-specific video vars
@@ -537,6 +534,9 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_portalonly, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
 
+	Cvar_Register (&r_lodscale, GRAPHICALNICETIES);
+	Cvar_Register (&r_lodbias, GRAPHICALNICETIES);
+
 	Cvar_Register (&gl_motionblur, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
 
@@ -558,6 +558,8 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&r_shaderblobs, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_blacklist_texture_compression, "gl blacklists");
+	Cvar_Register (&gl_blacklist_generatemipmap,		"gl blacklists");
 //	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
 //	Cvar_Register (&gl_detailscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
@@ -826,6 +828,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_skyfog, GRAPHICALNICETIES);
 	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
+	Cvar_Register (&r_skybox_orientation, GRAPHICALNICETIES);
 	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
 	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat
 
@@ -877,8 +880,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_telestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe_smooth, GRAPHICALNICETIES);
-//	Cvar_Register (&r_outline, GRAPHICALNICETIES);
-//	Cvar_Register (&r_outline_width, GRAPHICALNICETIES);
+	Cvar_Register (&r_outline, GRAPHICALNICETIES);
+	Cvar_Register (&r_outline_width, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
 	Cvar_Register (&r_refractreflect_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_postprocshader, GRAPHICALNICETIES);
@@ -1007,19 +1010,7 @@ void Renderer_Init(void)
 	Cvar_Register (&dpcompat_nopremulpics, GLRENDEREROPTIONS);
 #endif
 #ifdef VKQUAKE
-	Cvar_Register (&vk_stagingbuffers,			VKRENDEREROPTIONS);
-	Cvar_Register (&vk_submissionthread,		VKRENDEREROPTIONS);
-	Cvar_Register (&vk_debug,					VKRENDEREROPTIONS);
-	Cvar_Register (&vk_dualqueue,				VKRENDEREROPTIONS);
-	Cvar_Register (&vk_busywait,				VKRENDEREROPTIONS);
-	Cvar_Register (&vk_waitfence,				VKRENDEREROPTIONS);
-	Cvar_Register (&vk_usememorypools,			VKRENDEREROPTIONS);
-
-	Cvar_Register (&vk_nv_glsl_shader,			VKRENDEREROPTIONS);
-	Cvar_Register (&vk_khr_get_memory_requirements2,VKRENDEREROPTIONS);
-	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
-	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
-	Cvar_Register (&vk_amd_rasterization_order,	VKRENDEREROPTIONS);
+	VK_RegisterVulkanCvars();
 #endif
 
 // misc
@@ -1854,6 +1845,7 @@ void R_ReloadRenderer_f (void)
 		BZ_Free(portalblob);
 	}
 #endif
+	Con_DPrintf("vid_reload time: %f\n", Sys_DoubleTime() - time);
 }
 
 static int R_PriorityForRenderer(rendererinfo_t *r)

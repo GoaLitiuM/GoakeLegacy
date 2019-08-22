@@ -181,6 +181,7 @@ extern qboolean Mod_PurgeModel					(struct model_s	*mod, enum mod_purge_e ptype)
 extern struct model_s *Mod_FindName				(const char *name);	//find without loading. needload should be set.
 extern struct model_s *Mod_ForName				(const char *name, enum mlverbosity_e verbosity);	//finds+loads
 extern struct model_s *Mod_LoadModel			(struct model_s *mod, enum mlverbosity_e verbose);	//makes sure a model is loaded
+extern void Mod_FileWritten						(const char *filename);
 extern void	*Mod_Extradata						(struct model_s *mod);	// handles caching
 extern void	Mod_TouchModel						(const char *name);
 extern const char *Mod_FixName					(const char *modname, const char *worldname);	//remaps the name appropriately
@@ -240,7 +241,7 @@ typedef struct image_s
 	int status;	//TEX_
 	unsigned int flags;
 	struct image_s *next;
-	struct image_s *prev;
+//	struct image_s *prev;
 	struct image_s *aliasof;
 	union
 	{
@@ -296,7 +297,7 @@ struct pendingtextureinfo
 		PTI_2D,
 		PTI_3D,
 		PTI_CUBEMAP,	//mips are packed (to make d3d11 happy)
-		PTI_2D_ARRAY,	//looks like a 3d texture, but depth doesn't change.
+		PTI_2D_ARRAY,	//looks like a 3d texture, but depth doesn't change with mips.
 		PTI_CUBEMAP_ARRAY,	//looks like PTI_2D_ARRAY, with depth*6
 	} type;
 
@@ -370,16 +371,17 @@ typedef struct
 
 typedef struct texnums_s {
 	char	mapname[MAX_QPATH];	//the 'official' name of the diffusemap. used to generate filenames for other textures.
-	texid_t base;			//regular diffuse texture. may have alpha if surface is transparent
+	texid_t base;			//regular diffuse texture. may have alpha if surface is transparent.
 	texid_t bump;			//normalmap. height values packed in alpha.
-	texid_t specular;		//specular lighting values.
-	texid_t upperoverlay;	//diffuse texture for the upper body(shirt colour). no alpha channel. added to base.rgb
-	texid_t loweroverlay;	//diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb
+	texid_t specular;		//specular lighting values. alpha contains exponent multiplier
+	texid_t upperoverlay;	//diffuse texture for the upper body(shirt colour). no alpha channel. added to base.rgb. ideally an l8 texture
+	texid_t loweroverlay;	//diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb. ideally an l8 texture
 	texid_t paletted;		//8bit paletted data, just because.
-	texid_t fullbright;
-	texid_t reflectcube;
-	texid_t reflectmask;
-	texid_t displacement;
+	texid_t fullbright;		//emissive texture. alpha should be 1.
+	texid_t reflectcube;	//for fake reflections
+	texid_t reflectmask;	//defines how reflective it is (for cubemap reflections)
+	texid_t displacement;	//alternative to bump.a, eg R16[F] for offsetmapping or tessellation
+	texid_t occlusion;		//occlusion map...
 
 	//the material's pushconstants. vulkan guarentees only 128 bytes. so 8 vec4s. note that lmscales should want 4 of them...
 	/*struct

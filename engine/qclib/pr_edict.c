@@ -1410,7 +1410,11 @@ static const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edic
 // keynames with a leading underscore are used for utility comments,
 // and are immediately discarded by quake
 		if (keyname[0] == '_')
+		{
+			if (externs->badfield)
+				externs->badfield(&progfuncs->funcs, (struct edict_s*)ent, keyname, qcc_token);
 			continue;
+		}
 
 		if (!strcmp(keyname, "angle"))	//Quake anglehack - we've got to leave it in cos it doesn't work for quake otherwise, and this is a QuakeC lib!
 		{
@@ -2739,7 +2743,7 @@ retry:
 	if (!trysleft)	//the progs exists, let's just be happy about it.
 		externs->Printf("Progs is out of date and uncompilable\n");
 
-	if (externs->CheckHeaderCrc && !externs->CheckHeaderCrc(&progfuncs->funcs, prinst.pr_typecurrent, pr_progs->crc))
+	if (externs->CheckHeaderCrc && !externs->CheckHeaderCrc(&progfuncs->funcs, prinst.pr_typecurrent, pr_progs->crc, filename))
 	{
 //		externs->Printf ("%s system vars have been modified, progdefs.h is out of date\n", filename);
 		PRHunkFree(progfuncs, hmark);

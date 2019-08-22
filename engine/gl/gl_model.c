@@ -429,8 +429,16 @@ void Mod_Think (void)
 				f = FS_OpenVFS(filename, "wb", FS_GAME);
 				if (f)
 				{
-					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
-					VFS_WRITE(f, lightmodel->lightdata, numlightdata*3);
+					if (lightmodel->lightmaps.fmt == LM_E5BGR9)
+					{
+						VFS_WRITE(f, "QLIT\x01\0\x01\0", 8);
+						VFS_WRITE(f, lightmodel->lightdata, numlightdata*4);
+					}
+					else
+					{
+						VFS_WRITE(f, "QLIT\1\0\0\0", 8);
+						VFS_WRITE(f, lightmodel->lightdata, numlightdata*3);
+					}
 					VFS_CLOSE(f);
 				}
 				else
@@ -976,6 +984,21 @@ const char *Mod_FixName(const char *modname, const char *worldname)
 	}
 	return modname;
 }
+
+//Called when the given file was (re)written.
+//
+void Mod_FileWritten (const char *filename)
+{
+	int		i;
+	model_t	*mod;
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+		if (!strcmp (mod->publicname, filename) )
+		{
+			if (mod->loadstate != MLS_NOTLOADED)
+				Mod_PurgeModel(mod, MP_RESET);
+		}
+}
+
 /*
 ==================
 Mod_FindName
@@ -1262,6 +1285,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 //
 // load the file
 //
+	mod->maxlod = 0;
 	// set necessary engine flags for loading purposes
 	if (!strcmp(mod->publicname, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
@@ -1873,10 +1897,10 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			litsize = 0;
 		}
 
-		if (litdata && litsize >= 8)
+		if (litdata)
 		{	//validate it, if we loaded one.
 			int litver = LittleLong(*(int *)&litdata[4]);
-			if (litdata[0] != 'Q' || litdata[1] != 'L' || litdata[2] != 'I' || litdata[3] != 'T')
+			if (litsize < 8 || litdata[0] != 'Q' || litdata[1] != 'L' || litdata[2] != 'I' || litdata[3] != 'T')
 			{
 				litdata = NULL;
 				Con_Printf("lit \"%s\" isn't a lit\n", litname);
@@ -1899,7 +1923,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 					expdata = litdata+8;	//header+version
 				litdata = NULL;
 			}
-			else if (litver == 2 && overrides)
+			else if (litver == 2 && overrides && litsize > sizeof(qlit2_t))
 			{
 				qlit2_t *ql2 = (qlit2_t*)litdata;
 				unsigned int *offsets = (unsigned int*)(ql2+1);
@@ -1916,6 +1940,11 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 					litdata = NULL;
 					Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
 				}
+				else if (litsize != sizeof(qlit2_t)+ql2->numsurfs*4+ql2->lmsize*6)
+				{
+					litdata = NULL;
+					Con_Printf("lit \"%s\" is truncated. Ignored.\n", litname);
+				}
 				else
 				{
 					inhibitvalidation = true;
@@ -1923,7 +1952,8 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 					//surface code needs to know the overrides.
 					overrides->offsets = offsets;
 					overrides->extents = extents;
-					overrides->styles = styles;
+					overrides->styles8 = styles;
+					overrides->stylesperface = 4;
 					overrides->shifts = shifts;
 
 					//we're now using this amount of data.
@@ -1942,7 +1972,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 
 		exptmp = littmp = false;
-		if (!litdata)
+		if (!litdata && !expdata)
 		{
 			int size;
 			/*FIXME: bspx support for extents+lmscale, may require style+offset lumps too, not sure what to do here*/
@@ -1960,7 +1990,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		else if (!inhibitvalidation)
 		{
-			if (lumdata)
+			if (lumdata && litdata)
 			{
 				float prop;
 				int i;
@@ -2044,7 +2074,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		else
 		{
-			if (luxdata[0] == 'Q' && luxdata[1] == 'L' && luxdata[2] == 'I' && luxdata[3] == 'T')
+			if (luxsz < 8 || (luxdata[0] == 'Q' && luxdata[1] == 'L' && luxdata[2] == 'I' && luxdata[3] == 'T'))
 			{
 				if (LittleLong(*(int *)&luxdata[4]) == 1)
 					luxdata+=8;
@@ -2066,9 +2096,9 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 #ifdef RUNTIMELIGHTING
 	if ((loadmodel->type == mod_brush && loadmodel->fromgame == fg_quake) || loadmodel->type == mod_heightmap)
 	{	//we only support a couple of formats. :(
-		if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
+		if (!lightmodel && r_loadlits.value >= 2 && ((!litdata&&!expdata) || (!luxdata && r_deluxemapping)))
 		{
-			writelitfile = !litdata;
+			writelitfile = !litdata&&!expdata;
 			numlightdata = l->filelen;
 			lightmodel = loadmodel;
 			relitsurface = 0;
@@ -2087,20 +2117,37 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 	}
 
 	/*if we're relighting, make sure there's the proper lit data to be updated*/
-	if (lightmodel == loadmodel && !litdata)
+	if (lightmodel == loadmodel && !litdata && !expdata)
 	{
 		int i;
-		litdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
-		littmp = false;
-		if (lumdata)
+		unsigned int *ergb;
+
+		if (r_loadlits.ival >= 3)
 		{
-			for (i = 0; i < samples; i++)
+			ergb = ZG_Malloc(&loadmodel->memgroup, samples*4);
+			expdata = (qbyte*)ergb;
+			littmp = false;
+			if (lumdata)
 			{
-				litdata[i*3+0] = lumdata[i];
-				litdata[i*3+1] = lumdata[i];
-				litdata[i*3+2] = lumdata[i];
+				for (i = 0; i < samples; i++)
+					ergb[i] = 15<<27 | lumdata[i]<<18 | lumdata[i]<<9 << lumdata[i]<<0;
+				lumdata = NULL;
 			}
-			lumdata = NULL;
+		}
+		else
+		{
+			litdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
+			littmp = false;
+			if (lumdata)
+			{
+				for (i = 0; i < samples; i++)
+				{
+					litdata[i*3+0] = lumdata[i];
+					litdata[i*3+1] = lumdata[i];
+					litdata[i*3+2] = lumdata[i];
+				}
+				lumdata = NULL;
+			}
 		}
 	}
 	/*if we're relighting, make sure there's the proper lux data to be updated*/
@@ -2132,12 +2179,25 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			if (size != loadmodel->numsurfaces * sizeof(int))
 				overrides->offsets = NULL;
 		}
-		if (!overrides->styles)
-		{
+		if (!overrides->styles8 && !overrides->styles16)
+		{	//16bit per-face lightmap styles index
 			int size;
-			overrides->styles = BSPX_FindLump(bspx, mod_base, "LMSTYLE", &size);
-			if (size != loadmodel->numsurfaces * sizeof(qbyte)*MAXQ1LIGHTMAPS)
-				overrides->styles = NULL;
+			overrides->styles16 = BSPX_FindLump(bspx, mod_base, "LMSTYLE16", &size);
+			overrides->stylesperface = size / (sizeof(*overrides->styles16)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
+			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles16)*overrides->stylesperface)
+				overrides->styles16 = NULL;
+			else if (overrides->stylesperface > MAXQ1LIGHTMAPS)
+				Con_Printf(CON_WARNING "LMSTYLE16 lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXQ1LIGHTMAPS);
+		}
+		if (!overrides->styles8 && !overrides->styles16)
+		{	//16bit per-face lightmap styles index
+			int size;
+			overrides->styles8 = BSPX_FindLump(bspx, mod_base, "LMSTYLE", &size);
+			overrides->stylesperface = size / (sizeof(*overrides->styles8)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
+			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles8)*overrides->stylesperface)
+				overrides->styles8 = NULL;
+			else if (overrides->stylesperface > MAXQ1LIGHTMAPS)
+				Con_Printf(CON_WARNING "LMSTYLE lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXQ1LIGHTMAPS);
 		}
 	}
 
@@ -2293,6 +2353,7 @@ static void Mod_ShowEnt_f(void)
 static void Mod_SaveEntFile_f(void)
 {
 	char fname[MAX_QPATH];
+	char nname[MAX_OSPATH];
 	model_t *mod = NULL;
 	char *n = Cmd_Argv(1);
 	const char *ents;
@@ -2333,6 +2394,8 @@ static void Mod_SaveEntFile_f(void)
 	}
 
 	COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents));
+	if (FS_NativePath(fname, FS_GAMEONLY, nname, sizeof(nname)))
+		Con_Printf("Wrote %s\n", nname);
 }
 
 /*
@@ -3993,8 +4056,8 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->firstedge = LittleLong(inl->firstedge);
 			out->numedges = LittleLong(inl->numedges);
 			tn = LittleLong (inl->texinfo);
-			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
-				out->styles[i] = inl->styles[i];
+			for (i=0 ; i<countof(out->styles) ; i++)
+				out->styles[i] = (i >= countof(inl->styles) || inl->styles[i]>=MAX_NET_LIGHTSTYLES || inl->styles[i]==255)?INVALID_LIGHTSTYLE:inl->styles[i];
 			lofs = LittleLong(inl->lightofs);
 			inl++;
 		}
@@ -4005,8 +4068,8 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->firstedge = LittleLong(ins->firstedge);
 			out->numedges = LittleShort(ins->numedges);
 			tn = LittleShort (ins->texinfo);
-			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
-				out->styles[i] = ins->styles[i];
+			for (i=0 ; i<countof(out->styles) ; i++)
+				out->styles[i] = (i >= countof(ins->styles) || ins->styles[i]>=MAX_NET_LIGHTSTYLES || ins->styles[i]==255)?INVALID_LIGHTSTYLE:ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
 			ins++;
 		}
@@ -4032,9 +4095,19 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->lmshift = lmshift;
 		if (overrides.offsets)
 			lofs = overrides.offsets[surfnum];
-		if (overrides.styles)
-			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
-				out->styles[i] = overrides.styles[surfnum*4+i];
+		if (overrides.styles16)
+		{
+			for (i=0 ; i<countof(out->styles) ; i++)
+				out->styles[i] = (i>=overrides.stylesperface)?INVALID_LIGHTSTYLE:overrides.styles16[surfnum*overrides.stylesperface+i];
+		}
+		else if (overrides.styles8)
+		{
+			for (i=0 ; i<countof(out->styles) ; i++)
+				out->styles[i] = (i>=overrides.stylesperface)?INVALID_LIGHTSTYLE:((overrides.styles8[surfnum*overrides.stylesperface+i]==255)?~0u:overrides.styles8[surfnum*overrides.stylesperface+i]);
+		}
+		for (i=0 ; i<countof(out->styles) && out->styles[i] != INVALID_LIGHTSTYLE; i++)
+			if (loadmodel->lightmaps.maxstyle < out->styles[i])
+				loadmodel->lightmaps.maxstyle = out->styles[i];
 
 		CalcSurfaceExtents (loadmodel, out);
 		if (lofs != (unsigned int)-1)

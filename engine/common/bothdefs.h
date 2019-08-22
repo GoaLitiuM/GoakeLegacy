@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // release version
 #define FTE_VER_MAJOR 1
-#define FTE_VER_MINOR 6
+#define FTE_VER_MINOR 7
 #define FTE_VER_EXTRA ""
 
 #if defined(__APPLE__) && defined(__MACH__)
@@ -556,7 +556,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define VM_UI
 #endif
 
-#if defined(VM_Q1) || defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER) || defined(PLUGINS)
+#if defined(VM_Q1) || defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER)
 	#define VM_ANY
 #endif
 
@@ -777,6 +777,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define FTE_UNREACHABLE Sys_Error("Unreachable reached: %s %i\n", __FILE__, __LINE__)
 #endif
 
+#ifndef stricmp
+	#ifdef _WIN32
+		//Windows-specific...
+		#define stricmp _stricmp
+		#define strnicmp _strnicmp
+	#else
+		//Posix
+		#define stricmp strcasecmp
+		#define strnicmp strncasecmp
+	#endif
+#endif
+
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
 #define CACHE_SIZE	32		// used to align key data structures
@@ -810,6 +822,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MAX_BACKBUFLEN	1200
 
+#define lightstyleindex_t unsigned short
+#define INVALID_LIGHTSTYLE ((lightstyleindex_t)(~0u))	//the style that's invalid, signifying to stop adding more.
+
 //
 // per-level limits
 //
@@ -819,7 +834,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define	MAX_EDICTS		((1<<22)-1)			// expandable up to 22 bits
 #define	MAX_EDICTS		((1<<18)-1)			// expandable up to 22 bits
 #endif
-#define	MAX_LIGHTSTYLES	255					// 8bit. 255 = 'invalid', and thus only 0-254 are the valid indexes.
+#define	MAX_NET_LIGHTSTYLES		(INVALID_LIGHTSTYLE+1)		// 16bit. the last index MAY be used to signify an invalid lightmap in the bsp, but is still valid for rtlights.
 #define MAX_STANDARDLIGHTSTYLES 64
 #define	MAX_PRECACHE_MODELS		4096		// 14bit.
 #define	MAX_PRECACHE_SOUNDS		2048		// 14bit.

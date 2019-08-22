@@ -234,7 +234,8 @@ client_state_t	cl;
 entity_state_t	*cl_baselines;
 static_entity_t *cl_static_entities;
 unsigned int    cl_max_static_entities;
-lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
+lightstyle_t	*cl_lightstyle;
+size_t			cl_max_lightstyles;
 dlight_t		*cl_dlights;
 size_t	cl_maxdlights; /*size of cl_dlights array*/
 
@@ -777,7 +778,7 @@ void CL_CheckForResend (void)
 		connectinfo.istransfer = false;
 		connectinfo.adr.prot = NP_DGRAM;
 
-		NET_InitClient(true);
+		NET_InitClient(sv.state != ss_clustermode);
 
 		cls.state = ca_disconnected;
 		switch (svs.gametype)
@@ -1604,6 +1605,58 @@ void CL_ResetFog(int ftype)
 	*/
 }
 
+static void CL_ReconfigureCommands(int newgame)
+{
+	static int oldgame;
+	extern void SCR_SizeUp_f (void);	//cl_screen
+	extern void SCR_SizeDown_f (void);	//cl_screen
+#ifdef QUAKESTATS
+	extern void IN_Weapon (void);		//cl_input
+	extern void IN_FireDown (void);		//cl_input
+	extern void IN_FireUp (void);		//cl_input
+#endif
+	extern void CL_Say_f (void);
+	extern void CL_SayTeam_f (void);
+	static const struct
+	{
+		const char *name;
+		void (*func) (void);
+		const char *description;
+		unsigned int problemgames; //1<<CP_*
+	} problemcmds[] =
+#define Q1 ((1u<<CP_QUAKEWORLD)|(1u<<CP_NETQUAKE))
+#define Q2 (1u<<CP_QUAKE2)
+#define Q3 (1u<<CP_QUAKE3)
+	{
+		{"sizeup",		SCR_SizeUp_f,	"Increase viewsize",	Q3},
+		{"sizedown",	SCR_SizeDown_f,	"Decrease viewsize",	Q3},
+
+#ifdef QUAKESTATS
+		{"weapon",		IN_Weapon,		"Configures weapon priorities for the next +attack as an alternative for the impulse command", ~Q1},
+		{"+fire",		IN_FireDown,	"'+fire 8 7' will fire lg if you have it and fall back on rl if you don't, and just fire your current weapon if neither are held. Releasing fire will then switch away to exploit a bug in most mods to deny your weapon upgrades to your killer.", ~Q1},
+		{"-fire",		IN_FireUp,		NULL, ~Q1},
+#endif
+
+		{"say",			CL_Say_f,		NULL, Q3},
+		{"say_team",	CL_SayTeam_f,	NULL, Q3},
+	};
+#undef Q1
+#undef Q2
+#undef Q3
+
+	size_t i;
+
+	newgame = 1<<newgame;
+	for (i = 0; i < countof(problemcmds); i++)
+	{
+		if ((problemcmds[i].problemgames & newgame) && !(problemcmds[i].problemgames & oldgame))
+			Cmd_RemoveCommand(problemcmds[i].name);
+		if (!(problemcmds[i].problemgames & newgame) && (problemcmds[i].problemgames & oldgame))
+			Cmd_AddCommandD(problemcmds[i].name, problemcmds[i].func, problemcmds[i].description);
+	}
+	oldgame = newgame;
+}
+
 /*
 =====================
 CL_ClearState
@@ -1624,6 +1677,8 @@ void CL_ClearState (qboolean gamestart)
 #define tolocalserver false
 #define SV_UnspawnServer()
 #endif
+
+	CL_ReconfigureCommands(cls.protocol);
 
 	CL_UpdateWindowTitle();
 
@@ -1762,9 +1817,9 @@ void CL_ClearState (qboolean gamestart)
 
 // clear other arrays
 //	memset (cl_dlights, 0, sizeof(cl_dlights));
-	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
-	for (i = 0; i < MAX_LIGHTSTYLES; i++)
-		R_UpdateLightStyle(i, NULL, 1, 1, 1);
+	Z_Free(cl_lightstyle);
+	cl_lightstyle = NULL;
+	cl_max_lightstyles = 0;
 
 	rtlights_first = rtlights_max = RTL_FIRST;
 
@@ -2658,25 +2713,31 @@ void CL_Packet_f (void)
 	}
 
 
-	if (Cmd_FromGamecode())	//some mvd servers stuffcmd a packet command which lets them know which ip the client is from.
-	{						//unfortunatly, 50% of servers are badly configured.
+	if (Cmd_FromGamecode())	//some mvdsv servers stuffcmd a packet command which lets them know which ip the client is from.
+	{						//unfortunatly, 50% of servers are badly configured resulting in them poking local services that THEY MUST NOT HAVE ACCESS TO.
+		char *addrdesc;
+		char *realdesc;
 		if (cls.demoplayback)
 		{
 			Con_DPrintf ("Not sending realip packet from demo\n");
 			return;
 		}
 
-		if (adr.type == NA_IP)
-			if ((adr.address.ip[0] == 127 && adr.address.ip[1] == 0 && adr.address.ip[2] == 0 && adr.address.ip[3] == 1) ||
-				(adr.address.ip[0] == 0   && adr.address.ip[1] == 0 && adr.address.ip[2] == 0 && adr.address.ip[3] == 0))
+		if (!NET_CompareAdr(&adr, &cls.netchan.remote_address))
+		{
+			if (NET_ClassifyAddress(&adr, &addrdesc) < ASCOPE_LAN)
 			{
-				adr.address.ip[0] = cls.netchan.remote_address.address.ip[0];
-				adr.address.ip[1] = cls.netchan.remote_address.address.ip[1];
-				adr.address.ip[2] = cls.netchan.remote_address.address.ip[2];
-				adr.address.ip[3] = cls.netchan.remote_address.address.ip[3];
-				adr.port = cls.netchan.remote_address.port;
-				Con_Printf (CON_WARNING "Server is broken. Trying to send to server instead.\n");
+				if (NET_ClassifyAddress(&cls.netchan.remote_address, &realdesc) < ASCOPE_LAN)
+				{	//this isn't necessarily buggy... but its still a potential exploit so we need to block it regardless.
+					Con_Printf (CON_WARNING "Ignoring buggy %s realip request for %s server.\n", addrdesc, realdesc);
+				}
+				else
+				{
+					adr = cls.netchan.remote_address;
+					Con_Printf (CON_WARNING "Ignoring buggy %s realip request, sending to %s server instead.\n", addrdesc, realdesc);
+				}
 			}
+		}
 
 		cls.realserverip = adr;
 		Con_DPrintf ("Sending realip packet\n");
@@ -3018,13 +3079,18 @@ void CL_ConnectionlessPacket (void)
 			Con_TPrintf ("redirect to %s\n", data);
 			if (NET_StringToAdr(data, PORT_DEFAULTSERVER, &adr))
 			{
-				data = "\xff\xff\xff\xffgetchallenge\n";
-
 				if (NET_CompareAdr(&connectinfo.adr, &net_from))
 				{
-					connectinfo.istransfer = true;
-					connectinfo.adr = adr;
-					NET_SendPacket (cls.sockets, strlen(data), data, &adr);
+					if (!NET_EnsureRoute(cls.sockets, "redir", cls.servername, &connectinfo.adr))
+						Con_Printf ("Unable to redirect to %s\n", data);
+					else
+					{
+						connectinfo.istransfer = true;
+						connectinfo.adr = adr;
+
+						data = "\xff\xff\xff\xffgetchallenge\n";
+						NET_SendPacket (cls.sockets, strlen(data), data, &adr);
+					}
 				}
 			}
 			return;
@@ -3071,6 +3137,7 @@ void CL_ConnectionlessPacket (void)
 		int candtls = 0;	//0=no,1=optional,2=mandatory
 #endif
 		char guidhash[256];
+		*guidhash = 0;
 
 		s = MSG_ReadString ();
 		COM_Parse(s);
@@ -4114,6 +4181,8 @@ void CL_Download_f (void)
 	if (!strnicmp(url, "qw://", 5) || !strnicmp(url, "q2://", 5))
 	{
 		url += 5;
+		if (*url == '/')	//a conforming url should always have a host section, an empty one is simply three slashes.
+			url++;
 	}
 
 	if (!*localname)
@@ -4170,14 +4239,14 @@ void CL_DownloadSize_f(void)
 	if (!strcmp(size, "e"))
 	{
 		Con_Printf("Download of \"%s\" failed. Not found.\n", rname);
-		CL_DownloadFailed(rname, NULL);
+		CL_DownloadFailed(rname, NULL, DLFAIL_SERVERFILE);
 	}
 	else if (!strcmp(size, "p"))
 	{
 		if (cls.download && stricmp(cls.download->remotename, rname))
 		{
 			Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
-			CL_DownloadFailed(rname, NULL);
+			CL_DownloadFailed(rname, NULL, DLFAIL_SERVERCVAR);
 		}
 	}
 	else if (!strcmp(size, "r"))
@@ -4187,7 +4256,7 @@ void CL_DownloadSize_f(void)
 		if (!CL_AllowArbitaryDownload(rname, redirection))
 			return;
 
-		dl = CL_DownloadFailed(rname, NULL);
+		dl = CL_DownloadFailed(rname, NULL, DLFAIL_REDIRECTED);
 		Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
 		CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
 	}
@@ -5499,7 +5568,7 @@ done:
 		if (!(f->flags & HRF_ACTION))
 		{
 			Key_Dest_Remove(kdm_console);
-			M_Menu_Prompt(Host_RunFilePrompted, f, va("Exec %s?\n", COM_SkipPath(f->fname)), "Yes", NULL, "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("Exec %s?\n", COM_SkipPath(f->fname)), "Yes", NULL, "Cancel");
 			return;
 		}
 		if (f->flags & HRF_OPENED)
@@ -5599,7 +5668,7 @@ done:
 		if (!(f->flags & HRF_ACTION))
 		{
 			Key_Dest_Remove(kdm_console);
-			M_Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel");
 			return;
 		}
 	}
@@ -5608,7 +5677,7 @@ done:
 		if (!(f->flags & HRF_ACTION))
 		{
 			Key_Dest_Remove(kdm_console);
-			M_Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel");
 			return;
 		}
 	}
@@ -5841,20 +5910,12 @@ double Host_Frame (double time)
 	if (startuppending)
 		CL_StartCinematicOrMenu();
 
-#ifdef PLUGINS
-	Plug_Tick();
-#endif
-	NET_Tick();
-
 	if (cl.paused)
 		cl.gametimemark += time;
 
 	//if we're at a menu/console/thing
-	idle = Key_Dest_Has_Higher(kdm_gmenu);
-#ifdef VM_UI
-	idle |= UI_MenuState() != 0;
-#endif
-	idle = ((cls.state == ca_disconnected) || cl.paused) && !idle;	//idle if we're disconnected/paused and not at a menu
+	idle = !Key_Dest_Has_Higher(kdm_menu);
+	idle = ((cls.state == ca_disconnected) || cl.paused) && idle;	//idle if we're disconnected/paused and not at a menu
 	idle |= !vid.activeapp; //always idle when tabbed out
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.
@@ -5886,6 +5947,11 @@ double Host_Frame (double time)
 			return idlesec - (realtime - oldrealtime);
 		}
 	}
+
+#ifdef PLUGINS
+	Plug_Tick();
+#endif
+	NET_Tick();
 
 /*
 	if (cl_maxfps.value)
@@ -6248,7 +6314,7 @@ void CL_StartCinematicOrMenu(void)
 #endif
 	}
 
-	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername)
 	{
 		TP_ExecTrigger("f_startup", true);
 		Cbuf_Execute ();
@@ -6256,7 +6322,7 @@ void CL_StartCinematicOrMenu(void)
 
 	//and any startup cinematics
 #ifdef HAVE_MEDIA_DECODER
-	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername)
 	{
 		int ol_depth;
 		int idcin_depth;
@@ -6287,20 +6353,20 @@ void CL_StartCinematicOrMenu(void)
 	}
 #endif
 
-	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername)
 	{
-		if (qrenderer > QR_NONE && !Key_Dest_Has(kdm_emenu))
+		if (qrenderer > QR_NONE && !Key_Dest_Has(kdm_menu))
 		{
 #ifndef NOBUILTINMENUS
-			if (!cls.state && !Key_Dest_Has(kdm_emenu) && !*FS_GetGamedir(false))
+			if (!cls.state && !Key_Dest_Has(kdm_menu) && !*FS_GetGamedir(false))
 				M_Menu_Mods_f();
 #endif
-			if (!cls.state && !Key_Dest_Has(kdm_emenu) && cl_demoreel.ival)
+			if (!cls.state && !Key_Dest_Has(kdm_menu) && cl_demoreel.ival)
 			{
 				cls.demonum = 0;
 				CL_NextDemo();
 			}
-			if (!cls.state && !Key_Dest_Has(kdm_emenu))
+			if (!cls.state && !Key_Dest_Has(kdm_menu))
 				//if we're (now) meant to be using csqc for menus, make sure that its running.
 				if (!CSQC_UnconnectedInit())
 					M_ToggleMenu_f();
