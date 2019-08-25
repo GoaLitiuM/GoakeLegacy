@@ -65,6 +65,7 @@ void PlayerPhysics()
 #ifdef SSQC
 	local vector old_origin = self.origin;
 	local vector old_velocity = self.velocity;
+	local vector old_angles = self.angles;
 	local float old_flags = self.flags;
 	local float old_pmove_flags = self.pmove_flags;
 	local float old_jump_time = self.jump_time;
@@ -78,6 +79,8 @@ void PlayerPhysics()
 		self.SendFlags |= SENDFLAGS_ORIGIN;
 	if (self.velocity != old_velocity)
 		self.SendFlags |= SENDFLAGS_VELOCITY;
+	if (self.velocity != old_angles)
+		self.SendFlags |= SENDFLAGS_ANGLES;
 	if (self.flags != old_flags || self.pmove_flags != old_pmove_flags)
 		self.SendFlags |= SENDFLAGS_FLAGS;
 	if (self.jump_time != old_jump_time || self.jump_count != old_jump_count)
