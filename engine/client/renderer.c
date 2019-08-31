@@ -687,30 +687,24 @@ void R_ToggleFullscreen_f(void)
 		newr.fullscreen = vid_fullscreen.ival;	//if we're normally meant to be fullscreen, use that
 	else
 		newr.fullscreen = 2;	//otherwise use native resolution
+
+	newr.width = DEFAULT_WIDTH;
+	newr.height = DEFAULT_HEIGHT;
 	if (newr.fullscreen)
 	{
-		int dbpp, dheight, dwidth, drate;
-		if (!Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
+		int dbpp, drate;
+		if (!Sys_GetDesktopParameters(&newr.width, &newr.height, &dbpp, &drate))
 		{
-			dwidth = DEFAULT_WIDTH;
-			dheight = DEFAULT_HEIGHT;
+			newr.width = DEFAULT_WIDTH;
+			newr.height = DEFAULT_HEIGHT;
 			dbpp = DEFAULT_BPP;
 			drate = 0;
 		}
-
-		if (newr.fullscreen == 1 && vid_width.ival>0)
-			newr.width = vid_width.ival;
-		else
-			newr.width = dwidth;
-		if (newr.fullscreen == 1 && vid_height.ival>0)
-			newr.height = vid_height.ival;
-		else
-			newr.height = dheight;
 	}
-	else
+	if (newr.fullscreen != 2 && vid_width.ival > 0 && vid_height.ival > 0)
 	{
-		newr.width = DEFAULT_WIDTH;
-		newr.height = DEFAULT_HEIGHT;
+		newr.width = vid_width.ival;
+		newr.height = vid_height.ival;
 	}
 
 	time = Sys_DoubleTime();
