@@ -2854,7 +2854,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		if (!con_current->display)
 			con_current->display = con_current->current;
 
-		x = 8;
+		x = 0;
 		y = lines;
 
 		con_current->mousecursor[0] = mousecursor_x;
@@ -2876,7 +2876,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		sx = x;
 		ex -= sx;
 
-		y -= Font_CharHeight();
+		//y -= Font_CharHeight();
 		haveprogress = Con_DrawProgress(x, ex - x, y) != y;
 		y = Con_DrawInput (con_current, Key_Dest_Has(kdm_console), x, ex - x, y, selactive, selsx, selex, selsy, seley);
 
