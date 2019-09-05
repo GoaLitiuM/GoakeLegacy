@@ -29,6 +29,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #ifndef Vector4Set
 	#define Vector4Set(r,x,y,z,w) {(r)[0] = x; (r)[1] = y;(r)[2] = z;(r)[3]=w;}
 #endif
