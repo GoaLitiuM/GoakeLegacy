@@ -402,7 +402,7 @@ linker_args = []
 #if get_option('buildtype') == 'debug'
 #  linker_args = ['/nodefaultlib:libcmt', '/nodefaultlib:msvcrt', '/nodefaultlib:msvcrtd']
 #else
-linker_args = ['/nodefaultlib:msvcrtd', '/nodefaultlib:libcmt', '/nodefaultlib:libcmtd', '/MAP']
+linker_args = ['/nodefaultlib:msvcrtd', '/nodefaultlib:libcmt', '/nodefaultlib:libcmtd']
 #endif
 
 out = join_paths('..', 'out')
@@ -428,17 +428,16 @@ executable(join_paths(out, 'goake-sv'),
 
 executable(join_paths(out, 'fteqcc'),
   sources: [
-    'engine/qclib/qcctui.c',
-    'engine/qclib/comprout.c',
-    'engine/qclib/hash.c',
-    'engine/qclib/qcc_cmdlib.c',
-    'engine/qclib/qcc_pr_comp.c',
-    'engine/qclib/qcc_pr_lex.c',
-    'engine/qclib/qccmain.c',
-    'engine/qclib/qcd_main.c',
+  'engine/qclib/qcctui.c',
+  'engine/qclib/comprout.c',
+  'engine/qclib/hash.c',
+  'engine/qclib/qcc_cmdlib.c',
+  'engine/qclib/qcc_pr_comp.c',
+  'engine/qclib/qcc_pr_lex.c',
+  'engine/qclib/qccmain.c',
+  'engine/qclib/qcd_main.c',
   ],
   include_directories: includes,
-  dependencies: deps,
-  c_args: [c_args],
-  link_args: linker_args
+  dependencies: [zlib],
+  override_options: ['buildtype=release', 'optimization=2', 'debug=false']
 )
