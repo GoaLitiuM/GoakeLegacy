@@ -1,5 +1,12 @@
 #pragma progs_dat "../progs.dat"
 #pragma target fte
+#pragma flag enable rootconstructor
+#pragma flag enable fastarrays
+#pragma flag enable subscope
+#pragma flag enable assumevar
+#pragma flag enable iffloat
+#pragma flag enable ifvector
+#pragma flag enable vectorlogic
 #define QWSSQC
 //#includelist
 
