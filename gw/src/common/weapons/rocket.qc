@@ -1,45 +1,83 @@
 void WeaponRocket_SpawnRocket(vector pos, vector dir, entity player);
+void WeaponRocket_OnTouch();
+void WeaponRocket_Explode(vector position, vector forward, entity ignored, entity target);
+
+#ifdef SSQC
+float WeaponRocket_SendEntity(entity ent, float flags);
+#endif
+
+void WeaponRocket_Init(entity missile)
+{
+	missile.movetype = MOVETYPE_FLYMISSILE;
+	missile.solid = SOLID_BBOX;
+	missile.classname = CLASS_ROCKET;
+	missile.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
+	missile.touch = WeaponRocket_OnTouch;
+
+	setmodel(missile, MDL_ROCKET);
+	setsize(missile, VEC_ORIGIN, VEC_ORIGIN);
+
+#ifdef SSQC
+	missile.SendEntity = WeaponRocket_SendEntity;
+#endif
+#ifdef CSQC
+	missile.drawmask = MASK_ENGINE;
+#endif
+}
 
 int WeaponRocket_Fire()
 {
 	local vector forward = getForwardVector(getViewAngles());
 	local vector offset = self.view_ofs;
 
+	WeaponRocket_SpawnRocket((self.origin + (forward * 16)) + offset, forward, self);
+
 	clientsound(self, CHAN_WEAPON, SND_WEAPON_ROCKET, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
-
-	WeaponRocket_SpawnRocket(((self.origin + (forward * 16)) + offset), forward, self);
-
-	Player_WeaponReload(ROCKET_RELOAD);
 
 	return 1;
 }
 
-void WeaponRocket_ProjectileExplosionTick()
+void WeaponRocket_SpawnRocket(vector pos, vector dir, entity player)
 {
-	if (self.frame >= 5)
-	{
-		remove(self);
-		return;
-	}
-	self.frame += 0.5;
-	self.nextthink = time + 0.05;
+	local entity missile = spawn();
+	missile.owner = player;
+	missile.velocity = dir * ROCKET_SPEED;
+	missile.angles = vectoangles(dir);
+	missile.projectile_id = player.projectile_id;
+	missile.origin = pos;
+
+	setorigin(missile, missile.origin);
+	WeaponRocket_Init(missile);
 }
 
-void WeaponRocket_ProjectileExplode(string model)
+#ifdef CSQC
+void WeaponRocket_Update(float isnew)
 {
-	remove(self);
-	/*self.movetype = MOVETYPE_NONE;
-	self.velocity = VEC_ORIGIN;
-	self.solid = SOLID_NOT;
+	self.origin = readVector();
+	self.angles = readVector();
+	self.velocity = readVector();
+	self.owner = readEntity();
+	local int pid = readFloat();
 
-	self.touch = noop;
-	setmodel(self, model);
 
-	self.think = ProjectileExplosionTick;
-	ProjectileExplosionTick();*/
+	self.projectile_id = pid;
 }
+#endif
 
-void WeaponRocket_RocketOnTouch()
+#ifdef SSQC
+float WeaponRocket_SendEntity(entity ent, float flags)
+{
+	writeByte(MSG_ENTITY, 2);
+	writeVector(MSG_ENTITY, self.origin);
+	writeVector(MSG_ENTITY, self.angles);
+	writeVector(MSG_ENTITY, self.velocity);
+	writeEntity(MSG_ENTITY, self.owner);
+	writeFloat(MSG_ENTITY, self.projectile_id);
+	return 1;
+}
+#endif
+
+void WeaponRocket_OnTouch()
 {
 	//TODO: remove after 30 seconds or so
 	if (other == self.owner)
@@ -47,52 +85,36 @@ void WeaponRocket_RocketOnTouch()
 
 	if (pointcontents(self.origin) == CONTENT_SKY)
 	{
+		// projectile went out of bounds, just remove it
 		remove(self);
 		return;
 	}
 
-	local float damage = ROCKET_DAMAGE;
-	local float force = ROCKET_FORCE;
-	local float radius = ROCKET_RADIUS;
+	WeaponRocket_Explode(self.origin, normalize(self.velocity), self, other);
 
-	if (other != world)
+	remove(self);
+}
+
+void WeaponRocket_Explode(vector position, vector forward, entity ignored, entity target)
+{
+	addRadialForce(position, ROCKET_FORCE, ROCKET_RADIUS, ignored, target);
+	addRadialDamage(position, ROCKET_DAMAGE, ROCKET_RADIUS, ignored, target);
+
+	if (target != world)
 	{
-		local vector dir = normalize(other.origin - self.origin);
-		other.velocity += dir * force;
+		// direct hit with other entity, apply force and damage directly
+		if (target.solid != SOLID_CORPSE)
+		{
+			local vector dir = normalize(target.origin - position);
+			target.velocity += dir * ROCKET_FORCE;
+		}
+
+		applyEntityDamage(other, ROCKET_DAMAGE, self);
 	}
-
-	addRadialForce(self.origin, force, radius, other);
-
-	self.origin = (self.origin - (18 * normalize(self.velocity)));
 
 #ifdef SSQC
 	writeByte(MSG_BROADCAST, SVC_TEMPENTITY);
 	writeByte(MSG_BROADCAST, TE_EXPLOSION);
-	writeVector(MSG_BROADCAST, self.origin);
-#endif
-
-	WeaponRocket_ProjectileExplode(SPR_EXPLOSION);
-}
-
-void WeaponRocket_SpawnRocket(vector pos, vector dir, entity player)
-{
-	local entity missile;
-
-	missile = spawn();
-	missile.owner = player;
-	missile.movetype = MOVETYPE_FLYMISSILE;
-	missile.solid = SOLID_BBOX;
-	missile.classname = "missile";
-	missile.velocity = dir * ROCKET_SPEED;
-	missile.angles = vectoangles(dir);
-	missile.touch = WeaponRocket_RocketOnTouch;
-	missile.nextthink = (time + MOVETYPE_FLY);
-	missile.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
-	setmodel(missile, MDL_ROCKET);
-	setsize(missile, VEC_ORIGIN, VEC_ORIGIN);
-	setorigin(missile, pos);
-
-#ifdef CSQC
-	missile.drawmask = MASK_ENGINE;
+	writeVector(MSG_BROADCAST, position - (18 * forward));
 #endif
 }

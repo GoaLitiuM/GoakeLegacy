@@ -14,8 +14,6 @@ int WeaponCrossbow_Fire()
 
 	clientsound(self, CHAN_WEAPON, SND_WEAPON_CROSSBOW, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 
-
-	PlayerWeaponReload(CROSSBOW_RELOAD);
 	WeaponCrossbow_SpawnArrow(((self.origin + (forward * 16)) + offset), forward, self);
 
 	return 1;
@@ -50,6 +48,9 @@ void WeaponCrossbow_ArrowOnTouch()
 	{
 		local vector dir = normalize(self.velocity);
 		other.velocity += dir * force;
+
+		applyEntityDamage(other, LIGHTNING_DAMAGE, self);
+
 		WeaponCrossbow_ArrowDestroy();
 		return;
 	}

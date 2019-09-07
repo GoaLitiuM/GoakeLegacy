@@ -68,6 +68,8 @@ void CSQC_Ent_Update(float isnew)
 	local float type = readByte();
 	if (type == 1)
 		Player_Update(isnew != 0);
+	else if (type == 2)
+		WeaponRocket_Update(isnew != 0);
 	else
 		error(strcat("unhandled CSQC_Ent_Update: ", ftos(type)));
 }

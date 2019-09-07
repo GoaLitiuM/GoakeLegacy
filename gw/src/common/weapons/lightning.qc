@@ -11,8 +11,6 @@ int WeaponLightning_Fire()
 		self.weapon_sound_loop_time = svtime;
 	}
 
-
-	PlayerWeaponReload(LIGHTNING_RELOAD);
 	WeaponLightning_SpawnLightning(((self.origin + (forward * 16)) + offset), forward, self);
 
 	return 1;
@@ -154,7 +152,7 @@ void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player)
 		if (ent.classname != CLASS_PLAYER)
 			continue;
 
-		// TODO: damage player
+		applyEntityDamage(ent, LIGHTNING_DAMAGE, player);
 
 		//hit_pos = ent.origin;
 		hit_something = true;

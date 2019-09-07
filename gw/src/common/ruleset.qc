@@ -6,8 +6,8 @@ const float ROCKET_FORCE = 490;
 
 const float LIGHTNING_RELOAD = 0.1;
 const float LIGHTNING_RANGE = 600;
-const float LIGHTNING_DPS = 100;
-const float LIGHTNING_TICKRATE = 1;
+const float LIGHTNING_DAMAGE = 15; // 225 DPS
+const float LIGHTNING_TPS = 15;
 const float LIGHTNING_FORCE = 100;
 
 const float CROSSBOW_RELOAD = 0.4;

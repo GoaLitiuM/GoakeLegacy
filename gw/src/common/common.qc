@@ -30,10 +30,12 @@ const vector VEC_HULL_MAX = '15 15 32';
 // custom voice channels
 const float CHAN_VOICE2 = 4;
 
+void Weapon_Init();
 void RegisterStats();
 
 void Common_Init()
 {
+	Weapon_Init();
 	RegisterStats();
 }
 
