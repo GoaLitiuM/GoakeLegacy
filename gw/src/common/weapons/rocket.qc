@@ -1,22 +1,20 @@
-void SpawnRocket(vector pos, vector dir, entity player);
+void WeaponRocket_SpawnRocket(vector pos, vector dir, entity player);
 
-void RocketTick() { }
-
-int WeaponRocketFire()
+int WeaponRocket_Fire()
 {
 	local vector forward = getForwardVector(getViewAngles());
 	local vector offset = self.view_ofs;
 
 	clientsound(self, CHAN_WEAPON, SND_WEAPON_ROCKET, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 
-	SpawnRocket(((self.origin + (forward * 16)) + offset), forward, self);
+	WeaponRocket_SpawnRocket(((self.origin + (forward * 16)) + offset), forward, self);
 
-	PlayerWeaponReload(ROCKET_RELOAD);
+	Player_WeaponReload(ROCKET_RELOAD);
 
 	return 1;
 }
 
-void ProjectileExplosionTick()
+void WeaponRocket_ProjectileExplosionTick()
 {
 	if (self.frame >= 5)
 	{
@@ -27,7 +25,7 @@ void ProjectileExplosionTick()
 	self.nextthink = time + 0.05;
 }
 
-void ProjectileExplode(string model)
+void WeaponRocket_ProjectileExplode(string model)
 {
 	remove(self);
 	/*self.movetype = MOVETYPE_NONE;
@@ -41,7 +39,7 @@ void ProjectileExplode(string model)
 	ProjectileExplosionTick();*/
 }
 
-void RocketOnTouch()
+void WeaponRocket_RocketOnTouch()
 {
 	//TODO: remove after 30 seconds or so
 	if (other == self.owner)
@@ -73,10 +71,10 @@ void RocketOnTouch()
 	writeVector(MSG_BROADCAST, self.origin);
 #endif
 
-	ProjectileExplode(SPR_EXPLOSION);
+	WeaponRocket_ProjectileExplode(SPR_EXPLOSION);
 }
 
-void SpawnRocket(vector pos, vector dir, entity player)
+void WeaponRocket_SpawnRocket(vector pos, vector dir, entity player)
 {
 	local entity missile;
 
@@ -87,9 +85,8 @@ void SpawnRocket(vector pos, vector dir, entity player)
 	missile.classname = "missile";
 	missile.velocity = dir * ROCKET_SPEED;
 	missile.angles = vectoangles(dir);
-	missile.touch = RocketOnTouch;
+	missile.touch = WeaponRocket_RocketOnTouch;
 	missile.nextthink = (time + MOVETYPE_FLY);
-	missile.think = RocketTick;
 	missile.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
 	setmodel(missile, MDL_ROCKET);
 	setsize(missile, VEC_ORIGIN, VEC_ORIGIN);

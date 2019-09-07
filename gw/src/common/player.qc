@@ -1,6 +1,6 @@
-void PlayerOnJump();
+void Player_OnJump();
 
-void PlayerInit()
+void Player_Init()
 {
 	self.classname = CLASS_PLAYER;
 	self.solid = SOLID_SLIDEBOX;
@@ -17,7 +17,7 @@ void PlayerInit()
 	self.SendFlags |= SENDFLAGS_ALL;
 }
 
-void PlayerRemove()
+void Player_Remove()
 {
 	self.model = 0;
 	self.solid = SOLID_NOT;
@@ -30,18 +30,18 @@ void PlayerRemove()
 	self.SendFlags |= SENDFLAGS_ALL;
 }
 
-void PlayerSpawn();
-void PlayerRequestRespawn()
+void Player_Spawn();
+void Player_RequestRespawn()
 {
-	PlayerSpawn();
+	Player_Spawn();
 
 #ifdef CSQC
-	// unrelease these actions to force player to release the keys in order to request respawning
+	// unrelease these actions to prevent player firing as soon as they spawn
 	localcmd("-attack; -jump");
 #endif
 }
 
-void PlayerPreTick()
+void Player_PreTick()
 {
 	// needed for tracking player jumps and landing velocity
 	self.last_jump_count = self.jump_count;
@@ -49,7 +49,7 @@ void PlayerPreTick()
 	self.last_velocity_z = self.velocity_z;
 }
 
-void PlayerPhysics()
+void Player_Physics()
 {
 	local vector old_input_movevalues = input_movevalues;
 	local float old_input_buttons = input_buttons;
@@ -95,19 +95,19 @@ void PlayerPhysics()
 	}
 }
 
-void PlayerPostTick()
+void Player_PostTick()
 {
 	local bool onground = (self.flags & FL_ONGROUND) != 0;
 
 	if (self.health <= 0)
 	{
 		if (input_impulse == IMPULSE_RESPAWN || input_impulse == IMPULSE_RESPAWN_FORCED)
-			PlayerRequestRespawn();
+			Player_RequestRespawn();
 
 		return;
 	}
 	else if (input_impulse == IMPULSE_RESPAWN_FORCED)
-		PlayerRequestRespawn();
+		Player_RequestRespawn();
 
 	// handle the intent of switching weapons, may not happen until reload is finished
 	if (input_impulse > 0 && input_impulse < WEAPON_LAST && self.weapon_next != input_impulse)
@@ -132,23 +132,23 @@ void PlayerPostTick()
 	// player wants to switch the weapon
 	if (self.weapon_next != self.weapon)
 	{
-		if (!PlayerIsReloading())
+		if (!Player_IsReloading())
 			self.weapon = self.weapon_next;
 	}
 
 	// player jump
 	if (self.jump_count > self.last_jump_count || (self.jump_time > 0 && self.jump_time < self.last_jump_time))
-		PlayerOnJump();
+		Player_OnJump();
 
-	PlayerWeaponTick();
+	Player_WeaponTick();
 }
 
-void PlayerOnJump()
+void Player_OnJump()
 {
 	clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 }
 
-void PlayerOnDeath(entity source, entity sourcePlayer)
+void Player_OnDeath(entity source, entity sourcePlayer)
 {
 	self.solid = SOLID_NOT;
 	self.movetype = MOVETYPE_TOSS;
@@ -156,12 +156,12 @@ void PlayerOnDeath(entity source, entity sourcePlayer)
 	self.SendFlags |= SENDFLAGS_ALL;
 
 #ifdef CSQC
-	// unrelease these actions to force player to release the keys in order to request respawning
+	// unrelease these actions to prevent player firing as soon as they spawn
 	localcmd("-attack; -jump");
 #endif
 }
 
-void PlayerTakeDamage(float damage, entity source)
+void Player_TakeDamage(float damage, entity source)
 {
 	if ((int)damage <= 0)
 		return;
@@ -176,5 +176,5 @@ void PlayerTakeDamage(float damage, entity source)
 	self.health -= (int)damage;
 
 	if (self.health <= 0)
-		PlayerOnDeath(source, sourcePlayer);
+		Player_OnDeath(source, sourcePlayer);
 }

@@ -5,7 +5,7 @@ int font_engine;
 
 const float TEXT_BIG_SIZE = 32.0f;
 
-void HudInit()
+void Hud_Init()
 {
 	font_engine = loadfont("", "", "8", -1, 0, 0);
 	font_hud = loadfont("", "fonts/FantasqueSansMono-Bold.ttf", "16", -1, 0, 0);

@@ -1,4 +1,4 @@
-void PlayerWeaponTick();
+void Player_WeaponTick();
 
 entity FindRandomSpawn()
 {
@@ -17,7 +17,7 @@ entity FindRandomSpawn()
 	return ent;
 }
 
-float PlayerSendEntity(entity ent, float send_flags)
+float Player_SendEntity(entity ent, float send_flags)
 {
 	writeByte(MSG_ENTITY, 1);
 	writeFloat(MSG_ENTITY, send_flags);
@@ -40,7 +40,7 @@ float PlayerSendEntity(entity ent, float send_flags)
 	return 1;
 }
 
-void PlayerSpawn()
+void Player_Spawn()
 {
 	local entity spawn = FindRandomSpawn();
 
@@ -51,26 +51,10 @@ void PlayerSpawn()
 	self.angles = spawn.angles;
 	self.flags = FL_CLIENT;
 	self.velocity = '0 0 0';
-	self.SendEntity = PlayerSendEntity;
+	self.SendEntity = Player_SendEntity;
 
 	self.weapon = WEAPON_ROCKET;
 	self.weapons = ALL_WEAPONS;
 
-	PlayerInit();
-}
-
-void PlayerPreThink()
-{
-    input_buttons = 0;
-    input_buttons |= self.button0 * BUTTON_ATTACK;
-    input_buttons |= self.button1 * BUTTON_USE;
-    input_buttons |= self.button2 * BUTTON_JUMP;
-
-	PlayerPreTick();
-}
-
-void PlayerPostThink()
-{
-
-	PlayerPostTick();
+	Player_Init();
 }

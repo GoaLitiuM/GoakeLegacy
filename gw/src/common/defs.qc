@@ -15,6 +15,7 @@ enum
 	STAT_ITEMS,             // EV_INTEGER
 	STAT_EFFECTS,           // EV_INTEGER
 	STAT_RELOAD_TIME,       // EV_FLOAT
+	STAT_PROJECTILE_ID,		// EV_FLOAT
 
 	// ammo stats
 	STAT_AMMO_NONE,
@@ -82,9 +83,9 @@ int WEAPON_AMMO_INDEX(int weapon)
 #define STAT_WEAPON(x) (STAT_AMMO_FIRST + x)
 #define ALL_WEAPONS (-1)
 
-int WeaponRocketFire();
-int WeaponLightningFire();
-int WeaponCrossbowFire();
+int WeaponRocket_Fire();
+int WeaponLightning_Fire();
+int WeaponCrossbow_Fire();
 
 enum
 {
@@ -105,6 +106,9 @@ float maxfps;
 .int weapons;
 .int ammo[WEAPON_LAST-1];
 .float weapon_sound_loop_time;
+
+// projectiles
+.int projectile_id;
 
 // for debugging
 #ifdef CSQC

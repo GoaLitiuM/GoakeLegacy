@@ -17,6 +17,7 @@
 #define ENT_PLAYER_SPAWN "info_player_deathmatch"
 
 #define CLASS_PLAYER "player"
+#define CLASS_ROCKET "rocket"
 #define CLASS_LIGHTNING "lightning"
 #define CLASS_ARROW "arrow"
 
@@ -28,6 +29,13 @@ const vector VEC_HULL_MAX = '15 15 32';
 
 // custom voice channels
 const float CHAN_VOICE2 = 4;
+
+void RegisterStats();
+
+void Common_Init()
+{
+	RegisterStats();
+}
 
 void noop() {};
 

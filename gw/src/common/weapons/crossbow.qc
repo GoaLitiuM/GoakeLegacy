@@ -1,27 +1,27 @@
-void SpawnArrow(vector pos, vector dir, entity player);
+void WeaponCrossbow_SpawnArrow(vector pos, vector dir, entity player);
 
-void ArrowDestroy()
+void WeaponCrossbow_ArrowDestroy()
 {
 	self.model = 0;
 	self.solid = SOLID_NOT;
 	remove(self);
 }
 
-int WeaponCrossbowFire()
+int WeaponCrossbow_Fire()
 {
 	local vector forward = getForwardVector(getViewAngles());
 	local vector offset = self.view_ofs;
 
 	clientsound(self, CHAN_WEAPON, SND_WEAPON_CROSSBOW, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 
-	SpawnArrow(((self.origin + (forward * 16)) + offset), forward, self);
 
 	PlayerWeaponReload(CROSSBOW_RELOAD);
+	WeaponCrossbow_SpawnArrow(((self.origin + (forward * 16)) + offset), forward, self);
 
 	return 1;
 }
 
-void ArrowOnTouch()
+void WeaponCrossbow_ArrowOnTouch()
 {
 	//TODO: remove after 30 seconds or so
 	if (other == self.owner)
@@ -50,7 +50,7 @@ void ArrowOnTouch()
 	{
 		local vector dir = normalize(self.velocity);
 		other.velocity += dir * force;
-		ArrowDestroy();
+		WeaponCrossbow_ArrowDestroy();
 		return;
 	}
 
@@ -58,7 +58,7 @@ void ArrowOnTouch()
 	self.movetype = MOVETYPE_NONE;
 	self.geomtype = GEOMTYPE_BOX;
 	self.solid = SOLID_BBOX;
-	self.think = ArrowDestroy;
+	self.think = WeaponCrossbow_ArrowDestroy;
 	self.nextthink = time + CROSSBOW_TIME;
 	self.owner = world;
 	self.touch = 0;
@@ -68,22 +68,25 @@ void ArrowOnTouch()
 	//TODO: support surfaces which do not allow arrows to stick into (arrow drops/vanishes instead)
 }
 
-void SpawnArrow(vector pos, vector dir, entity player)
+void WeaponCrossbow_SpawnArrow(vector pos, vector dir, entity player)
 {
 	local entity arrow = spawn();
 	arrow.owner = player;
-	arrow.origin = pos;
+
 	arrow.movetype = MOVETYPE_TOSS;
 	arrow.solid = SOLID_BBOX;
 	arrow.classname = CLASS_ARROW;
 	arrow.velocity = (dir * CROSSBOW_SPEED);
 	arrow.angles = vectoangles(dir);
-	arrow.touch = ArrowOnTouch;
+	arrow.touch = WeaponCrossbow_ArrowOnTouch;
 
 	arrow.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
 	setmodel(arrow, MDL_ARROW);
 
 	setsize(arrow, VEC_ORIGIN, VEC_ORIGIN);
+
+	arrow.origin = pos;
+	setorigin(arrow, pos);
 
 #ifdef CSQC
 	arrow.drawmask = MASK_ENGINE;

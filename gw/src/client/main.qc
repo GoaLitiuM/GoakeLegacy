@@ -4,8 +4,8 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 {
 	precache();
 
-	RegisterStats();
-	HudInit();
+	Common_Init();
+	Hud_Init();
 
 	registercommand("+showscores");
 	registercommand("-showscores");
@@ -67,23 +67,22 @@ void CSQC_Ent_Update(float isnew)
 {
 	local float type = readByte();
 	if (type == 1)
-		PlayerUpdate(isnew != 0);
+		Player_Update(isnew != 0);
 	else
-		error("unhandled CSQC_Ent_Update");
+		error(strcat("unhandled CSQC_Ent_Update: ", ftos(type)));
 }
 
 void CSQC_Ent_Remove()
 {
 	if (self.classname == CLASS_PLAYER)
-		PlayerRemove();
-	remove(self);
+		Player_Remove();
 }
 
 void CSQC_Parse_Event()
 {
 	local float type = readByte();
 	if (type == EVENT_LIGHTNING)
-		CreateLightningBeam();
+		WeaponLightning_CreateLightningBeam();
 }
 
 float CSQC_Event_Sound(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags)

@@ -3,13 +3,13 @@
 void init(float prevprogs)
 {
 	LagCompensate_Snapshot(); // pre-allocates data
+
+	Common_Init();
 }
 
 void worldspawn()
 {
 	precache();
-
-	RegisterStats();
 };
 
 void() SetNewParms = {};
@@ -26,7 +26,7 @@ void CheckSpawn(void() func)
 void ClientKill()
 {
 	// just respawn the client for now
-	PlayerSpawn();
+	Player_Spawn();
 };
 
 void ClientConnect(float csqcactive)
@@ -38,13 +38,13 @@ void ClientDisconnect()
 {
 	LagCompensate_RemovePlayer(self);
 	self.SendEntity = 0;
-	PlayerRemove();
+	Player_Remove();
 };
 
 // client wants to (re)spawn
 void PutClientInServer()
 {
-	PlayerSpawn();
+	Player_Spawn();
 };
 
 void StartFrame()
@@ -68,5 +68,20 @@ void EndFrame()
 
 void SV_RunClientCommand()
 {
-	PlayerPhysics();
+	Player_Physics();
+}
+
+void PlayerPreThink()
+{
+    input_buttons = 0;
+    input_buttons |= self.button0 * BUTTON_ATTACK;
+    input_buttons |= self.button1 * BUTTON_USE;
+    input_buttons |= self.button2 * BUTTON_JUMP;
+
+	Player_PreTick();
+}
+
+void PlayerPostThink()
+{
+	Player_PostTick();
 }

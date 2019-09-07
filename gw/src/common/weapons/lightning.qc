@@ -1,6 +1,6 @@
-void SpawnLightning(vector pos, vector dir, entity player);
+void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player);
 
-int WeaponLightningFire()
+int WeaponLightning_Fire()
 {
 	local vector forward = getForwardVector(getViewAngles());
 	local vector offset = self.view_ofs;
@@ -11,9 +11,9 @@ int WeaponLightningFire()
 		self.weapon_sound_loop_time = svtime;
 	}
 
-	SpawnLightning(((self.origin + (forward * 16)) + offset), forward, self);
 
 	PlayerWeaponReload(LIGHTNING_RELOAD);
+	WeaponLightning_SpawnLightning(((self.origin + (forward * 16)) + offset), forward, self);
 
 	return 1;
 }
@@ -96,7 +96,7 @@ float BeamUpdate()
 	return PREDRAW_NEXT;
 }
 
-void BeamDestroy()
+void WeaponLightning_BeamDestroy()
 {
 	if (self.owner.beam_ent == self)
 		self.owner.beam_ent = world;
@@ -104,7 +104,7 @@ void BeamDestroy()
 	remove(self);
 }
 
-void CreateLightningBeam()
+void WeaponLightning_CreateLightningBeam()
 {
 	local entity parent = readEntity();
 	local vector orig = readVector() - VEC_OFFSET_EYES;
@@ -126,7 +126,7 @@ void CreateLightningBeam()
 	beam.origin = orig;
 	setorigin(beam, beam.origin);
 	beam.angles = vectoangles(normalize(end-orig));
-	beam.think = BeamDestroy;
+	beam.think = WeaponLightning_BeamDestroy;
 	beam.nextthink = time + LIGHTNING_RELOAD;
 
 	beam.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
@@ -143,7 +143,7 @@ void CreateLightningBeam()
 }
 #endif
 
-void SpawnLightning(vector pos, vector dir, entity player)
+void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player)
 {
 	traceline(pos, pos + dir * LIGHTNING_RANGE, MOVE_EVERYTHING | MOVE_ENTCHAIN, player);
 	local vector hit_pos = trace_endpos;

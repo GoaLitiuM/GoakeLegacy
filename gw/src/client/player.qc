@@ -1,14 +1,14 @@
-float PlayerPreDraw();
-void PlayerPreTick();
-void PlayerPostTick();
+float Player_PreDraw();
+void Player_PreTick();
+void Player_PostTick();
 void PlayerPrediction();
 
-void PlayerSpawn()
+void Player_Spawn()
 {
-	PlayerInit();
+	Player_Init();
 }
 
-void PlayerUpdate(bool isnew)
+void Player_Update(bool isnew)
 {
 	local float send_flags = readFloat();
 	if (send_flags & SENDFLAGS_ORIGIN)
@@ -58,9 +58,9 @@ void PlayerUpdate(bool isnew)
 		self.client_jump_count = self.jump_count;
 
 		UpdatePlayerStats(true);
-		PlayerInit();
+		Player_Init();
 
-		self.predraw = PlayerPreDraw;
+		self.predraw = Player_PreDraw;
 		self.drawmask = MASK_ENGINE;
 		self.customphysics = noop;
 	}
@@ -68,7 +68,7 @@ void PlayerUpdate(bool isnew)
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
 }
 
-float PlayerPreDraw()
+float Player_PreDraw()
 {
 	if (self.entnum == player_localentnum)
 	{
@@ -131,7 +131,7 @@ void PlayerPrediction_RunPhysics(int startframe, int endframe)
 			setorigin(self, self.origin);
 		}
 
-		PlayerPhysics();
+		Player_Physics();
 		setorigin(self, self.origin);
 
 		// detect fixangle changes from teleports during player movement
@@ -162,7 +162,7 @@ void PlayerPrediction_RunPhysicsAndTick(int frame)
 	{
 		self.fixangle = 0;
 
-		PlayerPreTick();
+		Player_PreTick();
 
 		if (self.fixangle != 0)
 		{
@@ -172,7 +172,7 @@ void PlayerPrediction_RunPhysicsAndTick(int frame)
 		}
 	}
 
-	PlayerPhysics();
+	Player_Physics();
 	setorigin(self, self.origin);
 
 	// detect fixangle changes from teleports during player movement
@@ -196,7 +196,7 @@ void PlayerPrediction_RunPhysicsAndTick(int frame)
 		local vector prev_velocity = self.velocity;
 		local vector prev_angles = self.angles;
 
-		PlayerPostTick();
+		Player_PostTick();
 
 		// detect entity state changes during a client tick
 		local vector origin_diff = self.origin - prev_origin;

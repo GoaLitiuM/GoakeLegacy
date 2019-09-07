@@ -1,18 +1,18 @@
-void PlayerWeaponAttack();
-void PlayerWeaponReload(float reloadtime);
+void Player_WeaponAttack();
+void Player_WeaponReload(float reloadtime);
 
-bool PlayerIsReloading()
+bool Player_IsReloading()
 {
 	return svtime < self.reload_time;
 }
 
-void PlayerWeaponTick()
+void Player_WeaponTick()
 {
-	if (input_buttons & BUTTON_ATTACK != 0 && !PlayerIsReloading())
-		PlayerWeaponAttack();
+	if (input_buttons & BUTTON_ATTACK != 0 && !Player_IsReloading())
+		Player_WeaponAttack();
 }
 
-void PlayerWeaponAttack()
+void Player_WeaponAttack()
 {
 	local int ammo_consumed = 0;
 	switch (self.weapon)
@@ -32,10 +32,13 @@ void PlayerWeaponAttack()
 	}
 
 	if (ammo_consumed != 0)
+	{
 		self.ammo[WEAPON_AMMO_INDEX(self.weapon)] += ammo_consumed;
+		self.projectile_id++;
+	}
 }
 
-void PlayerWeaponReload(float reloadtime)
+void Player_WeaponReload(float reloadtime)
 {
 	self.reload_time = svtime + reloadtime;
 }
