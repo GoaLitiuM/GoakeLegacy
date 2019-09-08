@@ -1489,7 +1489,7 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all, qboolean changedonly)
 				continue;
 
 			//yeah, don't force-save readonly cvars.
-			if (var->flags & (CVAR_NOSET | CVAR_NOSAVE))
+			if (var->flags & (CVAR_NOSET | CVAR_NOSAVE | CVAR_HIDDEN))
 				continue;
 
 			val = var->string;	//latched vars should act differently.
