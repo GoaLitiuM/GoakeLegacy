@@ -433,6 +433,10 @@ void CL_Quit_f (void)
 			return;
 		}
 	}
+	
+	extern cvar_t cfg_save_auto;
+	if (cfg_save_auto.ival)
+		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
 
 	TP_ExecTrigger("f_quit", true);
 	Cbuf_Execute();
