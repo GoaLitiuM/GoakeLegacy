@@ -1057,8 +1057,10 @@ void M_Menu_Preset_f (void)
 		item = 3;	//normal
 	else if (r_softwarebanding_cvar.ival)
 		item = 4;	//vanilla
+#ifdef QUAKEHUD
 	else if (cl_sbar.ival == 2)
 		item = 5;	//spasm
+#endif
 	else if (!r_drawflat.ival)
 		item = 6;	//fast
 	else

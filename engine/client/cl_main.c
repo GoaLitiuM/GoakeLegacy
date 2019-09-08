@@ -58,8 +58,10 @@ cvar_t	cl_shownet = CVARD("cl_shownet","0", "Debugging var. 0 shows nothing. 1 s
 cvar_t	cl_disconnectreason = CVARAFD("_cl_disconnectreason", "", "com_errorMessage", CVAR_NOSAVE, "This cvar contains the reason for the last disconnection, so that mod menus can know why things failed.");
 
 cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 is only reliable with total conversions.\nIf sv_pure is set, the client will prefer the highest value set.");
+#ifdef QUAKEHUD
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
+#endif
 cvar_t	cl_maxfps	= CVARFD("cl_maxfps", "250", CVAR_ARCHIVE, "Sets the maximum allowed framerate. If you're using vsync or want to uncap framerates entirely then you should probably set this to 0. Set cl_yieldcpu 0 if you're trying to benchmark.");
 cvar_t	cl_idlefps	= CVARFD("cl_idlefps", "60", CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused/unfocused.");
 cvar_t	cl_yieldcpu = CVARFD("cl_yieldcpu", "1", CVAR_ARCHIVE, "Attempt to yield between frames. This can resolve issues with certain drivers and background software, but can mean less consistant frame times. Will reduce power consumption/heat generation so should be set on laptops or similar (over-hot/battery powered) devices.");
@@ -68,8 +70,10 @@ cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be show exactly what was last received, which will be jerky. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, ^1so this will not function there^7. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
+#ifdef QUAKEHUD
 cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
+#endif
 extern cvar_t net_compress;
 
 cvar_t	cl_defaultport		=
@@ -4650,9 +4654,11 @@ void CL_Init (void)
 	Cvar_Register (&cl_pitchspeed, cl_inputgroup);
 	Cvar_Register (&cl_anglespeedkey, cl_inputgroup);
 	Cvar_Register (&cl_shownet,	cl_screengroup);
+#ifdef QUAKEHUD
 	Cvar_Register (&cl_sbar,	cl_screengroup);
-	Cvar_Register (&cl_pure,	cl_screengroup);
 	Cvar_Register (&cl_hudswap,	cl_screengroup);
+#endif
+	Cvar_Register (&cl_pure,	cl_screengroup);
 	Cvar_Register (&cl_maxfps,	cl_screengroup);
 	Cvar_Register (&cl_idlefps, cl_screengroup);
 	Cvar_Register (&cl_yieldcpu, cl_screengroup);
@@ -4765,8 +4771,10 @@ void CL_Init (void)
 #endif
 	Cvar_Register (&cl_countpendingpl,				cl_controlgroup);
 	Cvar_Register (&cl_threadedphysics,				cl_controlgroup);
+#ifdef QUAKEHUD
 	hud_tracking_show = Cvar_Get("hud_tracking_show", "1", 0, "statusbar");
 	hud_miniscores_show = Cvar_Get("hud_miniscores_show", "1", 0, "statusbar");
+#endif
 	Cvar_Register (&cl_download_mapsrc,				cl_controlgroup);
 
 	Cvar_Register (&cl_dlemptyterminate,				cl_controlgroup);
