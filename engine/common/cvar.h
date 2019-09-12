@@ -145,6 +145,12 @@ typedef struct cvar_group_s
 #define CVAR_VIDEOLATCH		(1<<23)
 #define CVAR_HIDDEN			(1<<24)	//this cvar should never change, and should not be accessible or visible to user anywhere.
 
+#ifdef NOLEGACY2
+#define CVAR_HIDDEN_LEGACY	CVAR_HIDDEN
+#else
+#define CVAR_HIDDEN_LEGACY	0
+#endif
+
 #define CVAR_LASTFLAG CVAR_VIDEOLATCH
 
 #define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.

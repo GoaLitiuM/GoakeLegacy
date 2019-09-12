@@ -1,22 +1,32 @@
 // GoakeWorld build config file
 
-#define GOAKE                        // because i'm lazy with actual protocol stuff
-//general rebranding
-#define DISTRIBUTION			"Goake"					//should be kept short. 3 or 4 letters is good, with no spaces.
-#define DISTRIBUTIONLONG		"GoaLitiuM"						//think of this as your company name. It isn't shown too often, so can be quite long.
-#define FULLENGINENAME			"Goake"					//nominally user-visible name.
-#define ENGINEWEBSITE			""								//for shameless self-promotion purposes.
-#define BRANDING_ICON			"goake.ico"				//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
-#define GAME_CFGFILE			"config"						//name of the configuration filename used for loading and saving
+//#define OMIT_QCC
+//#define SIMPLE_QCVM
+
+//release
 #define GAME_VER_MAJOR			0
 #define GAME_VER_MINOR			3
-#define GAME_VER_EXTRA			""						//please include the extra space at the beginning
+#define GAME_VER_EXTRA			""				//short descriptive word for the release ("beta" etc.)
+
+//goake fork specific features
+#define GOAKE                        			//prevents other source ports from connecting to Goake servers
+#define NOLEGACY2								//more legacy stuff removed from the engine
+#define USE_INTERNAL_DISCORD    				//enable Discord plugin support for rich presence
+#define DISCORD_CLIENT_ID 605452262596149281    //default Discord client_id, used when CSQC support is not available
+
+//general rebranding
+#define DISTRIBUTION			"Goake"			//should be kept short. 3 or 4 letters is good, with no spaces.
+#define DISTRIBUTIONLONG		"GoaLitiuM"		//think of this as your company name. It isn't shown too often, so can be quite long.
+#define FULLENGINENAME			"Goake"			//nominally user-visible name.
+#define ENGINEWEBSITE			""				//for shameless self-promotion purposes.
+#define BRANDING_ICON			"goake.ico"		//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
+#define GAME_CFGFILE			"config"		//name of the configuration filename used for loading and saving
 
 //filesystem rebranding
 #define GAME_SHORTNAME			"gw"			//short alphanumeric description
 #define GAME_FULLNAME			FULLENGINENAME 	//full name of the game we're playing
 #define GAME_BASEGAMES			GAME_SHORTNAME	//comma-separate list of basegame strings to use
-#define GAME_PROTOCOL			"GOAKE"	//so other games won't show up in the server browser
+#define GAME_PROTOCOL			"Goake"			//so other games won't show up in the server browser
 #define GAME_DEFAULTPORT		59184			//slightly reduces the chance of people connecting to the wrong type of server
 //#define GAME_IDENTIFYINGFILES	NULL			//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL		NULL			//url for the package manger to update from
@@ -41,6 +51,7 @@
 #define PLUGINS					//support for external plugins (like huds or fancy menus or whatever)
 //#define USE_SQLITE				//sql-database-as-file support
 //#define IPLOG                    //track player's ip addresses (any decent server will hide ip addresses, so this probably isn't that useful, but nq players expect its)
+//#define MINIMAL
 
 //Filesystem formats
 #define PACKAGE_PK3             //aka zips. we support utf8,zip64,spans,weakcrypto,deflate,(bzip2),symlinks. we do not support strongcrypto nor any of the other compression schemes.
@@ -73,13 +84,18 @@
 //#define ZYMOTICMODELS			//nexuiz uses these, for some reason.
 //#define DPMMODELS				//these keep popping up, despite being a weak format.
 //#define PSKMODELS				//unreal's interchange format. Undesirable in terms of load times.
-//#define HALFLIFEMODELS			//horrible format that doesn't interact well with the rest of FTE's code. Unusable tools (due to license reasons).
+//#define HALFLIFEMODELS		//horrible format that doesn't interact well with the rest of FTE's code. Unusable tools (due to license reasons).
 #define INTERQUAKEMODELS		//Preferred model format, at least from an idealism perspective.
+//#define MODELFMT_MDX          //kingpin's format (for hitboxes+geomsets).
 #define RAGDOLL					//ragdoll support. requires RBE support (via a plugin...).
 
 //Image formats
 #define IMAGEFMT_KTX			//Khronos TeXture. common on gles3 devices for etc2 compression
 #define IMAGEFMT_PKM			//file format generally written by etcpack or android's etc1tool. doesn't support mips.
+#define IMAGEFMT_ASTC            //lame simple header around a single astc image. not needed for astc in ktx files etc. its better to use ktx files.
+#define IMAGEFMT_PBM			//pbm/ppm/pgm/pfm family formats.
+#define IMAGEFMT_PSD			//baselayer only.
+#define IMAGEFMT_HDR			//an RGBE format.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
 //#define IMAGEFMT_BLP          //legacy crap
 //#define IMAGEFMT_BMP            //windows bmp. yuck.
@@ -92,6 +108,8 @@
 #define DECOMPRESS_ETC2			//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
 #define DECOMPRESS_S3TC			//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
 #define DECOMPRESS_RGTC			//bc4+bc5
+#define DECOMPRESS_BPTC			//bc6+bc7
+#define DECOMPRESS_ASTC			//ASTC, for drivers that don't support it properly.
 
 // Game/Gamecode Support
 #define CSQC_DAT
@@ -106,11 +124,14 @@
 //#define HEXEN2					//runs hexen2 gamecode, supports hexen2 file formats.
 //#define HUFFNETWORK				//crappy network compression. probably needs reseeding.
 //#define NETPREPARSE				//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
-#define SUBSERVERS				//Allows the server to fork itself, each acting as an MMO-style server instance of a single 'realm'.
+//#define SUBSERVERS				//Allows the server to fork itself, each acting as an MMO-style server instance of a single 'realm'.
 //#define HLCLIENT 7			//we can run HL gamecode (not protocol compatible, set to 6 or 7)
 //#define HLSERVER 140			//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 //#define SAVEDGAMES				//Can save the game.
 #define MVD_RECORDING			//server can record MVDs.
+//#define ENGINE_ROUTING		//Engine-provided routing logic (possibly threaded)
+//#define USE_INTERNAL_BULLET	//Statically link against bullet physics plugin (instead of using an external plugin)
+//#define USE_INTERNAL_ODE		//Statically link against ode physics plugin (instead of using an external plugin)
 
 // Networking options
 //#define NQPROT					//act as an nq client/server, with nq gamecode.
@@ -121,9 +142,10 @@
 #define HAVE_WINSSPI			//on windows
 //#define FTPSERVER				//sv_ftp cvar.
 #define WEBCLIENT				//uri_get+any internal downloads etc
+#define HAVE_HTTPSV				//net_enable_http/websocket
 #define TCPCONNECT				//support for playing over tcp sockets, instead of just udp. compatible with qizmo.
 //#define IRCCONNECT			//lame support for routing game packets via irc server. not a good idea.
-#define SUPPORT_ICE				//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
+//#define SUPPORT_ICE				//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
 #define CL_MASTER				//Clientside Server Browser functionality.
 //#define PACKAGEMANAGER			//Allows the user to enable/disable/download(with WEBCLIENT) packages and plugins.
 
@@ -141,6 +163,8 @@
 
 // Other Audio Options
 //#define VOICECHAT
+#define HAVE_SPEEX				//Support the speex codec.
+#define HAVE_OPUS               //Support the opus codec.
 #define HAVE_MEDIA_DECODER		//can play cin/roq, more with plugins
 #define HAVE_MEDIA_ENCODER		//capture/capturedemo work.
 //#define HAVE_CDPLAYER			//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).

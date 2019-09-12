@@ -111,9 +111,9 @@ extern cvar_t sv_allow_splitscreen;
 cvar_t sv_guidhash			= CVARD("sv_guidkey", "", "If set, clients will calculate their GUID values against this string instead of the server's IP address. This allows consistency between multiple servers (for stats tracking), but do NOT treat the client's GUID as something that is secure.");
 cvar_t sv_serverip			= CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
 cvar_t sv_public			= CVARD("sv_public", "0", "Controls whether the server will publically advertise itself to master servers or not. Additionally, if set to -1, will block all new connection requests even on lan.");
-cvar_t sv_listen_qw			= CVARAFD("sv_listen_qw", "1", "sv_listen", 0, "Specifies whether normal clients are allowed to connect.");
-cvar_t sv_listen_nq			= CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
-cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond with the DP-specific handshake protocol.\nWarning: this can potentially get confused with quake2, and results in race conditions with both vanilla netquake and quakeworld protocols.\nOn the plus side, DP clients can usually be identified correctly, enabling a model+sound limit boost.");
+cvar_t sv_listen_qw			= CVARFD("sv_listen", "1", 0, "Specifies whether normal clients are allowed to connect.");
+cvar_t sv_listen_nq			= CVARFD("sv_listen_nq", "0", CVAR_HIDDEN_LEGACY, "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
+cvar_t sv_listen_dp			= CVARFD("sv_listen_dp", "0", CVAR_HIDDEN_LEGACY, "Allows the server to respond with the DP-specific handshake protocol.\nWarning: this can potentially get confused with quake2, and results in race conditions with both vanilla netquake and quakeworld protocols.\nOn the plus side, DP clients can usually be identified correctly, enabling a model+sound limit boost.");
 #ifdef QWOVERQ3
 cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #endif
@@ -147,7 +147,7 @@ cvar_t	sv_reliable_sound		= CVARFD("sv_reliable_sound", "0",  0, "Causes all sou
 cvar_t	sv_gamespeed		= CVARAF("sv_gamespeed", "1", "slowmo", 0);
 cvar_t	sv_csqcdebug		= CVARD("sv_csqcdebug", "0", "Inject packet size information for data directed to csqc.");
 cvar_t	sv_csqc_progname	= CVAR("sv_csqc_progname", "csprogs.dat");
-cvar_t pausable				= CVAR("pausable", "");
+cvar_t pausable				= CVAR("sv_pausable", "");
 cvar_t sv_banproxies		= CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
 cvar_t	sv_specprint		= CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
 
@@ -155,15 +155,16 @@ cvar_t	sv_specprint		= CVARD("sv_specprint", "3",	"Bitfield that controls which 
 //
 // game rules mirrored in svs.info
 //
+#ifndef NOLEGACY2
 cvar_t	fraglimit		= CVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	timelimit		= CVARF("timelimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	teamplay		= CVARF("teamplay",		"" ,	CVAR_SERVERINFO);
 cvar_t	samelevel		= CVARF("samelevel",		"" ,	CVAR_SERVERINFO);
-cvar_t	sv_playerslots	= CVARAD("sv_playerslots",	"",
-								 "maxplayers",		"Specify maximum number of player/spectator/bot slots, new value takes effect on the next map (this may result in players getting kicked). This should generally be set to maxclients+maxspectators. Leave blank for a default value.\nMaximum value of "STRINGIFY(MAX_CLIENTS)". Values above 16 will result in issues with vanilla NQ clients. Effective values other than 32 will result in issues with vanilla QW clients.");
-cvar_t	maxclients		= CVARAFD("maxclients",		"8",
-								 "sv_maxclients",			CVAR_SERVERINFO, "Specify the maximum number of players allowed on the server at once. Can be changed mid-map.");
-cvar_t	maxspectators	= CVARFD("maxspectators",	"8",	CVAR_SERVERINFO, "Specify the maximum number of spectators allowed on the server at once. Can be changed mid-map.");
+#endif
+cvar_t	sv_playerslots	= CVARD("sv_playerslots",	"",		"Specify maximum number of player/spectator/bot slots, new value takes effect on the next map (this may result in players getting kicked). This should generally be set to maxclients+maxspectators. Leave blank for a default value.\nMaximum value of "STRINGIFY(MAX_CLIENTS)". Values above 16 will result in issues with vanilla NQ clients. Effective values other than 32 will result in issues with vanilla QW clients.");
+cvar_t	maxclients		= CVARFD("sv_maxclients",		"8", CVAR_SERVERINFO, "Specify the maximum number of players allowed on the server at once. Can be changed mid-map.");
+cvar_t	maxspectators	= CVARFD("sv_maxspectators",	"8",	CVAR_SERVERINFO, "Specify the maximum number of spectators allowed on the server at once. Can be changed mid-map.");
+#ifndef NOLEGACY2
 #ifdef SERVERONLY
 cvar_t	deathmatch		= CVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
 #else
@@ -174,10 +175,12 @@ cvar_t	skill			= CVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
 cvar_t	spawn			= CVARF("spawn",			"" ,	CVAR_SERVERINFO);
 cvar_t	watervis		= CVARF("watervis",		"" ,	CVAR_SERVERINFO);
 #pragma warningmsg("Remove this some time")
+#endif
 cvar_t	allow_skybox	= CVARF("allow_skybox",	"",		CVAR_SERVERINFO);
 cvar_t	sv_allow_splitscreen = CVARFD("allow_splitscreen","",CVAR_SERVERINFO, "Specifies whether clients can use splitscreen extensions to dynamically add additional clients. This only affects remote clients and not the built-in client.\nClients may need to reconnect in order to add seats when this is changed.");
+#ifndef NOLEGACY2
 cvar_t	fbskins			= CVARF("fbskins",			"",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
-
+#endif
 cvar_t	sv_motd[]		={	CVAR("sv_motd1",		""),
 							CVAR("sv_motd2",		""),
 							CVAR("sv_motd3",		""),
@@ -186,9 +189,11 @@ cvar_t	sv_motd[]		={	CVAR("sv_motd1",		""),
 cvar_t sv_compatiblehulls = CVAR("sv_compatiblehulls", "1");
 cvar_t  dpcompat_stats = CVAR("dpcompat_stats", "0");
 
-cvar_t	hostname = CVARF("hostname","unnamed", CVAR_SERVERINFO);
+cvar_t	hostname = CVARF("sv_hostname", FULLENGINENAME " Server", CVAR_SERVERINFO);
 
+#ifndef NOLEGACY2
 cvar_t	secure = CVARF("secure", "", CVAR_SERVERINFO);
+#endif
 
 extern cvar_t sv_nqplayerphysics;
 
@@ -3854,12 +3859,13 @@ qboolean SV_ConnectionlessPacket (void)
 		}
 #endif
 #endif
-
+#ifndef NOLEGACY2
 		if (secure.value)	//FIXME: possible problem for nq clients when enabled
 		{
 			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, com_language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
 		}
 		else
+#endif
 		{
 			SVC_DirectConnect (0);
 			return true;
@@ -4972,8 +4978,14 @@ float SV_Frame (void)
 #ifdef HAVE_CLIENT
 	isidle = !isDedicated && sv.allocated_client_slots == 1 && (pausable.ival && Key_Dest_Has(~kdm_game)) && cls.state == ca_active;
 	/*server is effectively paused in SP/coop if there are no clients/spectators*/
+#ifndef NOLEGACY2
 	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && !deathmatch.ival)
+#else
+	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0)
+#endif
+	{
 		isidle = true;
+	}
 	if ((sv.paused & PAUSE_AUTO) != ((isidle)?PAUSE_AUTO:0))
 		sv.paused ^= PAUSE_AUTO;
 #endif
@@ -5294,24 +5306,28 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_maxtic,	cvargroup_servercontrol);
 	Cvar_Register (&sv_limittics,	cvargroup_servercontrol);
 
+#ifndef NOLEGACY2
 	Cvar_Register (&fraglimit,	cvargroup_serverinfo);
 	Cvar_Register (&timelimit,	cvargroup_serverinfo);
 	Cvar_Register (&teamplay,	cvargroup_serverinfo);
 	Cvar_Register (&coop,	cvargroup_serverinfo);
 	Cvar_Register (&skill,	cvargroup_serverinfo);
 	Cvar_Register (&samelevel,	cvargroup_serverinfo);
+	Cvar_Register (&deathmatch,	cvargroup_serverinfo);
+	Cvar_Register (&spawn,	cvargroup_servercontrol);
+#endif
 	Cvar_Register (&maxclients,	cvargroup_serverinfo);
 	Cvar_Register (&maxspectators,	cvargroup_serverinfo);
 	Cvar_Register (&sv_playerslots,	cvargroup_serverinfo);
 	Cvar_Register (&hostname,	cvargroup_serverinfo);
-	Cvar_Register (&deathmatch,	cvargroup_serverinfo);
-	Cvar_Register (&spawn,	cvargroup_servercontrol);
 
 	//arguably cheats. Must be switched on to use.
-	Cvar_Register (&watervis,	cvargroup_serverinfo);
 	Cvar_Register (&allow_skybox,	cvargroup_serverinfo);
 	Cvar_Register (&sv_allow_splitscreen,	cvargroup_serverinfo);
+#ifndef NOLEGACY2
+	Cvar_Register (&watervis,	cvargroup_serverinfo);
 	Cvar_Register (&fbskins,	cvargroup_serverinfo);
+#endif
 
 	Cvar_Register (&zombietime,	cvargroup_servercontrol);
 
@@ -5388,7 +5404,9 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_root,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_copyrighted,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_other,	cvargroup_serverpermissions);
+#ifndef NOLEGACY2
 	Cvar_Register (&secure,	cvargroup_serverpermissions);
+#endif
 
 	Cvar_Register (&sv_highchars,	cvargroup_servercontrol);
 	Cvar_Register (&sv_calcphs,	cvargroup_servercontrol);

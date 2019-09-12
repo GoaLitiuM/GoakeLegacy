@@ -918,9 +918,11 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalint		(false, newmis);	//not always in nq.
 	globalfloat		(false, force_retouch);
 	globalstring	(true, mapname);
+#ifndef NOLEGACY2
 	globalfloat		(false, deathmatch);
 	globalfloat		(false, coop);
 	globalfloat		(false, teamplay);
+#endif
 	globalfloat		(false, serverflags);
 	globalfloat		(false, total_secrets);
 	globalfloat		(false, total_monsters);
@@ -1874,6 +1876,7 @@ void PR_SpawnInitialEntities(const char *file)
 	}
 	else
 #endif
+#ifndef NOLEGACY2
 		if (!deathmatch.value)	//decide if we are to inhibit single player game ents instead
 	{
 		if (skill.value < 0.5)
@@ -1884,7 +1887,10 @@ void PR_SpawnInitialEntities(const char *file)
 			ctx.killonspawnflags = SPAWNFLAG_NOT_MEDIUM;
 	}
 	else
+#endif
+	{
 		ctx.killonspawnflags = SPAWNFLAG_NOT_DEATHMATCH;
+	}
 
 	ctx.fulldata = PR_FindGlobal(svprogfuncs, "__fullspawndata", PR_ANY, NULL);
 
@@ -1931,11 +1937,13 @@ void Q_InitProgs(qboolean cinematic)
 		d1 = d2;
 	}
 	//both are an equal depth - same path.
+#ifndef NOLEGACY2
 	else if (deathmatch.value && !COM_CheckParm("-game"))	//if deathmatch, default to qw
 	{
 		strcpy(addons, "qwprogs.dat");
 		d1 = d2;
 	}
+#endif
 	else					//single player/coop is better done with nq.
 	{
 		strcpy(addons, "progs.dat");
@@ -4895,7 +4903,10 @@ void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorMA (start, 2048, dir, end);
 	tr = World_Move (&sv.world, start, vec3_origin, vec3_origin, end, false, (wedict_t*)ent);
 	if (tr.ent && ((edict_t *)tr.ent)->v->takedamage == DAMAGE_AIM
-	&& (!teamplay.value || ent->v->team <=0 || ent->v->team != ((edict_t *)tr.ent)->v->team) )
+#ifndef NOLEGACY2
+	&& (!teamplay.value || ent->v->team <=0 || ent->v->team != ((edict_t *)tr.ent)->v->team)
+#endif
+	   )
 	{
 		VectorCopy (P_VEC(v_forward), G_VECTOR(OFS_RETURN));
 		return;
@@ -4914,8 +4925,10 @@ void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 			continue;
 		if (check == ent)
 			continue;
+		#ifndef NOLEGACY2
 		if (teamplay.value && ent->v->team > 0 && ent->v->team == check->v->team)
 			continue;	// don't aim at teammate
+		#endif
 		for (j=0 ; j<3 ; j++)
 			end[j] = check->v->origin[j]
 			+ 0.5*(check->v->mins[j] + check->v->maxs[j]);

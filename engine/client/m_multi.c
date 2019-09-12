@@ -595,6 +595,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 }
 void M_Menu_GameOptions_f (void)
 {
+#ifndef NOLEGACY2
 	static const char *deathmatchoptions[] = {
 		"Cooperative",
 		"Deathmatch 1",
@@ -706,6 +707,7 @@ void M_Menu_GameOptions_f (void)
 
 	info->lowercolour = bottomcolor.value;
 	info->topcolour = topcolor.value;
+#endif
 }
 #endif
 

@@ -1252,17 +1252,19 @@ static char *SV_PrintTeams(void)
 	}
 
 	// create output
-
+#ifndef NOLEGACY2
 	if (numcl == 2) // duel
 	{
 		snprintf(buf, sizeof(buf), "team1 %s\nteam2 %s\n", clients[0]->name, clients[1]->name);
 	}
 	else if (!teamplay.value) // ffa
+#endif
 	{
 		snprintf(buf, sizeof(buf), "players:\n");
 		for (i = 0; i < numcl; i++)
 			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
 	}
+#ifndef NOLEGACY2
 	else
 	{ // teamplay
 		for (j = 0; j < numt; j++)
@@ -1273,6 +1275,7 @@ static char *SV_PrintTeams(void)
 					snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
 		}
 	}
+#endif
 
 	if (!numcl)
 		return "\n";
@@ -1411,7 +1414,11 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 
 				COM_TimeOfDay(&date);
 
+#ifndef NOLEGACY2
 				snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, svs.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
+#else
+				snprintf(buf, sizeof(buf), "date %s\nmap %s\n%s",date.str, svs.name, SV_PrintTeams());
+#endif
 				VFS_WRITE(f, buf, strlen(buf));
 				VFS_FLUSH(f);
 				VFS_CLOSE(f);
@@ -2355,6 +2362,7 @@ void SV_MVDEasyRecord_f (void)
 	else
 	{
 		i = Dem_CountPlayers();
+#ifndef NOLEGACY2
 		/*if (!deathmatch.ival)
 		{
 			if (coop.ival || i>1)
@@ -2363,6 +2371,7 @@ void SV_MVDEasyRecord_f (void)
 				snprintf (name, sizeof(name), "sp_%s_%d_%s", sv.name, skill.ival, Dem_PlayerName(0));
 		}
 		else*/ if (teamplay.value >= 1 && i > 2)
+#endif
 		{
 			// Teamplay
 			snprintf (name, sizeof(name), "%don%d_", Dem_CountTeamPlayers(Dem_Team(1)), Dem_CountTeamPlayers(Dem_Team(2)));
@@ -2374,7 +2383,10 @@ void SV_MVDEasyRecord_f (void)
 									svs.name), sizeof(name));
 			} else
 				Q_strncatz (name, va("%s_vs_%s_%s", Dem_Team(1), Dem_Team(2), svs.name), sizeof(name));
-		} else {
+		}
+#ifndef NOLEGACY2
+		else 
+		{
 			if (i == 2) {
 				// Duel
 				snprintf (name, sizeof(name), "duel_%s_vs_%s_%s",
@@ -2386,6 +2398,7 @@ void SV_MVDEasyRecord_f (void)
 				snprintf (name, sizeof(name), "ffa_%s(%d)", svs.name, i);
 			}
 		}
+#endif
 	}
 
 	// <-

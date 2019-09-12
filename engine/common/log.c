@@ -902,7 +902,11 @@ void Log_MapNowCompleted(void)
 
 	//don't log it if its deathmatch/coop/cheating.
 	extern int sv_allow_cheats;
+#ifndef NOLEGACY2
 	if (deathmatch.ival || coop.ival || sv_allow_cheats == 1)
+#else
+	if (sv_allow_cheats == 1)
+#endif
 		return;
 
 	if (!FS_FLocateFile(sv.world.worldmodel->name, FSLF_DONTREFERENCE|FSLF_IGNORELINKS, &loc))

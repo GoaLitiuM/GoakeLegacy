@@ -1968,6 +1968,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct emenu_s *menu,int key)
 
 void M_Menu_Singleplayer_Cheats_Quake (void)
 {
+#ifndef NOLEGACY2
 	#ifndef CLIENTONLY
 	static const char *skilloptions[] =
 	{
@@ -2041,6 +2042,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, 0, cursorpositionY, NULL, false);
+#endif
 }
 
 #ifdef Q2SERVER

@@ -468,7 +468,11 @@ void SV_CalcPHS (void)
 	rowwords = rowbytes/sizeof(*dest);
 	buf.buffersize = model->pvsbytes;
 
-	if (!sv_calcphs.ival || (sv_calcphs.ival == 2 && (rowbytes*num >= 0x100000 || (!deathmatch.ival && !coop.ival))))
+	if (!sv_calcphs.ival || (sv_calcphs.ival == 2 && (rowbytes*num >= 0x100000
+#ifndef NOLEGACY2
+		|| (!deathmatch.ival && !coop.ival)
+#endif
+		)))
 	{
 		pvs = NULL;/*ZG_Malloc(&model->memgroup, rowbytes*num);
 		scan = pvs;
@@ -1306,7 +1310,7 @@ MSV_OpenUserDatabase();
 		ent = EDICT_NUM_PB(svprogfuncs, 0);
 		ent->ereftype = ER_ENTITY;
 
-#ifndef SERVERONLY
+#if !defined(SERVERONLY) && !defined(NOLEGACY2)
 		/*force coop 1 if splitscreen and not deathmatch*/
 		{
 		extern cvar_t cl_splitscreen;
@@ -1318,10 +1322,12 @@ MSV_OpenUserDatabase();
 			i = sv_playerslots.ival;
 		else
 		{
+#ifndef NOLEGACY2
 			/*only make one slot for single-player (ktx sucks)*/
 			if (!isDedicated && !deathmatch.value && !coop.value && svs.gametype != GT_Q1QVM)
 				i = 1;
 			else
+#endif
 			{
 				i = maxclients.ival + maxspectators.ival;
 				if (i < QWMAX_CLIENTS)
@@ -1473,12 +1479,14 @@ MSV_OpenUserDatabase();
 		}
 		else
 #endif
+#ifndef NOLEGACY2
 		{
 			if (pr_global_ptrs->coop && coop.value)
 				pr_global_struct->coop = coop.value;
 			else if (pr_global_ptrs->deathmatch)
 				pr_global_struct->deathmatch = deathmatch.value;
 		}
+#endif
 
 		if (svs.gametype != GT_Q1QVM) //we cannot do this with qvm
 		{
@@ -1498,8 +1506,10 @@ MSV_OpenUserDatabase();
 
 	// load and spawn all other entities
 	SCR_SetLoadingFile("entities");
+#ifndef NOLEGACY2
 	if (!deathmatch.value && !*skill.string)	//skill was left blank so it doesn't polute serverinfo on deathmatch servers. in single player, we ensure that it gets a proper value.
 		Cvar_Set(&skill, "1");
+#endif
 //do this and get the precaches/start up the game
 	if (sv.world.worldmodel->entitiescrc)
 	{

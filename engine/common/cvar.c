@@ -747,7 +747,7 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		return NULL;
 	}
 
-	if (var->flags & CVAR_HIDDEN)
+	if (var->flags & CVAR_HIDDEN && !force)
 	{
 		Con_Printf("variable %s is reserved\n", var->name);
 		return NULL;

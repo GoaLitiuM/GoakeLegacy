@@ -4,10 +4,12 @@
 #if !defined(CLIENTONLY) && defined(SAVEDGAMES)
 #define CACHEGAME_VERSION_DEFAULT CACHEGAME_VERSION_VERBOSE
 
+#ifndef NOLEGACY2
 extern cvar_t skill;
 extern cvar_t deathmatch;
 extern cvar_t coop;
 extern cvar_t teamplay;
+#endif
 extern cvar_t pr_enable_profiling;
 
 cvar_t sv_savefmt = CVARFD("sv_savefmt", "", CVAR_SAVE, "Specifies the format used for the saved game.\n0=legacy.\n1=fte\n2=binary");

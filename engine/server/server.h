@@ -1083,12 +1083,14 @@ void SV_Master_Shutdown(void);
 void SV_Master_Heartbeat (void);
 
 extern	cvar_t	pr_ssqc_progs;
+#ifndef NOLEGACY2
 extern	cvar_t	spawn;
 extern	cvar_t	teamplay;
 extern	cvar_t	deathmatch;
 extern	cvar_t	coop;
 extern	cvar_t	fraglimit;
 extern	cvar_t	timelimit;
+#endif
 
 extern	server_static_t	svs;				// persistant server info
 extern	server_t		sv;					// local server
