@@ -33,12 +33,14 @@ void LagCompensate_AddPlayer(entity ent)
 
 	for (int i=0; i<lagged_entities_count; i++)
 	{
-		if (lagged_entities[i] == world)
-		{
-			LagCompensate_AddPlayerIndex(ent, i);
-			return;
-		}
+		if (lagged_entities[i] != world)
+			continue;
+
+		LagCompensate_AddPlayerIndex(ent, i);
+		return;
 	}
+
+	error("LagCompensate_AddPlayer failed");
 }
 
 void LagCompensate_RemovePlayerIndex(int index)
@@ -50,12 +52,13 @@ void LagCompensate_RemovePlayer(entity ent)
 {
 	for (int i=0; i<lagged_entities_count; i++)
 	{
-		if (lagged_entities[i] == ent)
-		{
-			LagCompensate_RemovePlayerIndex(i);
-			return;
-		}
+		if (lagged_entities[i] != ent)
+			continue;
+
+		LagCompensate_RemovePlayerIndex(i);
+		return;
 	}
+
 	error("LagCompensate_RemovePlayer failed");
 }
 
@@ -70,7 +73,7 @@ void LagCompensate_NextFrame()
 
 void LagCompensate_Snapshot()
 {
-	int maxplayers = (int)serverkeyfloat("maxclients", 1);
+	int maxplayers = (int)serverkeyfloat("sv_maxclients", 1);
 	if (maxplayers > lagged_entities_count) // growth only array due to players sticking around after maxclients changes
 	{
 		entity* old_lagged_entities = lagged_entities;
