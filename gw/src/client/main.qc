@@ -114,7 +114,7 @@ void CSQC_WorldLoaded()
 	// populate CSQC world with entities found in the map file
 	while (1)
 	{
-		local string token = getentitytoken();
+		string token = getentitytoken();
 		if (token == "")
 			break;
 		else if (token != "{")
@@ -123,12 +123,12 @@ void CSQC_WorldLoaded()
 			return;
 		}
 
-		local entity ent = spawn();
-		local void() func = 0;
-		local bool valid = false;
+		entity ent = spawn();
+		void() func = 0;
+		bool valid = false;
 		while (1)
 		{
-			local string field = getentitytoken();
+			string field = getentitytoken();
 			if (!field)
 				break;
 
@@ -140,6 +140,7 @@ void CSQC_WorldLoaded()
 				{
 					self = ent;
 					func();
+					self = world;
 					valid = true;
 					break;
 				}
@@ -153,16 +154,13 @@ void CSQC_WorldLoaded()
 				break;
 			}
 
-			local string value = getentitytoken();
+			string value = getentitytoken();
 			if (!value)
 				break;
 
 			if (field == "classname")
 			{
-				if (value == "trigger_teleport")
-					func = trigger_teleport;
-				else if (value == "info_teleport_destination")
-					func = info_teleport_destination;
+				func = externvalue(-2, strtolower(value));
 				ent.classname = strzone(value);
 			}
 			else if (field == "targetname")
