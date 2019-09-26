@@ -19,3 +19,9 @@ void info_teleport_destination()
 void trigger_multiple()
 {
 }
+
+void weapon_rocketlauncher()
+{
+	Item_Init("textures/simple_items/weapon_rocket");
+	setsize(self, '-16 -16 -16', '16 16 16');
+}

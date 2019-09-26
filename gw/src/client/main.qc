@@ -6,6 +6,7 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 
 	Common_Init();
 	Hud_Init();
+	Item_InitDraw();
 
 	registercommand("+showscores");
 	registercommand("-showscores");

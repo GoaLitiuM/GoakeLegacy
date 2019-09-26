@@ -1,3 +1,6 @@
+const float WEAPON_RESPAWN_TIME = 0;
+const float ITEM_RESPAWN_TIME = 20;
+
 const float ROCKET_RELOAD = 0.8;
 const float ROCKET_DAMAGE = 110;
 const float ROCKET_SPEED = 1000;

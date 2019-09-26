@@ -21,16 +21,27 @@ const float TE_EXPLOSION = 3;
 const float TE_LIGHTNING2 = 6;
 const float TE_LIGHTNINGBLOOD = 13;
 
+#ifdef SSQC
 float SVC_TEMPENTITY = 23;
+#endif
 
 // input_buttons
 #define BUTTON_ATTACK 1
 #define BUTTON_JUMP 2
 #define BUTTON_USE 4
 
-//pmove flags. seperate from flags
+// pmove flags. seperate from flags
 #define PMF_JUMP_HELD 1
 #define PMF_LADDER 2
+
+// drawflags
+#define DRAWFLAG_NORMAL		0
+#define DRAWFLAG_ADD		1
+#define DRAWFLAG_MODULATE	2
+#define DRAWFLAG_MODULATE2	3
+#define DRAWFLAG_2D			(1u<<2)
+#define DRAWFLAG_TWOSIDED	0x400
+#define DRAWFLAG_LINES		0x800
 
 int ModInt(int a, int b)
 {

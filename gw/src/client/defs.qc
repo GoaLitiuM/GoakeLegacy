@@ -9,6 +9,9 @@ vector camera_velocity;
 .vector mangle;
 .string message;
 
+// items
+.string simple_texture;
+
 // player entity
 .float health;
 .float watertype;

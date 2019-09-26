@@ -110,6 +110,9 @@ float maxfps;
 // projectiles
 .int projectile_id;
 
+// items
+.entity last_touched; // last entity who touched the item
+
 // for debugging
 #ifdef CSQC
 #define CLSV "cl "

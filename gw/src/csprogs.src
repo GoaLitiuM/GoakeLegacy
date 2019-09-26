@@ -21,6 +21,7 @@
 #include <client/misc.qc>
 #include <client/hud.qc>
 #include <client/player.qc>
+#include <client/item.qc>
 
 // include last
 #include <common/entities.qc>
