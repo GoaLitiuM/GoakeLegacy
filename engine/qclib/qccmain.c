@@ -4939,7 +4939,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		pHash_RemoveData = &Hash_RemoveDataInsensitive;
 	}
 
-	if (*qccmsourcedir)
+	if (*qccmsourcedir && verbose)
 		externs->Printf ("Source directory: %s\n", qccmsourcedir);
 
 	QCC_InitData ();
@@ -5004,13 +5004,12 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 			return true;
 		}
 
-		if (currentsourcefile)
-			externs->Printf("-------------------------------------\n");
-		else
+		if (!currentsourcefile)
 			externs->Printf("%s\n", QCC_VersionString());
 
 		QC_snprintfz (qccmprogsdat, sizeof(qccmprogsdat), "%s%s", qccmsourcedir, sourcefileslist[currentsourcefile++]);
-		externs->Printf ("Source file: %s\n", qccmprogsdat);
+		if (verbose)
+			externs->Printf ("Source file: %s\n", qccmprogsdat);
 
 		QC_strlcpy(compilingrootfile, qccmprogsdat, sizeof(compilingrootfile));
 		if (QCC_LoadFile (qccmprogsdat, (void *)&qccmsrc) == -1)

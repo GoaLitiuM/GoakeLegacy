@@ -1363,8 +1363,9 @@ static pbool QCC_PR_Precompiler(void)
 				QCC_COM_Parse(msg);
 
 				QCC_Canonicalize(destfile, sizeof(destfile), qcc_token, compilingfile);
-
-				if (strcmp(destfile, olddest))
+				
+				extern pbool verbose;
+				if (strcmp(destfile, olddest) && verbose)
 					externs->Printf("Outputfile: %s\n", destfile);
 			}
 			else if (!QC_strcasecmp(qcc_token, "keyword") || !QC_strcasecmp(qcc_token, "flag"))
