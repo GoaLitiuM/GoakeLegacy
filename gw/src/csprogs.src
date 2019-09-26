@@ -14,8 +14,8 @@
 #include <qcdefs.qc>
 
 #include <client/defs.qc>
-#include <common/common.qc>
 #include <common/defs.qc>
+#include <common/common.qc>
 #include <common.src>
 
 #include <client/misc.qc>
@@ -23,6 +23,7 @@
 #include <client/player.qc>
 
 // include last
+#include <common/entities.qc>
 #include <client/main.qc>
 
 //#endlist

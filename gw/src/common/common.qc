@@ -50,6 +50,12 @@ void println(... argc)
 	print("\n");
 }
 
+#if 1
+#define assert(EXPR) do { if (!(EXPR)) error("assertion falure\n"); } while(0)
+#else
+#define assert(EXPR) (void)0
+#endif
+
 string vtos2(vector vec)
 {
 	local vector vec2 = [floor(vec_x), floor(vec_y), floor(vec_z)];
@@ -89,22 +95,29 @@ void setAngles(entity ent, vector ang, float fix = 0)
 }
 
 // prediction friendly sound function
-void clientsound(entity e, float chan, string samp, float vol, float atten, float speedpct = 0, float flags = 0, float timeofs = 0)
+// client: the player who triggered this sound, may ignore this sound
+void clientsound(entity ent, float chan, string samp, float vol, float atten, float speed = 0.0, float flags = 0, float timeofs = 0, entity client = 0)
 {
 #ifdef SSQC
-	local entity old = msg_entity;
-	local entity player = world;
+	entity old = msg_entity;
+	entity player = world;
+	entity player_source = client;
+	if (client == 0 || client.classname != CLASS_PLAYER)
+		player_source = ent;
+	if (player_source.classname != CLASS_PLAYER)
+		player_source = ent.owner;
+
 	while (1)
 	{
 		player = find(player, classname, CLASS_PLAYER);
 		if (player == world)
 			break;
 
-		//if (player != e)
-		{
-			msg_entity = player;
-			sound(e, chan, samp, vol, atten, speedpct, flags | SOUNDFLAG_UNICAST, timeofs);
-		}
+		float player_flags = flags | SOUNDFLAG_UNICAST;
+		if (player == player_source)
+			player_flags |= SOUNDFLAG_PREDICT; // the player made this sound
+		msg_entity = player;
+		sound(ent, chan, samp, vol, atten, speed*100.0, player_flags, timeofs);
 	}
 
 	msg_entity = old;
@@ -112,6 +125,6 @@ void clientsound(entity e, float chan, string samp, float vol, float atten, floa
 #endif
 
 #ifdef CSQC
-	sound(e, chan, samp, vol, atten, speedpct, flags, timeofs);
+	sound(ent, chan, samp, vol, atten, speed*100.0, flags, timeofs);
 #endif
 }

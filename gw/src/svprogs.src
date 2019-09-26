@@ -14,14 +14,15 @@
 #include <qcdefs.qc>
 
 #include <server/defs.qc>
-#include <common/common.qc>
 #include <common/defs.qc>
+#include <common/common.qc>
 #include <server/lagcompensation.qc>
 #include <common.src>
 
 #include <server/player.qc>
 
 // include last
+#include <common/entities.qc>
 #include <server/main.qc>
 
 //#endlist

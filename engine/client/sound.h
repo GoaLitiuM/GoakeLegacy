@@ -109,7 +109,7 @@ typedef struct
 //#define CF_SV_RESERVED	CF_CL_ABSVOLUME
 #define CF_NOREVERB			32	// disables reverb on this channel, if possible.
 #define CF_FOLLOW			64	// follows the owning entity (stops moving if we lose track)
-//#define CF_RESERVEDN		128	// reserved for things that should be networked.
+#define CF_RESERVEDN		128	// reserved for things that should be networked.
 
 #define CF_SV_UNICAST		256 // serverside only. the sound is sent to msg_entity only.
 #define CF_SV_SENDVELOCITY	512	// serverside hint that velocity is important
@@ -118,7 +118,7 @@ typedef struct
 #ifdef Q3CLIENT
 #define CF_CLI_NODUPES		4096	// block multiple identical sounds being started on the same entity within rapid succession. required by quake3.
 #endif
-#define CF_NETWORKED (CF_NOSPACIALISE|CF_NOREVERB|CF_FORCELOOP|CF_FOLLOW/*|CF_RESERVEDN*/)
+#define CF_NETWORKED (CF_NOSPACIALISE|CF_NOREVERB|CF_FORCELOOP|CF_FOLLOW|CF_RESERVEDN)
 
 typedef struct
 {
