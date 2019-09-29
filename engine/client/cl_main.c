@@ -5927,7 +5927,7 @@ double Host_Frame (double time)
 
 	//if we're at a menu/console/thing
 	idle = !Key_Dest_Has_Higher(kdm_menu);
-	idle = ((cls.state == ca_disconnected) || cl.paused) && idle;	//idle if we're disconnected/paused and not at a menu
+	idle = (cls.state == ca_disconnected) && idle;	//idle if we're disconnected/paused and not at a menu
 	idle |= !vid.activeapp; //always idle when tabbed out
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.

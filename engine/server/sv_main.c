@@ -5131,7 +5131,7 @@ float SV_Frame (void)
 	}
 	else
 	{
-		isidle = idletime < 0.1;
+		//isidle = idletime < 0.1;
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 		{
