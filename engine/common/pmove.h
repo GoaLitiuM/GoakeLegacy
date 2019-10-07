@@ -35,6 +35,7 @@ typedef enum {
 
 #define PMF_JUMP_HELD			1
 #define PMF_LADDER				2	//pmove flags. seperate from flags
+#define PMF_JUMPED				4
 
 #define	MAX_PHYSENTS	2048
 typedef struct
@@ -89,6 +90,7 @@ typedef struct
 	int			touchindex[MAX_PHYSENTS];
 	vec3_t		touchvel[MAX_PHYSENTS];
 	qboolean		onground;
+	qboolean	jumped;
 	int			groundent;		// index in physents array, only valid
 								// when onground is true
 	int			waterlevel;
@@ -128,14 +130,15 @@ typedef struct {
 	float maxairspeed;
 	float maxairstrafespeed;
 	float jumpvelocity;
-	float jumpboost;
+	float extrajumpboost;
 	float wallfriction;
 	float strafeaccelerate;
 	float aircontrol;
 	float airstopaccelerate;
 	int movementstyle;
 	float autojump;
-	int extrajumps;
+	int extrajumpcap;
+	float extrajump;
 
 	qbyte coordsize;	//FIXME: EZPEXT1_FLOATENTCOORDS should mean 4, but the result does not match ezquake/mvdsv which would result in inconsistencies. so player coords are rounded inconsistently.
 

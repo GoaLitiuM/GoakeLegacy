@@ -9941,6 +9941,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		ent->xv->pmove_flags = 0;
 		ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
 		ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
+		ent->xv->pmove_flags += ((int)pmove.jumped?PMF_JUMPED:0);
 		if (progstype != PROG_QW)	//this is just annoying.
 			ent->v->teleport_time = sv.time + pmove.waterjumptime;
 		else

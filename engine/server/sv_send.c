@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_edgefriction, sv_reliable_sound;;
 extern cvar_t  dpcompat_stats;
-extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_jumpboost, sv_maxairstrafespeed, pm_airstep, pm_slidyslopes, pm_slidefix, sv_stepheight, sv_autojump, sv_extrajumps;
+extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_extrajumpboost, sv_maxairstrafespeed, pm_airstep, pm_slidyslopes, pm_slidefix, sv_stepheight;
 
 /*
 =============================================================================
@@ -2325,47 +2325,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 
 			//statsfi[STAT_MOVEVARS_MAXVELOCITY]					= sv_maxvelocity.value;
 			statsfi[STAT_MOVEVARS_WALLFRICTION]					= sv_wallfriction.value;
-			statsfi[STAT_MOVEVARS_MOVEMENTSTYLE]				= sv_movementstyle.ival;
-			statsfi[STAT_MOVEVARS_JUMPBOOST]					= sv_jumpvelocity.value;
 		}
-#endif
-#if defined(GOAKE) && defined(QUAKESTATS)
-	statsf[STAT_MOVEVARS_AIRSTOPACCELERATE]			= sv_airstopaccelerate.value;
-	statsf[STAT_MOVEVARS_AIRSTRAFEACCELERATE]			= sv_strafeaccelerate.value;
-	statsf[STAT_MOVEVARS_MAXAIRSTRAFESPEED]			= sv_maxairstrafespeed.value;
-	statsf[STAT_MOVEVARS_AIRCONTROL]					= sv_aircontrol.value;
-//			statsf[STAT_MOVEVARS_WALLFRICTION]					= 0;
-	statsf[STAT_MOVEVARS_FRICTION]						= sv_friction.value;
-	statsf[STAT_MOVEVARS_WATERFRICTION]				= sv_waterfriction.value;
-	statsf[STAT_MOVEVARS_TICRATE]						= sv_mintic.value?sv_mintic.value:(1.0/72);
-	statsf[STAT_MOVEVARS_TIMESCALE]					= sv_gamespeed.value;
-	statsf[STAT_MOVEVARS_GRAVITY]						= sv_gravity.value;
-	statsf[STAT_MOVEVARS_STOPSPEED]					= sv_stopspeed.value;
-	statsf[STAT_MOVEVARS_MAXSPEED]						= client->maxspeed;
-	statsf[STAT_MOVEVARS_SPECTATORMAXSPEED]			= sv_spectatormaxspeed.value;
-	statsf[STAT_MOVEVARS_ACCELERATE]					= sv_accelerate.value;
-	statsf[STAT_MOVEVARS_AIRACCELERATE]				= sv_airaccelerate.value;
-	statsf[STAT_MOVEVARS_WATERACCELERATE]				= sv_wateraccelerate.value;
-	statsf[STAT_MOVEVARS_ENTGRAVITY]					= client->entgravity/sv_gravity.value;
-	statsf[STAT_MOVEVARS_JUMPVELOCITY]					= sv_jumpvelocity.value;
-	//statsf[STAT_MOVEVARS_EDGEFRICTION]					= pm_edgefriction.value;
-	statsf[STAT_MOVEVARS_EDGEFRICTION]					= sv_edgefriction.value;
-	statsf[STAT_MOVEVARS_MAXAIRSPEED]					= sv_maxairspeed.value;
-	statsf[STAT_MOVEVARS_STEPHEIGHT]					= sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
-	statsf[STAT_MOVEVARS_AIRACCEL_QW]					= 1;		//we're a quakeworld engine...
-	statsf[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION]	= 0;
-
-	//statsf[STAT_MOVEVARS_MAXVELOCITY]					= sv_maxvelocity.value;
-	statsf[STAT_MOVEVARS_AIRSTEP]					= pm_airstep.value;
-	statsf[STAT_MOVEVARS_SLIDYSLOPES]					= pm_slidyslopes.value;
-	statsf[STAT_MOVEVARS_SLIDEFIX]					= pm_slidefix.value;
-
-	statsf[STAT_MOVEVARS_WALLFRICTION]					= sv_wallfriction.value;
-	statsf[STAT_MOVEVARS_MOVEMENTSTYLE]				= sv_movementstyle.ival;
-	statsf[STAT_MOVEVARS_JUMPBOOST]					= sv_jumpvelocity.value;
-	statsf[STAT_MOVEVARS_JUMPFIX]						= pm_jumpfix.value;
-	statsf[STAT_MOVEVARS_AUTOJUMP]					= sv_autojump.value;
-	statsf[STAT_MOVEVARS_EXTRAJUMPS]					= sv_extrajumps.value;
 #endif
 
 		SV_UpdateQCStats(ent, statsi, statss, statsf);

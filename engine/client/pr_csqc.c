@@ -3656,6 +3656,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	ent->xv->pmove_flags = 0;
 	ent->xv->pmove_flags += pmove.jump_held ? PMF_JUMP_HELD : 0;
 	ent->xv->pmove_flags += pmove.onladder ? PMF_LADDER : 0;
+	ent->xv->pmove_flags += pmove.jumped ? PMF_JUMPED : 0;
 
 	//fixme: touch triggers?
 	World_LinkEdict (&csqc_world, (wedict_t*)ent, true);

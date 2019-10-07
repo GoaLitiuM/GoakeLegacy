@@ -33,6 +33,7 @@ float SVC_TEMPENTITY = 23;
 // pmove flags. seperate from flags
 #define PMF_JUMP_HELD 1
 #define PMF_LADDER 2
+#define PMF_JUMPED 4
 
 // drawflags
 #define DRAWFLAG_NORMAL		0

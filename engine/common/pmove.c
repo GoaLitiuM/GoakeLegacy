@@ -1218,8 +1218,8 @@ static void PM_CheckJump (void)
 
 	// double jumping mechanism, give a boost to jump velocity when player has jumped recently
 	float jumpvelocity = movevars.jumpvelocity;
-	if (pmove.jump_count > 0 && pmove.jump_count <= movevars.extrajumps)
-		jumpvelocity += movevars.jumpboost;
+	if (pmove.jump_count > 0 && pmove.jump_count <= movevars.extrajumpcap && pmove.jump_time < movevars.extrajump)
+		jumpvelocity += movevars.extrajumpboost;
 
 	pmove.jump_time = frametime;
 	pmove.jump_count++;
@@ -1272,6 +1272,7 @@ static void PM_CheckJump (void)
 		}
 	}
 
+	pmove.jumped = true;
 	pmove.jump_held = true;		// don't jump again until released
 
 	//pmove.jump_msec = pmove.cmd.msec;
@@ -1541,6 +1542,7 @@ void PM_PlayerMove (float gamespeed)
 
 	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;
+	pmove.jumped = false;
 
 	if (pmove.pm_type == PM_NONE || pmove.pm_type == PM_FREEZE)
 	{
@@ -1592,7 +1594,9 @@ void PM_PlayerMove (float gamespeed)
 	if (pmove.jump_count != 0)
 	{
 		pmove.jump_time += frametime;
-		if (pmove.jump_time > 0.400)
+		if (pmove.jump_time > movevars.extrajump)
+			pmove.jump_count = 0;
+		if (pmove.jump_time > max(movevars.extrajump, movevars.autojump))
 		{
 			pmove.jump_time = 0;
 			pmove.jump_count = 0;

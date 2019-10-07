@@ -2367,14 +2367,15 @@ void CL_CheckServerInfo(void)
 		movevars.maxairspeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxairspeed"));
 		movevars.maxairstrafespeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxairstrafespeed"));
 		movevars.jumpvelocity = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_jumpvelocity"));
-		movevars.jumpboost = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_jumpboost"));
+		movevars.extrajumpboost = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajumpboost"));
 		movevars.edgefriction = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_edgefriction"));
 		movevars.aircontrol = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_aircontrol"));
 		movevars.airstopaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_airstopaccelerate"));
 		movevars.movementstyle = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_movementstyle"));
 		movevars.autojump = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_autojump"));
-		movevars.extrajumps =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajumps"));
+		movevars.extrajumpcap =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajumpcap"));
 		movevars.strafeaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_strafeaccelerate"));
+		movevars.extrajump =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajump"));
 	}
 	movevars.coordsize = cls.netchan.netprim.coordsize;
 
