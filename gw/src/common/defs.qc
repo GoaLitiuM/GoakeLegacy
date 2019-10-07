@@ -87,6 +87,7 @@ int WeaponRocket_Fire();
 int WeaponLightning_Fire();
 int WeaponCrossbow_Fire();
 
+// CSQC events
 enum
 {
 	EVENT_LIGHTNING = 1,
@@ -97,9 +98,8 @@ float sv_autojump;
 float maxfps;
 
 // player
-.float last_jump_count;
-.float last_jump_time;
 .float last_velocity_z;
+.float last_pmove_flags;
 .float reload_time;
 .float weapon;
 .float weapon_next;

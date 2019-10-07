@@ -43,38 +43,35 @@ void Player_RequestRespawn()
 
 void Player_PreTick()
 {
-	// needed for tracking player jumps and landing velocity
-	self.last_jump_count = self.jump_count;
-	self.last_jump_time = self.jump_time;
-	self.last_velocity_z = self.velocity_z;
 }
 
 void Player_Physics()
 {
-	local vector old_input_movevalues = input_movevalues;
-	local float old_input_buttons = input_buttons;
-	local float old_input_impulse = input_impulse;
+	vector old_input_movevalues = input_movevalues;
+	float old_input_buttons = input_buttons;
+	float old_input_impulse = input_impulse;
+	bool restore_input = false;
 
 	if (self.health <= 0)
 	{
 		input_movevalues = '0 0 0';
 		input_buttons = 0;
 		input_impulse = 0;
+		restore_input = true;
 	}
 
 #ifdef SSQC
-	local vector old_origin = self.origin;
-	local vector old_velocity = self.velocity;
-	local vector old_angles = self.angles;
-	local float old_flags = self.flags;
-	local float old_pmove_flags = self.pmove_flags;
-	local float old_jump_time = self.jump_time;
-	local float old_jump_count = self.jump_count;
+	vector old_origin = self.origin;
+	vector old_velocity = self.velocity;
+	vector old_angles = self.angles;
+	float old_flags = self.flags;
+	float old_pmove_flags = self.pmove_flags;
+	float old_jump_time = self.jump_time;
+	float old_jump_count = self.jump_count;
 #endif
 	runstandardplayerphysics(self);
 
 #ifdef SSQC
-	// TODO: do these in PreThink
 	if (self.origin != old_origin)
 		self.SendFlags |= SENDFLAGS_ORIGIN;
 	if (self.velocity != old_velocity)
@@ -87,7 +84,7 @@ void Player_Physics()
 		self.SendFlags |= SENDFLAGS_JUMP;
 #endif
 
-	if (self.health <= 0)
+	if (restore_input)
 	{
 		input_movevalues = old_input_movevalues;
 		input_buttons = old_input_buttons;
@@ -97,7 +94,8 @@ void Player_Physics()
 
 void Player_PostTick()
 {
-	local bool onground = (self.flags & FL_ONGROUND) != 0;
+	bool onground = (self.flags & FL_ONGROUND) != 0;
+	bool jumped = (self.pmove_flags & PMF_JUMPED) != 0 && (self.last_pmove_flags & PMF_JUMPED) == 0;
 
 	if (self.health <= 0)
 	{
@@ -137,10 +135,13 @@ void Player_PostTick()
 	}
 
 	// player jump
-	if (self.jump_count > self.last_jump_count || (self.jump_time > 0 && self.jump_time < self.last_jump_time))
+	if (jumped)
 		Player_OnJump();
 
 	Player_WeaponTick();
+
+	self.last_velocity_z = self.velocity_z;
+	self.last_pmove_flags = self.pmove_flags;
 }
 
 void Player_OnJump()
