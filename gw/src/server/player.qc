@@ -2,18 +2,30 @@ void Player_WeaponTick();
 
 entity FindRandomSpawn()
 {
-	local string type = ENT_PLAYER_SPAWN;
+	entity ent = world;
+	int index = 0;
+	int spawn = 1;
+	string ent_type = ENT_PLAYER_SPAWN;
 
-	local entity ent = world;
-	for (int i = randomInt(1, ENT_PLAYER_SPAWN_COUNT); i > 0; i--)
+	while (index < spawn)
 	{
-		ent = find(ent, classname, type);
+		ent = find(ent, classname, ent_type);
 		if (ent == world)
 		{
-			println("no spawn found for player.");
+			if (ent_type == ENT_PLAYER_SPAWN)
+			{
+				ent_type = "info_player_start";
+				continue;
+			}
 			break;
 		}
+
+		index++;
 	}
+
+	if (ent == world)
+		println("no spawn found for player.");
+
 	return ent;
 }
 
