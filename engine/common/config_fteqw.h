@@ -85,6 +85,7 @@
 #define HALFLIFEMODELS			//horrible format that doesn't interact well with the rest of FTE's code. Unusable tools (due to license reasons).
 #define INTERQUAKEMODELS		//Preferred model format, at least from an idealism perspective.
 #define MODELFMT_MDX			//kingpin's format (for hitboxes+geomsets).
+#define MODELFMT_OBJ			//lame mesh-only format that needs far too much processing and even lacks a proper magic identifier too
 #define RAGDOLL					//ragdoll support. requires RBE support (via a plugin...).
 
 //Image formats
@@ -93,14 +94,22 @@
 #define IMAGEFMT_ASTC			//lame simple header around a single astc image. not needed for astc in ktx files etc. its better to use ktx files.
 #define IMAGEFMT_PBM			//pbm/ppm/pgm/pfm family formats.
 #define IMAGEFMT_PSD			//baselayer only.
+#define IMAGEFMT_XCF			//flattens, most of the time
 #define IMAGEFMT_HDR			//an RGBE format.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
+#define IMAGEFMT_TGA			//somewhat mandatory
+#define IMAGEFMT_LMP			//mandatory for quake
+#define IMAGEFMT_PNG			//common in quakeworld, useful for screenshots.
+#define IMAGEFMT_JPG			//common in quake3, useful for screenshots.
+//#define IMAGEFMT_GIF			//for the luls. loads as a texture2DArray
 //#define IMAGEFMT_BLP			//legacy crap
 #define IMAGEFMT_BMP			//windows bmp. yuck. also includes .ico for the luls
 #define IMAGEFMT_PCX			//paletted junk. required for qw player skins, q2 and a few old skyboxes.
+#define IMAGEFMT_EXR			//openexr, via Industrial Light & Magic's rgba api, giving half-float data.
 //#define IMAGEFMT_VTF			//hl2 image format
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)
 #define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
+//#define AVAIL_STBI			//make use of Sean T. Barrett's lightweight public domain stb_image[_write] single-file-library, to avoid libpng/libjpeg dependancies.
 #define PACKAGE_TEXWAD			//quake's image wad support
 #define AVAIL_FREETYPE			//for truetype font rendering
 #define DECOMPRESS_ETC2			//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
@@ -194,6 +203,12 @@
 //-DSIMPLE_QCVM	//disable qc debugging and 32bit opcodes
 #ifndef AVAIL_ZLIB
 //-DNO_ZLIB	//disable zlib
+#endif
+#ifdef AVAIL_PNGLIB
+-DLINK_PNG
+#endif
+#ifdef AVAIL_JPEGLIB
+-DLINK_JPEG
 #endif
 
 //-DNO_OPUS

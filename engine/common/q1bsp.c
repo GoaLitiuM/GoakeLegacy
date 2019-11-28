@@ -5,6 +5,7 @@
 #include "shader.h"
 
 extern cvar_t r_decal_noperpendicular;
+extern cvar_t mod_loadsurfenvmaps;
 
 /*
 Decal functions
@@ -1338,11 +1339,11 @@ static unsigned int Q1BSP_TranslateContents(int contents)
 	case Q1CONTENTS_LAVA:
 		return FTECONTENTS_LAVA;
 	case Q1CONTENTS_SKY:
-		return FTECONTENTS_SKY;
+		return FTECONTENTS_SKY|FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
 	case Q1CONTENTS_LADDER:
 		return FTECONTENTS_LADDER;
 	case Q1CONTENTS_CLIP:
-		return FTECONTENTS_PLAYERCLIP;
+		return FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
 	case Q1CONTENTS_TRANS:
 		return FTECONTENTS_SOLID;
 
@@ -2428,6 +2429,10 @@ void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 	menvmap_t *out;
 	int count;
 	denvmap_t *in = BSPX_FindLump(bspx, mod_base, "ENVMAP", &count);
+	mod->envmaps = NULL;
+	mod->numenvmaps = 0;
+	if (!mod_loadsurfenvmaps.ival)
+		return;
 	if (count%sizeof(*in))
 		return;	//erk
 	count /= sizeof(*in);
@@ -2447,7 +2452,7 @@ void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 		out[i].cubesize = LittleLong(in[i].cubesize);
 
 		Q_snprintfz(imagename, sizeof(imagename), "textures/env/%s_%i_%i_%i", base, (int)mod->envmaps[i].origin[0], (int)mod->envmaps[i].origin[1], (int)mod->envmaps[i].origin[2]);
-		out[i].image = Image_GetTexture(imagename, NULL, IF_CUBEMAP|IF_NOREPLACE, NULL, NULL, out[i].cubesize, out[i].cubesize, PTI_INVALID);
+		out[i].image = Image_GetTexture(imagename, NULL, IF_TEXTYPE_CUBE|IF_NOREPLACE, NULL, NULL, out[i].cubesize, out[i].cubesize, PTI_INVALID);
 	}
 
 

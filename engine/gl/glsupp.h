@@ -143,6 +143,17 @@ extern qlpSelTexFUNC	qglClientActiveTextureARB;
 #define GL_MAX_CUBE_MAP_TEXTURE_SIZE_ARB  0x851C
 #endif
 
+#ifndef GL_ARB_texture_cube_map_array
+#define GL_ARB_texture_cube_map_array 1
+#define GL_TEXTURE_CUBE_MAP_ARRAY_ARB     0x9009
+#define GL_TEXTURE_BINDING_CUBE_MAP_ARRAY_ARB 0x900A
+#define GL_PROXY_TEXTURE_CUBE_MAP_ARRAY_ARB 0x900B
+#define GL_SAMPLER_CUBE_MAP_ARRAY_ARB     0x900C
+#define GL_SAMPLER_CUBE_MAP_ARRAY_SHADOW_ARB 0x900D
+#define GL_INT_SAMPLER_CUBE_MAP_ARRAY_ARB 0x900E
+#define GL_UNSIGNED_INT_SAMPLER_CUBE_MAP_ARRAY_ARB 0x900F
+#endif /* GL_ARB_texture_cube_map_array */
+
 #ifndef GL_TEXTURE_2D_ARRAY				//gl 3.0 or GL_EXT_texture_array
 #define GL_TEXTURE_2D_ARRAY				0x8C1A
 #endif
@@ -682,6 +693,15 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT 0x8C4F
 #endif /* GL_EXT_texture_sRGB */
 
+#ifndef GL_EXT_texture_sRGB_R8
+#define GL_EXT_texture_sRGB_R8
+#define GL_SR8_EXT							0x8FBD
+#endif
+#ifndef GL_EXT_texture_sRGB_RG8
+#define GL_EXT_texture_sRGB_RG8
+#define GL_SRG8_EXT							0x8FBE
+#endif
+
 #ifndef GL_RGB9_E5
 #define GL_RGB9_E5                        0x8C3D	/*opengl 3.0*/
 #endif
@@ -694,6 +714,11 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #ifndef GL_RG8_SNORM
 #define GL_R8_SNORM                       0x8F94	/*opengl 3.1*/
 #define GL_RG8_SNORM                      0x8F95	/*opengl 3.1*/
+#endif
+
+#ifndef GL_R11F_G11F_B10F
+#define GL_R11F_G11F_B10F				  0x8C3A
+#define GL_UNSIGNED_INT_10F_11F_11F_REV	  0x8C3B
 #endif
 
 #ifndef GL_TEXTURE_SWIZZLE_R
@@ -901,19 +926,22 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #endif
 
 #ifndef GL_TEXTURE_LOD_BIAS
-#define GL_TEXTURE_LOD_BIAS               0x8501	//gl1.4
+#define GL_TEXTURE_LOD_BIAS				0x8501	//gl1.4
 #endif
 
 #ifndef GL_RGBA16
-#define GL_RGBA16				0x805B	//gl1.1, but not in gles.
+#define GL_RGBA16						0x805B	//gl1.1, but not in gles.
 #endif
 #ifndef GL_RGBA16F
-#define GL_RGBA16F                      0x881A
-#define GL_RGBA32F                      0x8814
+#define GL_RGBA16F						0x881A
+#define GL_RGBA32F						0x8814
+#endif
+#ifndef GL_RGB32F
+#define GL_RGB32F						0x8815
 #endif
 #ifndef GL_R16F
-#define GL_R16F                           0x822D
-#define GL_R32F                           0x822E
+#define GL_R16F							0x822D
+#define GL_R32F							0x822E
 #endif
 
 #ifndef GL_RED

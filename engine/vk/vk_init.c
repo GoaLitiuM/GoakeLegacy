@@ -1366,6 +1366,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_RG8_SNORM:			format = VK_FORMAT_R8G8_SNORM;					break;
 	case PTI_A2BGR10:			format = VK_FORMAT_A2B10G10R10_UNORM_PACK32;	break;
 	case PTI_E5BGR9:			format = VK_FORMAT_E5B9G9R9_UFLOAT_PACK32;		break;
+	case PTI_B10G11R11F:		format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;		break;
 	//swizzled/legacy formats
 	case PTI_L8:				format = VK_FORMAT_R8_UNORM;					break;
 	case PTI_L8A8:				format = VK_FORMAT_R8G8_UNORM;					break;
@@ -1478,6 +1479,10 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	//misaligned formats
 	case PTI_RGB8:				format = VK_FORMAT_R8G8B8_UNORM;				break;
 	case PTI_BGR8:				format = VK_FORMAT_B8G8R8_UNORM;				break;
+	case PTI_RGB32F:			format = VK_FORMAT_R32G32B32_SFLOAT;			break;
+
+	case PTI_RGB8_SRGB:			format = VK_FORMAT_R8G8B8_SRGB;					break;
+	case PTI_BGR8_SRGB:			format = VK_FORMAT_B8G8R8_SRGB;					break;
 
 	//unsupported 'formats'
 	case PTI_MAX:
@@ -1490,7 +1495,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	if (format == VK_FORMAT_UNDEFINED)	//no default case means warnings for unsupported formats above.
 		Sys_Error("VK_CreateTexture2DArray: Unsupported image encoding: %u(%s)\n", encoding, Image_FormatName(encoding));
 
-	ici.flags = (ret.type==PTI_CUBEMAP)?VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT:0;
+	ici.flags = (ret.type==PTI_CUBE)?VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT:0;
 	ici.imageType = VK_IMAGE_TYPE_2D;
 	ici.format = format;
 	ici.extent.width = width;
@@ -1518,7 +1523,20 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 
 	viewInfo.flags = 0;
 	viewInfo.image = ret.image;
-	viewInfo.viewType = (ret.type==PTI_CUBEMAP)?VK_IMAGE_VIEW_TYPE_CUBE:VK_IMAGE_VIEW_TYPE_2D;
+	switch(ret.type)
+	{
+	default:
+		return ret;
+	case PTI_CUBE:
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+		break;
+	case PTI_2D:
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		break;
+	case PTI_2D_ARRAY:
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+		break;
+	}
 	viewInfo.format = format;
 	switch(encoding)
 	{
@@ -1783,13 +1801,25 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	uint32_t blockbytes;
 	uint32_t layers;
 	uint32_t mipcount = mips->mipcount;
-	if (mips->type != PTI_2D && mips->type != PTI_CUBEMAP)// && mips->type != PTI_2D_ARRAY)
+	switch(mips->type)
+	{
+	case PTI_2D:
+		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth != 1)
+			return false;
+		break;
+	case PTI_2D_ARRAY:
+		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth == 0)
+			return false;
+		break;
+	case PTI_CUBE:
+		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth != 6)
+			return false;
+		break;
+	default:
 		return false;
-	if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0)
-		return false;
+	}
 
-	layers = (mips->type == PTI_CUBEMAP)?6:1;
-	layers *= mips->mip[0].depth;
+	layers = mips->mip[0].depth;
 
 	if (layers == 1 && mipcount > 1)
 	{	//npot mipmapped textures are awkward.
@@ -1847,7 +1877,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 			imgbarrier.image = target.image;
 			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			imgbarrier.subresourceRange.baseMipLevel = 0;
-			imgbarrier.subresourceRange.levelCount = mipcount/layers;
+			imgbarrier.subresourceRange.levelCount = mipcount;
 			imgbarrier.subresourceRange.baseArrayLayer = 0;
 			imgbarrier.subresourceRange.layerCount = layers;
 			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1877,7 +1907,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 			imgbarrier.image = target.image;
 			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			imgbarrier.subresourceRange.baseMipLevel = 0;
-			imgbarrier.subresourceRange.levelCount = mipcount/layers;
+			imgbarrier.subresourceRange.levelCount = mipcount;
 			imgbarrier.subresourceRange.baseArrayLayer = 0;
 			imgbarrier.subresourceRange.layerCount = layers;
 			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1895,8 +1925,8 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	{
 		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
 		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
-
-		bci.size += blockswidth*blocksheight*blockbytes;
+		uint32_t blocksdepth = (mips->mip[i].depth+1-1) / 1;
+		bci.size += blockswidth*blocksheight*blocksdepth*blockbytes;
 	}
 	bci.flags = 0;
 	bci.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -1931,26 +1961,27 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		//for compressed formats (ie: s3tc/dxt) we need to round up to deal with npot.
 		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
 		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
+		uint32_t blocksdepth = (mips->mip[i].depth+1-1) / 1;
 
 		if (mips->mip[i].data)
-			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight);
+			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight*blocksdepth);
 		else
-			memset((char*)mapdata + bci.size, 0, blockswidth*blockbytes*blocksheight);
+			memset((char*)mapdata + bci.size, 0, blockswidth*blockbytes*blocksheight*blocksdepth);
 
 		//queue up a buffer->image copy for this mip
 		region.bufferOffset = bci.size;
 		region.bufferRowLength = blockswidth*blockwidth;
 		region.bufferImageHeight = blocksheight*blockheight;
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.imageSubresource.mipLevel = i%(mipcount/layers);
-		region.imageSubresource.baseArrayLayer = i/(mipcount/layers);
-		region.imageSubresource.layerCount = 1;
+		region.imageSubresource.mipLevel = i;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = mips->mip[i].depth;
 		region.imageOffset.x = 0;
 		region.imageOffset.y = 0;
 		region.imageOffset.z = 0;
-		region.imageExtent.width = mips->mip[i].width;//blockswidth*blockwidth;
-		region.imageExtent.height = mips->mip[i].height;//blocksheight*blockheight;
-		region.imageExtent.depth = 1;
+		region.imageExtent.width = mips->mip[i].width;
+		region.imageExtent.height = mips->mip[i].height;
+		region.imageExtent.depth = mips->mip[i].depth;
 
 		vkCmdCopyBufferToImage(vkloadcmd, fence->stagingbuffer, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
@@ -1968,7 +1999,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		imgbarrier.image = target.image;
 		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		imgbarrier.subresourceRange.baseMipLevel = 0;
-		imgbarrier.subresourceRange.levelCount = mipcount/layers;
+		imgbarrier.subresourceRange.levelCount = mipcount;
 		imgbarrier.subresourceRange.baseArrayLayer = 0;
 		imgbarrier.subresourceRange.layerCount = layers;
 		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -2596,7 +2627,7 @@ void	VK_R_RenderView				(void)
 
 	if (!r_refdef.globalfog.density)
 	{
-		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[1].density)?1:0;
+		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[FOGTYPE_WATER].density)?FOGTYPE_WATER:FOGTYPE_AIR;
 		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[fogtype], realtime, &cl.fog[fogtype]);
 		r_refdef.globalfog.density /= 64;	//FIXME
 	}
@@ -3228,19 +3259,23 @@ static void VK_PaintScreen(void)
 	scr_con_forcedraw = false;
 	if (noworld)
 	{
-		extern char levelshotname[];
-
 		//draw the levelshot or the conback fullscreen
-		if (*levelshotname)
-		{
-			shader_t *pic = R2D_SafeCachePic (levelshotname);
-			int w,h;
-			if (!R_GetShaderSizes(pic, &w, &h, true))
-				w = h = 1;
-			R2D_Letterbox(0, 0, vid.width, vid.height, pic, w, h);
-		}
+		if (R2D_DrawLevelshot())
+			;
 		else if (scr_con_current != vid.height)
-			R2D_ConsoleBackground(0, vid.height, true);
+		{
+#ifdef HAVE_LEGACY
+			extern cvar_t dpcompat_console;
+			if (dpcompat_console.ival)
+			{
+				R2D_ImageColours(0,0,0,1);
+				R2D_FillBlock(0, 0, vid.width, vid.height);
+				R2D_ImageColours(1,1,1,1);
+			}
+			else
+#endif
+				R2D_ConsoleBackground(0, vid.height, true);
+		}
 		else
 			scr_con_forcedraw = true;
 
@@ -4077,6 +4112,7 @@ void VK_CheckTextureFormats(void)
 		{PTI_BGRX8_SRGB,		VK_FORMAT_B8G8R8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 
 		{PTI_E5BGR9,			VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_B10G11R11F,		VK_FORMAT_B10G11R11_UFLOAT_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_A2BGR10,			VK_FORMAT_A2B10G10R10_UNORM_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_RGB565,			VK_FORMAT_R5G6B5_UNORM_PACK16,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_RGBA4444,			VK_FORMAT_R4G4B4A4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
@@ -4085,6 +4121,7 @@ void VK_CheckTextureFormats(void)
 		{PTI_ARGB1555,			VK_FORMAT_A1R5G5B5_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_RGBA16F,			VK_FORMAT_R16G16B16A16_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
 		{PTI_RGBA32F,			VK_FORMAT_R32G32B32A32_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
+		{PTI_RGB32F,			VK_FORMAT_R32G32B32_SFLOAT,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_L8,				VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_L8A8,				VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_L8_SRGB,			VK_FORMAT_R8_SRGB,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
@@ -4826,9 +4863,9 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	}
 
 	
-	sh_config.progpath = NULL;
+	sh_config.progpath = "vulkan/%s.fvb";
 	sh_config.blobpath = "spirv";
-	sh_config.shadernamefmt = NULL;//".spv";
+	sh_config.shadernamefmt = NULL;//"_vulkan";
 
 	if (vk.nv_glsl_shader)
 	{

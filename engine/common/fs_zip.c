@@ -1275,9 +1275,9 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 		return NULL;
 	}
 
-#ifdef AVAIL_ZLIB
 	if (flags & ZFL_DEFLATED)
 	{
+#ifdef AVAIL_ZLIB
 #ifdef ZIPCRYPT
 		//FIXME: Cvar_Get is not threadsafe, and nor is accessing the cvar...
 		char *password = (flags & ZFL_WEAKENCRYPT)?Cvar_Get("fs_zip_password", "thisispublic", 0, "Filesystem")->string:NULL;
@@ -1286,6 +1286,9 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 #endif
 		vfsz->decompress = FSZIP_Deflate_Init(zip, vfsz->startpos, datasize, vfsz->length, pf->name, password, pf->crc);
 		if (!vfsz->decompress)
+#else
+		Con_Printf("%s:%s: zlib not supported\n", COM_SkipPath(zip->filename), pf->name);
+#endif
 		{
 			/*
 			windows explorer tends to use deflate64 on large files, which zlib and thus we, do not support, thus this is a 'common' failure path
@@ -1295,10 +1298,9 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 			return NULL;
 		}
 	}
-#endif
-#ifdef AVAIL_BZLIB
 	if (flags & ZFL_BZIP2)
 	{
+#ifdef AVAIL_BZLIB
 #ifdef ZIPCRYPT
 		//FIXME: Cvar_Get is not threadsafe, and nor is accessing the cvar...
 		char *password = (flags & ZFL_WEAKENCRYPT)?Cvar_Get("fs_zip_password", "thisispublic", 0, "Filesystem")->string:NULL;
@@ -1307,6 +1309,9 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 #endif
 		vfsz->decompress = FSZIP_BZip2_Init(zip, vfsz->startpos, datasize, vfsz->length, pf->name, password, pf->crc);
 		if (!vfsz->decompress)
+#else
+		Con_Printf("%s:%s: libbz2 not supported\n", COM_SkipPath(zip->filename), pf->name);
+#endif
 		{
 			/*
 			windows explorer tends to use deflate64 on large files, which zlib and thus we, do not support, thus this is a 'common' failure path
@@ -1316,7 +1321,6 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 			return NULL;
 		}
 	}
-#endif
 
 	if (Sys_LockMutex(zip->mutex))
 	{
@@ -1544,14 +1548,10 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 
 	if (local.cmethod == 0)
 		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_STORED;
-#ifdef AVAIL_ZLIB
 	if (local.cmethod == 8)
 		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_DEFLATED;
-#endif
-#ifdef AVAIL_BZLIB
 	if (local.cmethod == 12)
 		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_BZIP2;
-#endif
 	return false;	//some other method that we don't know.
 }
 

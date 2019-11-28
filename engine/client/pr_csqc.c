@@ -80,6 +80,7 @@ static char csqc_printbuffer[8192];
 cvar_t	pr_csqc_maxedicts = CVAR("pr_csqc_maxedicts", "65536");	//not tied to protocol nor server. can be set arbitrarily high, except for memory allocations.
 cvar_t	pr_csqc_memsize = CVAR("pr_csqc_memsize", "-1");
 cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
+static cvar_t	cl_csqc_nodeprecate = CVARAD("cl_csqc_nodeprecate", "0", "dpcompat_nocsqcwarnings", "When set, disables deprecation warnings.");
 cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = CVAR("pr_csqc_coreonerror", "1");
 #if defined(NOBUILTINMENUS) && !defined(MENU_DAT)
@@ -87,6 +88,7 @@ cvar_t  pr_csqc_formenus = CVARF("pr_csqc_formenus", "1", CVAR_NOSET);
 #else
 cvar_t  pr_csqc_formenus = CVAR("pr_csqc_formenus", "0");
 #endif
+static cvar_t	dpcompat_csqcinputeventtypes = CVARD("dpcompat_csqcinputeventtypes", "999999", "Specifies the first csqc input event that the mod does not recognise. This should never have been a thing, but some mods are simply too buggy.");
 extern cvar_t dpcompat_stats;
 
 // standard effect cvars/sounds
@@ -743,13 +745,13 @@ static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (!strcmp(str, "vid_conwidth"))
 	{
 		if (!csqc_isdarkplaces)	//don't warn when its unfixable...
-			csqc_deprecated("vid_conwidth cvar has aspect issues");
+			csqc_deprecated("vid_conwidth - use (vector)getviewprop(VF_SCREENVSIZE)");
 		G_FLOAT(OFS_RETURN) = vid.width;
 	}
 	else if (!strcmp(str, "vid_conheight"))
 	{
 		if (!csqc_isdarkplaces)
-			csqc_deprecated("vid_conheight cvar has aspect issues");
+			csqc_deprecated("vid_conheight - use (vector)getviewprop(VF_SCREENVSIZE)");
 		G_FLOAT(OFS_RETURN) = vid.height;
 	}
 	else
@@ -799,7 +801,7 @@ static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars
 	char *funcname = NULL;
 	int args;
 	int builtinno;
-	if (prinst->GetFunctionInfo(prinst, funcref, &args, &builtinno, funcname, sizeof(funcname)))
+	if (prinst->GetFunctionInfo(prinst, funcref, &args, NULL, &builtinno, funcname, sizeof(funcname)))
 	{	//qc defines the function at least. nothing weird there...
 		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
 		{
@@ -954,7 +956,9 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 		csqcedict_t *p = (csqcedict_t*)skel_gettaginfo_args(csqcprogs, out->axis, out->origin, in->xv->tag_entity, in->xv->tag_index);
 		if (p && (int)p->xv->renderflags & CSQCRF_VIEWMODEL)
 			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
+		out->pvscache = p->pvsinfo; //for the areas.
 		out->pvscache.num_leafs = -1;	//make visible globally
+		out->pvscache.headnode = 0;
 #endif
 	}
 
@@ -1179,7 +1183,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		s = PR_GetStringOfs(prinst, OFS_PARM2);
 		Q_strncpyz(l->cubemapname, s, sizeof(l->cubemapname));
 		if (*l->cubemapname)
-			l->cubetexture = R_LoadReplacementTexture(l->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+			l->cubetexture = R_LoadReplacementTexture(l->cubemapname, "", IF_TEXTYPE_CUBE, NULL, 0, 0, TF_INVALID);
 		else
 			l->cubetexture = r_nulltex;
 		break;
@@ -1366,7 +1370,7 @@ static void PF_R_DynamicLight_AddInternal(pubprogfuncs_t *prinst, struct globalv
 	dl->style = style;
 	Q_strncpyz(dl->cubemapname, cubemapname, sizeof(dl->cubemapname));
 	if (*dl->cubemapname)
-		dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+		dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_TEXTYPE_CUBE, NULL, 0, 0, TF_INVALID);
 	else
 		dl->cubetexture = r_nulltex;
 
@@ -1706,6 +1710,117 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	csqc_poly_startidx = cl_numstrisidx;
 }
 
+//input is a line of verts, output is a quad strip
+void QCBUILTIN PF_R_PolygonEndRibbon(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+	int nv;
+	int flags = csqc_poly_flags;
+	int first;
+
+	vec3_t tang;
+	vec3_t dir;
+	vec3_t eyedir;
+
+	float separation = G_FLOAT(OFS_PARM0);
+	float sseparation = G_FLOAT(OFS_PARM1+0);
+	float tseparation = G_FLOAT(OFS_PARM1+1);
+
+	if (!csqc_poly_shader)
+		return;
+
+	nv = cl_numstrisvert-csqc_poly_startvert;
+	if (nv < 2)
+	{
+		csqc_poly_startvert = cl_numstrisvert;
+		csqc_poly_startidx = cl_numstrisidx;
+		return; //sod off.
+	}
+	flags &= ~BEF_LINES;
+
+	if (flags != csqc_poly_flags || (cl_numstrisvert-csqc_poly_origvert) >= 32768)
+	{
+		int sv = cl_numstrisvert - nv;
+		cl_numstrisvert -= nv;
+		CSQC_PolyFlush();
+
+		csqc_poly_origvert = cl_numstrisvert;
+		csqc_poly_origidx = cl_numstrisidx;
+		R2D_Flush = CSQC_PolyFlush;
+		csqc_poly_flags = flags;
+		csqc_poly_startvert = cl_numstrisvert;
+		csqc_poly_startidx = cl_numstrisidx;
+
+		memcpy(cl_strisvertv+cl_numstrisvert, cl_strisvertv + sv, sizeof(*cl_strisvertv) * nv);
+		memcpy(cl_strisvertt+cl_numstrisvert, cl_strisvertt + sv, sizeof(*cl_strisvertt) * nv);
+		memcpy(cl_strisvertc+cl_numstrisvert, cl_strisvertc + sv, sizeof(*cl_strisvertc) * nv);
+		cl_numstrisvert += nv;
+	}
+
+	nv = cl_numstrisvert-csqc_poly_startvert;
+	//dupe the verts
+	if (cl_numstrisvert+nv < cl_maxstrisvert)
+		cl_stris_ExpandVerts(cl_numstrisvert+nv);
+	memcpy(&cl_strisvertv[cl_numstrisvert], &cl_strisvertv[csqc_poly_startvert], sizeof(*cl_strisvertv)*nv);
+	memcpy(&cl_strisvertt[cl_numstrisvert], &cl_strisvertt[csqc_poly_startvert], sizeof(*cl_strisvertt)*nv);
+	memcpy(&cl_strisvertc[cl_numstrisvert], &cl_strisvertc[csqc_poly_startvert], sizeof(*cl_strisvertc)*nv);
+
+	//apply separation
+	VectorSubtract(cl_strisvertv[csqc_poly_startvert+0+1], cl_strisvertv[csqc_poly_startvert+0], dir);
+	VectorSubtract(cl_strisvertv[csqc_poly_startvert+0], r_refdef.vieworg, eyedir);
+	VectorNormalize(dir); VectorNormalize(eyedir);
+	CrossProduct(dir, eyedir, tang);
+	VectorMA(cl_strisvertv[csqc_poly_startvert+0], separation, tang, cl_strisvertv[csqc_poly_startvert+0]);
+	VectorMA(cl_strisvertv[cl_numstrisvert+0], -separation, tang, cl_strisvertv[cl_numstrisvert+0]);
+	cl_strisvertt[csqc_poly_startvert+0][0] += sseparation; //and update the generated s coord.
+	cl_strisvertt[csqc_poly_startvert+0][1] += tseparation; //and update the generated t coord.
+	for (i = 1; i < nv-1; i++)
+	{	//direction comes from its two neighbours, rather than itself and one of those neighbours
+		VectorSubtract(cl_strisvertv[csqc_poly_startvert+i+1], cl_strisvertv[csqc_poly_startvert+i-1], dir);
+		VectorSubtract(cl_strisvertv[csqc_poly_startvert+i], r_refdef.vieworg, eyedir);
+		VectorNormalize(dir); VectorNormalize(eyedir);
+		CrossProduct(dir, eyedir, tang);
+		VectorMA(cl_strisvertv[csqc_poly_startvert+i], separation, tang, cl_strisvertv[csqc_poly_startvert+i]);
+		VectorMA(cl_strisvertv[cl_numstrisvert+i], -separation, tang, cl_strisvertv[cl_numstrisvert+i]);
+		cl_strisvertt[csqc_poly_startvert+i][0] += sseparation; //and update the generated s coord.
+		cl_strisvertt[csqc_poly_startvert+i][1] += tseparation; //and update the generated t coord.
+	}
+	//don't wrap over
+	VectorSubtract(cl_strisvertv[csqc_poly_startvert+i], cl_strisvertv[csqc_poly_startvert+i-1], dir);
+	VectorSubtract(cl_strisvertv[csqc_poly_startvert+i], r_refdef.vieworg, eyedir);
+	VectorNormalize(dir); VectorNormalize(eyedir);
+	CrossProduct(dir, eyedir, tang);
+	VectorMA(cl_strisvertv[csqc_poly_startvert+i], separation, tang, cl_strisvertv[csqc_poly_startvert+i]);
+	VectorMA(cl_strisvertv[cl_numstrisvert+i], -separation, tang, cl_strisvertv[cl_numstrisvert+i]);
+	cl_strisvertt[csqc_poly_startvert+i][0] += sseparation; //and update the generated s coord.
+	cl_strisvertt[csqc_poly_startvert+i][1] += tseparation; //and update the generated t coord.
+	//verts are all set up right
+	cl_numstrisvert += nv;
+
+	if (cl_numstrisidx+(nv-1)*6 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx=cl_numstrisidx+(nv-1)*6 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+	first = csqc_poly_startvert - csqc_poly_origvert;
+	/*build a double-triangle strip out of our lined verts*/
+	for (i = 1; i < nv; i++)
+	{
+		cl_strisidx[cl_numstrisidx++] = first + i-1;
+		cl_strisidx[cl_numstrisidx++] = first + i;
+		cl_strisidx[cl_numstrisidx++] = first + i+nv;
+
+		cl_strisidx[cl_numstrisidx++] = first + i+nv;
+		cl_strisidx[cl_numstrisidx++] = first + i-1+nv;
+		cl_strisidx[cl_numstrisidx++] = first + i-1;
+	}
+
+	/*set up ready for the next poly*/
+	csqc_poly_startvert = cl_numstrisvert;
+	csqc_poly_startidx = cl_numstrisidx;
+}
+
 typedef struct
 {
 	vec3_t xyz;
@@ -1819,6 +1934,7 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 qboolean csqc_rebuildmatricies;
 float csqc_proj_matrix[16];
 float csqc_proj_matrix_inverse[16];
+float csqc_proj_frustum[2];
 void V_ApplyAFov(playerview_t *pv);
 void buildmatricies(void)
 {
@@ -1829,15 +1945,26 @@ void buildmatricies(void)
 
 	V_ApplyAFov(csqc_playerview);
 
-	/*build view and projection matricies*/
-	Matrix4x4_CM_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
-	if (r_refdef.useperspective)
-		Matrix4x4_CM_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
-	else
-		Matrix4x4_CM_Orthographic(proj, -r_refdef.fov_x/2, r_refdef.fov_x/2, -r_refdef.fov_y/2, r_refdef.fov_y/2, r_refdef.mindist, r_refdef.maxdist>=1?r_refdef.maxdist:9999);
+	if (csqc_isdarkplaces)
+	{
+		/*doesn't bother to use the projection matrix. it isn't much of a transform.*/
+		Matrix4x4_CM_ModelViewMatrix(csqc_proj_matrix, r_refdef.viewangles, r_refdef.vieworg);
 
-	/*build the vp matrix*/
-	Matrix4_Multiply(proj, modelview, csqc_proj_matrix);
+		csqc_proj_frustum[0] = tan(r_refdef.fov_x * M_PI / 360.0);
+		csqc_proj_frustum[1] = tan(r_refdef.fov_y * M_PI / 360.0);
+	}
+	else
+	{
+		/*build view and projection matricies*/
+		Matrix4x4_CM_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
+		if (r_refdef.useperspective)
+			Matrix4x4_CM_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
+		else
+			Matrix4x4_CM_Orthographic(proj, -r_refdef.fov_x/2, r_refdef.fov_x/2, -r_refdef.fov_y/2, r_refdef.fov_y/2, r_refdef.mindist, r_refdef.maxdist>=1?r_refdef.maxdist:9999);
+
+		/*build the vp matrix*/
+		Matrix4_Multiply(proj, modelview, csqc_proj_matrix);
+	}
 
 	/*build the unproject matrix (inverted vp matrix)*/
 	Matrix4_Invert(csqc_proj_matrix, csqc_proj_matrix_inverse);
@@ -1871,21 +1998,26 @@ static void QCBUILTIN PF_cs_project (pubprogfuncs_t *prinst, struct globalvars_s
 		tempv[1] /= tempv[3];
 		tempv[2] /= tempv[3];
 
-		out[0] = (1+tempv[0])/2;
-		out[1] = 1-(1+tempv[1])/2;
-		out[2] = tempv[2];
-
 		if (csqc_isdarkplaces)
 		{	/*sigh*/
-			out[0] = out[0]*vid.width + r_refdef.vrect.x;
-			out[1] = out[1]*vid.height + r_refdef.vrect.y;
+			tempv[0] = -tempv[0]/tempv[2]/csqc_proj_frustum[0];
+			tempv[1] = tempv[1]/tempv[2]/csqc_proj_frustum[1];
+			out[0] = (1+tempv[0])/2;
+			out[1] = (1+tempv[1])/2;
+			out[2] = -tempv[2];
+
+			out[0] = out[0]*vid.width;
+			out[1] = out[1]*vid.height;
 		}
 		else
 		{
+			out[0] = (1+tempv[0])/2;
+			out[1] = 1-(1+tempv[1])/2;
+			out[2] = tempv[2];
+
 			out[0] = out[0]*r_refdef.vrect.width + r_refdef.vrect.x;
 			out[1] = out[1]*r_refdef.vrect.height + r_refdef.vrect.y;
 		}
-
 		if (tempv[3] < 0)
 			out[2] *= -1;
 	}
@@ -1904,23 +2036,28 @@ static void QCBUILTIN PF_cs_unproject (pubprogfuncs_t *prinst, struct globalvars
 
 		if (csqc_isdarkplaces)
 		{	/*sigh*/
-			tx = ((tx-r_refdef.vrect.x)/vid.width);
-			ty = ((ty-r_refdef.vrect.y)/vid.height);
+			tx = ((tx)/vid.width);
+			ty = ((ty)/vid.height);
+
+			//this is kinda screwy
+			v[2] = -in[2];
+			v[0] = -(tx*2-1)*v[2]*csqc_proj_frustum[0];
+			v[1] = (ty*2-1)*v[2]*csqc_proj_frustum[1];
 		}
 		else
 		{
 			tx = ((tx-r_refdef.vrect.x)/r_refdef.vrect.width);
 			ty = ((ty-r_refdef.vrect.y)/r_refdef.vrect.height);
-		}
-		ty = 1-ty;
-		v[0] = tx*2-1;
-		v[1] = ty*2-1;
-		v[2] = in[2]*2-1;	//gl projection matrix scales -1 to 1 (unlike d3d, which is 0 to 1)
-		v[3] = 1;
+			ty = 1-ty;
+			v[0] = tx*2-1;
+			v[1] = ty*2-1;
+			v[2] = in[2]*2-1;	//gl projection matrix scales -1 to 1 (unlike d3d, which is 0 to 1)
 
-		//don't use 1, because the far clip plane really is an infinite distance away. and that tends to result division by infinity.
-		if (v[2] >= 1)
-			v[2] = 0.999999;
+			//don't use 1, because the far clip plane really is an infinite distance away. and that tends to result division by infinity.
+			if (v[2] >= 1)
+				v[2] = 0.999999;
+		}
+		v[3] = 1;
 
 		Matrix4x4_CM_Transform4(csqc_proj_matrix_inverse, v, tempv);
 
@@ -2140,6 +2277,7 @@ uploadfmt_t PR_TranslateTextureFormat(int qcformat)
 	case 11: return PTI_RGB565;
 	case 12: return PTI_RGBA4444;
 	case 13: return PTI_RG8;
+	case 14: return PTI_RGB32F;
 
 	default:return PTI_INVALID;
 	}
@@ -2213,6 +2351,13 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	case VF_SKYROOM_CAMERA:
 		r_refdef.skyroom_enabled = true;
 		VectorCopy(p, r_refdef.skyroom_pos);
+		if (prinst->callargc >= 4)
+		{
+			VectorCopy(G_VECTOR(OFS_PARM2), r_refdef.skyroom_spin);
+			r_refdef.skyroom_spin[3] = G_FLOAT(OFS_PARM3);
+		}
+		else
+			Vector4Set(r_refdef.skyroom_spin, 0, 0, 0, 0);
 		break;
 
 	case VF_ORIGIN:
@@ -2768,7 +2913,7 @@ static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalv
 
 	v = G_VECTOR(OFS_PARM0);
 
-	cont = cl.worldmodel?World_PointContents(w, v):FTECONTENTS_EMPTY;
+	cont = cl.worldmodel?World_PointContentsWorldOnly(w, v):FTECONTENTS_EMPTY;
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -2786,13 +2931,14 @@ static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalv
 static int CS_FindModel(const char *name, int *free)
 {
 	int i;
+	const char *fixedname;
 
 	*free = 0;
 
 	if (!name || !*name)
 		return 0;
 
-	name = Mod_FixName(name, csqc_world.worldmodel->name);
+	fixedname = Mod_FixName(name, csqc_world.worldmodel->publicname);
 
 	for (i = 1; i < MAX_CSMODELS; i++)
 	{
@@ -2801,7 +2947,7 @@ static int CS_FindModel(const char *name, int *free)
 			*free = -i;
 			break;
 		}
-		if (!strcmp(cl.model_csqcname[i], name))
+		if (!strcmp(cl.model_csqcname[i], fixedname))
 			return -i;
 	}
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
@@ -2908,16 +3054,14 @@ static int PF_cs_PrecacheModel_Internal(pubprogfuncs_t *prinst, const char *mode
 	if (!*modelname)
 		return 0;
 
-	fixedname = Mod_FixName(modelname, csqc_world.worldmodel->publicname);
-
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)	//Make sure that the server specified model is loaded..
 	{
 		if (!*cl.model_name[i])
 			break;
-		if (!strcmp(cl.model_name[i], fixedname))
+		if (!strcmp(cl.model_name[i], modelname))
 		{
 			if (!cl.model_precache[i])
-				cl.model_precache[i] = Mod_ForName(cl.model_name[i], MLV_WARN);
+				cl.model_precache[i] = Mod_ForName(Mod_FixName(modelname, csqc_world.worldmodel->publicname), MLV_WARN);
 			break;
 		}
 	}
@@ -3593,7 +3737,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.safeorigin_known = false;
 	pmove.capsule = false;	//FIXME
 
-	movevars.coordsize = cls.netchan.message.prim.coordsize;
+	movevars.coordtype = cls.netchan.message.prim.coordtype;
 	if (ent->xv->gravity)
 		movevars.entgravity = ent->xv->gravity;
 	else if (csqc_playerseat >= 0 && cl.playerview[csqc_playerseat].playernum+1 == ent->xv->entnum)
@@ -5407,7 +5551,7 @@ static void QCBUILTIN PF_DeltaListen(pubprogfuncs_t *prinst, struct globalvars_s
 		return;
 	}
 
-	if (!prinst->GetFunctionInfo(prinst, func, NULL, NULL, NULL, 0))
+	if (!prinst->GetFunctionInfo(prinst, func, NULL, NULL, NULL, NULL, 0))
 	{
 		Con_Printf("PF_DeltaListen: Bad function index\n");
 		return;
@@ -6454,6 +6598,7 @@ static struct {
 	{"R_BeginPolygon",			PF_R_PolygonBegin,	306},				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 	{"R_PolygonVertex",			PF_R_PolygonVertex,	307},				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
 	{"R_EndPolygon",			PF_R_PolygonEnd,	308},				// #308 void() R_EndPolygon (EXT_CSQC_???)
+	{"R_EndPolygonRibbon",		PF_R_PolygonEndRibbon, 0},
 	{"addtrisoup_simple",		PF_R_AddTrisoup_Simple,	0},
 
 	{"getproperty",				PF_R_GetViewFlag,	309},				// #309 vector/float(float property) getproperty (EXT_CSQC_1)
@@ -6488,7 +6633,9 @@ static struct {
 	{"stringwidth",				PF_CL_stringwidth,				327},	// #327 EXT_CSQC_'DARKPLACES'
 	{"drawsubpic",				PF_CL_drawsubpic,				328},	// #328 EXT_CSQC_'DARKPLACES'
 	{"drawrotsubpic",			PF_CL_drawrotsubpic,			0},
-//	{"?",	PF_Fixme,						329},	// #329 EXT_CSQC_'DARKPLACES'
+#ifdef HAVE_LEGACY
+	{"drawrotpic_dp",			PF_CL_drawrotpic_dp,			329},
+#endif
 
 //330
 	{"getstati",				PF_cs_getstati,					330},	// #330 float(float stnum) getstati (EXT_CSQC)
@@ -6512,7 +6659,8 @@ static struct {
 	{"getkeybind",				PF_cl_getkeybind,				342},	// #342 string(float keynum) getkeybind (EXT_CSQC)
 
 	{"setcursormode",			PF_cl_setcursormode,			343},	// #343 This is originally a DP extension
-	{"getcursormode",			PF_cl_getcursormode,			0},	// #343 This is originally a DP extension
+	{"getcursormode",			PF_cl_getcursormode,			0},		//
+	{"setmousepos",				PF_cl_setmousepos,				0},		//
 	{"getmousepos",				PF_cl_getmousepos,				344},	// #344 This is a DP extension
 
 	{"getinputstate",			PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)
@@ -7088,7 +7236,7 @@ void CSQC_Shutdown(void)
 		PR_ReleaseFonts(kdm_game);
 		PR_Common_Shutdown(csqcprogs, false);
 		World_Destroy(&csqc_world);
-		csqcprogs->CloseProgs(csqcprogs);
+		csqcprogs->Shutdown(csqcprogs);
 		csqc_world.progs = csqcprogs = NULL;
 	}
 	else
@@ -7125,7 +7273,8 @@ void CSQC_Shutdown(void)
 
 	if (csqc_deprecated_warned>1)
 	{
-		Con_Printf("total %u csqc deprecation warnings suppressed\n", csqc_deprecated_warned-1);
+		if (!cl_csqc_nodeprecate.ival)
+			Con_Printf("total %u csqc deprecation warnings suppressed\n", csqc_deprecated_warned-1);
 		csqc_deprecated_warned = 0;
 	}
 }
@@ -7471,7 +7620,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		movevars.flyfriction = 4;//*pm_flyfriction.string?pm_flyfriction.value:4;
 		movevars.edgefriction = 2;//*pm_edgefriction.string?pm_edgefriction.value:2;
 		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
-		movevars.coordsize = 4;
+		movevars.coordtype = COORDTYPE_FLOAT_32;
 		movevars.flags = MOVEFLAG_NOGRAVITYONGROUND;
 	}
 
@@ -7483,7 +7632,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 			csqc_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
 	}
 
-	csqc_deprecated_warned = false;
+	csqc_deprecated_warned = !!cl_csqc_nodeprecate.ival;
 	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
 	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));
 
@@ -7986,6 +8135,8 @@ void CSQC_RegisterCvarsAndThings(void)
 	Cvar_Register(&cl_csqcdebug, CSQCPROGSGROUP);
 	Cvar_Register(&cl_nocsqc, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_coreonerror, CSQCPROGSGROUP);
+	Cvar_Register(&cl_csqc_nodeprecate, CSQCPROGSGROUP);
+	Cvar_Register(&dpcompat_csqcinputeventtypes, CSQCPROGSGROUP);
 }
 
 void CSQC_CvarChanged(cvar_t *var)
@@ -8044,6 +8195,7 @@ qboolean CSQC_DrawView(void)
 {
 	int ticlimit = 10;
 	float mintic = 0.01;
+	float maxtic = 0.1;
 	double clframetime = host_frametime;
 	RSpeedLocals();
 
@@ -8070,6 +8222,10 @@ qboolean CSQC_DrawView(void)
 	}
 	else
 	{
+#ifdef USERBE
+		if (csqc_world.rbe)
+			maxtic = mintic;	//physics engines need a fixed tick rate.
+#endif
 		while(1)
 		{
 			host_frametime = cl.servertime - csqc_world.physicstime;
@@ -8080,8 +8236,8 @@ qboolean CSQC_DrawView(void)
 				csqc_world.physicstime = cl.servertime;
 				break;
 			}
-			if (host_frametime > mintic)
-				host_frametime = mintic;
+			if (host_frametime > maxtic)
+				host_frametime = maxtic;
 
 #ifdef USERBE
 			if (csqc_world.rbe)
@@ -8300,8 +8456,9 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, unsigned int devid)
 {
 	static qbyte csqckeysdown[K_MAX];
 	void *pr_globals;
+	int ie = down?CSIE_KEYDOWN:CSIE_KEYUP;
 
-	if (!csqcprogs || !csqcg.input_event)
+	if (!csqcprogs || !csqcg.input_event || ie >= dpcompat_csqcinputeventtypes.ival)
 		return false;
 #ifdef TEXTEDITOR
 	if (editormodal)
@@ -8309,7 +8466,7 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, unsigned int devid)
 #endif
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	G_FLOAT(OFS_PARM0) = down?CSIE_KEYDOWN:CSIE_KEYUP;
+	G_FLOAT(OFS_PARM0) = ie;
 	G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoQCCodes(key);
 	G_FLOAT(OFS_PARM2) = unicode;
 	G_FLOAT(OFS_PARM3) = devid;
@@ -8343,7 +8500,7 @@ qboolean CSQC_MousePosition(float xabs, float yabs, unsigned int devid)
 {
 	void *pr_globals;
 
-	if (!csqcprogs || !csqcg.input_event)
+	if (!csqcprogs || !csqcg.input_event || CSIE_MOUSEABS >= dpcompat_csqcinputeventtypes.ival)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
@@ -8360,7 +8517,7 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta, unsigned int devid)
 {
 	void *pr_globals;
 
-	if (!csqcprogs || !csqcg.input_event)
+	if (!csqcprogs || !csqcg.input_event || CSIE_MOUSEDELTA >= dpcompat_csqcinputeventtypes.ival)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
@@ -8377,7 +8534,7 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta, unsigned int devid)
 qboolean CSQC_JoystickAxis(int axis, float value, unsigned int devid)
 {
 	void *pr_globals;
-	if (!csqcprogs || !csqcg.input_event)
+	if (!csqcprogs || !csqcg.input_event || CSIE_JOYAXIS >= dpcompat_csqcinputeventtypes.ival)
 		return false;
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 
@@ -8392,7 +8549,7 @@ qboolean CSQC_JoystickAxis(int axis, float value, unsigned int devid)
 qboolean CSQC_Accelerometer(float x, float y, float z)
 {
 	void *pr_globals;
-	if (!csqcprogs || !csqcg.input_event)
+	if (!csqcprogs || !csqcg.input_event || CSIE_ACCELEROMETER >= dpcompat_csqcinputeventtypes.ival)
 		return false;
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 
@@ -8406,7 +8563,7 @@ qboolean CSQC_Accelerometer(float x, float y, float z)
 qboolean CSQC_Gyroscope(float x, float y, float z)
 {
 	void *pr_globals;
-	if (!csqcprogs || !csqcg.input_event)
+	if (!csqcprogs || !csqcg.input_event || CSIE_GYROSCOPE >= dpcompat_csqcinputeventtypes.ival)
 		return false;
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 

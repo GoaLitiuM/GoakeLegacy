@@ -1671,7 +1671,7 @@ qboolean R_RenderScene_Cubemap(void)
 	{
 		if (!TEXVALID(scenepp_postproc_cube))
 		{
-			scenepp_postproc_cube = Image_CreateTexture("***fish***", NULL, IF_CUBEMAP|IF_RENDERTARGET|IF_CLAMP|IF_LINEAR);
+			scenepp_postproc_cube = Image_CreateTexture("***fish***", NULL, IF_TEXTYPE_CUBE|IF_RENDERTARGET|IF_CLAMP|IF_LINEAR);
 			qglGenTextures(1, &scenepp_postproc_cube->num);
 		}
 		else
@@ -1910,7 +1910,7 @@ void GLR_RenderView (void)
 
 	if (!r_refdef.globalfog.density)
 	{
-		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[1].density)?1:0;
+		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[FOGTYPE_WATER].density)?FOGTYPE_WATER:FOGTYPE_AIR;
 		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[fogtype], realtime, &cl.fog[fogtype]);
 		r_refdef.globalfog.density /= 64;	//FIXME
 	}
@@ -2048,14 +2048,16 @@ void GLR_RenderView (void)
 
 		fmt = PTI_RGBA8;
 		if (r_hdr_framebuffer.ival < 0)
-		{
+		{	//cvar change handler will set ival negative if it matches a known format name, doesn't mean its supported.
 			fmt = -r_hdr_framebuffer.ival;
-			if (!sh_config.texfmt[fmt])
+			if (fmt >= PTI_FIRSTCOMPRESSED || !sh_config.texfmt[fmt])
 				fmt = PTI_RGB565;
 		}
 		else if ((r_refdef.flags&RDF_SCENEGAMMA)||(vid.flags&(VID_SRGBAWARE|VID_FP16))||r_hdr_framebuffer.ival)
 		{	//gamma ramps really need higher colour precision, otherwise the entire thing looks terrible.
-			if (sh_config.texfmt[PTI_RGBA16F])
+			if (sh_config.texfmt[PTI_B10G11R11F])
+				fmt = PTI_B10G11R11F;
+			else if (sh_config.texfmt[PTI_RGBA16F])
 				fmt = PTI_RGBA16F;
 			else if (sh_config.texfmt[PTI_A2BGR10])
 				fmt = PTI_A2BGR10;

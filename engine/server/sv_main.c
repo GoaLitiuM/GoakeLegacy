@@ -1975,10 +1975,59 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	client->fteprotocolextensions  &= Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(client));
 	client->fteprotocolextensions2 &= Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(client));
 	client->ezprotocolextensions1  &= Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, ISNQCLIENT(client)) & EZPEXT1_SERVERADVERTISE;
+	client->zquake_extensions &= SERVER_SUPPORTED_Z_EXTENSIONS;
 
 	//some gamecode can't cope with some extensions for some reasons... and I'm too lazy to fix the code to cope.
 	if (svs.gametype == GT_HALFLIFE)
 		client->fteprotocolextensions2 &= ~PEXT2_REPLACEMENTDELTAS;	//baseline issues
+
+#ifdef HAVE_LEGACY
+	if (ISQWCLIENT(client))
+	{
+		//be prepared to recognise client versions, in order to block known-buggy extensions.
+		const char *s;
+		int ver;
+		extern cvar_t pext_ezquake_nochunks;
+		extern cvar_t pext_ezquake_verfortrans;
+		s = InfoBuf_ValueForKey(&client->userinfo, "*client");
+		if (!strncmp(s, "ezQuake", 7) || !strncmp(s, "FortressOne", 11))
+		{
+			COM_Parse(s);	//skip name-of-fork
+			COM_Parse(s);	//tokenize the version
+			ver = atoi(com_token);
+
+			//this should actually have been resolved now, but for future use...
+			if ((client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && pext_ezquake_nochunks.ival)
+			{
+				client->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
+				SV_PrintToClient(client, PRINT_HIGH, "ezQuake's implementation of chunked downloads is blocked on this server.\n");
+			}
+
+			//client fails to read the extra byte when PF_EXTRA_PFS is set, instead checking for the 18th bit in a 16-bit (signed) variable.
+			if ((client->fteprotocolextensions & PEXT_TRANS) && ver < pext_ezquake_verfortrans.ival)
+			{
+				SV_PrintToClient(client, PRINT_HIGH, "ezQuake's implementation of PEXT_TRANS is buggy. Disabling.\n");
+				client->fteprotocolextensions &= ~PEXT_TRANS;
+			}
+			//in order to simultaneously support PF_SOLID+Z_EXT_PF_SOLID and PF_HULLSIZE_Z+Z_EXT_PF_ONGROUND, I had to redefine the protocol when both were enabled.
+			//ezquake does not understand the change.
+			if ((client->zquake_extensions & (Z_EXT_PF_ONGROUND|Z_EXT_PF_SOLID)) && ver < pext_ezquake_verfortrans.ival)
+			{
+				if (client->fteprotocolextensions & PEXT_HULLSIZE)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_HULLSIZE conflicts with zquake extensions.\n");
+				if (client->fteprotocolextensions & PEXT_SCALE)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_SCALE conflicts with zquake extensions.\n");
+				if (client->fteprotocolextensions & PEXT_FATNESS)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_FATNESS conflicts with zquake extensions.\n");
+				if (client->fteprotocolextensions & PEXT_TRANS)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_TRANS conflicts with zquake extensions.\n");
+				client->fteprotocolextensions &= ~(PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS);
+			}
+		}
+
+		//its not that I'm singling out ezquake or anything, but it has too many people using outdated versions that its hard to ignore.
+	}
+#endif
 
 	//
 	client->maxmodels = 256;
@@ -2509,6 +2558,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 
 	name = Info_ValueForKey (info->userinfo, "name");
 
+	/*
 	if (sv.world.worldmodel && info->protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (info->userinfo, "iknow")))
 	{
 		if (sv.world.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
@@ -2537,6 +2587,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		}
 #endif
 	}
+	*/
 
 	SV_FixupName(name, temp.namebuf, sizeof(temp.namebuf));
 	name = temp.namebuf;
@@ -5098,7 +5149,7 @@ float SV_Frame (void)
 // get packets
 	isidle = !SV_ReadPackets (&delay);
 
-	if (pr_imitatemvdsv.ival)
+	if (pr_imitatemvdsv.ival || dpcompat_nopreparse.ival)
 	{
 		Cbuf_Execute ();
 		if (sv.state < ss_active)	//whoops...
@@ -5185,7 +5236,7 @@ float SV_Frame (void)
 			}
 
 // process console commands
-			if (!pr_imitatemvdsv.value)
+			if (!(pr_imitatemvdsv.value || dpcompat_nopreparse.ival))
 				Cbuf_Execute ();
 		}
 
@@ -5709,7 +5760,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			}
 		}
 
-		if (!cl->drop && strncmp(val, cl->name, sizeof(cl->namebuf)-1) && cl->state > cs_zombie)
+		if (!cl->drop && strncmp(newname, cl->name, sizeof(cl->namebuf)-1) && cl->state > cs_zombie)
 		{
 			if (*cl->name && cl->state >= cs_spawned && !cl->spectator && verbose)
 			{
@@ -5984,9 +6035,7 @@ void SV_Init (quakeparms_t *parms)
 			Sys_Quit();
 #endif
 
-		Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
-
-		Con_Printf ("%s\n", version_string());
+		Con_Printf ("Exe: %s\n", version_string());
 
 		Con_TPrintf ("======== %s Initialized ========\n", *fs_gamename.string?fs_gamename.string:"Nothing");
 

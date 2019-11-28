@@ -33,8 +33,8 @@ ANDROID_ZIPALIGN=$ANDROIDROOT/build-tools/$ANDROIDBUILDTOOLS/zipalign	#relative 
 
 THREADS="-j 4"
 
-TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
-TARGETS_WINDOWS="sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel"
+TARGETS_LINUX="qcc-rel rel dbg plugins-rel plugins-dbg" #gl-rel vk-rel 
+TARGETS_WINDOWS="sv-rel m-rel qcc-rel qccgui-scintilla qccgui-dbg m-dbg sv-dbg plugins-dbg plugins-rel" #gl-rel vk-rel mingl-rel d3d-rel 
 
 
 PLUGINS_DROID="qi ezhud irc"
@@ -113,9 +113,22 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 	else
 		echo "Skipping Cygwin options."
 	fi
-	read -n 1 -p "Build for Windows? [Y/n] " BUILD_WINDOWS && echo
-	read -n 1 -p "Build for Dos? [y/N] " BUILD_DOS && echo
-	read -n 1 -p "Build for SDL? [y/N] " BUILD_SDL && echo
+	read -n 1 -p "Build for Windows x86? [Y/n] " BUILD_WIN32 && echo
+	read -n 1 -p "Build for Windows x86_64? [Y/n] " BUILD_WIN64 && echo
+	BUILD_DOS=n
+	if [ "$(uname -o)" == "Cygwin" ]; then
+		read -n 1 -p "Build for Dos? [y/N] " BUILD_DOS && echo
+	fi
+	BUILD_SDL_LINUXx86=n
+	BUILD_SDL_LINUXx64=n
+	BUILD_SDL_WIN32=n
+	BUILD_SDL_WIN64=n
+	if [ "$(uname -sm)" == "Linux i686" ]; then
+		read -n 1 -p "Build for Linux x86 SDL? [y/N] " BUILD_SDL_LINUXx32 && echo
+	fi
+	if [ "$(uname -sm)" == "Linux x86_64" ]; then
+		read -n 1 -p "Build for Linux x86_64 SDL? [y/N] " BUILD_SDL_LINUXx64 && echo
+	fi
 	read -n 1 -p "Build for Android? [y/N] " BUILD_ANDROID && echo
 	read -n 1 -p "Build for Emscripten? [y/N] " BUILD_WEB && echo
 	if [ 0 -ne 0 ]; then
@@ -131,7 +144,8 @@ BUILD_LINUXx64=${BUILD_LINUXx64:-y}
 BUILD_LINUXx32=${BUILD_LINUXx32:-n}
 BUILD_LINUXarmhf=${BUILD_LINUXarmhf:-n}
 BUILD_CYGWIN=${BUILD_CYGWIN:-n}
-BUILD_WINDOWS=${BUILD_WINDOWS:-y}
+BUILD_WIN32=${BUILD_WIN32:-y}
+BUILD_WIN64=${BUILD_WIN64:-y}
 BUILD_DOS=${BUILD_DOS:-n}
 BUILD_MSVC=${BUILD_MSVC:-n}
 BUILD_SDL=${BUILD_SDL:-n}
@@ -160,7 +174,8 @@ if [ "$UID" != "0" ]; then
 	echo "BUILD_LINUXx32=\"$BUILD_LINUXx32\""		>>$FTECONFIG
 	echo "BUILD_LINUXarmhf=\"$BUILD_LINUXarmhf\""		>>$FTECONFIG
 	echo "BUILD_CYGWIN=\"$BUILD_CYGWIN\""			>>$FTECONFIG
-	echo "BUILD_WINDOWS=\"$BUILD_WINDOWS\""			>>$FTECONFIG
+	echo "BUILD_WIN32=\"$BUILD_WIN32\""			>>$FTECONFIG
+	echo "BUILD_WIN64=\"$BUILD_WIN64\""			>>$FTECONFIG
 	echo "BUILD_DOS=\"$BUILD_DOS\""				>>$FTECONFIG
 	echo "BUILD_MSVC=\"$BUILD_MSVC\""			>>$FTECONFIG
 	echo "BUILD_ANDROID=\"$BUILD_ANDROID\""			>>$FTECONFIG
@@ -197,17 +212,15 @@ function debianpackages {
 	do
 		dpkg -s $i 2>&1 >> /dev/null
 		if [ $? -eq 1 ]; then
+			echo "Package missing: $i"
 			ret=$false
 		fi
 	done
 
 	if [ $ret == $false ]; then
-		if [ $UID -eq 0 ]; then
-			apt-get install --no-install-recommends $@
-			ret=$true
-		else
-			echo "Packages not installed. Rerun script as root to easily install dependancies, or manually install."
-		fi
+		echo "Packages are not installed. Press enter to continue (or ctrl+c and install)."
+		read
+		ret=$true
 	fi
 	return $ret
 }
@@ -232,11 +245,11 @@ function otherpackages {
 
 #Note: only the native linux-sdl target can be compiled, as libSDL[2]-dev doesn't support multiarch properly, and we depend upon it instead of building from source (thus ensuring it has whatever distro stuff needed... though frankly that should be inside the .so instead of the headers).
 
-if [ $UID -eq 0 ] && [ ! -z `which apt-get` ]; then
+#if [ $UID -eq 0 ] && [ ! -z `which apt-get` ]; then
 	#because multiarch requires separate packages for some things, we'll need to set that up now (in case noone did that yet)
-	dpkg --add-architecture i386
-	apt-get update
-fi
+#	dpkg --add-architecture i386
+#	apt-get update
+#fi
 
 #generic crap. much of this is needed to set up and decompress dependancies and stuff.
 debianpackages subversion make automake libtool p7zip-full zip ca-certificates || otherpackages z7 make svn || exit
@@ -272,7 +285,7 @@ if [ "$BUILD_SDL" == "y" ]; then
 	debianpackages libSDL1.2-dev libSDL2-dev libspeex-dev libspeexdsp-dev || otherpackages || exit
 fi
 
-if [ "$BUILD_WINDOWS" == "y" ]; then
+if [ "$BUILD_WIN32" == "y" ] || [ "$BUILD_WIN64" == "y" ]; then
 	#for building windows targets
 	#python is needed to configure scintilla properly.
 	debianpackages mingw-w64 python || otherpackages x86_64-w64-mingw32-gcc python || exit
@@ -382,7 +395,7 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 	#linux distros vary too much with various dependancies and versions and such, so we might as well pre-build our own copies of certain libraries. this really only needs to be done once, but its safe to retry anyway.
 	cd $SVNROOT/engine
 	if [ "$BUILD_LINUXx86" == "y" ]; then
-		echo "Making libraries (x86)..."
+		echo "Making libraries (linux x86)..."
 		make FTE_TARGET=linux32 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
 	if [ "$BUILD_LINUXx64" == "y" ]; then
@@ -397,9 +410,19 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 		echo "Making libraries (linux armhf)..."
 		make FTE_TARGET=linuxarmhf makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WINDOWS" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
+	if [ "$BUILD_WIN32" == "y" ]; then
+		echo "Making libraries (win32)..."
+		make FTE_TARGET=win32 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
+	fi
+	if [ "$BUILD_WIN64" == "y" ]; then
+		echo "Making libraries (win64)..."
+		make FTE_TARGET=win64 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
+	fi
+	if [ "$BUILD_WIN32" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
 		echo "Prebuilding ODE library (win32)..."
 		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=ode 2>&1 >>/dev/null
+	fi
+	if [ "$BUILD_WIN64" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
 		echo "Prebuilding ODE library (win64)..."
 		make FTE_TARGET=win64 plugins-rel NATIVE_PLUGINS=ode 2>&1 >>/dev/null
 	fi
@@ -411,9 +434,11 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 		echo "Prebuilding ODE library (linux x86_64)..."
 		make FTE_TARGET=linux64 plugins-rel NATIVE_PLUGINS=ode CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WINDOWS" == "y" ]; then
+	if [ "$BUILD_WIN32" == "y" ]; then
 		echo "Obtaining ffmpeg library (win32)..."
 		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=ffmpeg 2>&1 >>/dev/null
+	fi
+	if [ "$BUILD_WIN64" == "y" ]; then
 		echo "Obtaining ffmpeg library (win64)..."
 		make FTE_TARGET=win64 plugins-rel NATIVE_PLUGINS=ffmpeg 2>&1 >>/dev/null
 	fi

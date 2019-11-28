@@ -15,6 +15,9 @@ int QCC_PR_CheckCompConst(void);
 pbool QCC_Include(const char *filename);
 void QCC_FreeDef(QCC_def_t *def);
 
+extern pbool	destfile_explicit;
+extern char		destfile[1024];
+
 #define MAXINCLUDEDIRS 8
 char	qccincludedir[MAXINCLUDEDIRS][256];	//the -src path, for #includes
 struct qccincludeonced_s
@@ -934,16 +937,15 @@ static pbool QCC_PR_Precompiler(void)
 		}
 		else if (!strncmp(directive, "merge", 5))
 		{
-			extern char		destfile[1024];
 			pr_file_p=directive+5;
 
 			while(qcc_iswhitesameline(*pr_file_p))
 				pr_file_p++;
 
 			QCC_PR_SimpleGetString();
-			externs->Printf("Merging to %s\n", pr_token);
+			externs->Printf("Merging from %s\n", pr_token);
 			QCC_ImportProgs(pr_token);
-			if (!*destfile)
+			if (!*destfile && !destfile_explicit)
 			{
 				QCC_Canonicalize(destfile, sizeof(destfile), pr_token, compilingfile);
 				externs->Printf("Outputfile: %s\n", destfile);
@@ -1062,15 +1064,17 @@ static pbool QCC_PR_Precompiler(void)
 		}
 		else if (!strncmp(directive, "output", 6))
 		{
-			extern char		destfile[1024];
 			pr_file_p=directive+6;
 
 			while(qcc_iswhitesameline(*pr_file_p))
 				pr_file_p++;
 
 			QCC_PR_SimpleGetString();
-			QCC_Canonicalize(destfile, sizeof(destfile), pr_token, compilingfile);
-			externs->Printf("Outputfile: %s\n", pr_token);
+			if (!destfile_explicit)
+			{
+				QCC_Canonicalize(destfile, sizeof(destfile), pr_token, compilingfile);
+				externs->Printf("Outputfile: %s\n", pr_token);
+			}
 
 			QCC_PR_SkipToEndOfLine(true);
 		}
@@ -1357,12 +1361,12 @@ static pbool QCC_PR_Precompiler(void)
 			}
 			else if (!QC_strcasecmp(qcc_token, "PROGS_DAT"))
 			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
-				extern char		destfile[1024];
 				char olddest[1024];
 				Q_strlcpy(olddest, destfile, sizeof(olddest));
 				QCC_COM_Parse(msg);
 
-				QCC_Canonicalize(destfile, sizeof(destfile), qcc_token, compilingfile);
+				if (!destfile_explicit) //if output file is named on the commandline, don't change it mid-compile
+					QCC_Canonicalize(destfile, sizeof(destfile), qcc_token, compilingfile);
 				
 				extern pbool verbose;
 				if (strcmp(destfile, olddest) && verbose)
@@ -1877,7 +1881,7 @@ void QCC_PR_LexString (void)
 						QCC_PR_ParseWarning(WARN_MACROINSTRING, "Macro expansion in string");
 
 						if (len+strlen(cnst) >= sizeof(pr_token)-1)
-							QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+							QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_token)-1);
 
 						strcpy(pr_token+len, cnst);
 						len+=strlen(cnst);
@@ -1942,7 +1946,7 @@ forceutf8:
 
 				//error if needed
 				if (len+bytecount >= sizeof(pr_token))
-					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_token)-1);
 
 				//output it.
 				if (bytecount == 1)
@@ -1975,7 +1979,7 @@ forcequake:
 
 forcebyte:
 				if (len >= sizeof(pr_token)-1)
-					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_token)-1);
 				pr_token[len] = c;
 				len++;
 			}
@@ -1983,7 +1987,7 @@ forcebyte:
 	}
 
 	if (len > sizeof(pr_immediate_string)-1)
-		QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
+		QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_immediate_string)-1);
 
 	pr_token[len] = 0;
 	pr_token_type = tt_immediate;
@@ -3254,13 +3258,19 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 		QC_snprintfz(retbuf, retbufsize, "%i", rand());
 		return retbuf;
 	}
+#if defined(SVNREVISION) && defined(SVNDATE)
+	if (!strcmp(constname, "__QCCREV__"))
+		return STRINGIFY(SVNREVISION); //no M or anything, so you can compare revisions properly
+#endif
 	if (!strcmp(constname, "__QCCVER__"))
 	{
-#ifdef SVNVERSION
-		if (strcmp(SVNVERSION, "-"))
-			return "FTEQCC " STRINGIFY(SVNVERSION);
+#if defined(SVNREVISION) && defined(SVNDATE)
+		return "\"FTEQCC " STRINGIFY(SVNREVISION) " "STRINGIFY(SVNDATE)"\"";
+#elif defined(SVNREVISION)
+		return "\"FTEQCC " STRINGIFY(SVNREVISION) " "__DATE__"\"";
+#else
+		return "\""__DATE__"\"";
 #endif
-		return "\"FTEQCC "__DATE__","__TIME__"\"";
 	}
 	if (!strcmp(constname, "__FILE__"))
 	{

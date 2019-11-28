@@ -542,7 +542,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	if (to == MULTICAST_INIT)
 	{
 		//we only have one signon buffer. make sure you don't put non-identical protocols in the buffer
-		SV_FlushSignon();
+		SV_FlushSignon(false);
 		SZ_Write (&sv.signon, sv.multicast.data, sv.multicast.cursize);
 
 		//and send to players that are already on
@@ -1613,9 +1613,9 @@ void SV_FindModelNumbers (void)
 	{
 		if (!sv.strings.model_precache[i])
 			break;
-		if (!strcmp(sv.strings.model_precache[i],"progs/spike.mdl") && sv.multicast.prim.coordsize == 2)
+		if (!strcmp(sv.strings.model_precache[i],"progs/spike.mdl") && sv.multicast.prim.coordtype == COORDTYPE_FIXED_13_3)
 			sv_nailmodel = i;
-		if (!strcmp(sv.strings.model_precache[i],"progs/s_spike.mdl") && sv.multicast.prim.coordsize == 2)
+		if (!strcmp(sv.strings.model_precache[i],"progs/s_spike.mdl") && sv.multicast.prim.coordtype == COORDTYPE_FIXED_13_3)
 			sv_supernailmodel = i;
 		if (!strcmp(sv.strings.model_precache[i],"progs/player.mdl"))
 			sv_playermodel = i;

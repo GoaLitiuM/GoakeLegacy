@@ -490,7 +490,7 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 		if (-DotProduct(gravitydir, trace.plane.normal) > 0.7)
 		{
 			blocked |= 1;		// floor
-			if (((wedict_t *)trace.ent)->v->solid == SOLID_BSP)
+			if (((wedict_t *)trace.ent)->v->solid == SOLID_BSP || dpcompat_noretouchground.ival)
 			{
 				ent->v->flags =	(int)ent->v->flags | FL_ONGROUND;
 				ent->v->groundentity = EDICT_TO_PROG(w->progs, trace.ent);
@@ -1287,7 +1287,7 @@ static void WPhys_CheckWaterTransition (world_t *w, wedict_t *ent)
 {
 	int		cont;
 
-	cont = World_PointContents (w, ent->v->origin);
+	cont = World_PointContentsWorldOnly (w, ent->v->origin);
 
 	//needs to be q1 progs compatible
 	if (cont & FTECONTENTS_LAVA)
@@ -1628,11 +1628,38 @@ static void WPhys_CheckStuck (world_t *w, wedict_t *ent)
 =============
 SV_CheckWater
 =============
+
+for players
 */
 static qboolean WPhys_CheckWater (world_t *w, wedict_t *ent)
 {
 	vec3_t	point;
 	int		cont;
+	int hc;
+	trace_t tr;
+
+	//check if we're on a ladder, and if so fire a trace forwards to ensure its a valid ladder instead of a random volume
+	hc = ent->xv->hitcontentsmaski;	//lame
+	ent->xv->hitcontentsmaski = ~0;
+	tr = World_Move(w, ent->v->origin, ent->v->mins, ent->v->maxs, ent->v->origin, 0, ent);
+	ent->xv->hitcontentsmaski = hc;
+	if (tr.contents & FTECONTENTS_LADDER)
+	{
+		vec3_t flatforward;
+		flatforward[0] = cos((M_PI/180)*ent->v->angles[1]);
+		flatforward[1] = sin((M_PI/180)*ent->v->angles[1]);
+		flatforward[2] = 0;
+		VectorMA (ent->v->origin, 24, flatforward, point);
+
+		tr = World_Move(w, ent->v->origin, ent->v->mins, ent->v->maxs, point, 0, ent);
+		if (tr.fraction < 1)
+			ent->xv->pmove_flags = (int)ent->xv->pmove_flags|PMF_LADDER;
+		else if ((int)ent->xv->pmove_flags & PMF_LADDER)
+			ent->xv->pmove_flags -= PMF_LADDER;
+	}
+	else if ((int)ent->xv->pmove_flags & PMF_LADDER)
+		ent->xv->pmove_flags -= PMF_LADDER;
+
 
 	point[0] = ent->v->origin[0];
 	point[1] = ent->v->origin[1];
@@ -1640,7 +1667,7 @@ static qboolean WPhys_CheckWater (world_t *w, wedict_t *ent)
 
 	ent->v->waterlevel = 0;
 	ent->v->watertype = Q1CONTENTS_EMPTY;
-	cont = World_PointContents (w, point);
+	cont = World_PointContentsAllBSPs (w, point);
 	if (cont & FTECONTENTS_FLUID)
 	{
 		if (cont & FTECONTENTS_LAVA)
@@ -1653,12 +1680,12 @@ static qboolean WPhys_CheckWater (world_t *w, wedict_t *ent)
 			ent->v->watertype = Q1CONTENTS_SKY;
 		ent->v->waterlevel = 1;
 		point[2] = ent->v->origin[2] + (ent->v->mins[2] + ent->v->maxs[2])*0.5;
-		cont = World_PointContents (w, point);
+		cont = World_PointContentsAllBSPs (w, point);
 		if (cont & FTECONTENTS_FLUID)
 		{
 			ent->v->waterlevel = 2;
 			point[2] = ent->v->origin[2] + ent->v->view_ofs[2];
-			cont = World_PointContents (w, point);
+			cont = World_PointContentsAllBSPs (w, point);
 			if (cont & FTECONTENTS_FLUID)
 				ent->v->waterlevel = 3;
 		}
@@ -2268,7 +2295,8 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 			gravitydir = w->g.defaultgravitydir;
 
 		if (!WPhys_CheckWater (w, ent) && ! ((int)ent->v->flags & FL_WATERJUMP) ) //Vanilla Bug: the QC checks waterlevel inside PlayerPreThink, with waterlevel from a different position from the origin.
-			WPhys_AddGravity (w, ent, gravitydir);
+			if (!((int)ent->xv->pmove_flags & PMF_LADDER))
+				WPhys_AddGravity (w, ent, gravitydir);
 		WPhys_CheckStuck (w, ent);
 
 		WPhys_WalkMove (w, ent, gravitydir);

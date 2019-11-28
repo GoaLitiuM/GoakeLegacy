@@ -368,6 +368,9 @@ void CL_UpdateWindowTitle(void)
 	}
 }
 
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 void CL_MakeActive(char *gamename)
 {
 	extern int fs_finds;
@@ -413,6 +416,10 @@ void CL_MakeActive(char *gamename)
 		TP_ExecTrigger("f_spawndemo", true);
 	else
 		TP_ExecTrigger("f_spawn", false);
+
+#ifdef __GLIBC__
+	malloc_trim(0);
+#endif
 }
 /*
 ==================
@@ -1808,9 +1815,11 @@ void CL_ClearState (qboolean gamestart)
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
-	CL_ResetFog(0);
-	CL_ResetFog(1);
+	CL_ResetFog(FOGTYPE_AIR);
+	CL_ResetFog(FOGTYPE_WATER);
+	CL_ResetFog(FOGTYPE_SKYROOM);
 
+	cl.gamespeed = 1;
 	cl.protocol_qw = PROTOCOL_VERSION_QW;	//until we get an svc_serverdata
 	cl.allocated_client_slots = QWMAX_CLIENTS;
 #ifndef CLIENTONLY
@@ -2377,7 +2386,7 @@ void CL_CheckServerInfo(void)
 		movevars.strafeaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_strafeaccelerate"));
 		movevars.extrajump =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajump"));
 	}
-	movevars.coordsize = cls.netchan.netprim.coordsize;
+	movevars.coordtype = cls.netchan.netprim.coordtype;
 
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)
@@ -4376,12 +4385,14 @@ void CL_Fog_f(void)
 {
 	int ftype;
 	if (!Q_strcasecmp(Cmd_Argv(0), "waterfog"))
-		ftype = 1;
+		ftype = FOGTYPE_WATER;
+	else if (!Q_strcasecmp(Cmd_Argv(0), "skyroomfog"))
+		ftype = FOGTYPE_SKYROOM;
 	else //fog
-		ftype = 0;
+		ftype = FOGTYPE_AIR;
 	if ((cl.fog_locked && !Cmd_FromGamecode() && !cls.allow_cheats) || Cmd_Argc() <= 1)
 	{
-		static const char *fognames[]={"fog","waterfog"};
+		static const char *fognames[FOGTYPE_COUNT]={"fog","waterfog","skyroomfog"};
 		if (Cmd_ExecLevel != RESTRICT_INSECURE)
 			Con_Printf("Current %s %f (r:%f g:%f b:%f, a:%f bias:%f)\n", fognames[ftype], cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
 	}
@@ -4932,10 +4943,10 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
-	Cmd_AddCommand ("say", CL_Say_f);
-	Cmd_AddCommand ("me", CL_SayMe_f);
-	Cmd_AddCommand ("sayone", CL_Say_f);
-	Cmd_AddCommand ("say_team", CL_SayTeam_f);
+	Cmd_AddCommandAD ("say", CL_Say_f, Key_EmojiCompletion_c, NULL);
+	Cmd_AddCommandAD ("me", CL_SayMe_f, Key_EmojiCompletion_c, NULL);
+	Cmd_AddCommandAD ("sayone", CL_Say_f, Key_EmojiCompletion_c, NULL);
+	Cmd_AddCommandAD ("say_team", CL_SayTeam_f, Key_EmojiCompletion_c, NULL);
 #ifdef CLIENTONLY
 	Cmd_AddCommand ("serverinfo", NULL);
 #else
@@ -4944,7 +4955,8 @@ void CL_Init (void)
 
 	Cmd_AddCommandD ("fog", CL_Fog_f, "fog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommandD ("waterfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
-	Cmd_AddCommand ("skygroup", CL_Skygroup_f);
+	Cmd_AddCommandD ("skyroomfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
+	Cmd_AddCommandD ("skygroup", CL_Skygroup_f, "Provides a way to associate a skybox name with a series of maps, so that the requested skybox will override on a per-map basis.");
 //
 //  Windows commands
 //
@@ -5927,8 +5939,8 @@ double Host_Frame (double time)
 		cl.gametimemark += time;
 
 	//if we're at a menu/console/thing
-	idle = !Key_Dest_Has_Higher(kdm_menu);
-	idle = (cls.state == ca_disconnected) && idle;	//idle if we're disconnected/paused and not at a menu
+	//idle = !Key_Dest_Has_Higher(kdm_menu);
+	//idle = (cls.state == ca_disconnected) && idle;	//idle if we're disconnected/paused and not at a menu
 	idle |= !vid.activeapp; //always idle when tabbed out
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.
@@ -6491,8 +6503,6 @@ void CL_ExecInitialConfigs(char *resetcommand)
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		else //if (cfg <= def && cfg!=0x7fffffff)
 			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
-//		else
-//			Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
 		if (def!=FDEPTH_MISSING)
 			Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
@@ -6565,7 +6575,7 @@ void Host_FinishLoading(void)
 		SV_ArgumentOverrides();
 	#endif
 
-		Con_Printf ("\n%s\n", version_string());
+		Con_Printf ("\nEngine: %s\n", version_string());
 
 		Con_DPrintf("This program is free software; you can redistribute it and/or "
 					"modify it under the terms of the GNU General Public License "

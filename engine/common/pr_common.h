@@ -39,8 +39,6 @@ struct wedict_s
 	/*the above is shared with ssqc*/
 };
 
-#define PF_drawline PF_Fixme
-
 #define G_PROG G_FLOAT
 
 //the lh extension system asks for a name for the extension.
@@ -404,6 +402,9 @@ void QCBUILTIN PF_CL_stringwidth (pubprogfuncs_t *prinst, struct globalvars_s *p
 void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_drawrotpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_drawrotsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#ifdef HAVE_LEGACY
+void QCBUILTIN PF_CL_drawrotpic_dp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#endif
 void QCBUILTIN PF_CL_findfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 #if defined(CSQC_DAT) && !defined(SERVERONLY)
@@ -441,6 +442,7 @@ void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr
 void QCBUILTIN PF_cl_setkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_setmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_setmousepos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_setwindowcaption (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -734,6 +736,7 @@ typedef enum
 	VF_ENVMAP			= 220,	//cubemap image for reflectcube
 	VF_USERDATA			= 221,
 	VF_SKYROOM_CAMERA	= 222,
+	VF_PIXELPSCALE		= 223, //[dpi_x, dpi_y, dpi_y/dpi_x]
 } viewflags;
 
 /*FIXME: this should be changed*/

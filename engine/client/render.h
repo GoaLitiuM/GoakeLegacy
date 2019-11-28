@@ -205,7 +205,6 @@ typedef struct
 	float glslpad1;		//w_fog[1].z
 	float glslpad2;		//w_fog[1].w
 
-//	float alpha;
 //	float start;
 //	float end;
 //	float height;
@@ -293,6 +292,7 @@ typedef struct
 	float		hdr_value;
 
 	vec3_t		skyroom_pos;		/*the camera position for sky rooms*/
+	vec4_t		skyroom_spin;		/*the camera spin for sky rooms*/
 	qboolean	skyroom_enabled;	/*whether a skyroom position is defined*/
 	int			firstvisedict;		/*so we can skip visedicts in skies*/
 
@@ -421,15 +421,16 @@ enum imageflags
 	IF_NOPICMIP			= 1<<7,
 	IF_NOALPHA			= 1<<8,		/*hint rather than requirement*/
 	IF_NOGAMMA			= 1<<9,		/*do not apply texture-based gamma*/
-	IF_3DMAP			= 1<<10,	/*waning - don't test directly*/
-	IF_CUBEMAP			= 1<<11,	/*waning - don't test directly*/
-	IF_2DARRAY				= IF_3DMAP|IF_CUBEMAP,
-	IF_TEXTYPE				= (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
-	IF_TEXTYPESHIFT			= 10,	/*0=2d, 1=3d, 2-7=cubeface*/
-	IF_MIPCAP			= 1<<12,	//allow the use of d_mipcap
-	IF_PREMULTIPLYALPHA	= 1<<13,	//rgb *= alpha
+	IF_TEXTYPEMASK			= (1<<10) | (1<<11) | (1<<12), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
+#define IF_TEXTYPESHIFT		10
+#define IF_TEXTYPE_2D (PTI_2D<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_3D (PTI_3D<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_CUBE (PTI_CUBE<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_2D_ARRAY (PTI_2D_ARRAY<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_CUBE_ARRAY (PTI_CUBE_ARRAY<<IF_TEXTYPESHIFT)
+	IF_MIPCAP			= 1<<13,	//allow the use of d_mipcap
+	IF_PREMULTIPLYALPHA	= 1<<14,	//rgb *= alpha
 
-	IF_UNUSED14			= 1<<14,	//
 	IF_UNUSED15			= 1<<15,	//
 	IF_UNUSED16			= 1<<16,	//
 	IF_UNUSED17			= 1<<17,	//
@@ -468,12 +469,16 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 void Image_Purge(void);	//purge any textures which are not needed any more (releases memory, but doesn't give null pointers).
 void Image_Init(void);
 void Image_Shutdown(void);
+void Image_PrintInputFormatVersions(void); //for version info
 qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips);
 qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips);
 void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight);
 const char *Image_FormatName(uploadfmt_t encoding);
-
+qboolean Image_FormatHasAlpha(uploadfmt_t encoding);
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
+struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname, const char *fname, qbyte *filedata, int filesize);
+void Image_ChangeFormat(struct pendingtextureinfo *mips, qboolean *allowedformats, uploadfmt_t origfmt, const char *imagename);
+void *Image_FlipImage(const void *inbuffer, void *outbuffer, int *inoutwidth, int *inoutheight, int pixelbytes, qboolean flipx, qboolean flipy, qboolean flipd);
 
 #ifdef D3D8QUAKE
 void		D3D8_Set2D (void);
@@ -498,8 +503,6 @@ texid_t R_LoadReplacementTexture(const char *name, const char *subpath, unsigned
 texid_tf R_LoadHiResTexture(const char *name, const char *subpath, unsigned int flags);
 texid_tf R_LoadBumpmapTexture(const char *name, const char *subpath);
 void R_LoadNumberedLightTexture(struct dlight_s *dl, int cubetexnum);
-
-qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname);
 
 extern	texid_t	particletexture;
 extern	texid_t particlecqtexture;
@@ -598,11 +601,12 @@ void RQ_Shutdown(void);
 void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
-qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
-void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, int inheight, void *out,  int outwidth, int outheight);
 
+qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname);
+void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, int inheight, void *out,  int outwidth, int outheight);
+void Image_ReadExternalAlpha(qbyte *rgbadata, size_t imgwidth, size_t imgheight, const char *fname, uploadfmt_t *format);
 void BoostGamma(qbyte *rgba, int width, int height, uploadfmt_t fmt);
 void SaturateR8G8B8(qbyte *data, int size, float sat);
 void AddOcranaLEDsIndexed (qbyte *image, int h, int w);
@@ -647,6 +651,8 @@ extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 extern	cvar_t	r_deluxemapping_cvar;
 extern	qboolean r_deluxemapping;
+extern	qboolean r_fakeshadows; //enables the use of ortho model-only shadows
+extern	float	r_blobshadows;
 extern	cvar_t r_softwarebanding_cvar;
 extern	qboolean r_softwarebanding;
 extern	cvar_t r_lightprepass_cvar;

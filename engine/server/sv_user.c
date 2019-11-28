@@ -80,8 +80,8 @@ cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "auto", "sv_nomsec", 
 
 #ifdef HAVE_LEGACY
 static cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
-static cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
-static cvar_t pext_ezquake_verfortrans	= CVARD("pext_ezquake_verfortrans", "999999999", "ezQuake does not implement PEXT_TRANS properly. This is the version of ezquake required for PEXT_TRANS to be allowed. This was still broken when I wrote this description, hence the large value.");
+cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
+cvar_t pext_ezquake_verfortrans	= CVARD("pext_ezquake_verfortrans", "999999999", "ezQuake does not implement PEXT_TRANS properly. This is the version of ezquake required for PEXT_TRANS to be allowed. This was still broken when I wrote this description, hence the large value.");
 #endif
 
 cvar_t	sv_chatfilter	= CVAR("sv_chatfilter", "0");
@@ -239,6 +239,7 @@ void SV_New_f (void)
 	int			playernum;
 	int splitnum;
 	client_t *split;
+	unsigned int fteext1;	//reported to client
 
 	host_client->prespawn_stage = PRESPAWN_INVALID;
 	host_client->prespawn_idx = 0;
@@ -296,61 +297,37 @@ void SV_New_f (void)
 			gamedir = "";
 	}
 
-	if (svs.netprim.coordsize > 2 && !(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
+	fteext1 = host_client->fteprotocolextensions;
+	switch(svs.netprim.coordtype)
 	{
-		SV_ClientPrintf(host_client, 2, "\n\n\n\nPlease set cl_nopext to 0 and then reconnect.\nIf that doesn't work, please update your engine - "ENGINEWEBSITE"\n");
-		Con_Printf("%s does not support bigcoords\n", host_client->name);
+	case COORDTYPE_FLOAT_32:
+		fteext1 |= PEXT_FLOATCOORDS;
+		if (!(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
+		{
+			SV_ClientPrintf(host_client, 2, "\n\n\n\nPlease set cl_nopext to 0 and then reconnect.\nIf that doesn't work, please update your engine\n");
+			Con_Printf("%s does not support bigcoords\n", host_client->name);
+			host_client->drop = true;
+			return;
+		}
+		break;
+	case COORDTYPE_FIXED_13_3:
+		fteext1 &= ~PEXT_FLOATCOORDS;
+		break;
+	default:
+		SV_ClientPrintf(host_client, 2, "Unsupported coord type\n");
+		Con_Printf("%s unsupported coord type\n", host_client->name);
 		host_client->drop = true;
 		return;
 	}
-
-#ifdef HAVE_LEGACY
-	{
-		//be prepared to recognise client versions, in order to block known-buggy extensions.
-		const char *s;
-		int ver;
-		s = InfoBuf_ValueForKey(&host_client->userinfo, "*client");
-		if (!strncmp(s, "ezQuake", 7) || !strncmp(s, "FortressOne", 11))
-		{
-			COM_Parse(s);	//skip name-of-fork
-			COM_Parse(s);	//tokenize the version
-			ver = atoi(com_token);
-
-			//this should actually have been resolved now, but for future use...
-			if ((host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && pext_ezquake_nochunks.ival)
-			{
-				host_client->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
-				SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of chunked downloads is blocked on this server.\n");
-			}
-			if ((host_client->zquake_extensions & (Z_EXT_PF_SOLID|Z_EXT_PF_ONGROUND)) && ver < pext_ezquake_verfortrans.ival)
-			{
-				if (host_client->fteprotocolextensions & PEXT_HULLSIZE)
-					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_HULLSIZE conflicts with zquake extensions.\n");
-				if (host_client->fteprotocolextensions & PEXT_SCALE)
-					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_SCALE conflicts with zquake extensions.\n");
-				if (host_client->fteprotocolextensions & PEXT_FATNESS)
-					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_FATNESS conflicts with zquake extensions.\n");
-				if (host_client->fteprotocolextensions & PEXT_TRANS)
-					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_TRANS is buggy. Disabling.\n");
-				host_client->fteprotocolextensions &= ~(PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS);
-			}
-		}
-
-		//its not that I'm singling out ezquake or anything, but it has too many people using outdated versions that its hard to ignore.
-	}
-#endif
 
 	ClientReliableCheckBlock(host_client, 800);	//okay, so it might be longer, but I'm too lazy to work out the real size.
 
 	// send the serverdata
 	ClientReliableWrite_Byte (host_client, ISQ2CLIENT(host_client)?svcq2_serverdata:svc_serverdata);
-	if (host_client->fteprotocolextensions)//let the client know
+	if (fteext1)//let the client know
 	{
 		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE1);
-		if (svs.netprim.coordsize == 2)	//we're not using float orgs on this level.
-			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions&~PEXT_FLOATCOORDS);
-		else
-			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions|PEXT_FLOATCOORDS);
+		ClientReliableWrite_Long (host_client, fteext1);
 	}
 	if (host_client->fteprotocolextensions2)//let the client know
 	{
@@ -565,7 +542,7 @@ void SVNQ_New_f (void)
 	protmain = PROTOCOL_VERSION_NQ;
 	protfl = 0;
 	//force floatcoords as required.
-	if (sv.nqdatagram.prim.coordsize >= 4)
+	if (sv.nqdatagram.prim.coordtype == COORDTYPE_FLOAT_32)
 		protext1 |= PEXT_FLOATCOORDS;
 	else
 		protext1 &= ~PEXT_FLOATCOORDS;
@@ -606,11 +583,19 @@ void SVNQ_New_f (void)
 	case SCP_FITZ666:
 		SV_LogPlayer(host_client, "new (NQ)");
 		if (host_client->protocol == SCP_FITZ666 ||
-			sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordsize != 2)
+			sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordtype != COORDTYPE_FIXED_13_3)
 		{
-			protfl =
-					((sv.nqdatagram.prim.coordsize==4)?RMQFL_FLOATCOORD:0) |
-					((sv.nqdatagram.prim.anglesize==2)?RMQFL_SHORTANGLE:0);
+			protfl = ((sv.nqdatagram.prim.anglesize==2)?RMQFL_SHORTANGLE:0);
+			switch(sv.nqdatagram.prim.coordtype)
+			{
+			case COORDTYPE_FLOAT_32:	protfl |= RMQFL_FLOATCOORD;	break;
+			case COORDTYPE_FIXED_28_4:	protfl |= RMQFL_INT32COORD;	break;
+			case COORDTYPE_FIXED_16_8:	protfl |= RMQFL_24BITCOORD;	break;
+			case COORDTYPE_FIXED_13_3:	protfl |= 0;	break;
+			default:
+				host_client->drop = true;
+				break;
+			}
 			host_client->protocol = SCP_FITZ666; /*mneh, close enough, the rmq stuff is just modifiers*/
 
 			if (protfl)
@@ -678,13 +663,10 @@ void SVNQ_New_f (void)
 
 #ifdef OFFICIAL_RELEASE
 	Q_snprintfz(build, sizeof(build), "v%i.%i%s", FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_EXTRA);
+#elif defined(SVNREVISION)
+	Q_snprintfz(build, sizeof(build), "SVN %s", STRINGIFY(SVNREVISION));
 #else
-#if defined(SVNREVISION)
-	if (strcmp(STRINGIFY(SVNREVISION), "-"))
-		Q_snprintfz(build, sizeof(build), "SVN %s", STRINGIFY(SVNREVISION));
-	else
-#endif
-		Q_snprintfz(build, sizeof(build), "%s", __DATE__);
+	Q_snprintfz(build, sizeof(build), "%s", __DATE__);
 #endif
 
 	gamedir = InfoBuf_ValueForKey (&svs.info, "*gamedir");
@@ -1073,6 +1055,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				if (!ISNQCLIENT(client) || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 				{	//nq does not normally get serverinfo sent to it.
 					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, NULL, NULL, &client->infosync, &svs.info);
+					Info_SetValueForStarKey(buffer, "*z_ext", va("%i", client->zquake_extensions), sizeof(buffer)); //should already be in there, so this should only ever make it shorter.
 					ClientReliableWrite_Begin(client, svc_stufftext, 20 + i);
 					ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", buffer) );
 				}
@@ -1461,24 +1444,32 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 	if (client->prespawn_stage == PRESPAWN_SIGNON_BUF)
 	{
+		int nextsize;
 		while (client->netchan.message.cursize < maxsize)
 		{
-			if (client->prespawn_idx >= sv.num_signon_buffers)
+			if (client->prespawn_idx >= sv.used_signon_space)
 			{
 				client->prespawn_stage++;
 				client->prespawn_idx = 0;
 				break;
 			}
 
-			if (client->netchan.message.cursize+sv.signon_buffer_size[client->prespawn_idx]+30 < client->netchan.message.maxsize)
+			nextsize = sv.signon_buffer[client->prespawn_idx] | (sv.signon_buffer[client->prespawn_idx+1]<<8);
+			if (client->netchan.message.cursize+nextsize+30 <= client->netchan.message.maxsize)
 			{
-				SZ_Write (&client->netchan.message,
-					sv.signon_buffers[client->prespawn_idx],
-					sv.signon_buffer_size[client->prespawn_idx]);
+				SZ_Write (&client->netchan.message, sv.signon_buffer+client->prespawn_idx+2, nextsize);
+				client->prespawn_idx+=2+nextsize;
+			}
+			else if (!client->netchan.message.cursize && nextsize+30 > client->netchan.message.maxsize)
+			{	//signon data is meant to be split up into smallish chunks to avoid network fragmentation.
+				//but sometimes a single blob is too large (eg: gamecode not using MSG_MULTICAST and just writing 16k in one splurge)
+				//fteqw and nq protocols can cope, vanilla qw cannot, so we do need to warn. the alternative is to kick.
+				SV_PrintToClient(client, PRINT_HIGH, va("\x01" "Dropping %i bytes of signon data\n", nextsize));
+				client->prespawn_idx+=2+nextsize;
+				break;
 			}
 			else
 				break;
-			client->prespawn_idx++;
 		}
 	}
 
@@ -2039,7 +2030,10 @@ void SV_Begin_Core(client_t *split)
 			if (eval)
 			{
 				char buf[256];
-				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, NET_AdrToString(buf, sizeof(buf), &split->netchan.remote_address), false);
+				if (split->netchan.remote_address.type == NA_LOOPBACK)
+					svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, "local", false);	//sigh...
+				else
+					svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, NET_AdrToString(buf, sizeof(buf), &split->netchan.remote_address), false);
 			}
 		}
 #endif
@@ -2690,7 +2684,7 @@ void SV_VoiceReadPacket(void)
 	bytes = MSG_ReadShort();
 	ring = &voice.ring[voice.write & (VOICE_RING_SIZE-1)];
 	//voice data does not get echoed to the sender unless sv_voip_echo is on too, which is rarely the case, so no worries about leaking the mute+deaf talking-to-yourself thing
-	if (bytes > sizeof(ring->data) || (host_client->penalties & BAN_MUTE) || !sv_voip.ival)
+	if (bytes > sizeof(ring->data) || (host_client->penalties & (BAN_MUTE|BAN_VMUTE)) || !sv_voip.ival)
 	{
 		MSG_ReadSkip(bytes);
 		return;
@@ -7114,7 +7108,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
 		movevars.edgefriction = *pm_edgefriction.string?pm_edgefriction.value:2;
-		movevars.coordsize = host_client->netchan.netprim.coordsize;
+		movevars.coordtype = host_client->netchan.netprim.coordtype;
 		movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*pm_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
 
 		for (i=0 ; i<3 ; i++)
@@ -7362,7 +7356,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
 	movevars.edgefriction = *sv_edgefriction.string?sv_edgefriction.value:2;
-	movevars.coordsize = host_client->netchan.netprim.coordsize;
+	movevars.coordtype = host_client->netchan.netprim.coordtype;
 	movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*sv_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
 
 // should already be folded into host_client->maxspeed
@@ -9005,6 +8999,80 @@ static void SV_WaterMove (void)
 		velocity[i] += accelspeed * wishvel[i];
 }
 
+
+static void SV_LadderMove (void)
+{
+	int		i;
+	vec3_t	wishvel;
+	float	speed, newspeed, wishspeed, addspeed, accelspeed;
+	float scale;
+	float maxspeed;
+
+//
+// user intentions
+//
+	AngleVectors (sv_player->v->v_angle, forward, right, up);
+
+	for (i=0 ; i<3 ; i++)
+		wishvel[i] = forward[i]*cmd.forwardmove + right[i]*cmd.sidemove;
+	wishvel[2] += cmd.upmove;
+
+	wishspeed = Length(wishvel);
+//	val = GetEdictFieldValue(sv_player, "scale", &scalecache);
+//	if (!val || !val->_float)
+		scale = 1;
+//	else
+//		scale = val->_float;
+
+//	val = GetEdictFieldValue(sv_player, "maxspeed", &maxspeedcache);
+//	if (val && val->_float)
+//		maxspeed = sv_maxspeed.value*val->_float;
+//	else
+		maxspeed = host_client->maxspeed;
+	if (wishspeed > maxspeed*scale)
+	{
+		VectorScale (wishvel, maxspeed/wishspeed, wishvel);
+		wishspeed = maxspeed*scale;
+	}
+	wishspeed *= 0.7;
+
+//
+// water friction
+//
+	speed = Length (velocity);
+	if (speed)
+	{
+//		val = GetEdictFieldValue(sv_player, "friction", &frictioncache);
+//		if (val&&val->_float)
+//			newspeed = speed - host_frametime * speed * sv_friction.value*val->_float;
+//		else
+			newspeed = speed - host_frametime * speed * sv_friction.value;
+		if (newspeed < 0)
+			newspeed = 0;
+		VectorScale (velocity, newspeed/speed, velocity);
+	}
+	else
+		newspeed = 0;
+
+//
+// water acceleration
+//
+	if (!wishspeed)
+		return;
+
+	addspeed = wishspeed - newspeed;
+	if (addspeed <= 0)
+		return;
+
+	VectorNormalize (wishvel);
+	accelspeed = sv_accelerate.value * wishspeed * host_frametime;
+	if (accelspeed > addspeed)
+		accelspeed = addspeed;
+
+	for (i=0 ; i<3 ; i++)
+		velocity[i] += accelspeed * wishvel[i];
+}
+
 static void SV_WaterJump (void)
 {
 	if (sv.time > sv_player->v->teleport_time
@@ -9096,14 +9164,12 @@ void SV_ClientThink (void)
 //
 // walk
 //
-	if ( (sv_player->v->waterlevel >= 2)
-	&& (sv_player->v->movetype != MOVETYPE_NOCLIP) )
-	{
+	if ( (sv_player->v->waterlevel >= 2) && (sv_player->v->movetype != MOVETYPE_NOCLIP) )
 		SV_WaterMove ();
-		return;
-	}
-
-	SV_AirMove ();
+	else if (((int)sv_player->xv->pmove_flags&PMF_LADDER) && (sv_player->v->movetype != MOVETYPE_NOCLIP) )
+		SV_LadderMove();
+	else
+		SV_AirMove ();
 }
 
 #endif

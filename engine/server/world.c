@@ -53,6 +53,7 @@ typedef struct
 	qboolean	capsule;
 } moveclip_t;
 
+static unsigned int World_ContentsOfAllLinks (world_t *w, vec3_t pos);
 /*
 ===============================================================================
 
@@ -123,7 +124,7 @@ hull_t	*World_HullForBox (vec3_t mins, vec3_t maxs)
 	return &box_hull;
 }
 
-model_t mod_capsule;
+static model_t mod_capsule;
 qboolean World_BoxTrace(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace)
 {
 	hull_t *hull = &box_hull;
@@ -508,6 +509,9 @@ SV_LinkEdict
 */
 void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 {
+	vec_t *mins;
+	vec_t *maxs;
+
 #ifdef USEAREAGRID
 	World_UnlinkEdict (ent);	// unlink from old position
 #else
@@ -523,11 +527,31 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	if (ED_ISFREE(ent))
 		return;
 
+	mins = ent->v->mins;
+	maxs = ent->v->maxs;
+	if (!ent->v->solid)
+		ent->solidsize = ES_SOLID_BSP;
+	else
+	{
+		model_t *mod;
+		if (ent->v->solid == SOLID_BSP)
+			mod = w->Get_CModel(w, ent->v->modelindex);
+		else
+			mod = NULL;
+		if (mod && mod->type == mod_brush)
+		{
+			mins = mod->mins;
+			maxs = mod->maxs;
+			ent->solidsize = ES_SOLID_BSP;
+		}
+		else
+			ent->solidsize = COM_EncodeSize(mins, maxs);
+	}
+
 // set the abs box
 	if (ent->v->solid == SOLID_BSP && 
 	(ent->v->angles[0] || ent->v->angles[1] || ent->v->angles[2]) )
 	{	// expand for rotation
-
 #if 1
 		int i;
 		float v;
@@ -536,10 +560,10 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		max = 0;
 		for (i=0 ; i<3 ; i++)
 		{
-			v =fabs( ent->v->mins[i]);
+			v =fabs( mins[i]);
 			if (v > max)
 				max = v;
-			v =fabs( ent->v->maxs[i]);
+			v =fabs( maxs[i]);
 			if (v > max)
 				max = v;
 		}
@@ -559,13 +583,13 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 
 		AngleVectors(ent->v->angles, f,r,u);
 
-		mn[0] = DotProduct(ent->v->mins, f);
-		mn[1] = -DotProduct(ent->v->mins, r);
-		mn[2] = DotProduct(ent->v->mins, u);
+		mn[0] = DotProduct(mins, f);
+		mn[1] = -DotProduct(mins, r);
+		mn[2] = DotProduct(mins, u);
 
-		mx[0] = DotProduct(ent->v->maxs, f);
-		mx[1] = -DotProduct(ent->v->maxs, r);
-		mx[2] = DotProduct(ent->v->maxs, u);
+		mx[0] = DotProduct(maxs, f);
+		mx[1] = -DotProduct(maxs, r);
+		mx[2] = DotProduct(maxs, u);
 		for (i = 0; i < 3; i++)
 		{
 			if (mn[i] < mx[i])
@@ -583,8 +607,8 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	}
 	else
 	{
-		VectorAdd (ent->v->origin, ent->v->mins, ent->v->absmin);	
-		VectorAdd (ent->v->origin, ent->v->maxs, ent->v->absmax);
+		VectorAdd (ent->v->origin, mins, ent->v->absmin);
+		VectorAdd (ent->v->origin, maxs, ent->v->absmax);
 	}
 
 	//some fancy things can mean the ent's aabb is larger than its collision box.
@@ -596,21 +620,6 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	if (ent->xv->skeletonindex)
 		skel_updateentbounds(w, ent);
 #endif
-
-	if (!ent->v->solid)
-		ent->solidsize = ES_SOLID_BSP;
-	else
-	{
-		model_t *mod;
-		if (ent->v->solid == SOLID_BSP)
-			mod = w->Get_CModel(w, ent->v->modelindex);
-		else
-			mod = NULL;
-		if (mod && mod->type == mod_brush)
-			ent->solidsize = ES_SOLID_BSP;
-		else
-			ent->solidsize = COM_EncodeSize(ent->v->mins, ent->v->maxs);
-	}
 
 //
 // to make items easier to pick up and allow them to be grabbed off
@@ -1151,9 +1160,16 @@ SV_PointContents
 
 ==================
 */
-int World_PointContents (world_t *w, vec3_t p)
+int World_PointContentsWorldOnly (world_t *w, vec3_t p)
 {
 	return w->worldmodel->funcs.PointContents(w->worldmodel, NULL, p);
+}
+
+int World_PointContentsAllBSPs (world_t *w, vec3_t p)
+{
+	int c = w->worldmodel->funcs.PointContents(w->worldmodel, NULL, p);
+	c |= World_ContentsOfAllLinks(w, p);
+	return c;
 }
 
 //===========================================================================
@@ -1326,7 +1342,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			{
 				memset (&trace, 0, sizeof(trace_t));
 				trace.fraction = 1;
-				trace.allsolid = true;
+				trace.allsolid = false;
 				trace.startsolid = false;
 				trace.inopen = true;	//probably wrong...
 				VectorCopy (end, trace.endpos);
@@ -1460,13 +1476,13 @@ int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int
 }
 
 #else
-float	*area_mins, *area_maxs;
-wedict_t	**area_list;
+static float	*area_mins, *area_maxs;
+static wedict_t	**area_list;
 #ifdef Q2SERVER
-q2edict_t	**area_q2list;
+static q2edict_t	**area_q2list;
 #endif
-int		area_count, area_maxcount;
-int		area_type;
+static int		area_count, area_maxcount;
+static int		area_type;
 static void World_AreaEdicts_r (areanode_t *node)
 {
 	link_t		*l, *next, *start;
@@ -2088,6 +2104,95 @@ static void World_ClipToAllLinks (world_t *w, moveclip_t *clip)
 			World_ClipToLinks(w, &w->gridareas[g[0] + g[1]*w->gridsize[0]], clip);
 		}
 }
+
+static unsigned int World_ContentsOfLinks (world_t *w, areagridlink_t *node, vec3_t pos)
+{
+	link_t		*l, *next;
+	wedict_t		*touch;
+
+	model_t		*model;
+	int mdlidx;
+	vec3_t pos_l, axis[3];
+	unsigned int ret = 0, c;
+
+// touch linked edicts
+	for (l = node->l.next ; l != &node->l ; l = next)
+	{
+		next = l->next;
+		touch = ((areagridlink_t*)l)->ed;
+
+		if (touch->gridareasequence == areagridsequence)
+			continue;
+		touch->gridareasequence = areagridsequence;
+
+		if (touch->v->solid != SOLID_BSP)
+			continue;
+
+		if (   pos[0] > touch->v->absmax[0]
+			|| pos[1] > touch->v->absmax[1]
+			|| pos[2] > touch->v->absmax[2]
+			|| pos[0] < touch->v->absmin[0]
+			|| pos[1] < touch->v->absmin[1]
+			|| pos[2] < touch->v->absmin[2] )
+			continue;
+
+//		if (touch->v->solid == SOLID_PORTAL)
+//			//FIXME: recurse!
+
+		mdlidx = touch->v->modelindex;
+		if (!mdlidx)
+			continue;
+		model = w->Get_CModel(w, mdlidx);
+		if (!model || (model->type != mod_brush && model->type != mod_heightmap) || model->loadstate != MLS_LOADED)
+			continue;
+
+		VectorSubtract (pos, touch->v->origin, pos_l);
+		if (touch->v->angles[0] || touch->v->angles[1] || touch->v->angles[2])
+		{
+			AngleVectors (touch->v->angles, axis[0], axis[1], axis[2]);
+			VectorNegate(axis[1], axis[1]);
+			c = model->funcs.PointContents(model, axis, pos_l);
+		}
+		else
+			c = model->funcs.PointContents(model, NULL, pos_l);
+
+		if (c && touch->v->skin < 0)
+		{	//if forcedcontents is set, then ALL brushes in this model are forced to the specified contents value.
+			//we achive this by tracing against ALL then forcing it after.
+			unsigned int forcedcontents;
+			switch((int)touch->v->skin)
+			{
+			case Q1CONTENTS_EMPTY:  forcedcontents = FTECONTENTS_EMPTY; break;
+			case Q1CONTENTS_SOLID:  forcedcontents = FTECONTENTS_SOLID; break;
+			case Q1CONTENTS_WATER:  forcedcontents = FTECONTENTS_WATER; break;
+			case Q1CONTENTS_SLIME:  forcedcontents = FTECONTENTS_SLIME; break;
+			case Q1CONTENTS_LAVA:   forcedcontents = FTECONTENTS_LAVA;  break;
+			case Q1CONTENTS_SKY:    forcedcontents = FTECONTENTS_SKY;   break;
+			case Q1CONTENTS_LADDER: forcedcontents = FTECONTENTS_LADDER;break;
+			default:				forcedcontents = 0;                 break;
+			}
+			c = forcedcontents;
+		}
+		ret |= c;
+	}
+	return ret;
+}
+static unsigned int World_ContentsOfAllLinks (world_t *w, vec3_t pos)
+{
+	int ming[2], maxg[2], g[2];
+	unsigned int ret;
+	areagridsequence++;
+	ret = World_ContentsOfLinks(w, &w->jumboarea, pos);
+
+	CALCAREAGRIDBOUNDS(w, pos, pos);
+
+	for (    g[0] = ming[0]; g[0] < maxg[0]; g[0]++)
+		for (g[1] = ming[1]; g[1] < maxg[1]; g[1]++)
+		{
+			ret |= World_ContentsOfLinks(w, &w->gridareas[g[0] + g[1]*w->gridsize[0]], pos);
+		}
+	return ret;
+}
 #else
 /*
 ====================
@@ -2227,6 +2332,62 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 	if ( clip->boxmins[node->axis] < node->dist )
 		World_ClipToLinks (w, node->children[1], clip );
 }
+
+
+
+static unsigned int World_ContentsOfLinks (world_t *w, areanode_t *node, vec3_t pos)
+{
+	unsigned int c = 0;
+	link_t		*l, *next;
+	wedict_t		*touch;
+	trace_t		trace;
+
+// touch linked edicts
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
+	{
+		next = l->next;
+		touch = EDICT_FROM_AREA(l);
+		if (touch->v->solid == SOLID_NOT)
+			continue;
+
+		/*if its a trigger, we only clip against it if the flags are aligned*/
+		if (touch->v->solid == SOLID_TRIGGER)
+			continue;
+
+		if (pos[0] > touch->v->absmax[0]
+		|| pos[1] > touch->v->absmax[1]
+		|| pos[2] > touch->v->absmax[2]
+		|| pos[0] < touch->v->absmin[0]
+		|| pos[1] < touch->v->absmin[1]
+		|| pos[2] < touch->v->absmin[2] )
+			continue;
+
+		/*if (touch->v->solid == SOLID_PORTAL)
+		{
+			//make sure we don't hit the world if we're inside the portal
+			World_PortalCSG(touch, vec3_origin, vec3_origin, pos, pos, &clip->trace);
+		}*/
+
+		trace = World_ClipMoveToEntity (w, touch, touch->v->origin, touch->v->angles, pos, vec3_origin, vec3_origin, pos, 0, false, false, ~0u);
+		if (trace.startsolid)
+			c |= trace.contents;
+	}
+
+// recurse down both sides
+	if (node->axis == -1)
+		return c;
+
+	if ( pos[node->axis] > node->dist )
+		c |= World_ContentsOfLinks (w, node->children[0], pos );
+	if ( pos[node->axis] < node->dist )
+		c |= World_ContentsOfLinks (w, node->children[1], pos );
+
+	return c;
+}
+static unsigned int World_ContentsOfAllLinks (world_t *w, vec3_t pos)
+{
+	return World_ContentsOfLinks(w, w->areanodes, pos);
+}
 #endif
 
 #if defined(HAVE_CLIENT) && defined(CSQC_DAT)
@@ -2328,6 +2489,9 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 				}
 			}*/
 		}
+
+		if (model && touchcontents != ~0)
+			trace.contents = touchcontents;
 
 		if (trace.fraction < clip->trace.fraction)
 		{

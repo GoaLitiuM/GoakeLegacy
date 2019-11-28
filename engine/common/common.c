@@ -43,46 +43,16 @@ fte_inlinebody float M_LinearToSRGB(float x, float mag);
 
 // These 4 libraries required for the version command
 
-#if defined(MINGW)
-	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
-		#include "./mingw-libs/png.h"
-	#endif
-	#ifdef AVAIL_ZLIB
-		#include "./mingw-libs/zlib.h"
-	#endif
-	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
-		#define JPEG_API VARGS
-		//#include "./mingw-libs/jversion.h"
-		#include "./mingw-libs/jpeglib.h"
-	#endif
-	#ifdef FTE_SDL
-		#include <SDL.h>
-	#endif
-#elif defined(_WIN32)
-	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
-		#include "png.h"
-	#endif
+#if defined(_MSC_VER)
 	#ifdef AVAIL_ZLIB
 		#include "zlib.h"
-	#endif
-	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
-		#define JPEG_API VARGS
-		//#include "jversion.h"
-		#include "jpeglib.h"
 	#endif
 	#ifdef FTE_SDL
 		#include <SDL.h>
 	#endif
 #else
-	#if defined(AVAIL_PNGLIB) && !defined(SERVERONLY)
-		#include <png.h>
-	#endif
 	#ifdef AVAIL_ZLIB
 		#include <zlib.h>
-	#endif
-	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
-		//#include <jversion.h>
-		#include <jpeglib.h>
 	#endif
 	#ifdef FTE_SDL
 		#include <SDL.h>
@@ -134,7 +104,7 @@ cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "A
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
 cvar_t	pkg_downloads_url = CVARFD("pkg_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
-cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "-1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
 #ifdef HAVE_LEGACY
 cvar_t	pm_noround = CVARD("pm_noround", "0", "Disables player prediction snapping, in a way that cannot be reliably predicted but may be needed to avoid map bugs.");
 #endif
@@ -969,34 +939,47 @@ void MSG_WriteString (sizebuf_t *sb, const char *s)
 		SZ_Write (sb, s, Q_strlen(s)+1);
 }
 
-float MSG_FromCoord(coorddata c, int bytes)
+float MSG_FromCoord(coorddata c, int type)
 {
-	switch(bytes)
+	switch(type)
 	{
-	case 2:	//encode 1/8th precision, giving -4096 to 4096 map sizes
+	case COORDTYPE_FIXED_13_3:	//encode 1/8th precision, giving -4096 to 4096 map sizes
 		return LittleShort(c.b2)/8.0f;
-	case 3:
+	case COORDTYPE_FIXED_16_8:
 		return LittleShort(c.b2) + (((unsigned char*)c.b)[2] * (1/255.0)); /*FIXME: RMQe uses 255, should be 256*/
-	case 4:
+	case COORDTYPE_FIXED_28_4:
+		return LittleLong(c.b4)/16.0f;
+	case COORDTYPE_FLOAT_32:
 		return LittleFloat(c.f);
 	default:
 		Sys_Error("MSG_ToCoord: not a sane coordsize");
 		return 0;
 	}
 }
-coorddata MSG_ToCoord(float f, int bytes)	//return value should be treated as (char*)&ret;
+coorddata MSG_ToCoord(float f, int type)	//return value should be treated as (char*)&ret;
 {
 	coorddata r;
-	switch(bytes)
+	switch(type)
 	{
-	case 2:
+	case COORDTYPE_FIXED_13_3:
 		r.b4 = 0;
 		if (f >= 0)
 			r.b2 = LittleShort((short)(f*8+0.5f));
 		else
 			r.b2 = LittleShort((short)(f*8-0.5f));
 		break;
-	case 4:
+	case COORDTYPE_FIXED_16_8:
+		r.b2 = LittleShort((short)f);
+		r.b[2] = (int)(f*255)%255;
+		r.b[3] = 0;
+		break;
+	case COORDTYPE_FIXED_28_4:
+		if (f >= 0)
+			r.b4 = LittleLong((short)(f*16+0.5f));
+		else
+			r.b4 = LittleLong((short)(f*16-0.5f));
+		break;
+	case COORDTYPE_FLOAT_32:
 		r.f = LittleFloat(f);
 		break;
 	default:
@@ -1039,14 +1022,9 @@ coorddata MSG_ToAngle(float f, int bytes)	//return value is NOT byteswapped.
 
 void MSG_WriteCoord (sizebuf_t *sb, float f)
 {
-	coorddata i = MSG_ToCoord(f, sb->prim.coordsize);
-	SZ_Write (sb, (void*)&i, sb->prim.coordsize);
+	coorddata i = MSG_ToCoord(f, sb->prim.coordtype);
+	SZ_Write (sb, (void*)&i, sb->prim.coordtype&0xf);
 }
-/*static void MSG_WriteCoord24 (sizebuf_t *sb, float f)
-{
-	coorddata i = MSG_ToCoord(f, 3);
-	SZ_Write (sb, (void*)&i, 3);
-}*/
 
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
 {
@@ -1705,22 +1683,16 @@ char *MSG_ReadStringLine (void)
 float MSG_ReadCoord (void)
 {
 	coorddata c = {{0}};
-	if (!net_message.prim.coordsize)
-		net_message.prim.coordsize = 2;
-	MSG_ReadData(&c, net_message.prim.coordsize);
-	return MSG_FromCoord(c, net_message.prim.coordsize);
+	if (net_message.prim.coordtype == COORDTYPE_UNDEFINED)
+		net_message.prim.coordtype = COORDTYPE_FIXED_13_3;
+	MSG_ReadData(&c, net_message.prim.coordtype&0xf);
+	return MSG_FromCoord(c, net_message.prim.coordtype);
 }
-/*static float MSG_ReadCoord24 (void)
-{
-	coorddata c = {{0}};
-	MSG_ReadData(&c, 3);
-	return MSG_FromCoord(c, 3);
-}*/
 float MSG_ReadCoordFloat (void)
 {
 	coorddata c = {{0}};
-	MSG_ReadData(&c, 4);
-	return MSG_FromCoord(c, 4);
+	MSG_ReadData(&c, COORDTYPE_FLOAT_32&0xf);
+	return MSG_FromCoord(c, COORDTYPE_FLOAT_32);
 }
 
 void MSG_ReadPos (vec3_t pos)
@@ -2117,7 +2089,7 @@ const char *COM_GetFileExtension (const char *in, const char *term)
 	if (!term)
 		term = in + strlen(in);
 
-	for (dot = term; dot >= in && *dot != '/' && *dot != '\\'; dot--)
+	for (dot = term-1; dot >= in && *dot != '/' && *dot != '\\'; dot--)
 	{
 		if (*dot == '.')
 			return dot;
@@ -4813,10 +4785,14 @@ static void COM_Version_f (void)
 	Con_Printf("^4"ENGINEWEBSITE"\n");
 	Con_Printf("%s\n", version_string());
 
+#if defined(SVNREVISION) && defined(SVNDATE)
+	Con_Printf("SVN Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+#else
 	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
 #ifdef SVNREVISION
 	if (strcmp(STRINGIFY(SVNREVISION), "-"))
 		Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
+#endif
 #endif
 #ifdef CONFIG_FILE_NAME
 	Con_Printf("Build config: %s\n\n", COM_SkipPath(STRINGIFY(CONFIG_FILE_NAME)));
@@ -4968,60 +4944,25 @@ static void COM_Version_f (void)
 #endif
 
 	//print out which libraries are disabled
-#ifndef AVAIL_ZLIB
-	Con_Printf("zlib disabled\n");
-#else
-	Con_Printf("zlib: %s\n", ZLIB_VERSION);
+	Con_Printf("^3Compression:^7\n");
+#ifdef AVAIL_ZLIB
+	Con_Printf(" zlib^h("
+#ifdef ZLIB_STATIC
+			"static, "
 #endif
+			"%s)^h", ZLIB_VERSION);
+#endif
+#ifdef AVAIL_BZLIB
+	Con_Printf(" bzlib"
+		#ifdef BZLIB_STATIC
+			"^h(static)^h"
+		#endif
+		);
+#endif
+	Con_Printf("\n");
 
 #ifdef HAVE_CLIENT
-	Con_Printf("^3Image Formats:^7");
-	#ifdef IMAGEFMT_DDS
-		Con_Printf(" dds");
-	#endif
-	#ifdef IMAGEFMT_KTX
-		Con_Printf(" ktx");
-	#endif
-	Con_Printf(" tga");
-	#if defined(AVAIL_PNGLIB)
-		Con_Printf(" png");
-		#ifdef DYNAMIC_LIBPNG
-				Con_Printf("^h(dynamic, %s)", PNG_LIBPNG_VER_STRING);
-		#else
-			Con_Printf("^h(%s)", PNG_LIBPNG_VER_STRING);
-		#endif
-	#else
-		Con_DPrintf(" ^h(disabled: png)");
-	#endif
-	#ifdef IMAGEFMT_BMP
-		Con_Printf(" bmp+ico");
-	#endif
-	#if defined(AVAIL_JPEGLIB)
-		Con_Printf(" jpeg");
-		#ifdef DYNAMIC_LIBJPEG
-			Con_Printf("^h(dynamic, %i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
-		#else
-			Con_Printf("^h(%i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
-		#endif
-	#else
-		Con_DPrintf(" ^h(disabled: jpeg)");
-	#endif
-	#ifdef IMAGEFMT_PBM
-		Con_Printf(" pfm+pbm+pgm+ppm"/*"+pam"*/);
-	#endif
-	#ifdef IMAGEFMT_PSD
-		Con_Printf(" psd");
-	#endif
-	#ifdef IMAGEFMT_HDR
-		Con_Printf(" hdr");
-	#endif
-	#ifdef IMAGEFMT_PKM
-		Con_Printf(" pkm");
-	#endif
-	#ifdef IMAGEFMT_PCX
-		Con_Printf(" pcx");
-	#endif
-	Con_Printf("\n");
+	Image_PrintInputFormatVersions();
 
 	Con_Printf("^3VoiceChat:^7");
 	#if !defined(VOICECHAT)
@@ -7566,12 +7507,14 @@ char *version_string(void)
 	{
 #ifdef OFFICIAL_RELEASE
 		Q_snprintfz(s, sizeof(s), "%s v%i.%i%s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_EXTRA);
+#elif defined(SVNREVISION) && defined(SVNDATE)
+		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));	//if both are defined then its a known unmodified svn revision.
 #else
-#if defined(SVNREVISION)
+	#if defined(SVNREVISION)
 		if (strcmp(STRINGIFY(SVNREVISION), "-"))
-			Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
+			Q_snprintfz(s, sizeof(s), "%s SVN %s %s", DISTRIBUTION, STRINGIFY(SVNREVISION), __DATE__);
 		else
-#endif
+	#endif
 		Q_snprintfz(s, sizeof(s), "%s build %s", DISTRIBUTION, __DATE__);
 #endif
 		done = true;

@@ -34,6 +34,7 @@ cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "1", r_meshpitch_callback, "Sp
 #else
 cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "-1", r_meshpitch_callback, "Specifies the direction of the pitch angle on mesh models formats, Quake compatibility requires -1.");
 #endif
+cvar_t dpcompat_skinfiles					= CVARD	("dpcompat_skinfiles", "0", "When set, uses a nodraw shader for any unmentioned surfaces.");
 
 #ifdef HAVE_CLIENT
 static void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
@@ -71,6 +72,7 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 			mod->tainted = (crc != 6967);
 		}
 	}
+	Validation_FileLoaded(mod->publicname, buffer, buffersize);
 #endif
 }
 
@@ -3170,7 +3172,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 				{
 					if (!f->defaultshader)
 					{
-						if (ai->csurface.flags & 0x80)	//nodraw
+						if ((ai->csurface.flags & 0x80) || dpcompat_skinfiles.ival)	//nodraw
 							f->shader = R_RegisterShader(f->shadername, SUF_NONE,	"{\nsurfaceparm nodraw\nsurfaceparm nodlight\nsurfaceparm nomarks\nsurfaceparm noshadows\n}\n");
 						else
 							f->shader = R_RegisterSkin(f->shadername, mod->name);
@@ -7207,7 +7209,7 @@ static qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t
 	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
 	for (i = 0; i < header->num_meshs; i++, mesh++)
 	{
-		m = &root[i];
+			m = &root[i];
 		Mod_DefaultMesh(m, mesh->shadername, i);
 		if (i < header->num_meshs-1)
 			m->nextsurf = &root[i+1];
@@ -7700,7 +7702,7 @@ static void IQM_ImportArrayF(const qbyte *fte_restrict base, const struct iqmver
 	case IQM_HALF:
 #ifdef __F16C__
 		{	//x86 intrinsics
-			const unsigned short *in = (const qbyte*)(base+offset);
+			const unsigned short *in = (const unsigned short*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -9161,6 +9163,329 @@ static qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t f
 
 #endif //MD5MODELS
 
+#ifdef MODELFMT_OBJ
+#include <ctype.h>
+struct objvert { size_t attrib[3]; };
+
+struct objbuf_s { char *ptr; char *end; };
+static char *obj_getline(struct objbuf_s *vf, char *buffer, size_t buflen)
+{
+	char in;
+	char *out = buffer;
+	size_t len;
+	if (buflen <= 1)
+		return NULL;
+	len = buflen-1;
+	while (len > 0)
+	{
+		if (vf->ptr == vf->end)
+		{
+			if (len == buflen-1)
+				return NULL;
+			*out = '\0';
+			return buffer;
+		}
+		in = *vf->ptr++;
+		if (in == '\n')
+			break;
+		*out++ = in;
+		len--;
+	}
+	*out = '\0';
+
+	//if there's a trailing \r, strip it.
+	if (out > buffer)
+		if (out[-1] == '\r')
+			out[-1] = 0;
+
+	return buffer;
+}
+
+struct objattrib_s {
+	size_t length;
+	size_t maxlength;
+	float *data;
+};
+static qboolean parseobjvert(char *s, struct objattrib_s *out)
+{
+	int i;
+	float *v;
+	char *n;
+	if (out->length == out->maxlength)
+		Z_ReallocElements((void**)&out->data,&out->maxlength,out->length+1024,3*sizeof(float));
+	v = out->data+out->length*3;
+	out->length++;
+	while(isalpha(*s)) s++;
+	for (i = 0; i < 3;)
+	{
+		v[i] = strtod(s, &n);
+		if (n==s)
+			return false;
+		s = n;
+		while(isspace(*s)) s++;
+		i++;
+		if(!*s) break;
+	}
+	for (; i < 3; i++)
+		v[i] = 0;
+	return true;
+}
+
+static galiasinfo_t *Obj_FinishFace(model_t *mod, galiasinfo_t *m, struct objattrib_s *attribs, struct objvert *vert, size_t numverts, index_t *indexes, size_t *numelements)
+{	//this is really lame. not optimised and I don't care.
+	qboolean calcnorms = false;
+	size_t i;
+	if (m && numverts < MAX_INDICIES)
+	{
+		m->ofs_skel_xyz = ZG_Malloc(&mod->memgroup, sizeof(*m->ofs_skel_xyz)*numverts);
+		m->ofs_st_array = ZG_Malloc(&mod->memgroup, sizeof(*m->ofs_st_array)*numverts);
+		m->ofs_skel_norm = ZG_Malloc(&mod->memgroup, sizeof(*m->ofs_skel_norm)*numverts);
+		m->ofs_skel_svect = ZG_Malloc(&mod->memgroup, sizeof(*m->ofs_skel_svect)*numverts);
+		m->ofs_skel_tvect = ZG_Malloc(&mod->memgroup, sizeof(*m->ofs_skel_tvect)*numverts);
+
+		for (i = 0; i < numverts; i++)
+		{
+			if (vert[i].attrib[0] >= attribs[0].length)
+				VectorClear(m->ofs_skel_xyz[i]);
+			else
+				VectorCopy(attribs[0].data+3*vert[i].attrib[0], m->ofs_skel_xyz[i]);
+			AddPointToBounds(m->ofs_skel_xyz[i], mod->mins, mod->maxs);
+
+			if (vert[i].attrib[1] >= attribs[1].length)
+				Vector2Clear(m->ofs_st_array[i]);
+			else
+				Vector2Copy(attribs[1].data+3*vert[i].attrib[1], m->ofs_st_array[i]);
+
+			if (vert[i].attrib[2] >= attribs[2].length)
+			{
+				VectorClear(m->ofs_skel_norm[i]);
+				calcnorms = true;
+			}
+			else
+				VectorCopy(attribs[2].data+3*vert[i].attrib[2], m->ofs_skel_norm[i]);
+		}
+		m->numverts = i;
+
+		m->ofs_indexes = ZG_Malloc(&mod->memgroup, sizeof(*m->ofs_indexes)**numelements);
+		memcpy(m->ofs_indexes, indexes, sizeof(*m->ofs_indexes)**numelements);
+		m->numindexes = *numelements;
+
+		//calc tangents.
+		Mod_AccumulateTextureVectors(m->ofs_skel_xyz, m->ofs_st_array, m->ofs_skel_norm, m->ofs_skel_svect, m->ofs_skel_tvect, m->ofs_indexes, m->numindexes, calcnorms);
+		Mod_NormaliseTextureVectors(m->ofs_skel_norm, m->ofs_skel_svect, m->ofs_skel_tvect, m->numverts, calcnorms);
+
+		*numelements = 0;
+	}
+	return NULL;
+}
+
+static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
+{
+	struct objbuf_s f = {buffer, buffer+fsize};
+	struct objattrib_s attrib[3] = {{},{},{}};
+	char buf[512];
+	char *meshname = NULL, *matname = NULL;
+	galiasinfo_t *m = NULL, **link = (galiasinfo_t**)&mod->meshinfo;
+
+	size_t numverts = 0;
+	size_t maxverts = 0;
+	struct objvert *vert = NULL, defaultvert={{-1,-1,-2}};
+
+	size_t numelems = 0;
+	size_t maxelems = 0;
+	index_t *elem = NULL;
+
+	qboolean badinput = false;
+	int meshidx = 0;
+
+	ClearBounds(mod->mins, mod->maxs);
+
+	while(!badinput && obj_getline(&f, buf, sizeof(buf)))
+	{
+		char *c = buf;
+		while(isspace(*c)) c++;
+		switch(*c)
+		{
+			case '#': continue;
+			case 'v':
+				if(isspace(c[1])) badinput |= !parseobjvert(c, &attrib[0]);
+				else if(c[1]=='t') badinput |= !parseobjvert(c, &attrib[1]);
+				else if(c[1]=='n') badinput |= !parseobjvert(c, &attrib[2]);
+				break;
+			case 'g':
+			{
+				char *name;
+				size_t namelen;
+				while(isalpha(*c)) c++;
+				while(isspace(*c)) c++;
+				name = c;
+				namelen = strlen(name);
+				while(namelen > 0 && isspace(name[namelen-1])) namelen--;
+				Z_Free(meshname);
+				meshname = Z_Malloc(namelen+1);
+				memcpy(meshname, name, namelen);
+				meshname[namelen] = 0;
+
+				m = Obj_FinishFace(mod, m, attrib, vert, numverts, elem, &numelems);
+				break;
+			}
+			case 'u':
+			{
+				char *name;
+				size_t namelen;
+				if(strncmp(c, "usemtl", 6)) continue;
+				while(isalpha(*c)) c++;
+				while(isspace(*c)) c++;
+				name = c;
+				namelen = strlen(name);
+				while(namelen > 0 && isspace(name[namelen-1])) namelen--;
+
+				Z_Free(matname);
+				matname = Z_Malloc(namelen+1);
+				memcpy(matname, name, namelen);
+				matname[namelen] = 0;
+
+				m = Obj_FinishFace(mod, m, attrib, vert, numverts, elem, &numelems);
+				break;
+			}
+			case 's':
+			{
+				if(!isspace(c[1])) continue;
+				while(isalpha(*c)) c++;
+				while(isspace(*c)) c++;
+
+				//make sure that these verts are not merged, ensuring that they get smoothed.
+				//different texture coords will still have discontinuities though.
+				defaultvert.attrib[2] = -1-strtol(c, &c, 10);
+				break;
+			}
+			case 'f':
+			{
+				size_t i, v = 0;
+				struct objvert vkey={};
+				index_t first=0, prev=0, cur=0;
+
+				//only generate a new mesh if something actually changed.
+				if (!m)
+				{
+#ifdef HAVE_CLIENT
+					galiasskin_t *skin;
+					skinframe_t *sframe;
+					m = ZG_Malloc(&mod->memgroup, sizeof(*m)+sizeof(*skin)+sizeof(*sframe));
+#else
+					m = ZG_Malloc(&mod->memgroup, sizeof(*m));
+#endif
+					*link = m;
+					link = &m->nextsurf;
+					m->shares_verts = meshidx;
+					Mod_DefaultMesh(m, COM_SkipPath(mod->name), meshidx++);
+
+					Q_strncpyz(m->surfacename, meshname?meshname:"", sizeof(m->surfacename));
+
+#ifdef HAVE_CLIENT
+					skin = (void*)(m+1);
+					sframe = (void*)(skin+1);
+					skin->frame = sframe;
+					skin->numframes = 1;
+					skin->skinspeed = 10;
+					Q_strncpyz(skin->name, matname?matname:"", sizeof(skin->name));
+					Q_strncpyz(sframe->shadername, matname?matname:"", sizeof(sframe->shadername));
+					sframe->shader = NULL;
+
+					m->ofsskins = skin;
+					m->numskins = 1;
+#endif
+				}
+
+				while(isalpha(*c)) c++;
+				for(;;)
+				{
+					while(isspace(*c)) c++;
+					if(!*c) break;
+
+					for (i = 0; i < countof(vkey.attrib); )
+					{
+						char *n;
+						long v;
+						v = strtol(c, &n, 10);
+						if (c == n) {badinput = true; break;} //not a number if we read nothing!
+						if (v < 0)
+							vkey.attrib[i] = attrib[i].length + v;
+						else
+							vkey.attrib[i] = v - 1; //0 is index-not-specified.
+						i++;
+						c = n;
+						if(*c!='/') break;
+						c++;
+					}
+					for (; i < countof(vkey.attrib); i++)
+						vkey.attrib[i] = defaultvert.attrib[i];
+
+					//figure out the verts, to avoid dupes
+					for (cur = 0; cur < numverts; cur++)
+					{
+						if (vert[cur].attrib[0] == vkey.attrib[0] &&
+							vert[cur].attrib[1] == vkey.attrib[1] &&
+							vert[cur].attrib[2] == vkey.attrib[2] && vkey.attrib[2]!=-1)
+							break;
+					}
+					if (cur == numverts)
+					{
+						if (numverts == maxverts)
+							Z_ReallocElements((void**)&vert,&maxverts,numverts+1024,sizeof(*vert));
+						vert[numverts++] = vkey;
+					}
+
+					//spew out the trifan
+					if (v == 0)
+						first = cur;
+					else if (v > 1)
+					{
+						if (numelems+3 >= maxelems)
+						{
+							if (numelems >= 65535)
+							{
+								badinput = true;
+								break;	//don't depend upon the OOM killer... it kills everything else too
+							}
+							Z_ReallocElements((void**)&elem,&maxelems,numelems+1024,sizeof(*elem));
+						}
+						elem[numelems++] = cur;
+						elem[numelems++] = prev;
+						elem[numelems++] = first;
+					}
+					prev = cur;
+					v++;
+				}
+				break;
+			}
+		}
+	}
+	m = Obj_FinishFace(mod, m, attrib, vert, numverts, elem, &numelems);
+
+	Z_Free(vert);
+	Z_Free(elem);
+	Z_Free(attrib[0].data);
+	Z_Free(attrib[1].data);
+	Z_Free(attrib[2].data);
+
+	if (badinput)
+	{	//fail the load.
+		Con_Printf(CON_WARNING "File \"%s\" with .obj extension does not appear to be an .obj file\n", mod->name);
+		mod->meshinfo = NULL;
+		return false;
+	}
+
+	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, NULL, 0);
+	mod->flags = 0;
+	mod->type = mod_alias;
+	mod->numframes = 0;
+	mod->funcs.NativeTrace = Mod_Trace;
+	return !!mod->meshinfo;
+}
+#endif
+
 
 void Alias_Register(void)
 {
@@ -9202,5 +9527,12 @@ void Alias_Register(void)
 #ifdef MD5MODELS
 	Mod_RegisterModelFormatText(NULL, "MD5 Mesh/Anim (md5mesh)",			"MD5Version",							Mod_LoadMD5MeshModel);
 	Mod_RegisterModelFormatText(NULL, "External Anim",						"EXTERNALANIM",							Mod_LoadCompositeAnim);
+#endif
+#ifdef MODELFMT_OBJ
+	Mod_RegisterModelFormatText(NULL, "Wavefront Object (obj)",						".obj",									Mod_LoadObjModel);
+#endif
+
+#ifndef SERVERONLY
+	Cvar_Register(&dpcompat_skinfiles, NULL);
 #endif
 }

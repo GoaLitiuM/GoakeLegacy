@@ -1,4 +1,4 @@
-project('goake', 'c', 'cpp')
+project('goake', 'c', 'cpp', default_options: 'c_std=c99')
 
 win = import('windows')
 
@@ -335,6 +335,7 @@ if not png.found()
 endif
 if png.found()
   deps += png
+  c_args += '-DLIBPNG_STATIC'
 else
   c_args += '-DNO_PNG'
 endif
@@ -347,6 +348,7 @@ if not jpeg.found()
 endif
 if jpeg.found()
   deps += jpeg
+  c_args += '-DLIBJPEG_STATIC'
 else
   c_args += '-DNO_JPEG'
 endif

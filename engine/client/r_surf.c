@@ -34,25 +34,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 qboolean r_pushdepth;
 #endif
 
-extern cvar_t r_ambient;
+extern cvar_t		r_ambient;
 
-static vec3_t			modelorg;	/*set before recursively entering the visible surface finder*/
+static vec3_t		modelorg;	/*set before recursively entering the visible surface finder*/
 
-model_t		*currentmodel;
+model_t				*currentmodel;
 
-size_t			maxblocksize;
-vec3_t			*blocknormals;
-unsigned		*blocklights;
+static size_t		maxblocksize;
+static vec3_t		*blocknormals;
+static unsigned		*blocklights;
 
 lightmapinfo_t **lightmap;
 int numlightmaps;
-static const float rgb9e5tab[32] = {	//multipliers for the 9-bit mantissa, according to the biased mantissa
-	//aka: pow(2, biasedexponent - bias-bits) where bias is 15 and bits is 9
-	1.0/(1<<24),	1.0/(1<<23),	1.0/(1<<22),	1.0/(1<<21),	1.0/(1<<20),	1.0/(1<<19),	1.0/(1<<18),	1.0/(1<<17),
-	1.0/(1<<16),	1.0/(1<<15),	1.0/(1<<14),	1.0/(1<<13),	1.0/(1<<12),	1.0/(1<<11),	1.0/(1<<10),	1.0/(1<<9),
-	1.0/(1<<8),		1.0/(1<<7),		1.0/(1<<6),		1.0/(1<<5),		1.0/(1<<4),		1.0/(1<<3),		1.0/(1<<2),		1.0/(1<<1),
-	1.0,			1.0*(1<<1),		1.0*(1<<2),		1.0*(1<<3),		1.0*(1<<4),		1.0*(1<<5),		1.0*(1<<6),		1.0*(1<<7),
-};
+extern const float rgb9e5tab[32];
 
 extern mleaf_t		*r_vischain;		// linked list of visible leafs
 
@@ -3770,6 +3764,7 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 	if (deluxe && (count & 1))
 	{
 		deluxe = false;
+//		count+=1;
 		Con_Print("WARNING: Deluxemapping with odd number of lightmaps\n");
 	}
 
@@ -4195,6 +4190,11 @@ void Surf_NewMap (void)
 	char *s;
 #endif
 	int		i;
+
+	//evil haxx
+	r_dynamic.ival = r_dynamic.value;
+	if (r_dynamic.ival > 0 && cl.worldmodel->fromgame == fg_quake3) //quake3 has no lightmaps, disable r_dynamic
+		r_dynamic.ival = 0;
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
 	AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);

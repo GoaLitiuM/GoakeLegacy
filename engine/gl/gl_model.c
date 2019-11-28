@@ -190,6 +190,11 @@ static void Mod_TextureList_f(void)
 	char *body;
 	char editname[MAX_OSPATH];
 	int preview = (Cmd_Argc()==1)?8:atoi(Cmd_Argv(1));
+
+	int s;
+	batch_t *batch;
+	unsigned int batchcount;
+
 	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
 	{
 		if (shownmodelname)
@@ -206,6 +211,18 @@ static void Mod_TextureList_f(void)
 				tx = mod->textures[i];
 				if (!tx)
 					continue;	//happens on e1m2
+
+				batchcount = 0;
+				for (s = 0; s < SHADER_SORT_COUNT; s++)
+				{
+					for (batch = mod->batches[s]; batch; batch = batch->next)
+					{
+						if (batch->texture == tx)
+							batchcount++;
+					}
+				}
+	//			if (!batchcount)
+//					continue; //not actually used...
 
 				if (!shownmodelname)
 				{
@@ -232,9 +249,9 @@ static void Mod_TextureList_f(void)
 						Con_Printf("^[\\img\\%s\\imgtype\\%i\\s\\%i\\tip\\{%s^]", tx->shader->name, tx->shader->usageflags, preview, body);
 				}
 				if (*editname)
-					Con_Printf("  ^[%s\\edit\\%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^]\n", tx->name, editname, tx->name, tx->shader->usageflags, body);
+					Con_Printf("  ^[%s\\edit\\%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^] (%u batches)\n", tx->name, editname, tx->name, tx->shader->usageflags, body, batchcount);
 				else
-					Con_Printf("  ^[%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^]\n", tx->name, tx->shader->name, tx->shader->usageflags, body);
+					Con_Printf("  ^[%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^] (%u batches)\n", tx->name, tx->shader->name, tx->shader->usageflags, body, batchcount);
 				count++;
 			}
 		}
@@ -1169,6 +1186,7 @@ void Mod_UnRegisterAllModelFormats(void *module)
 	}
 }
 
+//main thread. :(
 void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 {
 	qboolean previouslyfailed;
@@ -1434,7 +1452,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		//look for known extensions first, to try to avoid issues with specific formats
 		for(i = 0; i < countof(modelloaders); i++)
 		{
-			if (modelloaders[i].load && modelloaders[i].ident && *modelloaders[i].ident == '.' && !Q_strcasecmp(modelloaders[i].ident+1, ext))
+			if (modelloaders[i].load && modelloaders[i].ident && *modelloaders[i].ident == '.' && !Q_strcasecmp(modelloaders[i].ident, COM_GetFileExtension(mod->name, NULL)))
 				break;
 		}
 		//now look to see if we can find one with the right magic header
@@ -1518,11 +1536,15 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 //		if (verbose == MLV_ERROR)	//if its fatal on failure (ie: world), do it on the main thread and block to wait for it.
 //			Mod_LoadModelWorker(mod, MLV_WARN, 0);
 //		else
-		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
-			Mod_LoadModelWorker(mod, NULL, verbose, 0);
+//		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
+//			Mod_LoadModelWorker(mod, NULL, verbose, 0);
 //			COM_AddWork(WG_MAIN, Mod_LoadModelWorker, mod, NULL, verbose, 0);
-		else
+//		else
 			COM_AddWork(WG_LOADER, Mod_LoadModelWorker, mod, NULL, verbose, 0);
+
+		//block until its loaded, if we care.
+		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 	}
 
 	if (verbose == MLV_ERROR)
@@ -2393,9 +2415,13 @@ static void Mod_SaveEntFile_f(void)
 		Q_strncatz(fname, ".ent", sizeof(fname));
 	}
 
-	COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents));
-	if (FS_NativePath(fname, FS_GAMEONLY, nname, sizeof(nname)))
-		Con_Printf("Wrote %s\n", nname);
+	if (COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents)))
+	{
+		if (FS_NativePath(fname, FS_GAMEONLY, nname, sizeof(nname)))
+			Con_Printf("Wrote %s\n", nname);
+	}
+	else
+		Con_Printf("Write failed\n");
 }
 
 /*
@@ -2861,12 +2887,22 @@ static int Mod_Batches_Generate(model_t *mod)
 	int sortid;
 	batch_t *batch, *lbatch = NULL;
 	vec4_t plane;
+	image_t *envmap;
 
 	int merge = mod->lightmaps.merge;
 	if (!merge)
 		merge = 1;
-	mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
-	mod->lightmaps.count /= merge;
+	if (mod->lightmaps.deluxemapping)
+	{
+		mod->lightmaps.count = ((mod->lightmaps.count+1)/2+merge-1) & ~(merge-1);
+		mod->lightmaps.count /= merge;
+		mod->lightmaps.count *= 2;
+	}
+	else
+	{
+		mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
+		mod->lightmaps.count /= merge;
+	}
 	mod->lightmaps.height *= merge;
 
 	mod->numbatches = 0;
@@ -2877,6 +2913,7 @@ static int Mod_Batches_Generate(model_t *mod)
 	{
 		surf = mod->surfaces + mod->firstmodelsurface + i;
 		shader = surf->texinfo->texture->shader;
+		envmap = surf->envmap;
 
 		if (surf->flags & SURF_NODRAW)
 		{
@@ -2884,6 +2921,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			sortid = shader->sort;
 			VectorClear(plane);
 			plane[3] = 0;
+			envmap = NULL;
 		}
 		else if (shader)
 		{
@@ -2908,6 +2946,9 @@ static int Mod_Batches_Generate(model_t *mod)
 				VectorClear(plane);
 				plane[3] = 0;
 			}
+
+			if (!(shader->flags & SHADER_HASREFLECTCUBE))
+				envmap = NULL;
 		}
 		else
 		{
@@ -2928,7 +2969,7 @@ static int Mod_Batches_Generate(model_t *mod)
 					lbatch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
 					lbatch->fog == surf->fog &&
-					lbatch->envmap == surf->envmap))
+					lbatch->envmap == envmap))
 			batch = lbatch;
 		else
 		{
@@ -2946,7 +2987,7 @@ static int Mod_Batches_Generate(model_t *mod)
 							batch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
 							batch->fog == surf->fog &&
-							batch->envmap == surf->envmap)
+							batch->envmap == envmap)
 					break;
 			}
 		}
@@ -2983,7 +3024,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			batch->next = mod->batches[sortid];
 			batch->ent = &r_worldentity;
 			batch->fog = surf->fog;
-			batch->envmap = surf->envmap;
+			batch->envmap = envmap;
 			Vector4Copy(plane, batch->plane);
 
 			mod->batches[sortid] = batch;
@@ -4057,7 +4098,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->numedges = LittleLong(inl->numedges);
 			tn = LittleLong (inl->texinfo);
 			for (i=0 ; i<countof(out->styles) ; i++)
-				out->styles[i] = (i >= countof(inl->styles) || inl->styles[i]>=MAX_NET_LIGHTSTYLES || inl->styles[i]==255)?INVALID_LIGHTSTYLE:inl->styles[i];
+				out->styles[i] = (i >= countof(inl->styles) || (lightstyleindex_t)inl->styles[i]>=INVALID_LIGHTSTYLE|| inl->styles[i]==255)?INVALID_LIGHTSTYLE:inl->styles[i];
 			lofs = LittleLong(inl->lightofs);
 			inl++;
 		}
@@ -4069,7 +4110,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->numedges = LittleShort(ins->numedges);
 			tn = LittleShort (ins->texinfo);
 			for (i=0 ; i<countof(out->styles) ; i++)
-				out->styles[i] = (i >= countof(ins->styles) || ins->styles[i]>=MAX_NET_LIGHTSTYLES || ins->styles[i]==255)?INVALID_LIGHTSTYLE:ins->styles[i];
+				out->styles[i] = (i >= countof(ins->styles) || (lightstyleindex_t)ins->styles[i]>=INVALID_LIGHTSTYLE || ins->styles[i]==255)?INVALID_LIGHTSTYLE:ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
 			ins++;
 		}
@@ -4103,7 +4144,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 		else if (overrides.styles8)
 		{
 			for (i=0 ; i<countof(out->styles) ; i++)
-				out->styles[i] = (i>=overrides.stylesperface)?INVALID_LIGHTSTYLE:((overrides.styles8[surfnum*overrides.stylesperface+i]==255)?~0u:overrides.styles8[surfnum*overrides.stylesperface+i]);
+				out->styles[i] = (i>=overrides.stylesperface)?INVALID_LIGHTSTYLE:((overrides.styles8[surfnum*overrides.stylesperface+i]==255)?INVALID_LIGHTSTYLE:overrides.styles8[surfnum*overrides.stylesperface+i]);
 		}
 		for (i=0 ; i<countof(out->styles) && out->styles[i] != INVALID_LIGHTSTYLE; i++)
 			if (loadmodel->lightmaps.maxstyle < out->styles[i])

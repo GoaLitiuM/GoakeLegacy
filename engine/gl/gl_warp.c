@@ -58,6 +58,8 @@ void R_SetSky(const char *sky)
 	const char *shadername;
 	extern cvar_t r_skyboxname;
 	Q_strncpyz(cl.skyname, sky, sizeof(cl.skyname));
+	if (qrenderer <= QR_NONE)
+		return;	//not ready yet...
 	if (*r_skyboxname.string)	//override it with the user's preference
 		sky = r_skyboxname.string;
 
@@ -74,7 +76,7 @@ void R_SetSky(const char *sky)
 		{
 			texnums_t tex;
 			memset(&tex, 0, sizeof(tex));
-			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_CUBEMAP|IF_CLAMP);
+			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_TEXTYPE_CUBE|IF_CLAMP);
 			if (tex.reflectcube->width)
 			{
 				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\ndepthwrite\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
@@ -129,7 +131,6 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 	float vmat[16];
 	refdef_t oldrefdef;
 //	extern cvar_t r_ignoreentpvs; //legacy value is 1...
-	extern cvar_t v_skyroom_orientation;
 
 	if (r_viewcluster == -1)
 		return false;	//don't draw the skyroom if the camera is outside.
@@ -152,6 +153,12 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 	r_refdef.forcedvis = NULL;
 	r_refdef.areabitsknown = false;	//recalculate areas clientside.
 
+	if (cl.fog[FOGTYPE_SKYROOM].density)
+	{
+		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[FOGTYPE_SKYROOM], realtime, &cl.fog[FOGTYPE_SKYROOM]);
+		r_refdef.globalfog.density/=64;
+	}
+
 	/*work out where the camera should be (use the same angles)*/
 	VectorCopy(r_refdef.skyroom_pos, r_refdef.vieworg);
 	VectorCopy(r_refdef.skyroom_pos, r_refdef.pvsorigin);
@@ -160,16 +167,16 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 		if (r_worldentity.model->funcs.PointContents(r_worldentity.model, NULL, r_refdef.skyroom_pos) & FTECONTENTS_SOLID)
 			Con_DPrintf("Skyroom position %.1f %.1f %.1f in solid\n", r_refdef.skyroom_pos[0], r_refdef.skyroom_pos[1], r_refdef.skyroom_pos[2]);
 
-	if (*v_skyroom_orientation.string)
+	if (r_refdef.skyroom_spin[3])
 	{
 		vec3_t axis[3];
-		float ang = v_skyroom_orientation.vec4[3] * cl.time;
-		if (!v_skyroom_orientation.vec4[0]&&!v_skyroom_orientation.vec4[1]&&!v_skyroom_orientation.vec4[2])
-			VectorSet(v_skyroom_orientation.vec4, 0,0,1);
-		VectorNormalize(v_skyroom_orientation.vec4);
-		RotatePointAroundVector(axis[0], v_skyroom_orientation.vec4, vpn, ang);
-		RotatePointAroundVector(axis[1], v_skyroom_orientation.vec4, vright, ang);
-		RotatePointAroundVector(axis[2], v_skyroom_orientation.vec4, vup, ang);
+		float ang = r_refdef.skyroom_spin[3];
+		if (!r_refdef.skyroom_spin[0]&&!r_refdef.skyroom_spin[1]&&!r_refdef.skyroom_spin[2])
+			VectorSet(r_refdef.skyroom_spin, 0,0,1);
+		VectorNormalize(r_refdef.skyroom_spin);
+		RotatePointAroundVector(axis[0], r_refdef.skyroom_spin, vpn, ang);
+		RotatePointAroundVector(axis[1], r_refdef.skyroom_spin, vright, ang);
+		RotatePointAroundVector(axis[2], r_refdef.skyroom_spin, vup, ang);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, axis[0], axis[1], axis[2], r_refdef.vieworg);
 	}
 	else

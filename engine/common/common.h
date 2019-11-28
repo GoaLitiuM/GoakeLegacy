@@ -152,13 +152,18 @@ typedef enum {qfalse, qtrue}	qboolean;
 
 struct netprim_s
 {
-	qbyte coordsize;
+	qbyte coordtype;	//low 4 bits are the size, upper 4 are disambiguation...
+		#define COORDTYPE_UNDEFINED		0			//invalid
+		#define COORDTYPE_FIXED_13_3	2			//vanilla/etc
+		#define COORDTYPE_FIXED_16_8	3			//rmq
+		#define COORDTYPE_FIXED_28_4	4			//rmq, pointless
+		#define COORDTYPE_FLOAT_32		(4|0x80)	//fte/dp/rmq
 	qbyte anglesize;
-#define NPQ2_ANG16				(1u<<0)
-#define NPQ2_SOLID32			(1u<<1)
-#define NPQ2_R1Q2_UCMD			(1u<<2)
-
 	qbyte flags;
+		#define NPQ2_ANG16				(1u<<0)
+		#define NPQ2_SOLID32			(1u<<1)
+		#define NPQ2_R1Q2_UCMD			(1u<<2)
+
 	qbyte pad;
 };
 //============================================================================
@@ -413,7 +418,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 #endif
 #define PFS_CENTERED		16	//flag used by console prints (text should remain centered)
 #define PFS_NONOTIFY		32	//flag used by console prints (text won't be visible other than by looking at the console)
-conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
+conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize_bytes, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 unsigned int utf8_decode(int *error, const void *in, char const**out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
 unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
@@ -492,7 +497,7 @@ typedef struct searchpath_s
 {
 	searchpathfuncs_t *handle;
 
-	unsigned int flags;
+	unsigned int flags; //SPF_*
 
 	char logicalpath[MAX_OSPATH];	//printable hunam-readable location of the package. generally includes a system path, including nested packages.
 	char purepath[256];	//server tracks the path used to load them so it can tell the client
@@ -663,7 +668,13 @@ typedef struct
 	} parsever;
 	int minver;	//if the engine svn revision is lower than this, the manifest will not be used as an 'upgrade'.
 	int maxver;	//if not 0, the manifest will not be used
-	qboolean disablehomedir;
+	enum
+	{
+		MANIFEST_HOMEDIRWHENREADONLY=0,
+		MANIFEST_NOHOMEDIR,
+		MANIFEST_FORCEHOMEDIR,
+	} homedirtype;
+	char *mainconfig;	//eg "fte.cfg", reducing conflicts with other engines, but can be other values...
 	char *updateurl;	//url to download an updated manifest file from.
 	char *updatefile;	//this is the file that needs to be written to update the manifest.
 	char *installation;	//optional hardcoded commercial name, used for scanning the registry to find existing installs.
@@ -678,7 +689,17 @@ typedef struct
 	char *basedir;		//this is where we expect to find the data.
 	struct
 	{
-		qboolean base;
+		enum
+		{
+			GAMEDIR_DEFAULTFLAGS=0,		//forgotten on gamedir switches (and a higher priority)
+			GAMEDIR_BASEGAME=1u<<0,		//not forgotten on gamedir switches (and a lower priority)
+			GAMEDIR_PRIVATE=1u<<1,		//don't report as the gamedir on networks.
+			GAMEDIR_READONLY=1u<<2,		//don't write here...
+			GAMEDIR_USEBASEDIR=1u<<3,	//packages will be read from the basedir (and homedir), but not other files. path is an empty string.
+			GAMEDIR_STEAMGAME=1u<<4,	//finds the game via steam. must also be private+readonly.
+
+			GAMEDIR_SPECIAL=GAMEDIR_USEBASEDIR|GAMEDIR_STEAMGAME,	//if one of these flags, then the gamedir cannot be simply concatenated to the basedir/homedir.
+		} flags;
 		char *path;
 	} gamepath[8];
 	struct manpack_s
@@ -704,6 +725,7 @@ void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_DownloadingPackage(void);
 void FS_CreateBasedir(const char *path);
 qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs, qboolean allowbasedirchange);
+qboolean FS_GameIsInitialised(void);
 void FS_Shutdown(void);
 struct gamepacks
 {

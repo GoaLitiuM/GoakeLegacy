@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // world.h
 
+#include "quakedef.h"
+
 typedef struct plane_s
 {
 	vec3_t	normal;
@@ -226,14 +228,6 @@ struct world_s
 	areagridlink_t	*gridareas;		//[gridsize[0]*gridsize[1]]
 	areagridlink_t	jumboarea;		//node containing ents too large to fit.
 	areagridlink_t	portallist;
-#else
-	areanode_t		portallist;
-#endif
-
-#if defined(Q2SERVER) || !defined(USEAREAGRID)
-	areanode_t		*areanodes;
-	int				areanodedepth;
-	int				numareanodes;
 #endif
 
 	double		physicstime;		// the last time global physics were run
@@ -270,6 +264,15 @@ struct world_s
 #ifdef USERBE
 	qboolean rbe_hasphysicsents;
 	rigidbodyengine_t *rbe;
+#endif
+
+#if defined(Q2SERVER) || !defined(USEAREAGRID)
+	areanode_t		*areanodes;
+	int				areanodedepth;
+	int				numareanodes;
+#ifndef USEAREAGRID
+	areanode_t		portallist;
+#endif
 #endif
 
 #ifdef ENGINE_ROUTING
@@ -331,7 +334,8 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node);
 #define World_TouchAllLinks(w,e) World_TouchLinks(w,e,(w)->areanodes)
 #endif
 
-int World_PointContents (world_t *w, vec3_t p);
+int World_PointContentsWorldOnly (world_t *w, vec3_t p);
+int World_PointContentsAllBSPs (world_t *w, vec3_t p);
 // returns the CONTENTS_* value from the world at the given point.
 // does not check any entities at all
 
@@ -375,7 +379,7 @@ void Q23BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, const float *
 /*sv_move.c*/
 #if defined(CSQC_DAT) || !defined(CLIENTONLY)
 qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up);
-qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(pubprogfuncs_t *prinst, trace_t *trace));
+qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(pubprogfuncs_t *inst, trace_t *trace));
 qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist);
 qboolean World_GetEntGravityAxis(wedict_t *ent, vec3_t axis[3]);
 #endif

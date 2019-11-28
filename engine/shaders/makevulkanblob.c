@@ -77,6 +77,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 	char tempname[256];
 	char tempvert[256];
 	char tempfrag[256];
+	char incpath[256], *sl;
 	int inheader = 1;
 	int i;
 	unsigned short constid = 256;	//first few are reserved.
@@ -94,9 +95,19 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 		NULL
 	};
 
-	snprintf(tempname, sizeof(tempname), "vulkan/temp.tmp");
-	snprintf(tempvert, sizeof(tempvert), "vulkan/temp.vert");
-	snprintf(tempfrag, sizeof(tempfrag), "vulkan/temp.frag");
+	const char *tmppath = "/tmp/";
+
+	char customsamplerlines[16][256];
+
+	snprintf(tempname, sizeof(tempname), "%stemp.tmp", tmppath);
+	snprintf(tempvert, sizeof(tempvert), "%stemp.vert", tmppath);
+	snprintf(tempfrag, sizeof(tempfrag), "%stemp.frag", tmppath);
+
+	memcpy(incpath, glslname, sizeof(incpath));
+	if ((sl = strrchr(incpath, '/')))
+		sl[1] = 0;
+	else if ((sl = strrchr(incpath, '\\')))	//in case someone is on crappy windows.
+		sl[1] = 0;
 
 	memcpy(blob->blobmagic, "\xffSPV", 4);
 	blob->blobversion = 1;
@@ -235,18 +246,42 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 					//batch
 					else if (!strcasecmp(arg, "lightmap"))
 						blob->defaulttextures |= 1u<<12;
-					else if (!strcasecmp(arg, "deluxmap"))
+					else if (!strcasecmp(arg, "deluxemap") || !strcasecmp(arg, "deluxmap"))
 						blob->defaulttextures |= 1u<<13;
 					else if (!strcasecmp(arg, "lightmaps"))
 						blob->defaulttextures |= 1u<<12 | 1u<<14 | 1u<<15 | 1u<<16;
-					else if (!strcasecmp(arg, "deluxmaps"))
+					else if (!strcasecmp(arg, "deluxemaps") || !strcasecmp(arg, "deluxmaps"))
 						blob->defaulttextures |= 1u<<13 | 1u<<17 | 1u<<18 | 1u<<19;
 
 					//shader pass
-					else if (atoi(arg))
-						blob->numtextures = atoi(arg);
+					else if ((i=atoi(arg)))
+					{	//legacy
+						if (blob->numtextures < i)
+							blob->numtextures = i;
+					}
 					else
-						printf("Unknown texture: \"%s\"\n", arg);
+					{
+						char *eq = strrchr(arg, '=');
+						if (eq)
+						{
+							char *type = strrchr(arg, ':');
+							int pass = atoi(eq+1);
+							*eq = 0;
+							if (type)
+								*type++ = 0;
+							else
+								type = "2D";
+							if (pass < 16)
+							{
+								snprintf(customsamplerlines[pass], sizeof(customsamplerlines[pass]), "uniform sampler%s s_%s;\n", type, arg);
+								if (blob->numtextures < ++pass)
+									blob->numtextures = pass;
+							}
+							else printf("sampler binding too high:   %s:%s=%i\n", arg, type, pass);
+						}
+						else
+							printf("Unknown texture: \"%s\"\n", arg);
+					}
 				} while((arg = strtok(NULL, " ,\r\n")));
 			}
 			continue;
@@ -275,7 +310,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 
 				//batch
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",
-				"uniform sampler2D s_deluxmap;\n#define s_deluxmap0 s_deluxmap\n",
+				"uniform sampler2D s_deluxemap;\n#define s_deluxemap0 s_deluxemap\n",
 				"uniform sampler2D s_lightmap1;\n",
 				"uniform sampler2D s_lightmap2;\n",
 				"uniform sampler2D s_lightmap3;\n",
@@ -285,6 +320,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 			};
 			int binding = 2;
 			inheader = 0;
+			fprintf(temp, "#define s_deluxmap s_deluxemap\n");
 			fprintf(temp, "#define OFFSETMAPPING (cvar_r_glsl_offsetmapping>0)\n");
 			fprintf(temp, "#define SPECULAR (cvar_gl_specular>0)\n");
 			fprintf(temp, "#ifdef FRAGMENT_SHADER\n");
@@ -295,7 +331,11 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 			}
 			for (i = 0; i < blob->numtextures; i++)
 			{
-				fprintf(temp, "layout(set=0, binding=%u) uniform sampler2D s_t%u;\n", binding++, i);
+				fprintf(temp, "layout(set=0, binding=%u) ", binding++);
+				if (*customsamplerlines[i])
+					fprintf(temp, "%s", customsamplerlines[i]);
+				else
+					fprintf(temp, "uniform sampler2D s_t%u;\n", i);
 			}
 			fprintf(temp, "#endif\n");
 
@@ -415,7 +455,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 #else
 		"echo \"#version 450 core\" > %s && "
 #endif
-		"cpp %s -DVULKAN -DVERTEX_SHADER -P >> %s && "
+		"cpp %s -I%s -DVULKAN -DVERTEX_SHADER -P >> %s && "
 
 		/*preprocess the fragment shader*/
 #ifdef _WIN32
@@ -423,7 +463,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 #else
 		"echo \"#version 450 core\" > %s && "
 #endif
-		"cpp %s -DVULKAN -DFRAGMENT_SHADER -P >> %s && "
+		"cpp %s -I%s -DVULKAN -DFRAGMENT_SHADER -P >> %s && "
 
 		/*convert to spir-v (annoyingly we have no control over the output file names*/
 		"glslangValidator -V -l -d %s %s"
@@ -431,13 +471,15 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 		/*strip stuff out, so drivers don't glitch out from stuff that we don't use*/
 //		" && spirv-remap -i vert.spv frag.spv -o vulkan/remap"
 
-		,tempvert, tempname, tempvert, tempfrag, tempname, tempfrag, tempvert, tempfrag);
+		,tempvert, tempname, incpath, tempvert	//vertex shader args
+		,tempfrag, tempname, incpath, tempfrag	//fragment shader args
+		,tempvert, tempfrag);			//compile/link args.
 
 	system(command);
 
-	remove(tempname);
-	remove(tempvert);
-	remove(tempfrag);
+//	remove(tempname);
+//	remove(tempvert);
+//	remove(tempfrag);
 
 	return 1;
 }
@@ -450,6 +492,12 @@ int main(int argc, const char **argv)
 	char proto[8192];
 	char line[256];
 	int r = 1;
+
+	if (argc == 1)
+	{
+		printf("%s input.glsl output.fvb\n");
+		return 1;
+	}
 
 	if (!generatevulkanblobs((struct blobheader*)proto, sizeof(proto), inname))
 		return 1;

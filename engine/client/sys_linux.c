@@ -424,7 +424,7 @@ void Sys_Error (const char *error, ...)
 	char string[1024];
 
 #ifndef __DJGPP__
-// change stdin to non blocking
+// change stdin back to blocking, so the shell doesn't bug out.
 	if (!noconinput)
 		fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
 #endif
@@ -842,8 +842,6 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 		strftime (buffer, sizeof(buffer), "Time: %Y-%m-%d %H:%M:%S\n",timeinfo);
 		write(fd, buffer, strlen(buffer));
 
-		Q_snprintfz(buffer, sizeof(buffer), "Binary: "__DATE__" "__TIME__"\n");
-		write(fd, buffer, strlen(buffer));
 		Q_snprintfz(buffer, sizeof(buffer), "Ver: %i.%02i%s\n", FTE_VER_MAJOR, FTE_VER_MINOR,
 #ifdef OFFICIAL_RELEASE
 			" (official)");
@@ -851,13 +849,17 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 			"");
 #endif
 		write(fd, buffer, strlen(buffer));
-#ifdef SVNREVISION
-		if (strcmp(STRINGIFY(SVNREVISION), "-"))
-		{
-			Q_snprintfz(buffer, sizeof(buffer), "Revision: %s\n", STRINGIFY(SVNREVISION));
-			write(fd, buffer, strlen(buffer));
-		}
+
+#if defined(SVNREVISION) && defined(SVNDATE)
+		Q_snprintfz(buffer, sizeof(buffer), "Revision: %s, %s\n", STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+#else
+		Q_snprintfz(buffer, sizeof(buffer),
+		#ifdef SVNREVISION
+			"Revision: "STRINGIFY(SVNREVISION)"\n"
+		#endif
+		"Binary: "__DATE__" "__TIME__"\n");
 #endif
+		write(fd, buffer, strlen(buffer));
 
 		backtrace_symbols_fd(array + firstframe, size - firstframe, fd);
 		write(fd, "\n", 1);
@@ -897,7 +899,7 @@ char *Sys_ConsoleInput(void)
 		if (!(fl & FNDELAY))
 		{
 			fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
-			Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
+//			Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
 		}
 	}
 #endif
@@ -905,7 +907,14 @@ char *Sys_ConsoleInput(void)
 //	if (!qrenderer)
 	{
 		if (!fgets(text, sizeof(text), stdin))
+		{
+			if (errno == EIO)
+			{
+				Sys_Printf(CON_WARNING "Backgrounded, ignoring stdin\n");
+				noconinput |= 2;
+			}
 			return NULL;
+		}
 		nl = strchr(text, '\n');
 		if (!nl)	//err? wut?
 			return NULL;
@@ -929,6 +938,15 @@ char *Sys_ConsoleInput(void)
 	return NULL;
 }
 
+#ifdef _POSIX_C_SOURCE
+static void SigCont(int code)
+{
+	int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
+	if (!(fl & FNDELAY))
+		fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+	noconinput &= ~2;
+}
+#endif
 int main (int c, const char **v)
 {
 	double time, oldtime, newtime;
@@ -940,6 +958,12 @@ int main (int c, const char **v)
 
 	signal(SIGFPE, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
+#ifdef _POSIX_C_SOURCE
+	signal(SIGTTIN, SIG_IGN);	//have to ignore this if we want to not lock up when running backgrounded.
+	signal(SIGCONT, SigCont);
+	signal(SIGCHLD, SIG_IGN);	//mapcluster stuff might leak zombie processes if we don't do this.
+#endif
+
 
 	memset(&parms, 0, sizeof(parms));
 
@@ -1016,7 +1040,7 @@ int main (int c, const char **v)
 	if (!isatty(STDIN_FILENO))
 		noconinput = !isPlugin;	//don't read the stdin if its probably screwed (running in qtcreator seems to pipe stdout to stdin in an attempt to screw everything up).
 	else
-		noconinput = COM_CheckParm("-noconinput");
+		noconinput = COM_CheckParm("-noconinput") || COM_CheckParm("-nostdin");
 #ifndef __DJGPP__
 	if (!noconinput)
 		fcntl(STDIN_FILENO, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);
@@ -1088,11 +1112,20 @@ int main (int c, const char **v)
 		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;
 
-		sleeptime = Host_Frame(time);
-		oldtime = newtime;
+		if (isDedicated)
+		{
+			sleeptime = SV_Frame();
+			oldtime = newtime;
+			NET_Sleep(sleeptime, noconinput?false:true);
+		}
+		else
+		{
+			sleeptime = Host_Frame(time);
+			oldtime = newtime;
 
-		if (sleeptime)
-			Sys_Sleep(sleeptime);
+			if (sleeptime)
+				Sys_Sleep(sleeptime);
+		}
 	}
 }
 

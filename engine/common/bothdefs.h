@@ -104,7 +104,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include STRINGIFY(CONFIG_FILE_NAME)
 
 
-#ifdef MASTERONLY
+#ifdef IMGTOOL
+	#undef WEBCLIENT
+	#undef LOADERTHREAD
+#elif defined(MASTERONLY)
 	#define SV_MASTER
 	#undef SUBSERVERS
 	#undef PLUGINS
@@ -165,7 +168,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define FULLENGINENAME "FTE Quake"	//the posh name for the engine
 #endif
 #ifndef ENGINEWEBSITE
-	#define ENGINEWEBSITE "^8http://^4fte.triptohell.info"	//url for program
+	#define ENGINEWEBSITE "^8http://^4fte^8.^4triptohell^8.^4info"	//url for program
 #endif
 #ifndef GAME_CFGFILE
 	#define GAME_CFGFILE "fte"	//fte.cfg
@@ -409,7 +412,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define SQL
 #endif
 
-#if defined(AVAIL_GZDEC) && (!defined(AVAIL_ZLIB) || defined(NPFTE))
+#if defined(AVAIL_GZDEC) && (!defined(AVAIL_ZLIB) || defined(NPFTE) || defined(NO_ZLIB))
 	//gzip needs zlib to work (pk3s can still contain non-compressed files)
 	#undef AVAIL_GZDEC
 #endif
@@ -700,7 +703,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //I'm making my own restrict, because msvc's headers can't cope if I #define restrict to __restrict, and quite possibly other platforms too
 #if __STDC_VERSION__ >= 199901L
 	#define fte_restrict restrict
-#elif defined(_MSC_VER) && _MSC_VER >= 1400
+#elif defined(_MSC_VER) && _MSC_VER >= 1400 || __GNUC__ >= 4
 	#define fte_restrict __restrict
 #else
 	#define fte_restrict
@@ -742,7 +745,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	//gcc will generally inline where it can - so long as its static. but that doesn't stop it warning
 	#define fte_inline __attribute__((unused)) static
 	#define fte_inlinebody static
-	#define fte_inlinestatic static
+	#if __GNUC__ > 5
+		#define fte_inlinestatic static inline
+	#else
+		#define fte_inlinestatic static
+	#endif
 #else
 	//make it static so we at least don't get errors (might still get warnings. see above)
 	#define fte_inline static

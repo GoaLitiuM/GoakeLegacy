@@ -73,6 +73,24 @@ static void QDECL R_Lightmap_Format_Changed(struct cvar_s *var, char *oldvalue)
 	if (qrenderer)
 		Surf_BuildLightmaps();
 }
+static void QDECL R_HDR_FramebufferFormat_Changed(struct cvar_s *var, char *oldvalue)
+{
+	int i;
+	char *e;
+	for (i = 0; i < PTI_MAX; i++)
+	{
+		if (!Q_strcasecmp(var->string, Image_FormatName(i)))
+		{
+			var->ival = -i;
+			return;
+		}
+	}
+	var->ival = strtol(var->string, &e, 0);
+	if (*e && e == var->string)
+		Con_Printf("%s set to unknown image format\n", var->name);
+	if (var->ival < 0)
+		var->ival = 0;
+}
 
 #ifdef FTE_TARGET_WEB	//webgl sucks too much to get a stable framerate without vsync.
 cvar_t vid_vsync							= CVARAF  ("vid_vsync", "1",
@@ -99,7 +117,7 @@ cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable
 
 //opengl library, blank means try default.
 static cvar_t gl_driver						= CVARFD ("gl_driver", "", CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies the graphics driver name to load. This is typically a filename. Blank for default.");
-static cvar_t vid_devicename					= CVARFD ("vid_devicename", "", CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies which video device to try to use. If blank or invalid then one will be guessed.");
+cvar_t vid_devicename						= CVARFD ("vid_devicename", "", CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies which video device to try to use. If blank or invalid then one will be guessed.");
 cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfaces from quake1 bsps using this pattern for the purposes of shader names.");
 extern cvar_t r_vertexlight;
 extern cvar_t r_forceprogramify;
@@ -128,8 +146,8 @@ cvar_t r_drawflat							= CVARAF ("r_drawflat", "0", "gl_textureless",
 													CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_lightmap							= CVARF ("r_lightmap", "0",
 													CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
-cvar_t r_wireframe							= CVARAFD ("r_wireframe", "0",
-													"r_showtris", CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
+cvar_t r_wireframe							= CVARAFD ("r_showtris", "0",
+													"r_wireframe", CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
 cvar_t r_outline							= CVARD ("gl_outline", "0", "Draw some stylised outlines.");
 cvar_t r_outline_width						= CVARD ("gl_outline_width", "2", "The width of those outlines.");
 cvar_t r_wireframe_smooth					= CVAR ("r_wireframe_smooth", "0");
@@ -177,7 +195,7 @@ cvar_t r_lightstylesmooth_limit				= CVAR	("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= CVAR	("r_lightstylespeed", "10");
 cvar_t r_lightstylescale					= CVAR	("r_lightstylescale", "1");
 cvar_t r_lightmap_scale						= CVARFD ("r_shadow_realtime_nonworld_lightmaps", "1", 0, "Scaler for lightmaps used when not using realtime world lighting. Probably broken.");
-cvar_t r_hdr_framebuffer					= CVARFD("r_hdr_framebuffer", "0", CVAR_ARCHIVE, "If enabled, the map will be rendered into a high-precision image framebuffer. This avoids issues with shaders that contribute more than 1 in any single pass (like overbrights).");
+cvar_t r_hdr_framebuffer					= CVARFCD("r_hdr_framebuffer", "0", CVAR_ARCHIVE, R_HDR_FramebufferFormat_Changed, "If enabled, the map will be rendered into a high-precision image framebuffer. This avoids issues with shaders that contribute more than 1 in any single pass (like overbrights). Can also be set to the name of an image format, to force rendering to that format first - interesting formats are L8, RGB565, B10G11R11F, and others.");
 cvar_t r_hdr_irisadaptation					= CVARF	("r_hdr_irisadaptation", "0", CVAR_ARCHIVE);
 cvar_t r_hdr_irisadaptation_multiplier		= CVAR	("r_hdr_irisadaptation_multiplier", "2");
 cvar_t r_hdr_irisadaptation_minvalue		= CVAR	("r_hdr_irisadaptation_minvalue", "0.5");
@@ -284,7 +302,7 @@ cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
 cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "0",
 												CVAR_ARCHIVE|CVAR_VIDEOLATCH);
-cvar_t vid_multisample						= CVARFD ("vid_multisample", "0",
+cvar_t vid_multisample						= CVARAFD ("vid_multisample", "0", "vid_samples",
 													CVAR_ARCHIVE, "The number of samples to use for Multisample AntiAliasing (aka: msaa). A value of 1 explicitly disables it.");
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH);
@@ -359,6 +377,7 @@ cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
 cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "1", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE|CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
+cvar_t mod_loadsurfenvmaps					= CVARD ("r_loadsurfenvmaps", "1", "Load local reflection environment-maps, where available. These are normally defined via env_cubemap entities dotted around the place.");
 qboolean r_deluxemapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
 cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
@@ -367,7 +386,12 @@ cvar_t gl_conback							= CVARFCD ("gl_conback", "",
 //cvar_t gl_detail							= CVARF ("gl_detail", "0",
 //												CVAR_ARCHIVE);
 //cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
-cvar_t gl_font								= CVARAFD ("gl_font", "", "gl_consolefont",
+cvar_t gl_font								= CVARFD ("gl_font", "",
+													  CVAR_RENDERERCALLBACK|CVAR_ARCHIVE, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used.\n"
+													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this.\n"
+													  "TTF fonts may be loaded from your windows directory. \'gl_font cour?col=1,1,1:couri?col=0,1,0\' loads eg: c:\\windows\\fonts\\cour.ttf, and uses the italic version of courier for alternative text, with specific colour tints."
+													  ));
+cvar_t con_textfont							= CVARAFD ("con_textfont", "", "gl_consolefont",
 													  CVAR_RENDERERCALLBACK|CVAR_ARCHIVE, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used.\n"
 													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this.\n"
 													  "TTF fonts may be loaded from your windows directory. \'gl_font cour?col=1,1,1:couri?col=0,1,0\' loads eg: c:\\windows\\fonts\\cour.ttf, and uses the italic version of courier for alternative text, with specific colour tints."
@@ -431,6 +455,11 @@ cvar_t gl_texturemode2d						= CVARFCD("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, Image_TextureMode_Callback,
 												"Specifies how 2d images are sampled. format is a 3-tupple ");
 cvar_t r_font_linear						= CVARF("r_font_linear", "1", 0);
+cvar_t r_font_postprocess_outline			= CVARFD("r_font_postprocess_outline", "0", 0, "Controls the number of pixels of dark borders to use around fonts.");
+
+#if defined(HAVE_LEGACY) && defined(AVAIL_FREETYPE)
+cvar_t dpcompat_smallerfonts				= CVARFD("dpcompat_smallerfonts", "0", 0, "Mimics DP's behaviour of using a smaller font size than was actually requested.");
+#endif
 
 cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffer", CVAR_ARCHIVE, "Specifies whether the hardware is forcing tripplebuffering on us, this is the number of extra page swaps required before old data has been completely overwritten.");
 
@@ -440,7 +469,7 @@ cvar_t r_portalonly							= CVARD  ("r_portalonly", "0", "Don't draw things whic
 cvar_t r_noaliasshadows						= CVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
 cvar_t r_lodscale							= CVARFD ("r_lodscale", "5", CVAR_ARCHIVE, "Scales the level-of-detail reduction on models (for those that have lod).");
 cvar_t r_lodbias							= CVARFD ("r_lodbias", "0", CVAR_ARCHIVE, "Biases the level-of-detail on models (for those that have lod).");
-cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
+cvar_t r_shadows							= CVARFD ("r_shadows", "0", CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
 cvar_t r_showfields							= CVARD("r_showfields", "0", "Debugging. Shows entity fields boxes (entity closest to crosshair). 1=ssqc, 2=csqc.");
 cvar_t r_showshaders						= CVARD("r_showshaders", "0", "Debugging. Shows the name of the (worldmodel) shader being pointed to.");
@@ -594,6 +623,7 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&r_lightmap_nearest, GLRENDEREROPTIONS);
 	Cvar_Register (&r_lightmap_average, GLRENDEREROPTIONS);
+	Cvar_Register (&mod_loadsurfenvmaps, GLRENDEREROPTIONS);
 }
 #endif
 
@@ -718,13 +748,6 @@ void R_ToggleFullscreen_f(void)
 
 void Renderer_Init(void)
 {
-	#ifdef AVAIL_JPEGLIB
-		LibJPEG_Init();
-	#endif
-	#ifdef AVAIL_PNGLIB
-		LibPNG_Init();
-	#endif
-
 	currentrendererstate.renderer = NULL;
 	qrenderer = QR_NONE;
 
@@ -832,8 +855,12 @@ void Renderer_Init(void)
 	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
 	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat
 
+#ifdef IMAGEFMT_TGA
 	Cvar_Register(&r_dodgytgafiles, "Hacky bug workarounds");
+#endif
+#ifdef IMAGEFMT_PCX
 	Cvar_Register(&r_dodgypcxfiles, "Hacky bug workarounds");
+#endif
 	Cvar_Register(&r_dodgymiptex, "Hacky bug workarounds");
 	r_imageextensions.enginevalue = r_defaultimageextensions;
 	Cvar_Register(&r_imageextensions, GRAPHICALNICETIES);
@@ -919,6 +946,7 @@ void Renderer_Init(void)
 
 
 //screen
+	Cvar_Register (&con_textfont, GRAPHICALNICETIES);
 	Cvar_Register (&gl_font, GRAPHICALNICETIES);
 	Cvar_Register (&scr_conspeed, SCREENOPTIONS);
 	Cvar_Register (&scr_conalpha, SCREENOPTIONS);
@@ -974,6 +1002,10 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
 	Cvar_Register (&r_font_linear, GLRENDEREROPTIONS);
+	Cvar_Register (&r_font_postprocess_outline, GLRENDEREROPTIONS);
+#if defined(HAVE_LEGACY) && defined(AVAIL_FREETYPE)
+	Cvar_Register (&dpcompat_smallerfonts, GLRENDEREROPTIONS);
+#endif
 	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_lodbias, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
@@ -1380,7 +1412,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	time = Sys_DoubleTime();
 
 #ifndef NOBUILTINMENUS
-	M_RemoveAllMenus(true);
+//	M_RemoveAllMenus(true);
 #endif
 	Media_CaptureDemoEnd();
 	R_ShutdownRenderer(true);
@@ -1482,11 +1514,15 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 				memcpy(host_basepal, default_quakepal, 768);
 			}
 		}
+		Validation_FileLoaded("gfx/palette.lmp", host_basepal, 768);
 
 		{
-			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);
-			if (colormap)
+			size_t csize;
+			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", &csize);
+
+			if (colormap && csize == VID_GRADES*256+1)
 			{
+				Validation_FileLoaded("gfx/colormap.lmp", colormap, csize);
 				j = VID_GRADES-1;
 				data = colormap + j*256;
 				vid.fullbright = 0;
@@ -1584,6 +1620,24 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 
 	Cvar_ForceSetValue(&vid_dpi_x, vid.dpi_x);
 	Cvar_ForceSetValue(&vid_dpi_y, vid.dpi_y);
+#if 0//def HAVE_LEGACY
+	{	//if dp's vid_pixelheight cvar exists then lets force it to what we know.
+		//that said, some dp mods just end up trying to use a fov of 0('auto') when this is 0, which fixes all our fov woes, so don't break that if its explictly 0 (a bit of a hack, but quite handy).
+		//setting this properly seems to fuck over xonotic.
+		cvar_t *pixelheight = Cvar_FindVar("vid_pixelheight");
+		if (pixelheight && (pixelheight->value || !*pixelheight->string))
+		{
+			if (vid.dpi_x && vid.dpi_y)
+			{
+				float ipd_x = 1/vid.dpi_x;
+				float ipd_y = 1/vid.dpi_y;
+				Cvar_ForceSetValue(pixelheight, ipd_y/ipd_x);
+			}
+			else
+				Cvar_ForceSetValue(pixelheight, 1);
+		}
+	}
+#endif
 
 	TRACE(("dbg: R_ApplyRenderer: R_PreNewMap (how handy)\n"));
 	Surf_PreNewMap();
@@ -2981,7 +3035,7 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 
 	//do far plane
 	//fog will logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
-	if (r_refdef.globalfog.density && r_refdef.globalfog.alpha>=1 && r_fog_cullentities.ival)
+	if (r_refdef.globalfog.density && r_refdef.globalfog.alpha>=1 && r_fog_cullentities.ival && !r_refdef.globalfog.depthbias)
 	{
 		float culldist;
 		float fog;
@@ -3017,7 +3071,7 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 		p->normal[1] *= -scale;
 		p->normal[2] *= -scale;
 //		p->dist *= scale;
-		p->dist	= DotProduct(r_origin, p->normal)-culldist;
+		p->dist	= DotProduct(r_refdef.vieworg, p->normal)-culldist;
 
 		p->type      = PLANE_ANYZ;
 		p->signbits  = SignbitsForPlane (p);
