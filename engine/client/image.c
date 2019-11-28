@@ -4933,7 +4933,7 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 			unsigned int pad = 0, y;
 			for (y = 0; y < brows; y++)
 			{
-				VFS_WRITE(file, mips->mip[mipnum].data + browbytes*y, browbytes);
+				VFS_WRITE(file, (void*)((char*)mips->mip[mipnum].data + browbytes*y), browbytes);
 				VFS_WRITE(file, &pad, 4-(browbytes&3));
 			}
 		}
@@ -5202,7 +5202,7 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 			mips->mip[mips->mipcount].datasize = browbytes * rows;
 			mips->mip[mips->mipcount].data = BZ_Malloc(mips->mip[mips->mipcount].datasize);
 			for (y = 0; y < rows; y++)
-				memcpy(mips->mip[mips->mipcount].data + y*browbytes, filedata + y*browbytes+padbytes, browbytes);
+				memcpy((void*)((char*)mips->mip[mips->mipcount].data + y*browbytes), (void*)((char*)filedata + y*browbytes+padbytes), browbytes);
 		}
 		else
 		{
@@ -6000,7 +6000,7 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 		for (mipnum = 0; mipnum < h9.dwMipMapCount; mipnum++)
 		{
 			size_t sz = mips->mip[mipnum].datasize / arraysize;
-			VFS_WRITE(file, mips->mip[mipnum].data + sz*a, sz);
+			VFS_WRITE(file, (void*)((char*)mips->mip[mipnum].data + sz*a), sz);
 		}
 	}
 
@@ -12272,7 +12272,7 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 
 							if (!(texflags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 								BoostGamma(data, width, height, format);
-							Image_FlipImage(data, mips->mip[0].data + i*width*height*bb, &width, &height, bb, cmscheme[j][i].flipx, cmscheme[j][i].flipy, cmscheme[j][i].flipd);
+							Image_FlipImage(data, (void*)((char*)mips->mip[0].data + i*width*height*bb), &width, &height, bb, cmscheme[j][i].flipx, cmscheme[j][i].flipy, cmscheme[j][i].flipd);
 							BZ_Free(data);
 
 							BZ_Free(buf);

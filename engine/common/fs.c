@@ -2621,7 +2621,7 @@ static int QDECL FS_SortWildDataFiles(const void *va, const void *vb)
 		return a->mtime > b->mtime;
 
 	//then fall back and sort by name
-	return strcasecmp(na, nb);
+	return Q_strcasecmp(na, nb);
 }
 static void FS_LoadWildDataFiles (filelist_t *list, wildpaks_t *wp)
 {
