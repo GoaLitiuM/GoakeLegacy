@@ -1594,8 +1594,6 @@ void PM_PlayerMove (float gamespeed)
 	if (pmove.jump_count != 0)
 	{
 		pmove.jump_time += frametime;
-		if (pmove.jump_time > movevars.extrajump)
-			pmove.jump_count = 0;
 		if (pmove.jump_time > max(movevars.extrajump, movevars.autojump))
 		{
 			pmove.jump_time = 0;
