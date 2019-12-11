@@ -9,6 +9,23 @@ This means we force distance models and use hacks to avoid bugs in browsers.
 We also have no doppler with WebAudio.
 */
 
+/*Bug list:
+
+	underwater cacaphoy
+		openal bug with reverb. either disable reverb or disable openal.
+
+	"build/openal-soft-1.19.1/Alc/filters/filter.c:25: BiquadFilter_setParams: Assertion `gain > 0.00001f' failed." + SIGABRT
+		bug started with 1.19.1. Not fte's bug. either disable reverb or disable openal.
+
+	AL_OUT_OF_MEMORY
+		shitty openal implementation with too-low limits on number of sources.
+
+	AL_INVALID_VALUE
+		shitty (apple) openal implementation with too-low limits on number of sources.
+
+*/
+
+
 #ifdef AVAIL_OPENAL
 
 #ifdef FTE_TARGET_WEB
@@ -33,34 +50,35 @@ We also have no doppler with WebAudio.
 #define AL_APIENTRY
 #endif
 
-#define palGetError		alGetError
-#define palSourcef		alSourcef
-#define palSourcei		alSourcei
-#define palSourcePlayv	alSourcePlayv
-#define palSourceStopv	alSourceStopv
-#define palSourcePlay		alSourcePlay
-#define palSourceStop		alSourceStop
-#define palDopplerFactor	alDopplerFactor
-#define palGenBuffers		alGenBuffers
-#define palIsBuffer		alIsBuffer
-#define palBufferData		alBufferData
-#define palDeleteBuffers	alDeleteBuffers
-#define palListenerfv		alListenerfv
-#define palSourcefv		alSourcefv
-#define palGetString		alGetString
-#define palGenSources		alGenSources
-#define palListenerf		alListenerf
-#define palDeleteBuffers	alDeleteBuffers
-#define palDeleteSources	alDeleteSources
-#define palSpeedOfSound	alSpeedOfSound
-#define palDistanceModel	alDistanceModel
-#define palGetSourcei		alGetSourcei
+#define palGetError				alGetError
+#define palSourcef				alSourcef
+#define palSourcei				alSourcei
+#define palSourcePlayv			alSourcePlayv
+#define palSourceStopv			alSourceStopv
+#define palSourcePlay			alSourcePlay
+#define palSourceStop			alSourceStop
+#define palDopplerFactor		alDopplerFactor
+#define palGenBuffers			alGenBuffers
+#define palIsBuffer				alIsBuffer
+#define palBufferData			alBufferData
+#define palDeleteBuffers		alDeleteBuffers
+#define palListenerfv			alListenerfv
+#define palSourcefv				alSourcefv
+#define palGetString			alGetString
+#define palGenSources			alGenSources
+#define palIsSource				alIsSource
+#define palListenerf			alListenerf
+#define palDeleteBuffers		alDeleteBuffers
+#define palDeleteSources		alDeleteSources
+#define palSpeedOfSound			alSpeedOfSound
+#define palDistanceModel		alDistanceModel
+#define palGetSourcei			alGetSourcei
 #define palSourceQueueBuffers	alSourceQueueBuffers
 #define palSourceUnqueueBuffers	alSourceUnqueueBuffers
 
 
-#define palcOpenDevice		alcOpenDevice
-#define palcCloseDevice		alcCloseDevice
+#define palcOpenDevice			alcOpenDevice
+#define palcCloseDevice			alcCloseDevice
 #define palcCreateContext		alcCreateContext
 #define palcDestroyContext		alcDestroyContext
 #define palcMakeContextCurrent	alcMakeContextCurrent
@@ -115,6 +133,7 @@ static AL_API void (AL_APIENTRY *palListenerfv)( ALenum param, const ALfloat* va
 static AL_API void (AL_APIENTRY *palSourcefv)( ALuint sid, ALenum param, const ALfloat* values ); 
 static AL_API const ALchar* (AL_APIENTRY *palGetString)( ALenum param );
 static AL_API void (AL_APIENTRY *palGenSources)( ALsizei n, ALuint* sources ); 
+static AL_API ALboolean (AL_APIENTRY *palIsSource)( ALuint sourceName );
 static AL_API void (AL_APIENTRY *palListenerf)( ALenum param, ALfloat value );
 static AL_API void (AL_APIENTRY *palDeleteBuffers)( ALsizei n, const ALuint* buffers );
 static AL_API void (AL_APIENTRY *palDeleteSources)( ALsizei n, const ALuint* sources );
@@ -296,9 +315,7 @@ static AL_API ALvoid (AL_APIENTRY *palEffectfv)(ALuint effect, ALenum param, con
 #define SOUNDVARS SDRVNAME" variables"
 
 
-extern sfx_t *known_sfx;
-extern int loaded_sfx;
-extern int num_sfx;
+extern sfx_t *known_sfx; //sfxindex = (sfx-known_sfx);
 
 #ifdef USEEFX
 static ALuint OpenAL_LoadEffect(const struct reverbproperties_s *reverb);
@@ -311,7 +328,7 @@ static void S_Info(void);
 
 static void S_Shutdown_f(void);
 */
-static cvar_t s_al_disable = CVARD("s_al_disable", "0", "When set, prevents initialisation of openal. Audio ouput can then fall back to platfrm-specific output which doesn't have any of the miscilaneous openal limitations or bugs.");
+static cvar_t s_al_disable = CVARD("s_al_disable", "0", "0: OpenAL works (generally as the highest priority).\n1: OpenAL will be used only when a specific device is selected.\n2: Don't allow ANY use of OpenAl.\nWith OpenAL disabled, audio ouput will fall back to platform-specific output, avoiding miscilaneous third-party openal limitation bugs.");
 static cvar_t s_al_debug = CVARD("s_al_debug", "0", "Enables periodic checks for OpenAL errors.");
 static cvar_t s_al_use_reverb = CVARD("s_al_use_reverb", "1", "Controls whether reverb effects will be used. Set to 0 to block them. Reverb requires gamecode to configure the reverb properties, other than underwater.");
 //static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
@@ -337,8 +354,19 @@ enum distancemodel_e
 
 typedef struct
 {
-	ALuint *source;
+	struct
+	{
+		ALuint handle;
+		qbyte allocated;	//there is no guarenteed-unused handle (and I don't want to have to keep spamming alIsSource).
+	} *source;
 	size_t max_sources;
+
+	struct
+	{
+		ALuint buffer;
+		qbyte allocated;	//again no guarentee.
+	} *sounds;
+	size_t max_sounds;
 
 	ALCdevice *OpenAL_Device;
 	ALCcontext *OpenAL_Context;
@@ -404,8 +432,8 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 	case 0:
 		palGenBuffers(1, bufptr);
 		emscriptenfte_al_loadaudiofile(*bufptr, sc->data, sc->length);
-		//not allowed to play it yet, because it (probably) doesn't exist yet.
-		return false;
+		//alIsBuffer will report false until success or failure...
+		return true;	//but we do have a 'proper' reference to the buffer.
 #endif
 	case 1:
 		if (sc->numchannels == 2)
@@ -593,14 +621,15 @@ static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
 	for (i = 0; i < sc->total_chans; i++)
 	{
 //		channel_t *chan = &sc->channel[i];
-		src = oali->source[i];
-		if (src)
+		src = oali->source[i].handle;
+		if (oali->source[i].allocated)
 		{
 			palGetSourcei(src, AL_SOURCE_STATE, &buf);
 			if (buf != AL_PLAYING)
 			{
 				palDeleteSources(1, &src);
-				oali->source[i] = 0;
+				oali->source[i].handle = 0;
+				oali->source[i].allocated = false;
 				success++;
 			}
 		}
@@ -610,11 +639,11 @@ static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
 	{
 		for (i = DYNAMIC_STOP; i < sc->total_chans; i++)
 		{	//FIXME: prioritize the furthest
-			src = oali->source[i];
-			if (src)
+			if (oali->source[i].allocated)
 			{
-				palDeleteSources(1, &src);
-				oali->source[i] = 0;
+				palDeleteSources(1, &oali->source[i].handle);
+				oali->source[i].handle = 0;
+				oali->source[i].allocated = false;
 				success++;
 				break;
 			}
@@ -631,12 +660,14 @@ static ssamplepos_t OpenAL_GetChannelPos(soundcardinfo_t *sc, channel_t *chan)
 	oalinfo_t *oali = sc->handle;
 	int chnum = chan - sc->channel;
 	ALuint src;
-	src = oali->source[chnum];
-	if (!src)
+	src = oali->source[chnum].handle;
+	if (!oali->source[chnum].allocated)
 		return (ssamplepos_t)(~(usamplepos_t)0)>>1;	//not actually playing...
 
+	//alcMakeContextCurrent
+
 	palGetSourcei(src, AL_SAMPLE_OFFSET, &spos);
-	return spos;
+	return spos;	//FIXME: result is probably going to be wrong when streaming
 }
 
 //schanged says the sample has changed, otherwise its merely moved around a little, maybe changed in volume, but nothing that will restart it.
@@ -653,9 +684,9 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 
 	if (chnum >= oali->max_sources)
 	{
-		size_t nc = chnum+1+64;
-		Z_ReallocElements((void**)&oali->source, &oali->max_sources, nc, sizeof(*oali->source));
-		return;
+		size_t oc = oali->max_sources;
+		Z_ReallocElements((void**)&oali->source, &oali->max_sources, chnum+1+64, sizeof(*oali->source));
+		memset(oali->source+oc, 0, sizeof(*oali->source)*(oali->max_sources-oc));
 	}
 
 	//alcMakeContextCurrent
@@ -665,25 +696,30 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		sfx = NULL;
 #endif
 
-	src = oali->source[chnum];
-	if (!src)
+	src = oali->source[chnum].handle;
+	if (!oali->source[chnum].allocated)
 	{
 		//not currently playing. be prepared to create one
 		if (!sfx || chan->master_vol == 0)
 			return;
+		palGetError(); //gah this is so shite
 		palGenSources(1, &src);
-		//unable to start a new sound source, give up.
-		if (!src)
-		{
+		if (palGetError() || !palIsSource(src))
+		{	//can't just test for invalid, and failure leaving src unchanged could refer to a different sound.
+			//try to kill some pther sound
 			if (OpenAL_ReclaimASource(sc))
+			{	//okay, we killed one. hopefully we can start a new one now.
 				palGenSources(1, &src);
-			if (!src)
-			{
-				PrintALError("alGenSources");
-				return;
+				if (palGetError() || !palIsSource(src))
+				{
+					PrintALError("alGenSources");
+					return;
+				}
 			}
+			else return;
 		}
-		oali->source[chnum] = src;
+		oali->source[chnum].handle = src;
+		oali->source[chnum].allocated = true;
 		schanged |= CUR_EVERYTHING;	//should normally be true anyway, but hey
 	}
 
@@ -734,7 +770,8 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 				palSourceStop(src);
 #else
 			palDeleteSources(1, &src);
-			oali->source[chnum] = 0;
+			oali->source[chnum].handle = 0;
+			oali->source[chnum].allocated = false;
 #endif
 		}
 		return;
@@ -751,16 +788,26 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 
 	if (schanged || stream)
 	{
-		if (!sfx->openal_buffer)
+		int sndnum = sfx-known_sfx;
+		int buf;
+		if (sndnum >= oali->max_sounds)
+		{
+			size_t oc = oali->max_sounds;
+			Z_ReallocElements((void**)&oali->sounds, &oali->max_sounds, sndnum+1+64, sizeof(*oali->sounds));
+			memset(oali->sounds+oc, 0, sizeof(*oali->sounds)*(oali->max_sounds-oc));
+		}
+		buf = oali->sounds[sndnum].buffer;
+		if (!oali->sounds[sndnum].allocated || stream)
 		{
 			if (!S_LoadSound(sfx, false))
 				return;	//can't load it
 			if (sfx->loadstate != SLS_LOADED)
 			{
 				if (sfx->loadstate == SLS_LOADING)
-				{
+				{	//kill the source so that it gets regenerated again soonish
 					palDeleteSources(1, &src);
-					oali->source[chnum] = 0;
+					oali->source[chnum].handle = 0;
+					oali->source[chnum].allocated = false;
 				}
 				return;	//not available yet
 			}
@@ -868,23 +915,31 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 				}
 			}
 			else
-			{
+			{	//unstreamed
 				if (!sfx->decoder.buf)
 					return;
-				if (!OpenAL_LoadCache(oali, &sfx->openal_buffer, sfx->decoder.buf, 1))
+				oali->sounds[sndnum].allocated = OpenAL_LoadCache(oali, &buf, sfx->decoder.buf, 1);
+				if (!oali->sounds[sndnum].allocated)
 					return;
-				palSourcei(src, AL_BUFFER, sfx->openal_buffer);
+				oali->sounds[sndnum].buffer = buf;
 			}
 		}
+		if (!stream)
+		{
 #ifdef FTE_TARGET_WEB
-		//loading an ogg is async, so we must wait until its valid.
-		else if (!palIsBuffer(sfx->openal_buffer))
-			return;
+			//loading an ogg is async, so we must wait until its valid.
+			//our javascript will hack the buffer so that its not valid until the browser has decoded it for us.
+			if (!palIsBuffer(buf))
+			{	//same as the SLS_LOADING case above
+				palDeleteSources(1, &src);
+				oali->source[chnum].handle = 0;
+				oali->source[chnum].allocated = false;
+				return;
+			}
 #endif
-		else
-			palSourcei(src, AL_BUFFER, sfx->openal_buffer);
+			palSourcei(src, AL_BUFFER, buf);
+		}
 	}
-
 	palSourcef(src, AL_GAIN, min(cvolume, 1));	//openal only supports a max volume of 1. anything above is an error and will be clamped.
 	srcrel = (chan->flags & CF_NOSPACIALISE) || (chan->entnum && chan->entnum == oali->ListenEnt) || !chan->dist_mult;
 	if (srcrel)
@@ -1032,7 +1087,7 @@ static qboolean OpenAL_InitLibrary(void)
 #endif
 
 #ifdef OPENAL_STATIC
-	if (s_al_disable.ival)
+	if (s_al_disable.ival > 1)
 		return false;
 	return true;
 #else
@@ -1054,6 +1109,7 @@ static qboolean OpenAL_InitLibrary(void)
 		{(void*)&palSourcefv, "alSourcefv"},
 		{(void*)&palGetString, "alGetString"},
 		{(void*)&palGenSources, "alGenSources"},
+		{(void*)&palIsSource, "alIsSource"},
 		{(void*)&palListenerf, "alListenerf"},
 		{(void*)&palDeleteSources, "alDeleteSources"},
 		{(void*)&palSpeedOfSound, "alSpeedOfSound"},
@@ -1076,7 +1132,7 @@ static qboolean OpenAL_InitLibrary(void)
 		{NULL}
 	};
 
-	if (s_al_disable.ival)
+	if (s_al_disable.ival > 1)
 		return false;
 	if (COM_CheckParm("-noopenal"))
 		return false;
@@ -1104,15 +1160,22 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 
 	if (!OpenAL_InitLibrary())
 	{
-		if (devname)
-			Con_Printf(SDRVNAME" library is not installed\n");
-		else 
-			Con_DPrintf(SDRVNAME" library is not installed\n");
+		if (!s_al_disable.ival)
+		{
+			if (devname)
+				Con_Printf(SDRVNAME" library is not installed\n");
+			else
+				Con_DPrintf(SDRVNAME" library is not installed\n");
+		}
 		return false;
 	}
 
 	if (!devname || !*devname)
+	{
+		if (s_al_disable.ival)
+			return false;	//no default device
 		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
+	}
 	Q_snprintfz(sc->name, sizeof(sc->name), "%s", devname);
 	Con_Printf("Initiating "SDRVNAME": %s.\n", devname);
 
@@ -1294,15 +1357,23 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 
 	//alcMakeContextCurrent
 
-	palDeleteSources(oali->max_sources, oali->source);
+	for (i=0;i<oali->max_sources;i++)
+	{
+		if (oali->source[i].allocated)
+		{
+			palDeleteSources(1, &oali->source[i].handle);
+			oali->source[i].handle = 0;
+			oali->source[i].allocated = false;
+		}
+	}
 
 	/*make sure the buffers are cleared from the sound effects*/
-	for (i=0;i<num_sfx;i++)
+	for (i=0;i<oali->max_sounds;i++)
 	{
-		if (known_sfx[i].openal_buffer)
+		if (oali->sounds[i].allocated)
 		{
-			palDeleteBuffers(1,&known_sfx[i].openal_buffer);
-			known_sfx[i].openal_buffer = 0;
+			palDeleteBuffers(1,&oali->sounds[i].buffer);
+			oali->sounds[i].allocated = false;
 		}
 	}
 
@@ -1322,6 +1393,7 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 	palcMakeContextCurrent(NULL);
 	palcDestroyContext(oali->OpenAL_Context);
 	palcCloseDevice(oali->OpenAL_Device);
+	Z_Free(oali->sounds);
 	Z_Free(oali->source);
 	Z_Free(oali);
 }
@@ -1331,6 +1403,7 @@ static ALuint OpenAL_LoadEffect(const struct reverbproperties_s *reverb)
 {
 	ALuint effect = 0;
 #ifdef AL_EFFECT_EAXREVERB
+	palGetError();
 	palGenEffects(1, &effect);
 
 	//try eax reverb for more settings
@@ -1543,7 +1616,11 @@ static void *QDECL OPENAL_Capture_Init (int samplerate, const char *device)
 		return NULL; //enumerate nothing if al is disabled
 
 	if (!device || !*device)
+	{
+		if (s_al_disable.ival)
+			return NULL;	//no default device
 		device = palcGetString(NULL, ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
+	}
 
 	return palcCaptureOpenDevice(device, samplerate, AL_FORMAT_MONO16, 0.5*samplerate);
 }

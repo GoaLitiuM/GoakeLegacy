@@ -3249,6 +3249,16 @@ static void QCBUILTIN PF_ReadFloat(pubprogfuncs_t *prinst, struct globalvars_s *
 	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadFloat();
 }
+static void QCBUILTIN PF_ReadInt(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadInt is not valid at this time");
+		G_INT(OFS_RETURN) = -1;
+		return;
+	}
+	G_INT(OFS_RETURN) = MSG_ReadLong();
+}
 
 static void QCBUILTIN PF_ReadString(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6705,6 +6715,7 @@ static struct {
 	{"readangle",				PF_ReadAngle,					365},	// #365 float() readangle (EXT_CSQC)
 	{"readstring",				PF_ReadString,					366},	// #366 string() readstring (EXT_CSQC)
 	{"readfloat",				PF_ReadFloat,					367},	// #367 string() readfloat (EXT_CSQC)
+	{"readint",					PF_ReadInt,						0},		// #0 string() readint
 	{"readentitynum",			PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
 
 //	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
@@ -6975,14 +6986,14 @@ static struct {
 	{"generateentitydata",		PF_generateentitydata,		0},
 	{"stringtokeynum_menu",		PF_cl_stringtokeynum,		614},
 
-	{"resethostcachemasks",		PF_cl_resethostcachemasks,	615},
-	{"sethostcachemaskstring",	PF_cl_sethostcachemaskstring,616},
-	{"sethostcachemasknumber",	PF_cl_sethostcachemasknumber,617},
-	{"resorthostcache",			PF_cl_resorthostcache,		618},
-	{"sethostcachesort",		PF_cl_sethostcachesort,		619},
-	{"refreshhostcache",		PF_cl_refreshhostcache,		620},
-	{"gethostcachenumber",		PF_cl_gethostcachenumber,	621},
-	{"gethostcacheindexforkey",	PF_cl_gethostcacheindexforkey,622},
+	{"resethostcachemasks",		PF_cl_resethostcachemasks,		615},
+	{"sethostcachemaskstring",	PF_cl_sethostcachemaskstring,	616},
+	{"sethostcachemasknumber",	PF_cl_sethostcachemasknumber,	617},
+	{"resorthostcache",			PF_cl_resorthostcache,			618},
+	{"sethostcachesort",		PF_cl_sethostcachesort,			619},
+	{"refreshhostcache",		PF_cl_refreshhostcache,			620},
+	{"gethostcachenumber",		PF_cl_gethostcachenumber,		621},
+	{"gethostcacheindexforkey",	PF_cl_gethostcacheindexforkey,	622},
 	{"addwantedhostcachekey",	PF_cl_addwantedhostcachekey,	623},
 #ifdef CL_MASTER
 	{"getextresponse",			PF_cl_getextresponse,		624},
@@ -6990,17 +7001,36 @@ static struct {
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
 	{"getgamedirinfo",			PF_cl_getgamedirinfo,		626},
 	{"sprintf",					PF_sprintf,					627},
-	{"getsurfacenumtriangles",	PF_getsurfacenumtriangles,628},
+	{"getsurfacenumtriangles",	PF_getsurfacenumtriangles,	628},
 	{"getsurfacetriangle",		PF_getsurfacetriangle,		629},
 
 	{"setkeybind",				PF_cl_setkeybind,			630},
 	{"getbindmaps",				PF_cl_GetBindMap,			631},
 	{"setbindmaps",				PF_cl_SetBindMap,			632},
 
+//	{NULL,						PF_Fixme,					643},
+//	{NULL,						PF_Fixme,					644},
+//	{NULL,						PF_Fixme,					645},
+//	{NULL,						PF_Fixme,					646},
+//	{NULL,						PF_Fixme,					647},
+//	{NULL,						PF_Fixme,					648},
 	{"digest_hex",				PF_digest_hex,				639},
 	{"digest_ptr",				PF_digest_ptr,				0},
 	{"V_CalcRefdef",			PF_V_CalcRefdef,			640},
+//	{NULL,						PF_Fixme,					641},
 
+//	{NULL,						PF_Fixme,					644},
+//	{NULL,						PF_Fixme,					645},
+//	{NULL,						PF_Fixme,					646},
+//	{NULL,						PF_Fixme,					647},
+//	{NULL,						PF_Fixme,					648},
+//	{NULL,						PF_Fixme,					649},
+	{"fcopy",					PF_fcopy,					650},
+	{"frename",					PF_frename,					651},
+	{"fremove",					PF_fremove,					652},
+	{"fexists",					PF_fexists,					653},
+	{"rmtree",					PF_rmtree,					654},
+	
 	{NULL}
 };
 

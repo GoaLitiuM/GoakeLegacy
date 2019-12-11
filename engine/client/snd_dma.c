@@ -59,7 +59,7 @@ static struct
 	vec3_t	right;
 	vec3_t	up;
 } listener[MAX_SPLITS];
-cvar_t snd_nominaldistance		= CVARAFD("s_nominaldistance", "1000", "snd_soundradius", CVAR_CHEAT, "This cvar defines how far an attenuation=1 sound can be heard.");
+cvar_t snd_nominaldistance		= CVARAFD("s_nominaldistance", "1500", "snd_soundradius", CVAR_CHEAT | CVAR_HIDDEN_LEGACY, "This cvar defines how far an attenuation=1 sound can be heard.");
 
 #define	MAX_SFX		8192
 sfx_t		*known_sfx;		// hunk allocated [MAX_SFX]
