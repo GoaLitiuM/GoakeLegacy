@@ -1066,8 +1066,9 @@ void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_t
 	visrules[numvisrules].or = or;
 	numvisrules++;
 }
-void Master_SetSortField(hostcachekey_t field, unsigned int sortflags)
+void Master_SetSortField(hostcachekey_t field, qboolean descending)
 {
+	unsigned int sortflags = descending;
 	sortfield = field;
 	sort_decreasing = sortflags & 1;
 	sort_favourites = sortflags & 2;

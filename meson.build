@@ -325,6 +325,10 @@ if bullet.found()
   c_args += ['-DUSE_INTERNAL_BULLET', '-D_ALLOW_KEYWORD_MACROS']
   common_src_files += 'plugins/bullet/bulletplug.cpp'
   deps += bullet
+  
+  if meson.get_compiler('c') == 'clang' or meson.get_compiler('c') == 'clang-cl'
+    c_args += '-DBT_NO_SIMD_OPERATOR_OVERLOADS'
+  endif
 endif
 
 png = declare_dependency(
