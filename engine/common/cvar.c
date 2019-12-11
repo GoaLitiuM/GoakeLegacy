@@ -710,7 +710,7 @@ void Cvar_SetNamed (const char *var_name, const char *newvalue)
 	if (!var)
 		return;
 	if (var->flags & CVAR_HIDDEN)
-		return cvar_null_string;
+		return;
 	Cvar_Set(var, newvalue);
 }
 
