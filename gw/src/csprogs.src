@@ -20,6 +20,7 @@
 
 #include <client/misc.qc>
 #include <client/hud.qc>
+#include <client/player_prediction.qc>
 #include <client/player.qc>
 #include <client/item.qc>
 
