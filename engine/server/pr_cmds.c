@@ -13058,9 +13058,9 @@ void PR_DumpPlatform_f(void)
 			else
 			{
 				if (defines)
-					VFS_PRINTF(f, "#define %s %g%s\n", knowndefs[i].name, knowndefs[i].value, comment);
+					VFS_PRINTF(f, "#define %s %g.21%s\n", knowndefs[i].name, knowndefs[i].value, comment);
 				else
-					VFS_PRINTF(f, "%s %s = %g;%s\n", type, knowndefs[i].name, knowndefs[i].value, comment);
+					VFS_PRINTF(f, "%s %s = %.21g;%s\n", type, knowndefs[i].name, knowndefs[i].value, comment);
 			}
 		}
 		else if (!strcmp(type, "const string"))
@@ -13076,7 +13076,7 @@ void PR_DumpPlatform_f(void)
 		}
 		else if (knowndefs[i].value)
 		{
-			VFS_PRINTF(f, "%s %s = %g;%s\n", type, knowndefs[i].name, knowndefs[i].value, comment);
+			VFS_PRINTF(f, "%s %s = %.21g;%s\n", type, knowndefs[i].name, knowndefs[i].value, comment);
 		}
 		else
 			VFS_PRINTF(f, "%s %s;%s\n", type, knowndefs[i].name, comment);
