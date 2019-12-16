@@ -1715,14 +1715,15 @@ void SCR_DrawFPS (void)
 	static double lastsystemtime;
 	double t;
 	extern int fps_count;
-	static float lastfps;
+	static float lastfps = -1.0f;
 	static double deviationtimes[64];
 	static int deviationframe;
-	char str[80];
+	static char str[80];
 	int sfps, frame;
 	qboolean usemsecs = false;
 
 	float frametime;
+	float curfps;
 
 	if (!show_fps.ival)
 		return;
@@ -1730,10 +1731,12 @@ void SCR_DrawFPS (void)
 	t = Sys_DoubleTime();
 	if ((t - lastupdatetime) >= 1.0)
 	{
-		lastfps = fps_count/(t - lastupdatetime);
+		curfps = fps_count/(t - lastupdatetime);
 		fps_count = 0;
 		lastupdatetime = t;
 	}
+	else
+		curfps = lastfps;
 	frametime = t - lastsystemtime;
 	lastsystemtime = t;
 
@@ -1750,23 +1753,23 @@ void SCR_DrawFPS (void)
 	default:
 		break;
 	case 2: // lowest FPS, highest MS encountered
-		if (lastfps > 1/frametime)
+		if (curfps > 1/frametime)
 		{
-			lastfps = 1/frametime;
+			curfps = 1/frametime;
 			fps_count = 0;
 			lastupdatetime = t;
 		}
 		break;
 	case 3: // highest FPS, lowest MS encountered
-		if (lastfps < 1/frametime)
+		if (curfps < 1/frametime)
 		{
-			lastfps = 1/frametime;
+			curfps = 1/frametime;
 			fps_count = 0;
 			lastupdatetime = t;
 		}
 		break;
 	case 4: // immediate FPS/MS
-		lastfps = 1/frametime;
+		curfps = 1/frametime;
 		lastupdatetime = t;
 		break;
 	case 5:
@@ -1802,11 +1805,15 @@ void SCR_DrawFPS (void)
 			Con_Printf("%f\n", frametime);
 		break;
 	}
-
-	if (usemsecs)
-		sprintf(str, "%4.1f MS", 1000.0/lastfps);
-	else
-		sprintf(str, "%3.1f FPS", lastfps);
+	
+	if (curfps != lastfps)
+	{
+		if (usemsecs)
+			sprintf(str, "%4.1f MS", 1000.0/curfps);
+		else
+			sprintf(str, "%3.1f FPS", curfps);
+		lastfps = curfps;
+	}
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 }
 

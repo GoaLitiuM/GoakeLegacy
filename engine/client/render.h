@@ -574,7 +574,7 @@ void Media_CaptureDemoEnd(void);
 void Media_RecordFrame (void);
 qboolean Media_PausedDemo (qboolean fortiming);
 int Media_Capturing (void);
-double Media_TweekCaptureFrameTime(double oldtime, double time);
+void Media_TweekCaptureFrameTime(double *realtime, double *time);
 void Media_WriteCurrentTrack(sizebuf_t *buf);
 void Media_VideoRestarting(void);
 void Media_VideoRestarted(void);

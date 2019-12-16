@@ -82,9 +82,9 @@ void PerpendicularVector( vec3_t dst, const vec3_t src )
 	VectorNormalize( dst );
 }
 
-#ifdef _MSC_VER
-#pragma optimize( "", off )
-#endif
+//#ifdef _MSC_VER
+//#pragma optimize( "", off )
+//#endif
 
 
 void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, float degrees )
@@ -142,9 +142,9 @@ void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, 
 	}
 }
 
-#ifdef _MSC_VER
-#pragma optimize( "", on )
-#endif
+//#ifdef _MSC_VER
+//#pragma optimize( "", on )
+//#endif
 
 /*-----------------------------------------------------------------*/
 

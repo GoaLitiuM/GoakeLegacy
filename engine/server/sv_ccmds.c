@@ -2873,9 +2873,8 @@ static int ticsleft;
 static float timerinterval;
 static int timerlevel;
 static cvar_t *timercommand;
-void SV_CheckTimer(void)
+void SV_CheckTimer(float ctime)
 {
-	float ctime = Sys_DoubleTime();
 //	if (ctime < lasttimer) //new map? (shouldn't happen)
 //		mytimer = ctime+5;	//trigger in a few secs
 	lasttimer = ctime;

@@ -4997,7 +4997,8 @@ float SV_Frame (void)
 	float timedelta;
 	float delay;
 
-	start = Sys_DoubleTime ();
+	double currtime = Sys_DoubleTime ();
+	start = currtime;
 	svs.stats.idle += start - end;
 	end = start;
 
@@ -5063,14 +5064,14 @@ float SV_Frame (void)
 		InfoBuf_SetValueForStarKey(&svs.info, "*gamespeed", newspeed);
 
 		//correct sv.starttime
-		sv.starttime = Sys_DoubleTime() - (sv.time/sv.gamespeed);
+		sv.starttime = currtime - (sv.time/sv.gamespeed);
 	}
 
 
 // decide the simulation time
 	{
 		oldtime = sv.time;
-		sv.time = (Sys_DoubleTime() - sv.starttime)*sv.gamespeed;
+		sv.time = (currtime - sv.starttime)*sv.gamespeed;
 		timedelta = sv.time - oldtime;
 		if (sv.time < oldtime)
 		{
@@ -5079,11 +5080,11 @@ float SV_Frame (void)
 		}
 
 		if (isDedicated)
-			realtime += sv.time - oldtime;
+			realtime += timedelta;
 
 		if (sv.paused && sv.time > 1.5)
 		{
-			sv.starttime += (sv.time - oldtime)/sv.gamespeed;	//move the offset
+			sv.starttime += timedelta/sv.gamespeed;	//move the offset
 			sv.time = oldtime;	//and keep time as it was.
 		}
 	}
@@ -5139,7 +5140,7 @@ float SV_Frame (void)
 // check timeouts
 	SV_CheckTimeouts ();
 
-	SV_CheckTimer ();
+	SV_CheckTimer (currtime);
 
 // toggle the log buffer if full
 	SV_CheckLog ();
@@ -5186,12 +5187,12 @@ float SV_Frame (void)
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 		{
-			Q1QVM_GameCodePausedTic(Sys_DoubleTime() - sv.pausedstart);
+			Q1QVM_GameCodePausedTic(currtime - sv.pausedstart);
 		}
 		else
 #endif
 		{
-			PR_GameCodePausedTic(Sys_DoubleTime() - sv.pausedstart);
+			PR_GameCodePausedTic(currtime - sv.pausedstart);
 		}
 	}
 
@@ -5266,9 +5267,10 @@ float SV_Frame (void)
 
 // collect timing statistics
 	end = Sys_DoubleTime ();
-	svs.stats.active += end-start;
-	if (svs.stats.maxresponse < end-start)
-		svs.stats.maxresponse = end-start;
+	double frametime = end-start;
+	svs.stats.active += frametime;
+	if (svs.stats.maxresponse < frametime)
+		svs.stats.maxresponse = frametime;
 	if (svs.stats.maxpackets < svs.stats.packets-oldpackets)
 		svs.stats.maxpackets = svs.stats.packets-oldpackets;
 	svs.stats.count++;

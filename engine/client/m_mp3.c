@@ -3428,15 +3428,17 @@ static qboolean Media_ForceTimeInterval(void)
 	return (cls.demoplayback && Media_Capturing() && captureframeinterval>0 && !Media_PausedDemo(false));
 }
 
-double Media_TweekCaptureFrameTime(double oldtime, double time)
+void Media_TweekCaptureFrameTime(double *realtime, double *time)
 {
 	if (Media_ForceTimeInterval())
 	{
 		captureframeforce = true;
 		//if we're forcing time intervals, then we use fixed time increments and generate a new video frame for every single frame.
-		return capturelastvideotime;
+		*time = capturelastvideotime - *realtime;
+		*realtime = capturelastvideotime;
 	}
-	return oldtime + time;
+	else
+		*realtime = *realtime + *time;
 }
 
 #ifdef VKQUAKE
@@ -4146,7 +4148,7 @@ void Media_RecordDemo_f(void)
 
 void Media_CaptureDemoEnd(void) {}
 qboolean Media_PausedDemo(qboolean fortiming) {return false;}
-double Media_TweekCaptureFrameTime(double oldtime, double time) { return oldtime+time ; }
+void Media_TweekCaptureFrameTime(double* realtime, double *time) { *realtime = *realtime + *time; }
 void Media_RecordFrame (void) {}
 void Media_VideoRestarting(void) {}
 void Media_VideoRestarted(void) {}

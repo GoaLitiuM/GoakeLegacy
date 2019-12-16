@@ -1660,7 +1660,7 @@ void SVVC_Frame (qboolean enabled);
 void SV_CalcPHS (void);
 
 void SV_GetConsoleCommands (void);
-void SV_CheckTimer(void);
+void SV_CheckTimer(float ctime);
 
 void SV_LogPlayer(client_t *cl, char *msg);
 

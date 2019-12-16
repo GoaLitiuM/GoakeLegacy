@@ -1422,7 +1422,7 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 
 float CL_FilterTime (double time, float wantfps, float limit, qboolean ignoreserver)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
 {
-	float fps, fpscap;
+	float fps, fpscap, frametime, sparetime;
 
 	if (cls.timedemo)
 		return -1;
@@ -1450,17 +1450,19 @@ float CL_FilterTime (double time, float wantfps, float limit, qboolean ignoreser
 		else
 			fps = bound (6.7, wantfps, fpscap);	//we actually cap ourselves to 150msecs (1000/7 = 142)
 	}
+	frametime = 1000 / fps;
 
 	//its not time yet
-	if (time < ceil(1000 / fps))
+	if (time < frametime)//if (time < ceil(1000 / fps))
 		return 0;
 
+	sparetime = time - frametime;
 	//clamp it if we have over 1.5 frame banked somehow
-	if (limit && time - (1000 / fps) > (1000 / fps)*limit)
-		return (1000 / fps) * limit;
+	if (limit && sparetime > frametime*limit)
+		return frametime * limit;
 
 	//report how much spare time the caller now has
-	return time - (1000 / fps);
+	return sparetime;
 }
 
 typedef struct clcmdbuf_s {

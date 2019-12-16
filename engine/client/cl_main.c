@@ -5894,8 +5894,6 @@ double Host_Frame (double time)
 	static double		time2 = 0;
 	static double		time3 = 0;
 	int			pass0, pass1, pass2, pass3, i;
-//	float fps;
-	double newrealtime;
 	static double spare;
 	float maxfps;
 	qboolean maxfpsignoreserver;
@@ -5910,22 +5908,16 @@ double Host_Frame (double time)
 		return 0;			// something bad happened, or the server disconnected
 	}
 
-	newrealtime = Media_TweekCaptureFrameTime(realtime, time);
-
-	time = newrealtime - realtime;
-	realtime = newrealtime;
+	Media_TweekCaptureFrameTime(&realtime, &time);
 
 	if (oldrealtime > realtime)
 		oldrealtime = realtime;
+		
+	double deltatime = realtime - oldrealtime;
 
 	if (cl.gamespeed<0.1)
 		cl.gamespeed = 1;
 	time *= cl.gamespeed;
-
-#ifdef WEBCLIENT
-//	FTP_ClientThink();
-	HTTP_CL_Think(NULL, NULL);
-#endif
 
 	if (r_blockvidrestart)
 	{
@@ -5950,8 +5942,8 @@ double Host_Frame (double time)
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.
 	//should smooth out a few things, and increase download speeds.
-	if (!cls.timedemo)
-		CL_ReadPackets ();
+    //if (!cls.timedemo)
+    //    CL_ReadPackets ();
 
 	if (idle && cl_idlefps.value > 0)
 	{
@@ -5962,7 +5954,7 @@ double Host_Frame (double time)
 		if (Media_Capturing())
 			idlesec = 0;
 #endif
-		if ((realtime - oldrealtime) < idlesec)
+		if (deltatime < idlesec)
 		{
 #ifndef CLIENTONLY
 			if (sv.state)
@@ -5972,28 +5964,10 @@ double Host_Frame (double time)
 				RSpeedEnd(RSPEED_SERVER);
 			}
 #endif
-			while(COM_DoWork(0, false))
-				;
-			return idlesec - (realtime - oldrealtime);
+			COM_MainThreadFlush();
+			return idlesec - deltatime;
 		}
 	}
-
-#ifdef PLUGINS
-	Plug_Tick();
-#endif
-	NET_Tick();
-
-/*
-	if (cl_maxfps.value)
-		fps = cl_maxfps.value;//max(30.0, min(cl_maxfps.value, 72.0));
-	else
-		fps = max(30.0, min(rate.value/80.0, 72.0));
-
-	if (!cls.timedemo && realtime - oldrealtime < 1.0/fps)
-		return;			// framerate is too high
-
-	*/
-	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
 
 #ifndef CLIENTONLY
 	if (sv.state && cls.state != ca_active)
@@ -6017,9 +5991,6 @@ double Host_Frame (double time)
 			maxfps = 4;
 	}
 
-	if (vid.isminimized && (maxfps <= 0 || maxfps > 10))
-		maxfps = 10;
-
 	if (maxfps > 0
 #ifdef HAVE_MEDIA_ENCODER
 		&& Media_Capturing() != 2
@@ -6027,12 +5998,12 @@ double Host_Frame (double time)
 		)
 	{
 //		realtime += spare/1000;	//don't use it all!
-		double newspare = CL_FilterTime((spare/1000 + realtime - oldrealtime)*1000, maxfps, 1.5, maxfpsignoreserver);
+		double newspare = CL_FilterTime((spare/1000 + deltatime)*1000, maxfps, 1.5, maxfpsignoreserver);
 		if (!newspare)
 		{
 			while(COM_DoWork(0, false))
 				;
-			return (cl_yieldcpu.ival || vid.isminimized || idle)? (1.0 / maxfps - (realtime - oldrealtime)) : 0;
+			return (cl_yieldcpu.ival || vid.isminimized || idle)? (1.0 / maxfps - deltatime) : 0;
 		}
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
@@ -6044,8 +6015,22 @@ double Host_Frame (double time)
 	}
 	else
 		spare = 0;
+		
+#ifdef WEBCLIENT
+//	FTP_ClientThink();
+	HTTP_CL_Think(NULL, NULL);
+#endif
+#ifdef PLUGINS
+	Plug_Tick();
+#endif
+	NET_Tick();
+		
+	if (!cls.timedemo)
+		CL_ReadPackets ();
 
-	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
+	Mod_Think();
+
+	host_frametime = deltatime*cl.gamespeed;
 	oldrealtime = realtime;
 
 	if (cls.demoplayback && !cl.stillloading)

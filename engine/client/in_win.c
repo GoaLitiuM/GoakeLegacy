@@ -1571,6 +1571,7 @@ void INS_Accumulate (void)
 		//fte won't grab the mouse until its actually inside the window, but other programs don't have similar delays.
 		//so when switching to other quake ports, expect fte to detect the oter engine's setcursorpos as a really big mouse move.
 
+#if 0
 		RECT cliprect;
 		if (GetClipCursor (&cliprect) && !(
 			cliprect.left >= window_rect.left && 
@@ -1580,6 +1581,7 @@ void INS_Accumulate (void)
 			))
 			;	//cliprect now covers some area outside of where we asked for.
 		else
+#endif
 #ifdef USINGRAWINPUT
 		//raw input disables the system mouse, to avoid dupes
 		if (!rawmicecount)
@@ -1594,7 +1596,7 @@ void INS_Accumulate (void)
 		else
 		{
 			// force the mouse to the center, so there's room to move (rawinput ignore this apparently)
-			SetCursorPos (window_center_x, window_center_y);
+			//SetCursorPos (window_center_x, window_center_y);
 		}
 	}
 
