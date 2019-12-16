@@ -39,7 +39,7 @@ void Player_WeaponTick()
 
 void Player_WeaponAttack()
 {
-	local int ammo_consumed = 0;
+	int ammo_consumed = 0;
 	if (weapon_defs[self.weapon].attack != 0)
 		ammo_consumed = weapon_defs[self.weapon].attack();
 
@@ -48,12 +48,20 @@ void Player_WeaponAttack()
 		self.ammo[WEAPON_AMMO_INDEX(self.weapon)] += ammo_consumed;
 		self.projectile_id++;
 
-		local float reload_time = weapon_defs[self.weapon].reload_time;
+		float reload_time = weapon_defs[self.weapon].reload_time;
 		if (weapon_defs[self.weapon].reload != 0)
 			reload_time = weapon_defs[self.weapon].reload();
 
 		Player_WeaponReload(reload_time);
 	}
+
+#ifdef SSQC
+	writeByte(MSG_MULTICAST, SVC_CGAMEPACKET);
+	writeByte(MSG_MULTICAST, EVENT_PLAYER_ATTACK);
+	WriteEntity(MSG_MULTICAST, self);
+	multicast(self.origin, MULTICAST_PVS);
+#endif
+	self.is_attacking = true; // drives animations
 }
 
 void Player_WeaponReload(float reloadtime)

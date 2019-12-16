@@ -14,3 +14,5 @@ void writeVectorFloat(float to, vector vec)
 	writeFloat(to, vec_y);
 	writeFloat(to, vec_z);
 }
+
+void precache_player_model(string modelname) {}

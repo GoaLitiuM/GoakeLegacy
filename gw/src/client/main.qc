@@ -83,9 +83,14 @@ void CSQC_Ent_Remove()
 
 void CSQC_Parse_Event()
 {
-	local float type = readByte();
+	float type = readByte();
 	if (type == EVENT_LIGHTNING)
 		WeaponLightning_CreateLightningBeam();
+	else if (type == EVENT_PLAYER_ATTACK)
+	{
+		entity player = readEntity();
+		player.is_attacking = true;
+	}
 }
 
 float CSQC_Event_Sound(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags)

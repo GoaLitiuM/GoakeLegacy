@@ -12,7 +12,7 @@
 
 #define SPR_EXPLOSION "progs/s_explod.spr"
 
-#define MDL_PLAYER "progs/player.mdl"
+#define MDL_PLAYER "models/players/crash"
 #define MDL_ROCKET "progs/missile.mdl"
 #define MDL_BEAM "progs/bolt2.mdl"
 #define MDL_ARROW "progs/arrow.mdl"

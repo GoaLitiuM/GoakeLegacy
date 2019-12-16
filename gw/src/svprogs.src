@@ -23,6 +23,7 @@
 
 // include last
 #include <common/entities.qc>
+#include <common/precache.qc>
 #include <server/main.qc>
 
 //#endlist

@@ -1,5 +1,4 @@
 #include <common/ruleset.qc>
-#include <common/precache.qc>
 #include <common/math.qc>
 
 #include <common/weapons.qc>

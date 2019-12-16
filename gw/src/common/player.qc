@@ -7,7 +7,6 @@ void Player_Init()
 	self.movetype = MOVETYPE_WALK;
 	self.view_ofs = VEC_OFFSET_EYES;
 
-	setmodel(self, MDL_PLAYER);
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
 
 	self.weapon_next = self.weapon;

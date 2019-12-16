@@ -13,10 +13,11 @@ void precache_sounds()
 void precache_models()
 {
 	precache_model(SPR_EXPLOSION);
-	precache_model(MDL_PLAYER);
 	precache_model(MDL_ROCKET);
 	precache_model(MDL_BEAM);
 	precache_model(MDL_ARROW);
+
+	precache_player_model(MDL_PLAYER);
 };
 
 void precache()

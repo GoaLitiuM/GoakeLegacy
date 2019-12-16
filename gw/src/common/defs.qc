@@ -87,12 +87,6 @@ int WeaponRocket_Fire();
 int WeaponLightning_Fire();
 int WeaponCrossbow_Fire();
 
-// CSQC events
-enum
-{
-	EVENT_LIGHTNING = 1,
-};
-
 // globals for global stats
 float sv_autojump;
 float maxfps;
@@ -106,12 +100,16 @@ float maxfps;
 .int weapons;
 .int ammo[WEAPON_LAST-1];
 .float weapon_sound_loop_time;
+.bool is_attacking;
 
 // projectiles
 .int projectile_id;
 
 // items
 .entity last_touched; // last entity who touched the item
+
+// sound flags
+const float SOUNDFLAG_PREDICT = 128;
 
 // for debugging
 #ifdef CSQC
@@ -132,5 +130,9 @@ float maxfps;
 #define SENDFLAGS_ALL			0xFFFFFF
 #define SENDFLAGS_PHYSICS		(SENDFLAGS_ORIGIN || SENDFLAGS_ANGLES || SENDFLAGS_VELOCITY)
 
-// sound flags
-const float SOUNDFLAG_PREDICT = 128;
+// CSQC events
+enum
+{
+	EVENT_LIGHTNING = 1,
+	EVENT_PLAYER_ATTACK = 2,
+};

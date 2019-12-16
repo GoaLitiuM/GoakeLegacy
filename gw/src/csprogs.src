@@ -20,12 +20,15 @@
 
 #include <client/misc.qc>
 #include <client/hud.qc>
+#include <client/model.qc>
 #include <client/player_prediction.qc>
+#include <client/player_animation.qc>
 #include <client/player.qc>
 #include <client/item.qc>
 
 // include last
 #include <common/entities.qc>
+#include <common/precache.qc>
 #include <client/main.qc>
 
 //#endlist

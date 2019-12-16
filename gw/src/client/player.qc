@@ -65,6 +65,8 @@ void Player_Update(bool isnew)
 		self.predraw = Player_PreDraw;
 		self.drawmask = MASK_ENGINE;
 		self.customphysics = noop;
+
+		Player_InitModel();
 	}
 
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
@@ -92,6 +94,7 @@ float Player_PreDraw()
 	{
 		self.movetype = MOVETYPE_NONE;
 		PlayerPrediction_ApplyServerState();
+		Player_Animate();
 	}
 
 	return PREDRAW_AUTOADD;
