@@ -66,6 +66,8 @@ extern cvar_t con_displaypossibilities;
 cvar_t con_selectioncolour = CVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
 cvar_t con_echochat = CVAR("con_echochat", "0");
 extern cvar_t cl_chatmode;
+cvar_t con_middleclickpaste = CVARD("con_middleclickpaste", "0", "Enables unix-like pasteing from clipboard with middle mouse click.");
+cvar_t con_alwaystoggle = CVARD("con_alwaystoggle", "1", "Always allow hiding the console with console key.");
 
 static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)
 {
@@ -1705,7 +1707,7 @@ qboolean Key_EntryLine(console_t *con, unsigned char **line, int lineoffset, int
 		return true;
 	}
 
-	if (key == K_MOUSE3)
+	if (key == K_MOUSE3 && con_middleclickpaste.ival != 0)
 	{	//middle-click to paste from the unixy primary buffer.
 		Sys_Clipboard_PasteText(CBT_SELECTION, Key_ConsolePaste, line);
 		return true;
@@ -2162,7 +2164,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 
 	if (rkey && !consolekeys[rkey])
 	{
-		if (rkey != '`' || key_linepos==0)
+		if (rkey != '`' || con_alwaystoggle.ival != 0 || key_linepos==0)
 			return false;
 	}
 
@@ -2865,6 +2867,8 @@ void Key_Init (void)
 
 	Cvar_Register (&con_selectioncolour, "Console variables");
 	Cvar_Register (&con_echochat, "Console variables");
+	Cvar_Register (&con_middleclickpaste, "Console variables");
+	Cvar_Register (&con_alwaystoggle, "Console variables");
 }
 
 qboolean Key_MouseShouldBeFree(void)
