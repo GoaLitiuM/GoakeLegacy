@@ -138,38 +138,6 @@ void PlayerPrediction_Reset()
 	lastframe = 0;
 }
 
-void PlayerPrediction_UpdateCamera()
-{
-	camera_origin_old = camera_origin - self.view_ofs;
-
-	// smooth out movement after stepping up
-	const float step_size = serverkeyfloat("pm_stepheight", 18);
-	const float step_smooth_units = 160;
-	const float step_delta = self.origin_z - camera_origin_old_z;
-	float step_z = camera_origin_old_z;
-
-	if (self.flags & FL_ONGROUND != 0 && step_delta > 0 && step_delta <= step_size * 2)
-	{
-		// smoothing needs to be faster on slopes, otherwise it would look like player slightly sinks into the slope
-		tracebox(self.client_origin, self.mins, self.maxs, self.client_origin + self.client_velocity * frametime, false, self);
-		float d = -dotproduct(global_gravitydir, trace_plane_normal);
-
-		float smoothing = step_smooth_units;
-		if (d < 0.97 && d != 0)
-			smoothing = step_smooth_units * 3;
-
-		step_z += frametime * smoothing;
-		step_z = min(step_z, self.origin_z);
-	}
-	else
-		step_z = self.origin_z;
-
-	camera_origin = [self.origin_x, self.origin_y, step_z] + self.view_ofs;
-	camera_velocity = self.velocity;
-
-	setviewprop(VF_CL_VIEWANGLES, view_angles);
-}
-
 void PlayerPrediction_ApplyServerState()
 {
 	self.origin = self.server_origin;
@@ -196,9 +164,6 @@ void PlayerPrediction_ApplyClientState()
 
 void PlayerPrediction()
 {
-	bool prediction = cvar("cl_nopred") == 0;
-	bool predict_stats = prediction;
-
 	// detect client-local changes to the player entity's state caused by other entities
 	vector origin_diff = self.origin - self.client_origin;
 	vector vel_diff = self.velocity - self.client_velocity;
@@ -228,38 +193,34 @@ void PlayerPrediction()
 	PlayerPrediction_ApplyServerState();
 
 	// reset prediction when we receive the correct frame
+	bool skip_stat_prediction = false;
 	if (deltaframe > 0 && servercommandframe >= deltaframe)
 	{
 		PlayerPrediction_Reset();
-		predict_stats = false;
+		skip_stat_prediction = true;
 	}
 	if (self.health <= 0)
-		predict_stats = false;
+		skip_stat_prediction = true;
 
-	UpdatePlayerStats(!predict_stats);
+	UpdatePlayerStats(skip_stat_prediction);
 	UpdateGlobalStats(true);
 
-	if (prediction)
+	int currentframe = clientcommandframe;
+
+	// find the latest complete frame, low framerate client might skip some frames
+	for (int i = clientcommandframe; i >= servercommandframe + 1; i--)
 	{
-		int currentframe = clientcommandframe;
+		if (!getinputstate(i) || input_timelength == 0)
+			continue;
 
-		// find the latest complete frame, low framerate client might skip some frames
-		for (int i = clientcommandframe; i >= servercommandframe + 1; i--)
-		{
-			if (!getinputstate(i) || input_timelength == 0)
-				continue;
-
-			currentframe = i;
-			break;
-		}
-
-		// simulation starts after the last verified frame
-		PlayerPrediction_RunPhysics(servercommandframe + 1, currentframe - 1);
-
-		PlayerPrediction_RunPhysicsAndTick(currentframe);
+		currentframe = i;
+		break;
 	}
 
-	PlayerPrediction_UpdateCamera();
+	// simulation starts after the last verified frame
+	PlayerPrediction_RunPhysics(servercommandframe + 1, currentframe - 1);
+
+	PlayerPrediction_RunPhysicsAndTick(currentframe);
 
 	// store these so we can detect clientside changes for later frames
 	self.client_origin = self.origin;
