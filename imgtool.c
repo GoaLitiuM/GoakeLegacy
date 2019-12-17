@@ -376,21 +376,17 @@ static enum uploadfmt ImgTool_ASTCToLDR(uploadfmt_t fmt)
 #ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
+static char temp_path[MAX_PATH];
 static void FS_MakeTempName(char *out, size_t outsize, char *prefix, char *suffix)
 {
-	int fd;
-	unsigned int n;
-	unsigned int s = rand();
-	for (n = 0; n < 0xffffff; n++)
-	{
-		Q_snprintfz(out, outsize, "/tmp/%s%06x%s", prefix, (n+s)&0xffffff, suffix);
-		fd = _open(out, _O_CREAT | _O_EXCL, _S_IREAD | _S_IWRITE);
-		if (fd == -1)
-			continue;
-		close(fd);
-		return;
-	}
-	Sys_Error("FS_MakeTempName failed\n");
+	if (!*temp_path && !GetTempPathA(sizeof(temp_path), temp_path))
+		Sys_Error("FS_MakeTempName failed to get temp path\n");
+		
+	char temp_file_name[MAX_PATH];
+	if (!GetTempFileNameA(temp_path, prefix, 0, temp_file_name))
+		Sys_Error("FS_MakeTempName failed\n");
+		
+	Q_snprintfz(out, outsize, "%s%s", temp_file_name, suffix);
 }
 #else
 #include <unistd.h>
@@ -485,8 +481,12 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 		Q_strncatz(command, " -hdr", sizeof(command));
 	if (targfmt >= PTI_BC1_RGB && targfmt <= PTI_BC7_RGBA_SRGB && (strstr(inname, "_n.")||strstr(inname, "_norm.")))
 		Q_strncatz(command, " -normal", sizeof(command));	//looks like a normalmap... tweak metrics to favour normalised results.
-	Q_strncatz(command, ">> /dev/null", sizeof(command));
 
+#ifdef _WIN32
+	Q_strncatz(command, "> NUL 2>&1", sizeof(command));
+#else
+	Q_strncatz(command, ">> /dev/null", sizeof(command));
+#endif
 
 	if (!canktx)
 	{
@@ -547,7 +547,8 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 					break;
 			}
 
-			system(command);
+			if (system(command) != 0)
+				break;
 
 			fdata = FS_LoadMallocFile(comp, &fsize);
 			ret = Image_LoadMipsFromMemory(IF_NOMIPMAP, comp, comp, fdata, fsize);
