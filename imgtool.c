@@ -422,12 +422,20 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 	}
 	else if (targfmt == PTI_BC1_RGB)
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc1%s", (args->flags&IF_TRYBUMP)?"n":"");
+	else if (targfmt == PTI_BC1_RGB_SRGB)
+		Q_snprintfz(command, sizeof(command), "nvcompress -bc1%s -srgb -dds10", (args->flags&IF_TRYBUMP)?"n":"");
 	else if (targfmt == PTI_BC1_RGBA)
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc1a");
+	else if (targfmt == PTI_BC1_RGBA_SRGB)
+		Q_snprintfz(command, sizeof(command), "nvcompress -bc1a -srgb -dds10");
 	else if (targfmt == PTI_BC2_RGBA)
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc2");
+	else if (targfmt == PTI_BC2_RGBA_SRGB)
+		Q_snprintfz(command, sizeof(command), "nvcompress -bc2 -srgb -dds10");
 	else if (targfmt == PTI_BC3_RGBA)
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc3%s", (args->flags&IF_TRYBUMP)?"n":"");
+	else if (targfmt == PTI_BC3_RGBA_SRGB)
+		Q_snprintfz(command, sizeof(command), "nvcompress -bc3%s -srgb -dds10", (args->flags&IF_TRYBUMP)?"n":"");
 	else if (targfmt == PTI_BC4_R8)
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc4");
 	else if (targfmt == PTI_BC5_RG8)
@@ -436,6 +444,8 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc6");
 	else if (targfmt == PTI_BC7_RGBA)
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc7");
+	else if (targfmt == PTI_BC7_RGBA_SRGB)
+		Q_snprintfz(command, sizeof(command), "nvcompress -bc7 -srgb");
 	else
 	{
 		if (mips->encoding != targfmt)
