@@ -430,16 +430,28 @@ executable(join_paths(out, 'goake-sv'),
 
 executable(join_paths(out, 'fteqcc'),
   sources: [
-  'engine/qclib/qcctui.c',
-  'engine/qclib/comprout.c',
-  'engine/qclib/hash.c',
-  'engine/qclib/qcc_cmdlib.c',
-  'engine/qclib/qcc_pr_comp.c',
-  'engine/qclib/qcc_pr_lex.c',
-  'engine/qclib/qccmain.c',
-  'engine/qclib/qcd_main.c',
+    'engine/qclib/qcctui.c',
+    'engine/qclib/comprout.c',
+    'engine/qclib/hash.c',
+    'engine/qclib/qcc_cmdlib.c',
+    'engine/qclib/qcc_pr_comp.c',
+    'engine/qclib/qcc_pr_lex.c',
+    'engine/qclib/qccmain.c',
+    'engine/qclib/qcd_main.c',
   ],
   include_directories: includes,
   dependencies: [zlib],
   override_options: ['buildtype=release', 'optimization=2', 'debug=false']
+)
+
+executable(join_paths(out, 'imgtool'),
+  sources: [
+    'engine/client/image.c',
+    'imgtool.c'
+  ],
+  include_directories: includes,
+  dependencies: deps,
+  c_args: [server_c_args, c_args, '-DIMGTOOL'],
+  link_args: linker_args
+  #override_options: ['buildtype=release', 'optimization=2', 'debug=false']
 )
