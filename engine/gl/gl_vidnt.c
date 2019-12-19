@@ -1596,9 +1596,11 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 // to let messages finish bouncing around the system, then we put
 // ourselves at the top of the z order, then grab the foreground again,
 // Who knows if it helps, but it probably doesn't hurt
-	SetForegroundWindow (mainwindow);
 
+#if 0
 #ifndef NPFTE
+	SetForegroundWindow (mainwindow);
+	
 	/*I don't like this, but if we */
 	Sleep (100);
 	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
@@ -1622,6 +1624,19 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		DispatchMessage (&msg);
 	}
 	Sleep (100);
+#else
+	SetWindowPos (mainwindow, HWND_TOP, 0, 0, 0, 0,
+				  SWP_DRAWFRAME | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW |
+				  SWP_NOCOPYBITS);
+
+	SetForegroundWindow (mainwindow);
+	
+	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
+	{
+		TranslateMessage (&msg);
+		DispatchMessage (&msg);
+	}
+#endif
 
 // fix the leftover Alt from any Alt-Tab or the like that switched us away
 	ClearAllStates ();
