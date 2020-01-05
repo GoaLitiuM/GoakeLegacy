@@ -631,23 +631,33 @@ void	R_InitTextures (void)
 {
 	int		x,y, m;
 	qbyte	*dest;
-	static FTE_ALIGN(4) char r_notexture_mip_mem[(sizeof(texture_t) + 16*16)];
+	static FTE_ALIGN(4) char r_notexture_mip_mem[(sizeof(texture_t) + 2*2*4)];
 
 // create a simple checkerboard texture for the default
 	r_notexture_mip = (texture_t*)r_notexture_mip_mem;
 
-	r_notexture_mip->width = r_notexture_mip->height = 16;
+	r_notexture_mip->width = r_notexture_mip->height = 2;
 
 	for (m=0 ; m<1 ; m++)
 	{
 		dest = (qbyte *)(r_notexture_mip+1);
-		for (y=0 ; y< (16>>m) ; y++)
-			for (x=0 ; x< (16>>m) ; x++)
+		for (y=0 ; y< (r_notexture_mip->height>>m) ; y++)
+			for (x=0 ; x< (r_notexture_mip->width>>m) ; x++)
 			{
-				if (  (y< (8>>m) ) ^ (x< (8>>m) ) )
+				//if (  (y< (8>>m) ) ^ (x< (8>>m) ) )
+				if ((x < r_notexture_mip->width/2 && y < r_notexture_mip->height/2) || (x >= r_notexture_mip->width/2 && y >= r_notexture_mip->height/2))
+				{
 					*dest++ = 0;
+					*dest++ = 0;
+					*dest++ = 0;
+				}
 				else
+				{
 					*dest++ = 0xff;
+					*dest++ = 0;
+					*dest++ = 0xff;
+				}
+				*dest++ = 0xff;
 			}
 	}
 }
