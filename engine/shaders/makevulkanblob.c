@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _MSC_VER 
+#define strcasecmp _stricmp
+#endif
+
 void dumpprogblob(FILE *out, unsigned char *buf, unsigned int size)
 {
 	if (out)
@@ -95,7 +100,11 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 		NULL
 	};
 
+#ifdef _WIN32
+	const char *tmppath = "";
+#else
 	const char *tmppath = "/tmp/";
+#endif
 
 	char customsamplerlines[16][256];
 
@@ -452,18 +461,22 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 		/*preprocess the vertex shader*/
 #ifdef _WIN32
 		"echo #version 450 core > %s && "
+		"cl /nologo %s /I%s /Ivulkan\\ /DVULKAN /DVERTEX_SHADER /EP >> %s && "
 #else
 		"echo \"#version 450 core\" > %s && "
+		"cpp %s -I%s -Ivulkan/ -DVULKAN -DVERTEX_SHADER -P >> %s && "
 #endif
-		"cpp %s -I%s -DVULKAN -DVERTEX_SHADER -P >> %s && "
+		
 
 		/*preprocess the fragment shader*/
 #ifdef _WIN32
 		"echo #version 450 core > %s && "
+		"cl /nologo %s /I%s /Ivulkan\\ /DVULKAN /DFRAGMENT_SHADER /EP >> %s && "
 #else
 		"echo \"#version 450 core\" > %s && "
+		"cpp %s -I%s -Ivulkan/ -DVULKAN -DFRAGMENT_SHADER -P >> %s && "
 #endif
-		"cpp %s -I%s -DVULKAN -DFRAGMENT_SHADER -P >> %s && "
+		
 
 		/*convert to spir-v (annoyingly we have no control over the output file names*/
 		"glslangValidator -V -l -d %s %s"
@@ -495,7 +508,7 @@ int main(int argc, const char **argv)
 
 	if (argc == 1)
 	{
-		printf("%s input.glsl output.fvb\n");
+		printf("%s input.glsl output.fvb\n", argv[0]);
 		return 1;
 	}
 
