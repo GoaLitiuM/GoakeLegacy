@@ -4304,7 +4304,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	//try and enable some instance extensions...
 	{
 		qboolean surfext = false;
-		uint32_t count, i, j;
+		uint32_t count = 0, i, j;
 		VkExtensionProperties *ext;
 #ifdef VK_EXT_debug_utils
 		qboolean havedebugutils = false;
