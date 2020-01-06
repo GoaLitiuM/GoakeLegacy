@@ -635,9 +635,9 @@ void R_GenDlightBatches(batch_t *batches[])
 							"}\n"
 						"}\n"
 			;
-		deferredlight_shader[0] = R_RegisterShader("deferredlight", SUF_NONE, deferredlight_shader_code);
+		deferredlight_shader[0] = R_RegisterShader("deferredlight#USE_ARB_SHADOW", SUF_NONE, deferredlight_shader_code);
 #ifdef RTLIGHTS
-		deferredlight_shader[LSHADER_SMAP] = R_RegisterShader("deferredlight#PCF", SUF_NONE, deferredlight_shader_code);
+		deferredlight_shader[LSHADER_SMAP] = R_RegisterShader("deferredlight#PCF#USE_ARB_SHADOW", SUF_NONE, deferredlight_shader_code);
 #endif
 	}
 

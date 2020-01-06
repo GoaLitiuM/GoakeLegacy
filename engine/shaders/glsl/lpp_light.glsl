@@ -5,8 +5,6 @@
 //FIXME: !!permu FOG
 !!samps shadowmap 2
 
-#define USE_ARB_SHADOW
-
 #include "sys/defs.h"
 #include "sys/pcf.h"
 

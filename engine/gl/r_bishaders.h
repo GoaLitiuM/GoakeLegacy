@@ -8448,8 +8448,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //FIXME: !!permu FOG
 "!!samps shadowmap 2\n"
 
-"#define USE_ARB_SHADOW\n"
-
 "#include \"sys/defs.h\"\n"
 "#include \"sys/pcf.h\"\n"
 
@@ -8523,6 +8521,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu BUMP //for offsetmapping rather than bumpmapping (real bumps are handled elsewhere)\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!samps 2\n"
+"!!samps diffuse\n"
+"!!samps =SPECULAR specular\n"
+"!!samps =FULLBRIGHT fullbright\n"
+"!!samps lightmap\n"
 
 //the final defered lighting pass.
 //the lighting values were written to some render target, which is fed into this shader, and now we draw all the wall textures with it.

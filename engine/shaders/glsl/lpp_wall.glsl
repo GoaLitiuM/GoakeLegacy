@@ -2,6 +2,10 @@
 !!permu BUMP	//for offsetmapping rather than bumpmapping (real bumps are handled elsewhere)
 !!cvarf r_glsl_offsetmapping_scale
 !!samps 2
+!!samps diffuse
+!!samps =SPECULAR specular
+!!samps =FULLBRIGHT fullbright
+!!samps lightmap
 
 //the final defered lighting pass.
 //the lighting values were written to some render target, which is fed into this shader, and now we draw all the wall textures with it.
