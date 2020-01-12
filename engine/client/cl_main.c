@@ -6555,6 +6555,10 @@ void Host_FinishLoading(void)
 			return;
 		}
 
+#ifdef PLUGINS
+		Plug_Initialise(true);
+#endif
+
 		Con_History_Load();
 
 		Cmd_StuffCmds();
@@ -6621,9 +6625,9 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
-#ifdef PACKAGEMANAGER
+/*#ifdef PACKAGEMANAGER
 	char engineupdated[MAX_OSPATH];
-#endif
+#endif*/
 	int man;
 
 	com_parseutf8.ival = 1;	//enable utf8 parsing even before cvars are registered.
@@ -6650,6 +6654,7 @@ void Host_Init (quakeparms_t *parms)
 	Cbuf_Init ();
 	Cmd_Init ();
 
+/*this may be tripping some bullshit huristic in microsoft's insecurity mafia software(tbh I really don't know what they're detecting), plus causes firewall issues on updates.
 #ifdef PACKAGEMANAGER
 	//we have enough of the filesystem inited now that we can read the package list and figure out which engine was last installed.
 	if (PM_FindUpdatedEngine(engineupdated, sizeof(engineupdated)))
@@ -6669,6 +6674,7 @@ void Host_Init (quakeparms_t *parms)
 		PM_Shutdown();	//will restart later as needed, but we need to be sure that no files are open or anything.
 	}
 #endif
+*/
 
 	V_Init ();
 	NET_Init ();
@@ -6710,9 +6716,6 @@ void Host_Init (quakeparms_t *parms)
 	Editor_Init();
 #endif
 
-#ifdef PLUGINS
-	Plug_Initialise(true);
-#endif
 #ifdef VM_UI
 	UI_Init();
 #endif

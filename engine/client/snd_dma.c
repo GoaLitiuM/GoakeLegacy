@@ -2600,7 +2600,7 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 	if (oldest == -1)
 		return NULL;
 
-	if (sc->channel[oldest].sfx)
+	//if (sc->channel[oldest].sfx)
 		sc->channel[oldest].sfx = NULL;
 
 	if (sc->total_chans <= oldest)
@@ -2865,11 +2865,12 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 		return;
 	}
 
+	if (!ratemul)	//rate of 0
+		ratemul = 1;
 	ratemul *= snd_playbackrate.value;
 	if (!snd_ignoregamespeed.ival)
 		ratemul *= (cls.state?cl.gamespeed:1) * (cls.demoplayback?cl_demospeed.value:1);
-
-	if (ratemul <= 0)
+	if (ratemul <= 0)	//in case the user set the cvars weirdly
 		ratemul = 1;
 
 	vol = fvol*255;
@@ -4113,7 +4114,7 @@ typedef struct {
 
 	qboolean inuse;
 	int id;
-	sfx_t sfx;
+	sfx_t *sfx;
 
 	int numchannels;
 	int width;
@@ -4141,7 +4142,25 @@ sfxcache_t *QDECL S_Raw_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, 
 		buf->speed = snd_speed;
 		buf->width = s->width;
 	}
+	if (start >= s->length)
+		return NULL;	//eof...
 	return buf;
+}
+void QDECL S_Raw_Ended(sfx_t *sfx)
+{	//no longer playing anywhere...
+	streaming_t *s = sfx->decoder.buf;
+	s->inuse = false;	//let it get reused now.
+}
+void QDECL S_Raw_Purge(sfx_t *sfx)
+{	//flush all caches, will be re-read from disk (or not, because this is streamed)
+	streaming_t *s = sfx->decoder.buf;
+	s->length = 0;
+	s->numchannels = 0;
+	BZ_Free(s->data);
+	s->data = NULL;
+	s->inuse = false;
+
+	memset(&sfx->decoder, 0, sizeof(sfx->decoder));
 }
 
 //streaming audio.	//this is useful when there is one source, and the sound is to be played with no attenuation
@@ -4176,12 +4195,13 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		S_LockMixer();
 		for (si = sndcardinfo; si; si=si->next)
 		for (i = 0; i < si->total_chans; i++)
-			if (si->channel[i].sfx == &s->sfx)
+			if (si->channel[i].sfx == s->sfx)
 			{
 				si->channel[i].sfx = NULL;
 				break;
 			}
 		BZ_Free(s->data);
+		s->data = NULL;
 		S_UnlockMixer();
 		return;
 	}
@@ -4196,9 +4216,16 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			}
 			s = free;
 		}
-		s->sfx.decoder.buf = s;
-		s->sfx.decoder.decodedata = S_Raw_Locate;
-		s->sfx.loadstate = SLS_LOADED;
+
+		if (!s->sfx)
+			s->sfx = S_FindName(va("***stream_%i***", i), true, false);
+		s->sfx->decoder.buf = s;
+		s->sfx->decoder.decodedata = S_Raw_Locate;
+		s->sfx->decoder.ended = S_Raw_Ended;
+		s->sfx->decoder.purge = S_Raw_Purge;
+		s->sfx->loopstart = -1; //non-looping...
+		s->sfx->loadstate = SLS_LOADED;
+
 		s->numchannels = channels;
 		s->width = width;
 		s->data = NULL;
@@ -4206,7 +4233,6 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 		s->id = sourceid;
 		s->inuse = true;
-		strcpy(s->sfx.name, "raw stream");
 //		Con_Printf("Added new raw stream\n");
 	}
 	S_LockMixer();
@@ -4226,7 +4252,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	for (si = sndcardinfo; si; si=si->next)	//make sure all cards are playing, and that we still get a prepad if just one is.
 	{
 		for (i = 0; i < si->total_chans; i++)
-			if (si->channel[i].sfx == &s->sfx)
+			if (si->channel[i].sfx == s->sfx)
 			{
 				if (prepadl > (si->channel[i].pos>>PITCHSHIFT))
 					prepadl = (si->channel[i].pos>>PITCHSHIFT);
@@ -4287,7 +4313,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	for (si = sndcardinfo; si; si=si->next)
 	{
 		for (i = 0; i < si->total_chans; i++)
-			if (si->channel[i].sfx == &s->sfx)
+			if (si->channel[i].sfx == s->sfx)
 			{
 				si->channel[i].pos -= prepadl*si->channel[i].rate;
 
@@ -4310,7 +4336,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 				c->master_vol = 255 * volume;
 				c->pos = 0;
 				c->rate = 1<<PITCHSHIFT;
-				c->sfx = &s->sfx;
+				c->sfx = s->sfx;
 				SND_Spatialize(si, c);
 
 				if (si->ChannelUpdate)

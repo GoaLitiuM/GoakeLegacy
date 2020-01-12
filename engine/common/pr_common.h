@@ -709,6 +709,9 @@ typedef enum
 	VF_CARTESIAN_ANGLES = 22,
 	VF_MINDIST = 23,
 	VF_MAXDIST = 24,
+	VF_OFFAXIS_OFFSET = 25,
+	VF_OFFAXIS_OFFSET_X = 26,
+	VF_OFFAXIS_OFFSET_Y = 27,
 
 	//this is a DP-compatibility hack.
 	VF_CL_VIEWANGLES_V = 33,
@@ -742,7 +745,8 @@ typedef enum
 	VF_ENVMAP			= 220,	//cubemap image for reflectcube
 	VF_USERDATA			= 221,
 	VF_SKYROOM_CAMERA	= 222,
-	VF_PIXELPSCALE		= 223, //[dpi_x, dpi_y, dpi_y/dpi_x]
+	VF_PIXELPSCALE		= 223,	//[dpi_x, dpi_y, dpi_y/dpi_x]
+	VF_PROJECTIONOFFSET	= 224,	//allows for off-axis projections.
 } viewflags;
 
 /*FIXME: this should be changed*/

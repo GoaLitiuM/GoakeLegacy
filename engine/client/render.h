@@ -43,7 +43,7 @@ static const texid_t r_nulltex = NULL;
 //desktop-gl will generally cope with ints, but expect a performance hit from that with old gpus (so we don't bother)
 //vulkan+dx10 can cope with ints, but might be 24bit
 //either way, all renderers in the same build need to use the same thing.
-#if (defined(GLQUAKE) && defined(HAVE_LEGACY)) || defined(MINIMAL) || defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(ANDROID)
+#if (defined(GLQUAKE) && defined(HAVE_LEGACY)) || defined(MINIMAL) || defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(ANDROID) || defined(FTE_TARGET_WEB)
 	#define sizeof_index_t 2
 #endif
 #if sizeof_index_t == 2
@@ -262,6 +262,7 @@ typedef struct
 	vec3_t		viewaxis[3];		/*forward, left, up (NOT RIGHT)*/
 	vec3_t		headaxis[3];		/*this is for head mounted displays. this is relative to the view*/
 	vec3_t		eyeoffset;			/*world space, for vr screenies*/
+	vec2_t		projectionoffset;	/*for off-centre rendering*/
 
 	float		fov_x, fov_y, afov;
 	float		fovv_x, fovv_y;	//viewmodel fovs

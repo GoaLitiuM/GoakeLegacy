@@ -4467,7 +4467,7 @@ static void CLQ2_ParseConfigString (void)
 	}
 	else if (i >= Q2CS_LIGHTS && i < Q2CS_LIGHTS+Q2MAX_LIGHTSTYLES)
 	{
-		R_UpdateLightStyle(i, s, 1, 1, 1);
+		R_UpdateLightStyle(i-Q2CS_LIGHTS, s, 1, 1, 1);
 	}
 	else if (i == Q2CS_CDTRACK)
 	{
@@ -4705,6 +4705,9 @@ static void CL_ParseStaticProt (int baselinetype)
 #ifdef PEXT_SCALE
 	ent->scale = es.scale/16.0;
 #endif
+	ent->glowmod[0] = (8.0f/256.0f)*es.glowmod[0];
+	ent->glowmod[1] = (8.0f/256.0f)*es.glowmod[1];
+	ent->glowmod[2] = (8.0f/256.0f)*es.glowmod[2];
 	ent->shaderRGBAf[0] = (8.0f/256.0f)*es.colormod[0];
 	ent->shaderRGBAf[1] = (8.0f/256.0f)*es.colormod[1];
 	ent->shaderRGBAf[2] = (8.0f/256.0f)*es.colormod[2];

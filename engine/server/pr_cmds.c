@@ -1556,7 +1556,7 @@ void PR_Init(void)
 	Cmd_AddCommand ("extensionlist_ssqc", PR_SVExtensionList_f);
 	Cmd_AddCommand ("pr_dumpplatform", PR_DumpPlatform_f);
 
-	Cmd_AddCommand ("sv_lightstyle", PR_Lightstyle_f);
+	Cmd_AddCommandD ("sv_lightstyle", PR_Lightstyle_f, "Overrides lightstyles from the server's console, mostly for debug use.");
 
 /*
 #ifdef _DEBUG
@@ -3054,6 +3054,8 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 		}
 		else
 		{
+			//qw was fixed - it never sets the size of an alias model, mostly because it doesn't know it.
+			//this of course means that precache_model+setmodel doesn't stall.
 			if (mod && mod->type != mod_alias)
 			{
 				while(mod->loadstate == MLS_LOADING)
@@ -3062,9 +3064,9 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 				VectorCopy (mod->mins, e->v->mins);
 				VectorCopy (mod->maxs, e->v->maxs);
 				VectorSubtract (mod->maxs, mod->mins, e->v->size);
-				World_LinkEdict (&sv.world, (wedict_t*)e, false);
 			}
-			//qw was fixed - it never sets the size of an alias model, mostly because it doesn't know it.
+			//but do relink, because stuff bugs out otherwise.
+			World_LinkEdict (&sv.world, (wedict_t*)e, false);
 		}
 	}
 }
@@ -4731,30 +4733,52 @@ static void QCBUILTIN PF_lightstyle (pubprogfuncs_t *prinst, struct globalvars_s
 static void PR_Lightstyle_f(void)
 {
 	int style = atoi(Cmd_Argv(1));
-	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
-		Con_TPrintf ("not supported in the current game mode.\n");
-	else if (!SV_MayCheat())
+
+	if (!SV_MayCheat())
 		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
-	else if (Cmd_Argc() <= 2)
+	else switch(svs.gametype)
 	{
-		if (style >= 0 && style < sv.maxlightstyles && Cmd_Argc() >= 2)
-			Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
-		else for (style = 0; style < sv.maxlightstyles; style++)
-			if (sv.lightstyles[style].str)
-				Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
-	}
-	else
-	{
-		vec3_t rgb = {1,1,1};
-		if (Cmd_Argc() > 5)
+	default:
+		Con_TPrintf ("not supported in the current game mode.\n");
+		break;
+#ifdef Q2SERVER
+	case GT_QUAKE2:
+		if (Cmd_Argc() <= 2)
 		{
-			rgb[0] = atof(Cmd_Argv(3));
-			rgb[1] = atof(Cmd_Argv(4));
-			rgb[2] = atof(Cmd_Argv(5));
+			if ((unsigned)style < (unsigned)Q2MAX_LIGHTSTYLES && Cmd_Argc() >= 2)
+				Con_Printf ("Style %i: %s\n", style, sv.strings.configstring[Q2CS_LIGHTS+style]);
+			else for (style = 0; style < Q2MAX_LIGHTSTYLES; style++)
+				if (sv.strings.configstring[Q2CS_LIGHTS+style])
+					Con_Printf("Style %i: %s\n", style, sv.strings.configstring[Q2CS_LIGHTS+style]);
 		}
-		else if (Cmd_Argc() > 3)
-			rgb[0] = rgb[1] = rgb[2] = atof(Cmd_Argv(3));
-		PF_applylightstyle(style, Cmd_Argv(2), rgb);
+		else if ((unsigned)style < (unsigned)Q2MAX_LIGHTSTYLES)
+			PFQ2_Configstring (Q2CS_LIGHTS+style, Cmd_Argv(2));
+		break;
+#endif
+	case GT_PROGS:
+	case GT_Q1QVM:
+		if (Cmd_Argc() <= 2)
+		{
+			if (style >= 0 && style < sv.maxlightstyles && Cmd_Argc() >= 2)
+				Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+			else for (style = 0; style < sv.maxlightstyles; style++)
+				if (sv.lightstyles[style].str)
+					Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+		}
+		else
+		{
+			vec3_t rgb = {1,1,1};
+			if (Cmd_Argc() > 5)
+			{
+				rgb[0] = atof(Cmd_Argv(3));
+				rgb[1] = atof(Cmd_Argv(4));
+				rgb[2] = atof(Cmd_Argv(5));
+			}
+			else if (Cmd_Argc() > 3)
+				rgb[0] = rgb[1] = rgb[2] = atof(Cmd_Argv(3));
+			PF_applylightstyle(style, Cmd_Argv(2), rgb);
+		}
+		break;
 	}
 }
 
@@ -8874,6 +8898,7 @@ void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 void PRSV_RunThreads(void)
 {
 	struct globalvars_s *pr_globals;
+	edict_t *ed;
 
 	qcstate_t *state = qcthreads, *next;
 	qcthreads = NULL;
@@ -8890,9 +8915,19 @@ void PRSV_RunThreads(void)
 		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
 			pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_UB(svprogfuncs, state->self));
-			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_UB(svprogfuncs, state->other));
-			G_FLOAT(OFS_RETURN) = state->returnval;
+			//restore the thread's self variable, if applicable.
+			ed = PROG_TO_EDICT(svprogfuncs, state->self);
+			if (ed->xv->uniquespawnid != state->selfid)
+				ed = svprogfuncs->edicttable[0];
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ed);
+
+			//restore the thread's other variable, if applicable
+			ed = PROG_TO_EDICT(svprogfuncs, state->other);
+			if (ed->xv->uniquespawnid != state->otherid)
+				ed = svprogfuncs->edicttable[0];
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ed);
+
+			G_FLOAT(OFS_RETURN) = state->returnval;	//return value of fork or sleep
 
 			svprogfuncs->RunThread(svprogfuncs, state->thread);
 			svprogfuncs->parms->memfree(state->thread);
@@ -10993,7 +11028,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawtextfield",	PF_Fixme,	0,		0,		0,	 0/*314*/,	D("float(vector pos, vector size, float alignflags, string text)", "Draws a multi-line block of text, including word wrapping and alignment. alignflags bits are RTLB, typically 3. Returns the total number of lines.")},// (EXT_CSQC)
 	{"drawline",		PF_Fixme,	0,		0,		0,		315,	D("void(float width, vector pos1, vector pos2, vector rgb, float alpha, optional float drawflag)", "Draws a 2d line between the two 2d points.")},// (EXT_CSQC)
 	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	D("float(string name)", "Checks to see if the image is currently loaded. Engines might lie, or cache between maps.")},// (EXT_CSQC)
-	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	D("string(string name, optional float trywad)", "Forces the engine to load the named image. If trywad is specified, the specified name must any lack path and extension.")},// (EXT_CSQC)
+	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	D("string(string name, optional float trywad)", "Forces the engine to load the named image. If trywad is specified, the specified name must lack any path and extension.")},// (EXT_CSQC)
 	{"r_uploadimage",	PF_Fixme,	0,		0,		0,		0,		D("void(string imagename, int width, int height, void *pixeldata, optional int datasize, optional int format)", "Updates a texture with the specified rgba data (uploading it to the gpu). Will be created if needed. If datasize is specified then the image is decoded (eg .ktx or .dds data) instead of being raw R8G8B8A data. You'll typically want shaderforname to also generate a shader to use the texture.")},
 	{"r_readimage",		PF_Fixme,	0,		0,		0,		0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw R8G8B8A8 pixel data. Should not be used for dds or ktx etc formats. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
 	{"drawgetimagesize",PF_Fixme,	0,		0,		0,		318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution.")},// (EXT_CSQC)
@@ -12614,6 +12649,7 @@ void PR_DumpPlatform_f(void)
 		{"VF_ENVMAP",			"const float", CS|MENU, D("The cubemap name to use as a fallback for $reflectcube, if a shader was unable to load one. Note that this doesn't automatically change shader permutations or anything."), VF_ENVMAP},
 		{"VF_USERDATA",			"const float", CS|MENU, D("Pointer (and byte size) to an array of vec4s. This data is then globally visible to all glsl via the w_user uniform."), VF_USERDATA},
 		{"VF_SKYROOM_CAMERA",	"const float", CS, D("Controls the camera position of the skyroom (which will be drawn underneath transparent sky surfaces). This should move slightly with the real camera, but not so much that the skycamera enters walls. Requires a skyshader with a blend mode on the first pass (or no passes)."), VF_SKYROOM_CAMERA},
+		{"VF_PROJECTIONOFFSET",	"const float", CS|MENU, D("vec2 horizontal+vertical offset for the projection matrix, for weird off-centre rendering."), VF_PROJECTIONOFFSET},
 
 		{"IMGFMT_R8G8B8A8",		"const float", CS|MENU, D("Typical 32bit rgba pixel format."), 1},
 		{"IMGFMT_R16G16B16A16F","const float", CS|MENU, D("Half-Float pixel format. Requires gl3 support."), 2},

@@ -2228,6 +2228,11 @@ nogameaccess:
 	case VF_MAXDIST:
 		*r = r_refdef.maxdist;
 		break;
+	
+	case VF_PROJECTIONOFFSET:
+		r[0] = r_refdef.projectionoffset[0];
+		r[1] = r_refdef.projectionoffset[1];
+		break;
 
 	case VF_DRAWWORLD:
 		*r = !(r_refdef.flags&RDF_NOWORLDMODEL);
@@ -2442,6 +2447,11 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		break;
 	case VF_MAXDIST:
 		r_refdef.maxdist = *p;
+		break;
+		
+	case VF_PROJECTIONOFFSET:
+		r_refdef.projectionoffset[0] = p[0];
+		r_refdef.projectionoffset[1] = p[1];
 		break;
 
 	case VF_DRAWWORLD:
@@ -7073,7 +7083,8 @@ static int PDECL PR_CSQC_MapNamedBuiltin(pubprogfuncs_t *progfuncs, int headercr
 			break;
 		}
 	}
-	Con_DPrintf("Unknown csqc builtin: %s\n", builtinname);
+	if (!csqc_nogameaccess)
+		Con_DPrintf("Unknown csqc builtin: %s\n", builtinname);
 	return 0;
 }
 
@@ -7897,7 +7908,7 @@ void CSQC_RendererRestarted(void)
 	if (csqcg.rendererrestarted)
 	{
 		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-		(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, rf->description));
+		(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, rf->description));
 		PR_ExecuteProgram(csqcprogs, csqcg.rendererrestarted);
 	}
 	//in case it drew to any render targets.
