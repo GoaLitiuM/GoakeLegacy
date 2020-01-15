@@ -57,7 +57,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 extern texid_t r_whiteimage, missing_texture_gloss, missing_texture_normal;
 extern texid_t r_blackimage;
 
-static void BE_RotateForEntity (const entity_t *e, const model_t *mod);
+static void BE_RotateForEntity (const entity_t *fte_restrict e, const model_t *fte_restrict mod);
 void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour);
 
 #ifdef VK_EXT_debug_utils
@@ -4712,7 +4712,7 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 {
 	//sooooo much work...
 	VkImageCreateInfo colour_imginfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-	VkImageCreateInfo mscolour_imginfo;
+	VkImageCreateInfo mscolour_imginfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
 	VkImageCreateInfo depth_imginfo;
 	struct vkbe_rtpurge *purge;
 	static VkClearValue clearvalues[3];

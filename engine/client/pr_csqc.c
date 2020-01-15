@@ -2711,7 +2711,7 @@ static void QCBUILTIN PF_cs_getstats(pubprogfuncs_t *prinst, struct globalvars_s
 	}
 	else
 	{
-		char out[17];
+		char out[20];
 
 		//the network protocol byteswaps
 

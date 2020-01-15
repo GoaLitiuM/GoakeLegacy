@@ -6484,7 +6484,10 @@ static void CM_RecursiveBIHTest (struct bihtrace_s *fte_restrict tr, const struc
 			min = node->node.cmin[1] - tr->expand[axis];
 			max = node->node.cmax[1] + tr->expand[axis];
 			if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
-				return CM_RecursiveBIHTest(tr, node+node->node.firstchild+1);
+			{
+				CM_RecursiveBIHTest(tr, node+node->node.firstchild+1);
+				return;
+			}
 		}
 		return;
 	}

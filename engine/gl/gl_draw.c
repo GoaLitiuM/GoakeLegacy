@@ -588,7 +588,7 @@ void GL_Set2D (qboolean flipped)
 	extern cvar_t gl_screenangle;
 	float rad, ang;
 	float tmp[16], tmp2[16];
-	float w = vid.width, h = vid.height;
+	float w, h;
 	qboolean fbo = !!*r_refdef.rt_destcolour[0].texname;
 
 	if (vid.framebuffer)

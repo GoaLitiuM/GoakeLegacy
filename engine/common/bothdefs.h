@@ -698,6 +698,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //unreachable marks the path leading to it as unreachable too.
 #if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5))
 	#define FTE_UNREACHABLE __builtin_unreachable()
+#elif _MSC_VER
+	#define FTE_UNREACHABLE __assume(0)
 #endif
 
 //I'm making my own restrict, because msvc's headers can't cope if I #define restrict to __restrict, and quite possibly other platforms too

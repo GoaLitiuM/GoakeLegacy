@@ -247,7 +247,7 @@ static int WASAPI_Thread(void *arg)
 	IAudioRenderClient *pRenderClient = NULL;
 	UINT32 bufferFrameCount = 0;
 	HANDLE hEvent = NULL;
-	WAVEFORMATEX *pwfx;
+	WAVEFORMATEX *pwfx = NULL;
 
 	qboolean exclusive = wasapi_exclusive.ival;
 

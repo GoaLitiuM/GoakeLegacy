@@ -5077,7 +5077,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 				tagnum = bone[tagnum].parent;
 			}
 
-			for (b = 0; b < numbonegroups; lerp++, b++)
+			for (b = 0; b < numbonegroups; b++)
 				for (k = 0; k < lerps[b].lerpcount; k++)
 					BZ_Free(lerps[b].needsfree[k]);
 			return true;
