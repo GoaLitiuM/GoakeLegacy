@@ -1318,50 +1318,50 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 #endif
 
 static void (PNGAPI *qpng_error) PNGARG((png_const_structrp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
-static void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
-static void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
-static png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_bit_depth);
-static png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_channels);
+static void (PNGAPI *qpng_read_end) PNGARG((png_structrp png_ptr, png_inforp info_ptr)) PSTATIC(png_read_end);
+static void (PNGAPI *qpng_read_image) PNGARG((png_structrp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
+static png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_bit_depth);
+static png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_channels);
 #if PNG_LIBPNG_VER < 10400
 	static png_uint_32 (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
 #else
-	static png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
+	static png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
 #endif
-static void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
-static void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
-static void (PNGAPI *qpng_set_swap) PNGARG((png_structp png_ptr)) PSTATIC(png_set_swap);
-static void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
-static void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_to_rgb);
-static void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
-static png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
+static void (PNGAPI *qpng_read_update_info) PNGARG((png_structrp png_ptr, png_inforp info_ptr)) PSTATIC(png_read_update_info);
+static void (PNGAPI *qpng_set_strip_16) PNGARG((png_structrp png_ptr)) PSTATIC(png_set_strip_16);
+static void (PNGAPI *qpng_set_swap) PNGARG((png_structrp png_ptr)) PSTATIC(png_set_swap);
+static void (PNGAPI *qpng_set_expand) PNGARG((png_structrp png_ptr)) PSTATIC(png_set_expand);
+static void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structrp png_ptr)) PSTATIC(png_set_gray_to_rgb);
+static void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structrp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
+static png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
 #if PNG_LIBPNG_VER >= 10400
-static void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
+static void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structrp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
 #else
 static void (PNGAPI *qpng_set_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_1_2_4_to_8);
 #endif
-static void (PNGAPI *qpng_set_bgr) PNGARG((png_structp png_ptr)) PSTATIC(png_set_bgr);
-static void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
-static void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
+static void (PNGAPI *qpng_set_bgr) PNGARG((png_structrp png_ptr)) PSTATIC(png_set_bgr);
+static void (PNGAPI *qpng_set_filler) PNGARG((png_structrp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
+static void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structrp png_ptr)) PSTATIC(png_set_palette_to_rgb);
 static png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr, png_uint_32 *width, png_uint_32 *height,
 			int *bit_depth, int *color_type, int *interlace_method, int *compression_method, int *filter_method)) PSTATIC(png_get_IHDR);
-static void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_info);
-static void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
-static void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
+static void (PNGAPI *qpng_read_info) PNGARG((png_structrp png_ptr, png_inforp info_ptr)) PSTATIC(png_read_info);
+static void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structrp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
+static void (PNGAPI *qpng_set_read_fn) PNGARG((png_structrp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
 static void (PNGAPI *qpng_destroy_read_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr, png_infopp end_info_ptr_ptr)) PSTATIC(png_destroy_read_struct);
 static png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_create_info_struct);
-static png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
+static png_structrp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
 static int (PNGAPI *qpng_sig_cmp) PNGARG((png_const_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
 
 static void (PNGAPI *qpng_write_end) PNGARG((png_structrp png_ptr, png_inforp info_ptr)) PSTATIC(png_write_end);
 static void (PNGAPI *qpng_write_image) PNGARG((png_structrp png_ptr, png_bytepp image)) PSTATIC(png_write_image);
 static void (PNGAPI *qpng_write_info) PNGARG((png_structrp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_write_info);
 #ifdef PNG_TEXT_SUPPORTED
-static void (PNGAPI *qpng_set_text) PNGARG((png_const_structrp png_ptr, png_infop info_ptr, png_const_textp text_ptr, int num_text)) PSTATIC(png_set_text);
+static void (PNGAPI *qpng_set_text) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_const_textp text_ptr, int num_text)) PSTATIC(png_set_text);
 #endif
-static void (PNGAPI *qpng_set_IHDR) PNGARG((png_const_structrp png_ptr, png_infop info_ptr, png_uint_32 width, png_uint_32 height,
+static void (PNGAPI *qpng_set_IHDR) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_uint_32 width, png_uint_32 height,
 			int bit_depth, int color_type, int interlace_method, int compression_method, int filter_method)) PSTATIC(png_set_IHDR);
 static void (PNGAPI *qpng_set_compression_level) PNGARG((png_structrp png_ptr, int level)) PSTATIC(png_set_compression_level);
-static void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
+static void (PNGAPI *qpng_init_io) PNGARG((png_structrp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
 static png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_io_ptr);
 static void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
 static png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
