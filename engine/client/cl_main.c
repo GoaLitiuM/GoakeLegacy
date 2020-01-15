@@ -6006,7 +6006,7 @@ double Host_Frame (double time)
 		if ((cl_netfps.value>0 || cls.demoplayback || runningindepphys))
 	{	//limit the fps freely, and expect the netfps to cope.
 		maxfpsignoreserver = true;
-		maxfps = cl_maxfps.ival;
+		maxfps = cl_maxfps.value;
 	}
 	else
 	{
