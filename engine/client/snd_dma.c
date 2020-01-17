@@ -59,7 +59,7 @@ static struct
 	vec3_t	right;
 	vec3_t	up;
 } listener[MAX_SPLITS];
-cvar_t snd_nominaldistance		= CVARAFD("s_nominaldistance", "1500", "snd_soundradius", CVAR_CHEAT | CVAR_HIDDEN_LEGACY, "This cvar defines how far an attenuation=1 sound can be heard.");
+cvar_t snd_nominaldistance		= CVARAFD("snd_nominaldistance", "1500", "snd_soundradius", CVAR_CHEAT | CVAR_HIDDEN_LEGACY, "This cvar defines how far an attenuation=1 sound can be heard.");
 
 #define	MAX_SFX		8192
 sfx_t		*known_sfx;		// hunk allocated [MAX_SFX]
@@ -72,77 +72,44 @@ int 		desired_bits = 16;
 
 int sound_started=0;
 
-cvar_t mastervolume				= CVARFD(	"mastervolume", "1", CVAR_HIDDEN_LEGACY, "Additional multiplier for all other sounds.");
-cvar_t bgmvolume				= CVARAFD(	"musicvolume", "0.3", "bgmvolume", CVAR_ARCHIVE,
-											"Volume level for background music.");
-cvar_t volume					= CVARAFD(	"volume", "0.7", /*q3*/"s_volume",CVAR_ARCHIVE,
-											"Volume level for game sounds (does not affect music, voice, or cinematics).");
+cvar_t mastervolume				= CVARFD("mastervolume", "1", CVAR_HIDDEN_LEGACY, "Additional multiplier for all other sounds.");
+cvar_t bgmvolume				= CVARFD("musicvolume", "0.3", CVAR_ARCHIVE, "Volume level for background music.");
+cvar_t volume					= CVARFD("volume", "0.7", CVAR_ARCHIVE, "Volume level for game sounds (does not affect music, voice, or cinematics).");
 
-cvar_t nosound					= CVARFD(	"nosound", "0", CVAR_ARCHIVE,
-											"Disable all sound from the engine. Cannot be overriden by configs or anything if set via the -nosound commandline argument.");
-cvar_t precache					= CVARAF(	"s_precache", "1",
-											"precache", 0);
-cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
-											"loadas8bit", CVAR_ARCHIVE,
-											"Downsample sounds on load as lower quality 8-bit sound.");
-cvar_t ambient_level			= CVARAFD(	"s_ambientlevel", "0.3",
-											"ambient_level", CVAR_ARCHIVE,
-											"This controls the volume levels of automatic area-based sounds (like water or sky), and is quite annoying. If you're playing deathmatch you'll definitely want this OFF.");
-cvar_t ambient_fade				= CVARAF(	"s_ambientfade", "100",
-											"ambient_fade", CVAR_ARCHIVE);
-cvar_t snd_noextraupdate		= CVARAF(	"s_noextraupdate", "0",
-											"snd_noextraupdate", 0);
-cvar_t snd_show					= CVARAF(	"s_show", "0",
-											"snd_show", 0);
+cvar_t nosound					= CVARFD("snd_nosound", "0", CVAR_ARCHIVE, "Disable all sound from the engine. Cannot be overriden by configs or anything if set via the -nosound commandline argument.");
+cvar_t precache					= CVARF("snd_precache", "1", 0);
+cvar_t loadas8bit				= CVARFD("snd_loadas8bit", "0", CVAR_ARCHIVE, "Downsample sounds on load as lower quality 8-bit sound.");
+cvar_t ambient_level			= CVARFD("snd_ambientlevel", "0.3", CVAR_ARCHIVE, "This controls the volume levels of automatic area-based sounds (like water or sky), and is quite annoying. If you're playing deathmatch you'll definitely want this OFF.");
+cvar_t ambient_fade				= CVARF("snd_ambientfade", "100", CVAR_ARCHIVE);
+cvar_t snd_noextraupdate		= CVARF("snd_noextraupdate", "0", 0);
+cvar_t snd_show					= CVARF("snd_show", "0", 0);
 #ifdef __DJGPP__
 #define DEFAULT_SND_KHZ "11"
 #else
 //fixme: are android devices more likely to use 44.1khz?
 #define DEFAULT_SND_KHZ "48"	//most modern systems should go with 48khz audio (dvd quality). various hardware codecs support nothing else.
 #endif
-cvar_t snd_khz					= CVARAFD(	"s_khz", DEFAULT_SND_KHZ,
-											"snd_khz", CVAR_ARCHIVE, "Sound speed, in kilohertz. Common values are 11, 22, 44, 48. Values above 1000 are explicitly in hertz.");
-cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "1",
-											"snd_inactive", CVAR_ARCHIVE,
-											"Play sound while application is inactive (ie: tabbed out). Needs a snd_restart if changed."
-											);	//set if you want sound even when tabbed out.
-cvar_t _snd_mixahead			= CVARAFD(	"s_mixahead", "0.1",
-											"_snd_mixahead", CVAR_ARCHIVE, "Specifies how many seconds to prebuffer audio. Lower values give less latency, but might result in crackling. Different hardware/drivers have different tolerances, and this setting may be ignored completely where drivers are expected to provide their own tolerances.");
-cvar_t snd_leftisright			= CVARAF(	"s_swapstereo", "0",
-											"snd_leftisright", CVAR_ARCHIVE);
-cvar_t snd_eax					= CVARAF(	"s_eax", "0",
-											"snd_eax", 0);
-cvar_t snd_speakers				= CVARAFD(	"s_numspeakers", "2",
-											"snd_numspeakers", CVAR_ARCHIVE, "Number of hardware audio channels to use. "FULLENGINENAME" supports up to 6.");
-cvar_t snd_buffersize			= CVARAF(	"s_buffersize", "0",
-											"snd_buffersize", 0);
-cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",
-											"snd_samplebits", CVAR_ARCHIVE);
-cvar_t snd_playersoundvolume	= CVARAFD(	"s_localvolume", "1",
-											"snd_localvolume", CVAR_ARCHIVE,
-											"Sound level for sounds local or originating from the player such as firing and pain sounds.");	//sugested by crunch
-cvar_t snd_doppler				= CVARAFD(	"s_doppler", "0",
-											"snd_doppler", CVAR_ARCHIVE,
-											"Enables doppler, with a multiplier for the scale.");
-cvar_t snd_doppler_min			= CVARAFD(	"s_doppler_min", "0.5",
-											"snd_doppler_min", CVAR_ARCHIVE,
-											"Slowest allowed doppler scale.");
-cvar_t snd_doppler_max			= CVARAFD(	"s_doppler_max", "2",
-											"snd_doppler_max", CVAR_ARCHIVE,
-											"Highest allowed doppler scale, to avoid things getting too weird.");
-cvar_t snd_playbackrate			= CVARFD(	"snd_playbackrate", "1", CVAR_CHEAT, "Debugging cvar that changes the playback rate of all new sounds.");
-cvar_t snd_ignoregamespeed		= CVARFD(	"snd_ignoregamespeed", "0", 0, "When set, allows sounds to desynchronise with game time or demo speeds.");
+cvar_t snd_khz					= CVARFD("snd_khz", DEFAULT_SND_KHZ, CVAR_ARCHIVE, "Sound speed, in kilohertz. Common values are 11, 22, 44, 48. Values above 1000 are explicitly in hertz.");
+cvar_t	snd_inactive			= CVARFD("snd_inactive", "1", CVAR_ARCHIVE, "Play sound while application is inactive (ie: tabbed out). Needs a snd_restart if changed.");	//set if you want sound even when tabbed out.
+cvar_t _snd_mixahead			= CVARFD("snd_mixahead", "0.1", CVAR_ARCHIVE, "Specifies how many seconds to prebuffer audio. Lower values give less latency, but might result in crackling. Different hardware/drivers have different tolerances, and this setting may be ignored completely where drivers are expected to provide their own tolerances.");
+cvar_t snd_leftisright			= CVARF("snd_swapstereo", "0", CVAR_ARCHIVE);
+cvar_t snd_eax					= CVARF("snd_eax", "0", 0);
+cvar_t snd_speakers				= CVARFD("snd_numspeakers", "2", CVAR_ARCHIVE, "Number of hardware audio channels to use. "FULLENGINENAME" supports up to 6.");
+cvar_t snd_buffersize			= CVARF("snd_buffersize", "0", 0);
+cvar_t snd_samplebits			= CVARF("snd_bits", "16", CVAR_ARCHIVE);
+cvar_t snd_playersoundvolume	= CVARFD("snd_localvolume", "1", CVAR_ARCHIVE, "Sound level for sounds local or originating from the player such as firing and pain sounds.");	//sugested by crunch
+cvar_t snd_doppler				= CVARFD("snd_doppler", "0", CVAR_ARCHIVE, "Enables doppler, with a multiplier for the scale.");
+cvar_t snd_doppler_min			= CVARFD("snd_doppler_min", "0.5", CVAR_ARCHIVE, "Slowest allowed doppler scale.");
+cvar_t snd_doppler_max			= CVARFD("snd_doppler_max", "2", CVAR_ARCHIVE, "Highest allowed doppler scale, to avoid things getting too weird.");
+cvar_t snd_playbackrate			= CVARFD("snd_playbackrate", "1", CVAR_CHEAT, "Debugging cvar that changes the playback rate of all new sounds.");
+cvar_t snd_ignoregamespeed		= CVARFD("snd_ignoregamespeed", "0", 0, "When set, allows sounds to desynchronise with game time or demo speeds.");
 
-cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
-											"snd_linearresample", 0);
-cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
-											"snd_linearresample_stream", 0);
+cvar_t snd_linearresample		= CVARF("snd_linearresample", "1", 0);
+cvar_t snd_linearresample_stream = CVARF("snd_linearresample_stream", "0", 0);
 
-cvar_t snd_mixerthread			= CVARAD(	"s_mixerthread", "1",
-											"snd_mixerthread", "When enabled sound mixing will be run on a separate thread. Currently supported only by directsound. Other drivers may unconditionally thread audio. Set to 0 only if you have issues.");
-cvar_t snd_device				= CVARAFD(	"s_device", "",
-										  "snd_device", CVAR_ARCHIVE, "This is the sound device(s) to use, in the form of driver:device.\nIf desired, multiple devices can be listed in space-seperated (quoted) tokens. _s_device_opts contains any enumerated options.\nIn all seriousness, use the menu to set this if you wish to keep your hair.");
-cvar_t snd_device_opts			= CVARFD(	"_s_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs, for gamecode to read.");
+cvar_t snd_mixerthread			= CVARD("snd_mixerthread", "1", "When enabled sound mixing will be run on a separate thread. Currently supported only by directsound. Other drivers may unconditionally thread audio. Set to 0 only if you have issues.");
+cvar_t snd_device				= CVARFD("snd_device", "", CVAR_ARCHIVE, "This is the sound device(s) to use, in the form of driver:device.\nIf desired, multiple devices can be listed in space-seperated (quoted) tokens. _s_device_opts contains any enumerated options.\nIn all seriousness, use the menu to set this if you wish to keep your hair.");
+cvar_t snd_device_opts			= CVARFD("snd_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs, for gamecode to read.");
 cvar_t snd_scale				= CVARFD("snd_scale", "1", CVAR_ARCHIVE, "Enables logarithmic scale for volume controls.");
 
 #ifdef VOICECHAT
