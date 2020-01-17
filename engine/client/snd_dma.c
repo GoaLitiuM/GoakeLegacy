@@ -72,7 +72,7 @@ int 		desired_bits = 16;
 
 int sound_started=0;
 
-cvar_t mastervolume				= CVARFD(	"mastervolume", "1", CVAR_ARCHIVE, "Additional multiplier for all other sounds.");
+cvar_t mastervolume				= CVARFD(	"mastervolume", "1", CVAR_HIDDEN_LEGACY, "Additional multiplier for all other sounds.");
 cvar_t bgmvolume				= CVARAFD(	"musicvolume", "0.3", "bgmvolume", CVAR_ARCHIVE,
 											"Volume level for background music.");
 cvar_t volume					= CVARAFD(	"volume", "0.7", /*q3*/"s_volume",CVAR_ARCHIVE,
@@ -143,6 +143,7 @@ cvar_t snd_mixerthread			= CVARAD(	"s_mixerthread", "1",
 cvar_t snd_device				= CVARAFD(	"s_device", "",
 										  "snd_device", CVAR_ARCHIVE, "This is the sound device(s) to use, in the form of driver:device.\nIf desired, multiple devices can be listed in space-seperated (quoted) tokens. _s_device_opts contains any enumerated options.\nIn all seriousness, use the menu to set this if you wish to keep your hair.");
 cvar_t snd_device_opts			= CVARFD(	"_s_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs, for gamecode to read.");
+cvar_t snd_scale				= CVARFD("snd_scale", "1", CVAR_ARCHIVE, "Enables logarithmic scale for volume controls.");
 
 #ifdef VOICECHAT
 static void QDECL S_Voip_Play_Callback(cvar_t *var, char *oldval);
@@ -2323,6 +2324,8 @@ void S_Init (void)
 
 	Cvar_Register(&snd_linearresample, "Sound controls");
 	Cvar_Register(&snd_linearresample_stream, "Sound controls");
+	
+	Cvar_Register(&snd_scale, "Sound controls");
 
 #ifdef VOICECHAT
 	S_Voip_Init();
@@ -2653,10 +2656,13 @@ static void SND_AccumulateSpacialization(soundcardinfo_t *sc, channel_t *ch, vec
 	float volscale;
 	int seat;
 
-	if (ch->flags & CF_CL_ABSVOLUME)
-		volscale = mastervolume.value;
-	else
+	//if (ch->flags & CF_CL_ABSVOLUME)
+	//	volscale = mastervolume.value;
+	//else
 		volscale = volume.value * voicevolumemod;
+		
+	if (snd_scale.ival == 1)
+		volscale = powf(volscale, 2.0f);
 
 	if (sc->seat == -1)
 	{
@@ -2780,10 +2786,13 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	}
 
 	//sounds with absvolume ignore all volume etc cvars+settings
-	if (ch->flags & CF_CL_ABSVOLUME)
-		volscale = mastervolume.value;
-	else
+	//if (ch->flags & CF_CL_ABSVOLUME)
+	//	volscale = mastervolume.value;
+	//else
 		volscale = volume.value * voicevolumemod;
+		
+	if (snd_scale.ival == 1)
+		volscale = powf(volscale, 2.0f);
 
 	if (!vid.activeapp && !snd_inactive.ival && !(ch->flags & CF_CLI_INACTIVE))
 		volscale = 0;
