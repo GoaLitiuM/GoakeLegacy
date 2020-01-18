@@ -44,7 +44,6 @@ static void S_ClearBuffer (soundcardinfo_t *sc);
 
 soundcardinfo_t *sndcardinfo;	//the master card.
 
-int				snd_blocked = 0;
 static qboolean	snd_ambient = 1;
 qboolean		snd_initialized = false;
 int				snd_speed;
@@ -1794,7 +1793,7 @@ extern sounddriver_t OPENAL_Output;
 #ifdef __DJGPP__
 extern sounddriver_t SBLASTER_Output;
 #endif
-#if defined(_WIN32) && !defined(WINRT) && !defined(FTE_SDL)
+#if defined(_WIN32) && !defined(WINRT) && !defined(FTE_SDL) && defined(AVAIL_WAVEOUT)
 extern sounddriver_t WaveOut_Output;
 #endif
 
@@ -1840,7 +1839,7 @@ static sounddriver_t *outputdrivers[] =
 #ifdef __DJGPP__
 	&SBLASTER_Output,	//zomgwtfdos?
 #endif
-#if defined(_WIN32) && !defined(WINRT) && !defined(FTE_SDL)
+#if defined(_WIN32) && !defined(WINRT) && !defined(FTE_SDL) && defined(AVAIL_WAVEOUT)
 	&WaveOut_Output,	//doesn't work properly in vista, etc.
 #endif
 
@@ -2060,7 +2059,6 @@ void S_Startup (void)
 	if (sound_started)
 		S_Shutdown(false);
 
-	snd_blocked = 0;
 	snd_speed = 0;
 
 	S_UpdateReverb(0, NULL, 0);
@@ -3712,11 +3710,6 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 
 	if (!sound_started)
 		return;
-	if ((snd_blocked > 0))
-	{
-		if (!sc->inactive_sound)
-			return;
-	}
 
 #ifdef AVAIL_OPENAL
 	if (sc->ListenerUpdate)
@@ -3836,12 +3829,6 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 	if (sc->selfpainting)
 		return;
 
-	if (snd_blocked > 0)
-	{
-		if (!sc->inactive_sound)
-			return;
-	}
-
 	S_Update_(sc);
 #endif
 }
@@ -3915,12 +3902,6 @@ void S_ExtraUpdate (void)
 	{
 		if (sc->selfpainting)
 			continue;
-
-		if (snd_blocked > 0)
-		{
-			if (!sc->inactive_sound)
-				continue;
-		}
 
 		S_LockMixer();
 		S_Update_(sc);

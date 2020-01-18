@@ -163,7 +163,8 @@
 #define AVAIL_OPENAL            //prefer wasapi on windows
 #endif
 #define AVAIL_WASAPI			//windows advanced sound api
-//#define AVAIL_DSOUND
+//#define AVAIL_DSOUND			//less legacy windows sound api
+//#define AVAIL_WAVEOUT			//legacy windows sound api
 #define HAVE_MIXER				//support non-openal audio drivers
 
 // Audio Formats

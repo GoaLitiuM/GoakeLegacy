@@ -2682,8 +2682,6 @@ static qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 *
 ****************************************************************************/
 {
-	static BOOL	sound_active;
-
 //	Con_Printf("GLAppActivate: %i %i\n", fActive, minimize);
 
 	if (vid.activeapp == fActive && Minimized == minimize)
@@ -2691,18 +2689,6 @@ static qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 
 	vid.activeapp = fActive;// && (foregroundwindow==mainwindow);
 	Minimized = minimize;
-
-// enable/disable sound on focus gain/loss
-	if (!vid.activeapp && sound_active)
-	{
-		S_BlockSound ();
-		sound_active = false;
-	}
-	else if (vid.activeapp && !sound_active)
-	{
-		S_UnblockSound ();
-		sound_active = true;
-	}
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
 

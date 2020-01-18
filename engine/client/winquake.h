@@ -140,9 +140,6 @@ int INS_AppCommand(LPARAM lParam);
 void INS_DeviceChanged(void *ctx, void *data, size_t a ,size_t b);
 void INS_ForceClipCursor(void);
 
-void S_BlockSound (void);
-void S_UnblockSound (void);
-
 void VID_SetDefaultMode (void);
 /*
 int (PASCAL FAR *pWSAStartup)(WORD wVersionRequired, LPWSADATA lpWSAData);

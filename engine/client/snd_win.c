@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 #include "winquake.h"
-#ifndef WINRT
+#if defined(AVAIL_WAVEOUT) && !defined(WINRT)
 
 // 64K is > 1 second at 16-bit, 22050 Hz
 #define	WAV_BUFFERS				64
@@ -39,41 +39,6 @@ typedef struct {
 	DWORD gSndBufSize;
 } wavhandle_t;
 
-/*
-==================
-S_BlockSound
-==================
-*/
-//all devices
-void S_BlockSound (void)
-{
-	soundcardinfo_t *sc;
-	wavhandle_t *wh;
-
-	snd_blocked++;
-
-	for (sc = sndcardinfo; sc; sc=sc->next)
-	{
-		if (sc->Submit == WAV_Submit && !sc->inactive_sound)
-		{
-			wh = sc->handle;
-			if (snd_blocked == 1)
-				waveOutReset (wh->hWaveOut);
-		}
-	}
-}
-
-
-/*
-==================
-S_UnblockSound
-==================
-*/
-//all devices
-void S_UnblockSound (void)
-{
-	snd_blocked--;
-}
 
 
 static void *WAV_Lock (soundcardinfo_t *sc, unsigned int *sampidx)

@@ -262,25 +262,11 @@ static qboolean D3D11AppActivate(BOOL fActive, BOOL minimize)
 *
 ****************************************************************************/
 {
-	static BOOL	sound_active;
-
 	if (vid.activeapp == fActive && Minimized == minimize)
 		return false;	//so windows doesn't crash us over and over again.
 
 	vid.activeapp = fActive;
 	Minimized = minimize;
-
-// enable/disable sound on focus gain/loss
-	if (!vid.activeapp && sound_active)
-	{
-		S_BlockSound ();
-		sound_active = false;
-	}
-	else if (vid.activeapp && !sound_active)
-	{
-		S_UnblockSound ();
-		sound_active = true;
-	}
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
 

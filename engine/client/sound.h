@@ -302,8 +302,6 @@ extern float voicevolumemod;
 extern qboolean	snd_initialized;
 extern cvar_t snd_mixerthread;
 
-extern int		snd_blocked;
-
 void S_LocalSound (const char *s);
 void S_LocalSound2 (const char *sound, int channel, float volume);
 qboolean S_LoadSound (sfx_t *s, qboolean forcedecode);
