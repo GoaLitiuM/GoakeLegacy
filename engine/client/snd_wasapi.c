@@ -15,6 +15,8 @@
 
 #define AUDIODRIVERNAME "WASAPI"
 
+static qboolean wasapi_release_pending = qfalse; // ugh, needed to avoid restarting the device multiple times after device changes
+static LPWSTR wasapi_output_device_name; // currently active output device, used to filter device changes
 
 #define REFTIMES_PER_SEC  10000000
 
@@ -235,6 +237,97 @@ static IMMDevice *WASAPI_GetDevice(soundcardinfo_t *sc)
 	}
 	return pDevice;
 }
+
+/*I HATE C++ APIS! THEY'RE ANNOYING AS HELL*/
+static void WASAPI_DeviceChanged(void *ctx, void *data, size_t a, size_t b)
+{
+	S_EnumerateDevices();
+	if (data)
+	{
+		char *msg = data;
+		Con_Printf("%s", msg);
+	}
+	Cbuf_AddText("\nsnd_restart\n", RESTRICT_LOCAL);
+}
+static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_QueryInterface(IMMNotificationClient * This,REFIID riid,void **ppvObject)	{*ppvObject = NULL;return E_NOINTERFACE;}
+static ULONG	STDMETHODCALLTYPE WASAPI_Notifications_AddRef(IMMNotificationClient * This)											{return 1;}
+static ULONG	STDMETHODCALLTYPE WASAPI_Notifications_Release(IMMNotificationClient * This)										{return 1;}
+static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnDeviceStateChanged(IMMNotificationClient * This,LPCWSTR pwstrDeviceId,DWORD dwNewState)
+{
+	if (wcscmp(pwstrDeviceId, wasapi_output_device_name) != 0)
+		return S_OK;
+		
+	if (!wasapi_release_pending)
+	{
+		COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, NULL, 0, 0);
+		wasapi_release_pending = qtrue;
+	}
+	return S_OK;
+}
+static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnDeviceAdded(IMMNotificationClient * This,LPCWSTR pwstrDeviceId)
+{
+	if (wcscmp(pwstrDeviceId, wasapi_output_device_name) != 0)
+		return S_OK;
+		
+	if (!wasapi_release_pending)
+	{
+		COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, NULL, 0, 0);
+		wasapi_release_pending = qtrue;
+	}
+	return S_OK;
+}
+static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnDeviceRemoved(IMMNotificationClient * This,LPCWSTR pwstrDeviceId)
+{
+	if (wcscmp(pwstrDeviceId, wasapi_output_device_name) != 0)
+		return S_OK;
+	
+	if (!wasapi_release_pending)
+	{
+		COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, NULL, 0, 0);
+		wasapi_release_pending = qtrue;
+	}
+	return S_OK;
+}
+static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnDefaultDeviceChanged(IMMNotificationClient * This,EDataFlow flow,ERole role,LPCWSTR pwstrDefaultDeviceId)
+{
+	if (flow == eRender && role == eCommunications)
+		return S_OK; // we don't use the communication device at this point, so ignore this change
+		
+	if (!wasapi_release_pending)
+	{
+		COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, "Default audio device changed. Restarting audio.\n", 0, 0);
+		wasapi_release_pending = qtrue;
+	}
+	return S_OK;
+}
+static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnPropertyValueChanged(IMMNotificationClient * This,LPCWSTR pwstrDeviceId,const PROPERTYKEY key)
+{
+	if (wcscmp(pwstrDeviceId, wasapi_output_device_name) != 0)
+		return S_OK;
+	
+	if (!wasapi_release_pending)
+	{
+		COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, NULL, 0, 0);
+		wasapi_release_pending = qtrue;
+	}
+	return S_OK;
+}
+static CONST_VTBL IMMNotificationClientVtbl WASAPI_NotificationsVtbl =
+{
+	WASAPI_Notifications_QueryInterface,
+	WASAPI_Notifications_AddRef,
+	WASAPI_Notifications_Release,
+	WASAPI_Notifications_OnDeviceStateChanged,
+	WASAPI_Notifications_OnDeviceAdded,
+	WASAPI_Notifications_OnDeviceRemoved,
+	WASAPI_Notifications_OnDefaultDeviceChanged,
+	WASAPI_Notifications_OnPropertyValueChanged
+};
+static IMMNotificationClient WASAPI_Notifications =
+{
+	&WASAPI_NotificationsVtbl
+};
+
 static int WASAPI_Thread(void *arg)
 {
 	soundcardinfo_t *sc = arg;
@@ -245,6 +338,7 @@ static int WASAPI_Thread(void *arg)
 	IAudioClient3 *pAudioClient3 = NULL;
 #endif
 	IAudioRenderClient *pRenderClient = NULL;
+	IMMDeviceEnumerator *pEnumerator = NULL;
 	UINT32 bufferFrameCount = 0;
 	HANDLE hEvent = NULL;
 	WAVEFORMATEX *pwfx = NULL;
@@ -257,6 +351,8 @@ static int WASAPI_Thread(void *arg)
 	IMMDevice *pDevice = WASAPI_GetDevice(sc);
 	if (pDevice)
 	{
+		pDevice->lpVtbl->GetId(pDevice, &wasapi_output_device_name);
+		
 		UINT32 periodicity_in_frames = 0;
 		HRESULT hr;
 #if _WIN32_WINNT >= 0x0A00
@@ -453,6 +549,14 @@ static int WASAPI_Thread(void *arg)
 		if (Sys_LoadLibrary("avrt.dll", funcs))
 			pAvSetMmThreadCharacteristics(TEXT("Pro Audio"), &taskIndex);
 	}
+	
+	if (inited)
+	{
+		if (SUCCEEDED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (void**)&pEnumerator)))
+		{
+			pEnumerator->lpVtbl->RegisterEndpointNotificationCallback(pEnumerator, &WASAPI_Notifications);
+		}
+	}
 
 	while(sc->Shutdown != NULL)
 	{
@@ -485,7 +589,20 @@ static int WASAPI_Thread(void *arg)
 			break;
 		}
 	}
-
+	
+	if (pEnumerator)
+	{
+		pEnumerator->lpVtbl->UnregisterEndpointNotificationCallback(pEnumerator, &WASAPI_Notifications);
+		pEnumerator->lpVtbl->Release(pEnumerator);
+		wasapi_release_pending = qfalse;
+		//pEnumerator = NULL;
+	}
+	if (wasapi_output_device_name)
+	{
+		CoTaskMemFree(wasapi_output_device_name);
+		wasapi_output_device_name = NULL;
+	}
+		
 	if (inited)
 		pAudioClient->lpVtbl->Stop(pAudioClient);
 	if (pRenderClient)
@@ -527,58 +644,14 @@ static qboolean QDECL WASAPI_InitCard (soundcardinfo_t *sc, const char *cardname
 	return true;
 }
 
-
-/*I HATE C++ APIS! THEY'RE ANNOYING AS HELL*/
-static void WASAPI_DeviceChanged(void *ctx, void *data, size_t a, size_t b)
-{
-	S_EnumerateDevices();
-	if (data)
-	{
-		char *msg = data;
-		Con_Printf("%s", msg);
-		Cbuf_AddText("\nsnd_restart\n", RESTRICT_LOCAL);
-	}
-}
-static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_QueryInterface(IMMNotificationClient * This,REFIID riid,void **ppvObject)									{*ppvObject = NULL;return E_NOINTERFACE;}
-static ULONG	STDMETHODCALLTYPE WASAPI_Notifications_AddRef(IMMNotificationClient * This)																			{return 1;}
-static ULONG	STDMETHODCALLTYPE WASAPI_Notifications_Release(IMMNotificationClient * This)																		{return 1;}
-static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnDeviceStateChanged(IMMNotificationClient * This,LPCWSTR pwstrDeviceId,DWORD dwNewState)					{COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, NULL, 0, 0); return S_OK;}
-static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnDeviceAdded(IMMNotificationClient * This,LPCWSTR pwstrDeviceId)											{COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, NULL, 0, 0); return S_OK;}
-static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnDeviceRemoved(IMMNotificationClient * This,LPCWSTR pwstrDeviceId)											{COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, NULL, 0, 0); return S_OK;}
-static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnDefaultDeviceChanged(IMMNotificationClient * This,EDataFlow flow,ERole role,LPCWSTR pwstrDefaultDeviceId)	{COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, "Default audio device changed. Restarting audio.\n", 0, 0); return S_OK;}
-static HRESULT	STDMETHODCALLTYPE WASAPI_Notifications_OnPropertyValueChanged(IMMNotificationClient * This,LPCWSTR pwstrDeviceId,const PROPERTYKEY key)				{COM_AddWork(WG_MAIN, WASAPI_DeviceChanged, NULL, NULL, 0, 0); return S_OK;}
-static CONST_VTBL IMMNotificationClientVtbl WASAPI_NotificationsVtbl =
-{
-	WASAPI_Notifications_QueryInterface,
-	WASAPI_Notifications_AddRef,
-	WASAPI_Notifications_Release,
-	WASAPI_Notifications_OnDeviceStateChanged,
-	WASAPI_Notifications_OnDeviceAdded,
-	WASAPI_Notifications_OnDeviceRemoved,
-	WASAPI_Notifications_OnDefaultDeviceChanged,
-	WASAPI_Notifications_OnPropertyValueChanged
-};
-static IMMNotificationClient WASAPI_Notifications =
-{
-	&WASAPI_NotificationsVtbl
-};
-
 static qboolean QDECL WASAPI_Enumerate (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename))
 {
 	FORCE_DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName,           0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);    // DEVPROP_TYPE_STRING
 
-	static IMMDeviceEnumerator *pEnumerator = NULL;
+	IMMDeviceEnumerator *pEnumerator = NULL;
 	IMMDeviceCollection *pCollection = NULL;
 	CoInitialize(NULL);
-	if (!pEnumerator)
-	{
-		if (SUCCEEDED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (void**)&pEnumerator)))
-		{
-			pEnumerator->lpVtbl->RegisterEndpointNotificationCallback(pEnumerator, &WASAPI_Notifications);
-		}
-	}
-
-	if (pEnumerator)
+	if (SUCCEEDED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (void**)&pEnumerator)))
 	{
 		if (SUCCEEDED(pEnumerator->lpVtbl->EnumAudioEndpoints(pEnumerator, eRender, DEVICE_STATE_ACTIVE, &pCollection)))
 		{
@@ -618,9 +691,8 @@ static qboolean QDECL WASAPI_Enumerate (void (QDECL *callback) (const char *driv
 
 			pCollection->lpVtbl->Release(pCollection);
 		}
-
-//		pEnumerator->lpVtbl->Release(pEnumerator);
-//		pEnumerator = NULL;
+		
+		pEnumerator->lpVtbl->Release(pEnumerator);
 		return true;
 	}
 	return true;	//if we couldn't enumerate stuff, we won't be able to initialise anything anyway, so there's no point in doing any default device crap
