@@ -1,7 +1,8 @@
-int ENT_PLAYER_SPAWN_COUNT;
 void info_player_deathmatch()
 {
-	ENT_PLAYER_SPAWN_COUNT++;
+}
+void info_player_start() // for compatibility
+{
 }
 
 void trigger_teleport()
