@@ -21,6 +21,9 @@
 
 #include <server/player.qc>
 
+#include <server/gamemode.qc>
+#include <server/gamemodes/ffa.qc>
+
 // include last
 #include <common/entities.qc>
 #include <common/precache.qc>

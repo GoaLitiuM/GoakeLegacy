@@ -5,6 +5,9 @@ void init(float prevprogs)
 	LagCompensate_Snapshot(); // pre-allocates data
 
 	Common_Init();
+
+	GameMode_Register(GameMode_FFA);
+	GameMode_Init();
 }
 
 void worldspawn()
@@ -25,14 +28,14 @@ void CheckSpawn(void() func)
 
 void ClientKill()
 {
-	// just respawn the client for now
-	Player_Spawn();
+	GameMode_OnClientKill(self);
 }
 
 void ClientConnect(float csqcactive)
 {
 	self.SendEntity = Player_SendEntity;
 	LagCompensate_AddPlayer(self);
+	GameMode_OnClientConnect(self);
 }
 
 void ClientDisconnect()
@@ -50,6 +53,7 @@ void PutClientInServer()
 
 void StartFrame()
 {
+	GameMode_Tick();
 	UpdateGlobalStats();
 }
 

@@ -5,11 +5,6 @@ void PlayerPrediction();
 void PlayerPrediction_ApplyServerState();
 void PlayerPrediction_Reset();
 
-void Player_Spawn()
-{
-	Player_Init();
-}
-
 void Player_Update(bool isnew)
 {
 	float send_flags = readFloat();

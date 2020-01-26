@@ -74,21 +74,3 @@ float Player_SendEntity(entity ent, float send_flags)
 	return 1;
 }
 
-void Player_Spawn()
-{
-	local entity spawn = FindRandomSpawn();
-
-	self.health = self.max_health = 100;
-	self.takedamage = DAMAGE_AIM;
-	self.fixangle = 1;
-	self.origin = spawn.origin;
-	self.angles = spawn.angles;
-	self.flags = FL_CLIENT;
-	self.velocity = '0 0 0';
-	self.SendEntity = Player_SendEntity;
-
-	self.weapon = WEAPON_ROCKET;
-	self.weapons = ALL_WEAPONS;
-
-	Player_Init();
-}

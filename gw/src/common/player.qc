@@ -1,8 +1,21 @@
+#ifdef SSQC
+void GameMode_OnPlayerSpawn(entity player);
+bool GameMode_OnPlayerRequestRespawn(entity player);
+void GameMode_OnPlayerDeath(entity player, entity source);
+#endif
+
 void Player_OnLand(float velocity);
 void Player_OnJump();
 
 void Player_Init()
 {
+	self.health = /*self.max_health =*/ 100;
+	self.fixangle = 1;
+	self.velocity = '0 0 0';
+
+	self.weapon = WEAPON_ROCKET;
+	self.weapons = ALL_WEAPONS;
+
 	self.classname = CLASS_PLAYER;
 	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_WALK;
@@ -32,19 +45,29 @@ void Player_Remove()
 
 	setorigin(self, self.origin);
 	setmodel(self, 0);
-
 }
 
-void Player_Spawn();
+void Player_Spawn()
+{
+	Player_Init();
+
+#ifdef SSQC
+	GameMode_OnPlayerSpawn(self);
+#endif
+}
+
 void Player_RequestRespawn()
 {
 	if (svtime - self.death_time < 1.0)
 		return; // we do not want the player to respawn by their pre-death input
 
-#ifdef CSQC
 	Player_Spawn();
 
 	self.spawn_wish = true;
+
+#ifdef SSQC
+	if (GameMode_OnPlayerRequestRespawn(self))
+		Player_Spawn();
 #endif
 }
 
@@ -181,6 +204,10 @@ void Player_OnDeath(entity source, entity sourcePlayer)
 #ifdef CSQC
 	if (self.entnum == player_localentnum)
 		localcmd("-attack; -jump"); // unrelease these actions to prevent player firing as soon as they spawn
+#endif
+
+#ifdef SSQC
+	GameMode_OnPlayerDeath(self, source);
 #endif
 }
 
