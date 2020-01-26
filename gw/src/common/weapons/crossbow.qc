@@ -12,7 +12,7 @@ int WeaponCrossbow_Fire()
 	local vector forward = getForwardVector(getViewAngles());
 	local vector offset = self.view_ofs;
 
-	clientsound(self, CHAN_WEAPON, SND_WEAPON_CROSSBOW, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
+	clientsound(self, CHAN_WEAPON, SND_WEAPON_CROSSBOW, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 
 	WeaponCrossbow_SpawnArrow(((self.origin + (forward * 16)) + offset), forward, self);
 

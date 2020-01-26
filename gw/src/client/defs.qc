@@ -84,3 +84,5 @@ entity readEntity()
 {
 	return getEntity(readEntityNum());
 }
+
+#define traceline_lagged traceline

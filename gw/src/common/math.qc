@@ -17,7 +17,7 @@ vector getForwardVector(vector angles)
 	return forward;
 }
 
-vector geRightVector(vector angles)
+vector getRightVector(vector angles)
 {
 	vector old_forward = v_forward;
 	vector old_right = v_right;

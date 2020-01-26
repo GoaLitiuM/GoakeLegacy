@@ -46,7 +46,7 @@ float Item_PreDraw()
 
 	vector point;
 	vector vup = getUpVector(view_angles);
-	vector vright = geRightVector(view_angles);
+	vector vright = getRightVector(view_angles);
 
 	trisoup_simple_vert_s* v = &simple_item_verts[0];
 	VectorMA (self.origin, -size, vup, point);

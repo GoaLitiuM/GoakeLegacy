@@ -32,7 +32,7 @@ int WeaponRocket_Fire()
 
 	WeaponRocket_SpawnRocket((self.origin + (forward * 16)) + offset, forward, self);
 
-	clientsound(self, CHAN_WEAPON, SND_WEAPON_ROCKET, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
+	clientsound(self, CHAN_WEAPON, SND_WEAPON_ROCKET, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 
 	return 1;
 }

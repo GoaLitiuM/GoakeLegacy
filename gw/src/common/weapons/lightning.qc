@@ -7,7 +7,7 @@ int WeaponLightning_Fire()
 
 	if (svtime - self.weapon_sound_loop_time > 0.5)
 	{
-		clientsound(self, CHAN_WEAPON, SND_WEAPON_LIGHTNING, true, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
+		clientsound(self, CHAN_WEAPON, SND_WEAPON_LIGHTNING, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
 		self.weapon_sound_loop_time = svtime;
 	}
 
@@ -143,7 +143,7 @@ void WeaponLightning_CreateLightningBeam()
 
 void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player)
 {
-	traceline(pos, pos + dir * LIGHTNING_RANGE, MOVE_EVERYTHING | MOVE_ENTCHAIN, player);
+	traceline_lagged(pos, pos + dir * LIGHTNING_RANGE, /*MOVE_EVERYTHING |*/ MOVE_ENTCHAIN, player);
 	local vector hit_pos = trace_endpos;
 	local bool hit_something = false;
 

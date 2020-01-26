@@ -97,16 +97,16 @@ void PlayerPrediction_RunPhysicsAndTick(int frame)
 
 	if (fullpred)
 	{
-		local vector prev_origin = self.origin;
-		local vector prev_velocity = self.velocity;
-		local vector prev_angles = self.angles;
+		vector prev_origin = self.origin;
+		vector prev_velocity = self.velocity;
+		vector prev_angles = self.angles;
 
 		Player_PostTick();
 
 		// detect entity state changes during a client tick
-		local vector origin_diff = self.origin - prev_origin;
-		local vector vel_diff = self.velocity - prev_velocity;
-		local vector angle_diff = self.angles - prev_angles;
+		vector origin_diff = self.origin - prev_origin;
+		vector vel_diff = self.velocity - prev_velocity;
+		vector angle_diff = self.angles - prev_angles;
 		if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
 		{
 			deltaframe = frame;
@@ -164,7 +164,7 @@ void PlayerPrediction_ApplyClientState()
 
 void PlayerPrediction()
 {
-	// detect client-local changes to the player entity's state caused by other entities
+	// detect client-changes to the player entity's state caused by other entities
 	vector origin_diff = self.origin - self.client_origin;
 	vector vel_diff = self.velocity - self.client_velocity;
 	vector angle_diff = self.angles - self.client_angles;
