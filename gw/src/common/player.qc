@@ -10,10 +10,14 @@ void Player_Init()
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
 
 	self.weapon_next = self.weapon;
+	self.spawn_wish = false;
+
+	Player_WeaponReload(0.3); // FIXME: this is to prevent firing accidentally right after respawning
 
 	setorigin(self, self.origin);
 
 	self.SendFlags |= SENDFLAGS_ALL;
+	self.death_time = 0;
 }
 
 void Player_Remove()
@@ -32,11 +36,13 @@ void Player_Remove()
 void Player_Spawn();
 void Player_RequestRespawn()
 {
-	Player_Spawn();
+	if (svtime - self.death_time < 1.0)
+		return; // we do not want the player to respawn by their pre-death input
 
 #ifdef CSQC
-	// unrelease these actions to prevent player firing as soon as they spawn
-	localcmd("-attack; -jump");
+	Player_Spawn();
+
+	self.spawn_wish = true;
 #endif
 }
 
@@ -106,6 +112,8 @@ void Player_PostTick()
 	else if (input_impulse == IMPULSE_RESPAWN_FORCED)
 		Player_RequestRespawn();
 
+	self.death_time = svtime; // in case the client doesn't predict their death
+
 	// handle the intent of switching weapons, may not happen until reload is finished
 	if (input_impulse > 0 && input_impulse < WEAPON_LAST && self.weapon_next != input_impulse)
 	{
@@ -152,12 +160,14 @@ void Player_OnDeath(entity source, entity sourcePlayer)
 {
 	self.solid = SOLID_NOT;
 	self.movetype = MOVETYPE_TOSS;
+	self.death_time = svtime;
+	self.spawn_wish = false;
 
 	self.SendFlags |= SENDFLAGS_ALL;
 
 #ifdef CSQC
-	// unrelease these actions to prevent player firing as soon as they spawn
-	localcmd("-attack; -jump");
+	if (self.entnum == player_localentnum)
+		localcmd("-attack; -jump"); // unrelease these actions to prevent player firing as soon as they spawn
 #endif
 }
 
@@ -170,11 +180,24 @@ void Player_TakeDamage(float damage, entity source)
 		return;
 
 	entity sourcePlayer = source.owner;
-	if (sourcePlayer.classname != "player")
+	if (sourcePlayer.classname != CLASS_PLAYER)
 		sourcePlayer = world;
 
 	self.health -= (int)damage;
 
 	if (self.health <= 0)
 		Player_OnDeath(source, sourcePlayer);
+}
+
+void Player_Kill(entity source)
+{
+	if (self.health <= 0)
+		return;
+
+	entity sourcePlayer = source.owner;
+	if (sourcePlayer.classname != CLASS_PLAYER)
+		sourcePlayer = world;
+
+	self.health = 0;
+	Player_OnDeath(source, sourcePlayer);
 }

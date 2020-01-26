@@ -100,6 +100,8 @@ float maxfps;
 .int weapons;
 .int ammo[WEAPON_LAST-1];
 .float weapon_sound_loop_time;
+.float death_time;
+.bool spawn_wish;
 .bool is_attacking;
 
 // projectiles
