@@ -1,6 +1,18 @@
 @echo off
 
+:: setup build tools
+where /Q cmake.exe
+IF ERRORLEVEL 1 set "PATH=%PATH%;C:\Program Files\CMake\bin"
+if not defined VCINSTALLDIR call "..\tools\vcvarsall.bat" x64
+
 SET "DEPS_ROOT=%~dp0"
+SET "INCLUDE_PATH=%DEPS_ROOT%include"
+SET "LIB64_PATH=%DEPS_ROOT%lib64"
+
+if not exist %INCLUDE_PATH% mkdir %INCLUDE_PATH%
+if not exist %LIB64_PATH% mkdir %LIB64_PATH%
+
+:: build
 
 cd /D %DEPS_ROOT%bullet2
 
