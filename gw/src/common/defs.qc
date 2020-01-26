@@ -102,6 +102,7 @@ float maxfps;
 .float weapon_sound_loop_time;
 .float death_time;
 .bool spawn_wish;
+.float event_flags;
 .bool is_attacking;
 
 // projectiles
@@ -120,7 +121,7 @@ const float SOUNDFLAG_PREDICT = 128;
 #define CLSV "sv "
 #endif
 
-// SendFlag bits
+// SendFlag bits, shared with all types of entities
 #define SENDFLAGS_ORIGIN		0x000001
 #define SENDFLAGS_ANGLES		0x000002
 #define SENDFLAGS_VELOCITY		0x000004
@@ -128,9 +129,17 @@ const float SOUNDFLAG_PREDICT = 128;
 
 #define SENDFLAGS_FLAGS			0x000010
 #define SENDFLAGS_JUMP			0x000020
+#define SENDFLAGS_RESERVED1		0x000040
+#define SENDFLAGS_RESERVED2		0x000080
 
 #define SENDFLAGS_ALL			0xFFFFFF
 #define SENDFLAGS_PHYSICS		(SENDFLAGS_ORIGIN || SENDFLAGS_ANGLES || SENDFLAGS_VELOCITY)
+
+// player specific SendFlags
+#define SENDFLAGS_PLAYER_EVENT_FLAGS	0x000100
+
+// SENDFLAGS_PLAYER_EVENT_FLAGS events
+#define PLAYER_EVENT_INIT		0x000001	// player respawns
 
 // CSQC events
 enum

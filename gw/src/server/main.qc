@@ -10,7 +10,7 @@ void init(float prevprogs)
 void worldspawn()
 {
 	precache();
-};
+}
 
 void() SetNewParms = {};
 
@@ -21,31 +21,32 @@ void CheckSpawn(void() func)
 {
 	if (func)
 		func();
-};
+}
 
 void ClientKill()
 {
 	// just respawn the client for now
 	Player_Spawn();
-};
+}
 
 void ClientConnect(float csqcactive)
 {
+	self.SendEntity = Player_SendEntity;
 	LagCompensate_AddPlayer(self);
-};
+}
 
 void ClientDisconnect()
 {
-	LagCompensate_RemovePlayer(self);
 	self.SendEntity = 0;
+	LagCompensate_RemovePlayer(self);
 	Player_Remove();
-};
+}
 
 // client wants to (re)spawn
 void PutClientInServer()
 {
 	Player_Spawn();
-};
+}
 
 void StartFrame()
 {

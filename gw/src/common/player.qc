@@ -17,20 +17,21 @@ void Player_Init()
 	setorigin(self, self.origin);
 
 	self.SendFlags |= SENDFLAGS_ALL;
+	self.event_flags |= PLAYER_EVENT_INIT;
+
 	self.death_time = 0;
 }
 
 void Player_Remove()
 {
-	self.model = 0;
 	self.solid = SOLID_NOT;
-	#ifdef CSQC
+#ifdef CSQC
 	self.predraw = noop_predraw;
-	#endif
+#endif
 
 	setorigin(self, self.origin);
+	setmodel(self, 0);
 
-	self.SendFlags |= SENDFLAGS_ALL;
 }
 
 void Player_Spawn();

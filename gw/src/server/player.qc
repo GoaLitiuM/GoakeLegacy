@@ -51,6 +51,8 @@ float Player_SendEntity(entity ent, float send_flags)
 {
 	writeByte(MSG_ENTITY, 1);
 	writeFloat(MSG_ENTITY, send_flags);
+	if (send_flags & SENDFLAGS_PLAYER_EVENT_FLAGS)
+		writeFloat(MSG_ENTITY, self.event_flags);
 	if (send_flags & SENDFLAGS_ORIGIN)
 		writeVector(MSG_ENTITY, self.origin);
 	if (send_flags & SENDFLAGS_ANGLES)
@@ -67,6 +69,8 @@ float Player_SendEntity(entity ent, float send_flags)
 		writeFloat(MSG_ENTITY, self.jump_time);
 		writeFloat(MSG_ENTITY, self.jump_count);
 	}
+
+	self.event_flags = 0;
 	return 1;
 }
 

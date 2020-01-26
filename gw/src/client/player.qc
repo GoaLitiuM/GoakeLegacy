@@ -12,7 +12,9 @@ void Player_Spawn()
 
 void Player_Update(bool isnew)
 {
-	local float send_flags = readFloat();
+	float send_flags = readFloat();
+	if (send_flags & SENDFLAGS_PLAYER_EVENT_FLAGS)
+		self.event_flags = readFloat();
 	if (send_flags & SENDFLAGS_ORIGIN)
 		self.server_origin = readVector();
 	if (send_flags & SENDFLAGS_ANGLES)
@@ -39,6 +41,8 @@ void Player_Update(bool isnew)
 			// server tried to fixangle player before it was spawned...
 			self.fixangle = fixanglefix;
 			fixanglefix = 0;
+
+			camera_origin = self.origin + self.view_ofs;
 		}
 
 		// reset values for prediction
@@ -59,8 +63,10 @@ void Player_Update(bool isnew)
 		self.client_jump_time = self.jump_time;
 		self.client_jump_count = self.jump_count;
 
-		UpdatePlayerStats(true);
 		Player_Init();
+		self.event_flags &= PLAYER_EVENT_INIT;
+		UpdatePlayerStats(true);
+		UpdateGlobalStats(true);
 
 		self.predraw = Player_PreDraw;
 		self.drawmask = MASK_ENGINE;
@@ -69,7 +75,18 @@ void Player_Update(bool isnew)
 		Player_InitModel();
 	}
 
-	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
+	if (self.event_flags & PLAYER_EVENT_INIT)
+	{
+		Player_Init();
+		PlayerPrediction_ApplyServerState();
+		PlayerPrediction_Reset();
+		self.fixangle = 1;
+
+		UpdatePlayerStats(true);
+		UpdateGlobalStats(true);
+	}
+
+	self.event_flags = 0;
 }
 
 void Player_UpdateCamera()
