@@ -104,6 +104,7 @@ float maxfps;
 .bool spawn_wish;
 .float event_flags;
 .bool is_attacking;
+.float landed_time;
 
 // projectiles
 .int projectile_id;

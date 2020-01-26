@@ -1,3 +1,4 @@
+void Player_OnLand(float velocity);
 void Player_OnJump();
 
 void Player_Init()
@@ -125,14 +126,10 @@ void Player_PostTick()
 	}
 
 	// player landing sound
-	if (onground && self.last_velocity_z < -300)
+	if (onground && self.last_velocity_z < SND_JUMPLAND_LAND_THRESHOLD)
 	{
-		if (self.watertype == CONTENT_WATER)
-			clientsound(self, CHAN_BODY, SND_JUMP_WATER, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
-		else if (self.last_velocity_z < -650)
-			clientsound(self, CHAN_VOICE, SND_LAND_HARD, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
-		else
-			clientsound(self, CHAN_VOICE, SND_LAND_SOFT, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
+		Player_OnLand(self.last_velocity_z);
+		self.landed_time = time;
 	}
 
 	// player wants to switch the weapon
@@ -152,9 +149,24 @@ void Player_PostTick()
 	self.last_pmove_flags = self.pmove_flags;
 }
 
+void Player_OnLand(float velocity)
+{
+	float landing_multiplier = SND_JUMPLAND_LAND_VOLUME;
+	if (velocity < SND_JUMPLAND_LAND_HARD_THRESHOLD)
+		landing_multiplier = SND_JUMPLAND_LAND_HARD_VOLUME;
+
+	float pitch_variance = SND_JUMPLAND_VARIANCE != 0.0 ? randomFloat(1.0-SND_JUMPLAND_VARIANCE, 1.0+SND_JUMPLAND_VARIANCE) : 1.0;
+	clientsound(self, CHAN_BODY, SND_JUMPLAND, SND_JUMPLAND_VOLUME*landing_multiplier, ATTN_NORM, pitch_variance, SOUNDFLAG_FOLLOW);
+}
+
 void Player_OnJump()
 {
-	clientsound(self, CHAN_VOICE2, SND_JUMP, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);
+	// do not play again when player landed recently
+	if (time - self.landed_time < 0.3)
+		return;
+
+	float pitch_variance = SND_JUMPLAND_VARIANCE != 0.0 ? randomFloat(1.0-SND_JUMPLAND_VARIANCE, 1.0+SND_JUMPLAND_VARIANCE) : 1.0;
+	clientsound(self, CHAN_BODY, SND_JUMPLAND, SND_JUMPLAND_VOLUME*SND_JUMPLAND_JUMP_VOLUME, ATTN_NORM, pitch_variance, SOUNDFLAG_FOLLOW);
 }
 
 void Player_OnDeath(entity source, entity sourcePlayer)

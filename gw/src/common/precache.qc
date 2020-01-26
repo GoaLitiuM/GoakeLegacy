@@ -1,9 +1,6 @@
 void precache_sounds()
 {
-	precache_sound(SND_JUMP);
-	precache_sound(SND_JUMP_WATER);
-	precache_sound(SND_LAND_SOFT);
-	precache_sound(SND_LAND_HARD);
+	precache_sound(SND_JUMPLAND);
 
 	precache_sound(SND_WEAPON_ROCKET);
 	precache_sound(SND_WEAPON_LIGHTNING);

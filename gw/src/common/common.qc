@@ -1,7 +1,11 @@
-#define SND_JUMP "player/plyrjmp8.wav"
-#define SND_JUMP_WATER "player/h2ojump.wav"
-#define SND_LAND_SOFT "player/land.wav"
-#define SND_LAND_HARD "player/land2.wav"
+#define SND_JUMPLAND "player/player_jumpland.wav"
+#define SND_JUMPLAND_VARIANCE 0.07
+#define SND_JUMPLAND_VOLUME 1.0
+#define SND_JUMPLAND_JUMP_VOLUME 1.0
+#define SND_JUMPLAND_LAND_VOLUME 0.65
+#define SND_JUMPLAND_LAND_THRESHOLD -120
+#define SND_JUMPLAND_LAND_HARD_VOLUME 0.9
+#define SND_JUMPLAND_LAND_HARD_THRESHOLD -300
 
 #define SND_WEAPON_ROCKET "weapons/sgun1.wav"
 #define SND_WEAPON_LIGHTNING "weapons/lhit.wav"
