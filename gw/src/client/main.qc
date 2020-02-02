@@ -66,13 +66,19 @@ void CSQC_UpdateView(float width, float height, float notmenu)
 
 void CSQC_Ent_Update(float isnew)
 {
-	local float type = readByte();
-	if (type == 1)
-		Player_Update(isnew != 0);
-	else if (type == 2)
-		WeaponRocket_Update(isnew != 0);
-	else
-		error(strcat("unhandled CSQC_Ent_Update: ", ftos(type)));
+	float type = readByte();
+	switch (type)
+	{
+		case SENDENTITY_PLAYER:
+			Player_Update(isnew != 0);
+			break;
+		case SENDENTITY_ROCKET:
+			WeaponRocket_Update(isnew != 0);
+			break;
+
+		default:
+			error(strcat("unknown entity type in CSQC_Ent_Update: ", ftos(type)));
+	}
 }
 
 void CSQC_Ent_Remove()

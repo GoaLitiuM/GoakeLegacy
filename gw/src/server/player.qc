@@ -49,7 +49,7 @@ entity FindRandomSpawn()
 
 float Player_SendEntity(entity ent, float send_flags)
 {
-	writeByte(MSG_ENTITY, 1);
+	writeByte(MSG_ENTITY, SENDENTITY_PLAYER);
 	writeFloat(MSG_ENTITY, send_flags);
 	if (send_flags & SENDFLAGS_PLAYER_EVENT_FLAGS)
 		writeFloat(MSG_ENTITY, self.event_flags);

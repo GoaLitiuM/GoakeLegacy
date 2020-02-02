@@ -4,6 +4,12 @@ float svtime; // version of 'time' which is more suitable for prediction (time +
 #define svtime time
 #endif
 
+enum // entity types used in SendEntity and CSQC_Ent_Update
+{
+	SENDENTITY_PLAYER = 1,
+	SENDENTITY_ROCKET,
+};
+
 enum
 {
 	// player stats

@@ -67,7 +67,7 @@ void WeaponRocket_Update(float isnew)
 #ifdef SSQC
 float WeaponRocket_SendEntity(entity ent, float flags)
 {
-	writeByte(MSG_ENTITY, 2);
+	writeByte(MSG_ENTITY, SENDENTITY_ROCKET);
 	writeVector(MSG_ENTITY, self.origin);
 	writeVector(MSG_ENTITY, self.angles);
 	writeVector(MSG_ENTITY, self.velocity);
