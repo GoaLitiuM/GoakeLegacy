@@ -5,40 +5,22 @@ entity FindRandomSpawn()
 	entity ent = world;
 
 	int num_spawns = 0;
-	string ent_type = ENT_PLAYER_SPAWN;
-
 	while (true)
 	{
-		ent = find(ent, classname, ent_type);
+		ent = find(ent, classname, "info_player_deathmatch");
 		if (ent == world)
-		{
-			if (num_spawns == 0 && ent_type == ENT_PLAYER_SPAWN)
-			{
-				ent_type = "info_player_start";
-				continue;
-			}
 			break;
-		}
 		num_spawns++;
 	}
 
-	ent_type = ENT_PLAYER_SPAWN;
-	int index = 0;
+	ent = world;
 	int spawn = randomInt(1, num_spawns);
-	while (index < spawn)
+	while (spawn > 0)
 	{
-		ent = find(ent, classname, ent_type);
+		ent = find(ent, classname, "info_player_deathmatch");
 		if (ent == world)
-		{
-			if (num_spawns == 0 && ent_type == ENT_PLAYER_SPAWN)
-			{
-				ent_type = "info_player_start";
-				continue;
-			}
 			break;
-		}
-
-		index++;
+		spawn--;
 	}
 
 	if (ent == world)

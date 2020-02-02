@@ -21,8 +21,6 @@
 #define MDL_BEAM "progs/bolt2.mdl"
 #define MDL_ARROW "progs/arrow.mdl"
 
-#define ENT_PLAYER_SPAWN "info_player_deathmatch"
-
 #define CLASS_PLAYER "player"
 #define CLASS_ROCKET "rocket"
 #define CLASS_LIGHTNING "lightning"
