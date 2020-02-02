@@ -63,6 +63,7 @@ entity getEntity(float entitynum)
 #define readFloat readfloat
 #define readByte readbyte
 #define readEntityNum readentitynum
+#define readString readstring
 
 vector readVector()
 {
