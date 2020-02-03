@@ -5,7 +5,7 @@ int* simple_item_indices;
 
 #define VectorMA(a,s,b,c) do{(c)[0] = (a)[0] + (s)*(b)[0];(c)[1] = (a)[1] + (s)*(b)[1];(c)[2] = (a)[2] + (s)*(b)[2];}while(0)
 
-void Item_InitDraw()
+void Item_InitClient()
 {
 	simple_item_verts = memalloc(sizeof(trisoup_simple_vert_s) * 4);
 	simple_item_indices = memalloc(sizeof(int) * 6);

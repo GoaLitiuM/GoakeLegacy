@@ -8,6 +8,7 @@ enum // entity types used in SendEntity and CSQC_Ent_Update
 {
 	SENDENTITY_PLAYER = 1,
 	SENDENTITY_ROCKET,
+	SENDENTITY_ITEM,
 };
 
 enum
@@ -117,6 +118,7 @@ float maxfps;
 
 // items
 .entity last_touched; // last entity who touched the item
+.string pickup_sound;
 
 // sound flags
 const float SOUNDFLAG_PREDICT = 128;

@@ -6,7 +6,7 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 
 	Common_Init();
 	Hud_Init();
-	Item_InitDraw();
+	Item_InitClient();
 
 	registercommand("+showscores");
 	registercommand("-showscores");
@@ -75,6 +75,9 @@ void CSQC_Ent_Update(float isnew)
 		case SENDENTITY_ROCKET:
 			WeaponRocket_Update(isnew != 0);
 			break;
+		case SENDENTITY_ITEM:
+			Item_Update(isnew != 0);
+			break;
 
 		default:
 			error(strcat("unknown entity type in CSQC_Ent_Update: ", ftos(type)));
@@ -85,6 +88,8 @@ void CSQC_Ent_Remove()
 {
 	if (self.classname == CLASS_PLAYER)
 		Player_Remove();
+	else
+		remove(self);
 }
 
 void CSQC_Parse_Event()
@@ -152,11 +157,17 @@ void CSQC_WorldLoaded()
 					break;
 				if (func)
 				{
-					self = ent;
-					func();
-					self = world;
-					valid = true;
-					break;
+					// items and weapons should not exist in CSQC world
+					string class_name = strtolower(ent.classname);
+					bool is_item = strstrofs(class_name, "weapon_") == 0 || strstrofs(class_name, "item_") == 0;
+					if (!is_item)
+					{
+						self = ent;
+						func();
+						self = world;
+						valid = true;
+						break;
+					}
 				}
 
 				if (ent.classname != "")

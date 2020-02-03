@@ -5,6 +5,9 @@ void precache_sounds()
 	precache_sound(SND_WEAPON_ROCKET);
 	precache_sound(SND_WEAPON_LIGHTNING);
 	precache_sound(SND_WEAPON_CROSSBOW);
+
+	precache_sound(SND_ITEM_RESPAWN);
+	precache_sound(SND_WEAPON_PICKUP);
 };
 
 void precache_models()
