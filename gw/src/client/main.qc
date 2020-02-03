@@ -106,10 +106,8 @@ void CSQC_Parse_Event()
 
 float CSQC_Event_Sound(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags)
 {
-	bool pred = cvar("cl_nopred") == 0;
-
-	// ignore sounds emitted from local player when full prediction is enabled
-	if (pred && (flags & SOUNDFLAG_PREDICT))
+	// this sound was predicted by local player, ignore it
+	if ((flags & SOUNDFLAG_PREDICT) && cvar("cl_nopred") == 0 && cvar("cl_fullpred") != 0)
 		return 1;
 	return 0;
 }
