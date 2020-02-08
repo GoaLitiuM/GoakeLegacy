@@ -7,6 +7,7 @@ void init(float prevprogs)
 	Common_Init();
 
 	GameMode_Register(GameMode_FFA);
+	GameMode_Register(GameMode_Race);
 	GameMode_Init();
 }
 

@@ -23,6 +23,7 @@
 
 #include <server/gamemode.qc>
 #include <server/gamemodes/ffa.qc>
+#include <server/gamemodes/race.qc>
 
 // include last
 #include <common_entities.src>

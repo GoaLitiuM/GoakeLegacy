@@ -112,6 +112,8 @@ float maxfps;
 .float event_flags;
 .bool is_attacking;
 .float landed_time;
+.float race_start_time;
+.bool race_started;
 
 // projectiles
 .int projectile_id;
