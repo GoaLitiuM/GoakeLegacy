@@ -27,7 +27,7 @@
 #include <client/item.qc>
 
 // include last
-#include <common/entities.qc>
+#include <common_entities.src>
 #include <common/precache.qc>
 #include <client/main.qc>
 

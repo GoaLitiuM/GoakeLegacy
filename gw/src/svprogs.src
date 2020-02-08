@@ -25,7 +25,7 @@
 #include <server/gamemodes/ffa.qc>
 
 // include last
-#include <common/entities.qc>
+#include <common_entities.src>
 #include <common/precache.qc>
 #include <server/main.qc>
 

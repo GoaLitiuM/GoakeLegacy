@@ -1,13 +1,31 @@
-void TeleportOnTouch()
+void Teleport_OnTouch();
+
+void trigger_teleport()
+{
+	self.touch = Teleport_OnTouch;
+	self.solid = SOLID_TRIGGER;
+	setmodel (self, self.model);
+	self.movetype = MOVETYPE_NONE;
+	self.modelindex = 0;
+	self.model = "";
+}
+void info_teleport_destination()
+{
+}
+void misc_teleporter_dest() // Q3 compatibility
+{
+}
+
+void Teleport_OnTouch()
 {
 	if (other.classname != CLASS_PLAYER)
 		return;
 
-	local entity tele_target = find(world, targetname, self.target);
+	entity tele_target = find(world, targetname, self.target);
 	if (!tele_target)
 		return;
 
-	local vector offset = '0 0 24';
+	vector offset = '0 0 24';
 	other.origin = tele_target.origin + offset;
 	setorigin(other, other.origin);
 
@@ -16,7 +34,7 @@ void TeleportOnTouch()
 	other.origin = trace_endpos;
 	setorigin(other, other.origin);
 
-	local float speed = vlen(other.velocity);
+	float speed = vlen(other.velocity);
 	//if (TELEPORT_MAX_VELOCITY > 0 && speed > TELEPORT_MAX_VELOCITY)
 		speed = TELEPORT_MAX_VELOCITY;
 

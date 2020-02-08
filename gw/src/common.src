@@ -3,7 +3,6 @@
 
 #include <common/weapons.qc>
 #include <common/player.qc>
-#include <common/teleport.qc>
 #include <common/stats.qc>
 #include <common/entity.qc>
 #include <common/item.qc>

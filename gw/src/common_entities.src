@@ -1,0 +1,3 @@
+#include <common/entities/misc.qc>
+#include <common/entities/teleport.qc>
+#include <common/entities/weapon.qc>
