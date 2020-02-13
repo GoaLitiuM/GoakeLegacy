@@ -11,6 +11,7 @@
 //goake fork specific features
 #define GOAKE                        			//prevents other source ports from connecting to Goake servers
 #define NOLEGACY2								//more legacy stuff removed from the engine
+#define NOHOOKS									//prevent building winapi hooking functions, anti-virus software friendly
 #define USE_INTERNAL_DISCORD    				//enable Discord plugin support for rich presence
 #define DISCORD_CLIENT_ID 605452262596149281    //default Discord client_id, used when CSQC support is not available
 
