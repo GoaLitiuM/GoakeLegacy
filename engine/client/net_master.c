@@ -2401,7 +2401,11 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 	else
 	{
 		NET_StringToAdr("/", PORT_ICEBROKER, &brokeradr);
+#if defined(Q3CLIENT) || defined(Q3SERVER)
 		protocoltype = MP_QUAKE3;
+#else
+		protocoltype = MP_UNSPECIFIED;
+#endif
 	}
 
 	if (!file)
