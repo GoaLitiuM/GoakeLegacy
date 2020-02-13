@@ -5795,6 +5795,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader, unsigned int 
 		if (!TEXVALID(tex[a].displacement))
 			tex[a].displacement	= tex[0].displacement;
 	}
+	imageflags |= IF_MIPCAP;
 	for (a = 0; a < aframes; a++, tex++)
 	{
 		COM_StripExtension(tex->mapname, mapname, sizeof(mapname));
@@ -5860,9 +5861,9 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader, unsigned int 
 			if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value && gl_load24bit.value)
 			{
 				if (!TEXVALID(tex->specular) && *mapname)
-					tex->specular = R_LoadHiResTexture(va("%s_gloss", mapname), NULL, imageflags);
+					tex->specular = R_LoadHiResTexture(va("%s_gloss", mapname), NULL, imageflags|IF_NOSRGB);
 				if (!TEXVALID(tex->specular))
-					tex->specular = R_LoadHiResTexture(va("%s_gloss", imagename), subpath, imageflags);
+					tex->specular = R_LoadHiResTexture(va("%s_gloss", imagename), subpath, imageflags|IF_NOSRGB);
 			}
 		}
 
@@ -6139,9 +6140,9 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 		if (loadflags & SHADER_HASGLOSS)
 		{
 			if (!TEXVALID(tex->specular) && *mapname)
-				tex->specular = R_LoadHiResTexture(va("%s_gloss", mapname), NULL, imageflags);
+				tex->specular = R_LoadHiResTexture(va("%s_gloss", mapname), NULL, imageflags|IF_NOSRGB);
 			if (!TEXVALID(tex->specular))
-				tex->specular = Image_GetTexture(va("%s_gloss", imagename), subpath, imageflags, NULL, palette, width, height, 0);
+				tex->specular = Image_GetTexture(va("%s_gloss", imagename), subpath, imageflags|IF_NOSRGB, NULL, palette, width, height, 0);
 		}
 		
 		if (tex->reflectcube)
