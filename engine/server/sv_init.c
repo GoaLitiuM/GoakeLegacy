@@ -1006,7 +1006,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		//.map is commented out because quite frankly, they're a bit annoying when the engine loads the gpled start.map when really you wanted to just play the damn game intead of take it apart.
 		//if you want to load a .map, just use 'map foo.map' instead.
-		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
+		char *exts[] = {"maps/%s.bsp", "maps/%s", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
 		int depth, bestdepth;
 		flocation_t loc;
 		time_t filetime;
