@@ -3840,6 +3840,8 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 	int i;
 	char nname[MAX_QPATH];
 	qboolean odd = (count & 1) && deluxe;
+	qboolean isdeluxe;
+	unsigned int imageflags;
 
 	if (!count)
 		return -1;
@@ -3852,6 +3854,7 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 	while(i > first)
 	{
 		i--;
+		isdeluxe = (i&1) && deluxe;
 
 		lightmap[i] = Z_Malloc(sizeof(*lightmap[i]));
 		lightmap[i]->width = 0;
@@ -3864,8 +3867,17 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 		lightmap[i]->hasdeluxe = (deluxe && !((i - numlightmaps)&1));
 
 		Q_snprintfz(nname, sizeof(nname), filepattern, i - numlightmaps);
+		
+		imageflags = IF_NOMIPMAP;
+		if (r_lightmap_nearest.ival)
+			imageflags |= IF_NEAREST;
+		else
+			imageflags |= IF_LINEAR;
+			
+		if (isdeluxe)
+			imageflags |= IF_NOSRGB;
 
-		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
+		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, imageflags));
 		if (lightmap[i]->lightmap_texture->status == TEX_LOADING)
 			COM_WorkerPartialSync(lightmap[i]->lightmap_texture, &lightmap[i]->lightmap_texture->status, TEX_LOADING);
 		if (lightmap[i]->lightmap_texture->status == TEX_FAILED)
