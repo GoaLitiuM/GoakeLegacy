@@ -1,11 +1,9 @@
-#ifndef GLQUAKE
+#if !defined(GLQUAKE) && !defined(FTEENGINE)
 #define GLQUAKE	//this is shit, but ensures index sizes come out the right size
 #endif
 #include "quakedef.h"
 #include "../plugin.h"
 #include "com_mesh.h"
-static plugmodfuncs_t *modfuncs;
-static plugfsfuncs_t *filefuncs;
 
 #ifdef SKELETALMODELS
 #define GLTFMODELS
@@ -40,6 +38,9 @@ static plugfsfuncs_t *filefuncs;
 #define GLTFSCALE 30
 
 #ifdef GLTFMODELS
+static plugmodfuncs_t *modfuncs;
+static plugfsfuncs_t *filefuncs;
+
 typedef struct json_s
 {
 	const char *bodystart;

@@ -1380,7 +1380,9 @@ void SV_ClientProtocolExtensionsChanged(client_t *client);
 
 //sv_master.c
 void SVM_Think(int port);
-vfsfile_t *SVM_GenerateIndex(const char *fname);
+vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname);
+void SVM_AddBrokerGame(const char *brokerid, const char *info);
+void SVM_RemoveBrokerGame(const char *brokerid);
 
 
 //
@@ -1639,7 +1641,7 @@ typedef struct
 {
 	qboolean hasauthed;
 	qboolean isreverse;
-	char challenge[32];
+	char challenge[64];
 } qtvpendingstate_t;
 int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *headerend, qtvpendingstate_t *p);
 #endif

@@ -759,8 +759,13 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				{
 					texnums_t *tex = shader->defaulttextures;
 					//do this for the loading case too, in the hope that it'll avoid generating a per-player skin at all
-					if ((tex->loweroverlay && (tex->loweroverlay->status == TEX_LOADING || tex->loweroverlay->status == TEX_LOADED)) || 
+					if ((tex->base && (tex->base->status == TEX_LOADING)) ||
+						(tex->loweroverlay && (tex->loweroverlay->status == TEX_LOADING || tex->loweroverlay->status == TEX_LOADED)) ||
 						(tex->upperoverlay && (tex->upperoverlay->status == TEX_LOADING || tex->upperoverlay->status == TEX_LOADED)))
+						return shader;
+					//if we've got a replacement texture (read: its size differs from the proper skin size) then don't use the base texels for colourmapping.
+					if (tex->base && skins &&
+						(tex->base->width!=skins->skinwidth || tex->base->height!=skins->skinheight))
 						return shader;
 				}
 				if ((shader->flags & SHADER_HASTOPBOTTOM) && !h2playertranslations)
@@ -1386,7 +1391,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			VectorAdd(e->origin, center, center);
 			#else
 			VectorCopy(e->origin, center);
-			center[2] += 8;
+			center[2] += 24;
 			#endif
 			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, center, shadelight, ambientlight, lightdir);
 		}

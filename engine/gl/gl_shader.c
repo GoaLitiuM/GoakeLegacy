@@ -1298,12 +1298,14 @@ struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define MAX_GPU_BONES %i\n", sh_config.max_gpu_bones);
 	if (gl_specular.value)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define SPECULAR\n#define SPECULAR_BASE_MUL %f\n#define SPECULAR_BASE_POW %f\n", 1.0*gl_specular.value, max(1,gl_specular_power.value));
+#ifdef RTLIGHTS
 	if (r_fakeshadows)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define FAKESHADOWS\n%s",
 #ifdef GLQUAKE
 				gl_config.arb_shadow?"#define USE_ARB_SHADOW\n":
 #endif
 				"");
+#endif
 
 	for (n = 0; n < countof(permutations); n++)
 	{
@@ -1378,8 +1380,10 @@ qboolean Com_PermuOrFloatArgument(const char *shadername, char *arg, size_t argl
 	//load-time-only permutations...
 	if (arglen == 8 && !strncmp("SPECULAR", arg, arglen) && gl_specular.value)
 		return true;
+#ifdef RTLIGHTS
 	if (arglen == 11 && !strncmp("FAKESHADOWS", arg, arglen) && r_fakeshadows)
 		return true;
+#endif
 	if ((arglen==5||arglen==6) && !strncmp("DELUXE", arg, arglen) && r_deluxemapping && Shader_PermutationEnabled(PERMUTATION_BUMPMAP))
 		return true;
 	if (arglen == 13 && !strncmp("OFFSETMAPPING", arg, arglen) && r_glsl_offsetmapping.ival)
@@ -5380,7 +5384,7 @@ done:;
 
 			Shader_SetBlendmode (pass, i?pass-1:NULL);
 
-			if (pass->blendmode == PBM_ADD)
+			if (pass->blendmode == PBM_ADD && !s->defaulttextures->fullbright)
 				s->defaulttextures->fullbright = pass->anim_frames[0];
 		}
 
@@ -6551,6 +6555,7 @@ void Shader_DefaultBSPQ2(parsestate_t *ps, const char *shortname, const void *ar
 	{
 		Shader_DefaultScript(ps, shortname,
 				"{\n"
+					"sort sky\n"
 					"surfaceparm nodlight\n"
 					"skyparms - - -\n"
 				"}\n"
@@ -6560,6 +6565,39 @@ void Shader_DefaultBSPQ2(parsestate_t *ps, const char *shortname, const void *ar
 	{
 		char tmpbuffer[2048];
 		Shader_DefaultScript(ps, shortname, Shader_DefaultBSPWater(ps, shortname, tmpbuffer, sizeof(tmpbuffer)));
+	}
+	else if (Shader_FloatArgument(ps->s, "FLOW"))
+	{
+		if (Shader_FloatArgument(ps->s, "ALPHA")) {
+			Shader_DefaultScript(ps, shortname,
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+							"alphagen const $#ALPHA\n"
+							"tcmod scroll -1 0\n"
+							"blendfunc blend\n"
+						"}\n"
+					"}\n"
+				);
+		} else {
+			Shader_DefaultScript(ps, shortname,
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod scroll -1 0\n"
+					"}\n"
+					"{\n"
+						"map $lightmap\n"
+						"if gl_overbright > 1\n"
+						"blendfunc gl_dst_color gl_src_color\n"
+						"else\n"
+						"blendfunc gl_dst_color gl_zero\n"
+						"endif\n"
+						"depthfunc equal\n"
+					"}\n"
+				"}\n"
+				);
+		}
 	}
 	else if (Shader_FloatArgument(ps->s, "ALPHA"))//   !strncmp(shortname, "trans/", 6))
 	{
