@@ -56,6 +56,7 @@ extern cvar_t r_stainfadetime;
 extern cvar_t r_stainfadeammount;
 extern cvar_t r_lightmap_nearest;
 extern cvar_t r_lightmap_format;
+extern cvar_t r_lightmap_srgb;
 
 static int lightmap_shift;
 int Surf_LightmapShift (model_t *model)
@@ -3875,6 +3876,10 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 			imageflags |= IF_LINEAR;
 			
 		if (isdeluxe)
+			imageflags |= IF_NOSRGB;
+		else if (r_lightmap_srgb.ival > 0)
+			imageflags |= IF_SRGB;
+		else
 			imageflags |= IF_NOSRGB;
 
 		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, imageflags));
