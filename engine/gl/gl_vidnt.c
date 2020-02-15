@@ -684,6 +684,7 @@ static qboolean GLInitialise (char *renderer)
 		else
 			hInstGL = NULL;
 
+#if 0
 		if (!hInstGL)
 		{	//gog has started shipping glquake using a 3dfxopengl->nglide->direct3d chain of wrappers.
 			//this bypasses issues with (not that) recent gl drivers giving up on limiting extension string lengths and paletted textures
@@ -703,6 +704,7 @@ static qboolean GLInitialise (char *renderer)
 			else
 				Con_DPrintf (" Failed\n");
 		}
+#endif
 
 		if (!hInstGL)
 		{
