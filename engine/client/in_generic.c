@@ -600,7 +600,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 	int wpnum;
 #ifdef CSQC_DAT
 #ifdef MULTITHREAD
-	extern qboolean runningindepphys;
+	extern volatile qboolean runningindepphys;
 #else
 	const qboolean runningindepphys = false;
 #endif

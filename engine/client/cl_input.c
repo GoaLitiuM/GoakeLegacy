@@ -1575,7 +1575,7 @@ void CL_FlushClientCommands(void)
 	}
 }
 
-qboolean runningindepphys;
+volatile qboolean runningindepphys;
 #ifdef MULTITHREAD
 void *indeplock;
 void *indepthread;
@@ -1647,11 +1647,10 @@ void CL_UseIndepPhysics(qboolean allow)
 	}
 	else
 	{
+		CL_AllowIndependantSendCmd(true); //make sure this thread doesn't have the lock
 		//shut it down.
 		runningindepphys = false;	//tell thread to exit gracefully
-		Sys_LockMutex(indeplock);
 		Sys_WaitOnThread(indepthread);
-		Sys_UnlockMutex(indeplock);
 		Sys_DestroyMutex(indeplock);
 	}
 }

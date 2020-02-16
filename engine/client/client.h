@@ -1264,7 +1264,7 @@ void Key_GetBindMap(int *bindmaps);
 void Key_SetBindMap(int *bindmaps);
 
 void CL_UseIndepPhysics(qboolean allow);
-extern qboolean runningindepphys;
+extern volatile qboolean runningindepphys;
 qboolean CL_AllowIndependantSendCmd(qboolean allow);	//returns previous state.
 
 void CL_FlushClientCommands(void);
