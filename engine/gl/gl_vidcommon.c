@@ -2112,6 +2112,17 @@ static qboolean GLSlang_GenerateIncludes(struct glslparts_s *glsl, const char *s
 			char *e = incline;
 			while(e > shadersource && (e[-1] == ' ' || e[-1] == '\t'))
 				e--;
+			char* comment = (e > shadersource+1) ? e-2 : 0;
+			char* comment2 = comment != 0 ? comment+1 : 0;
+			if (comment && *comment == '/' && *comment2 == '/')
+			{
+				//this include is inside a comment
+				shadersource++;
+				while (*shadersource != '\n' && *shadersource != '\0')
+					shadersource++;
+				linenumber++;
+				continue;
+			}
 			if (e > shadersource && e[-1] == '\n')
 				GLSlang_Generate(glsl, shadersource, e-shadersource, filename, linenumber);
 			else
