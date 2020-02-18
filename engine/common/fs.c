@@ -12,10 +12,6 @@
 #include "winquake.h"
 #endif
 
-#if (defined(HAVE_CLIENT) || defined(HAVE_SERVER)) && defined(WEBCLIENT)
-	#define MANIFESTDOWNLOADS
-#endif
-
 void FS_BeginManifestUpdates(void);
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
 static void COM_InitHomedir(ftemanifest_t *man);
@@ -193,7 +189,7 @@ int fs_hash_files;
 
 
 
-const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
+static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *outbuf, int outlen);
 void FS_RegisterDefaultFileSystems(void);
 static void	COM_CreatePath (char *path);
 ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir);
@@ -967,13 +963,13 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 	}
 
 	if (size > 1.0*1024*1024*1024)
-		Con_Printf(U8("^[%s%s%s^] \t(%#.3ggb) (%s)\n"), colour, name, link, size/(1024.0*1024*1024), s?s->logicalpath:"??");
+		Con_Printf(U8("(%#.3ggb) ^[%s%s%s^] \t^h(%s)\n"), size/(1024.0*1024*1024), colour, name, link, s?s->logicalpath:"??");
 	else if (size > 1.0*1024*1024)
-		Con_Printf(U8("^[%s%s%s^] \t(%#.3gmb) (%s)\n"), colour, name, link, size/(1024.0*1024), s?s->logicalpath:"??");
+		Con_Printf(U8("(%#.3gmb) ^[%s%s%s^] \t^h(%s)\n"), size/(1024.0*1024), colour, name, link, s?s->logicalpath:"??");
 	else if (size > 1.0*1024)
-		Con_Printf(U8("^[%s%s%s^] \t(%#.3gkb) (%s)\n"), colour, name, link, size/1024.0, s?s->logicalpath:"??");
+		Con_Printf(U8("(%#.3gkb) ^[%s%s%s^] \t^h(%s)\n"), size/1024.0, colour, name, link, s?s->logicalpath:"??");
 	else
-		Con_Printf(U8("^[%s%s%s^] \t(%ub) (%s)\n"), colour, name, link, (unsigned int)size, s?s->logicalpath:"??");
+		Con_Printf(U8("(%5ub) ^[%s%s%s^] \t^h(%s)\n"), (unsigned int)size, colour, name, link, s?s->logicalpath:"??");
 	return 1;
 }
 
@@ -1355,7 +1351,7 @@ int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 	loc->search = NULL;
 	loc->len = -1;
 
-	filename = FS_GetCleanPath(filename, cleanpath, sizeof(cleanpath));
+	filename = FS_GetCleanPath(filename, (lflags&FSLF_QUIET), cleanpath, sizeof(cleanpath));
 	if (!filename)
 	{
 		pf = NULL;
@@ -1703,7 +1699,7 @@ void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags)
 }
 
 //outbuf might not be written into
-const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen)
+static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *outbuf, int outlen)
 {
 	const char *s;
 	char *o;
@@ -1870,7 +1866,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	}
 	else
 	{
-		fname = FS_GetCleanPath(fname, cleanname, sizeof(cleanname));
+		fname = FS_GetCleanPath(fname, false, cleanname, sizeof(cleanname));
 		if (!fname)
 			return false;
 	}
@@ -1986,7 +1982,7 @@ vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesi
 	int i;
 	char cleanname[MAX_QPATH];
 
-	fname = FS_GetCleanPath(fname, cleanname, sizeof(cleanname));
+	fname = FS_GetCleanPath(fname, false, cleanname, sizeof(cleanname));
 	if (!fname)
 		return NULL;
 
@@ -2070,7 +2066,7 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 
 	//blanket-bans
 
-	filename = FS_GetCleanPath(filename, cleanname, sizeof(cleanname));
+	filename = FS_GetCleanPath(filename, false, cleanname, sizeof(cleanname));
 	if (!filename)
 		return NULL;
 
@@ -3229,7 +3225,6 @@ static void FS_ExtractDir(char *in, char *out, int outlen)
 
 qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize)
 {
-	const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
 	char tmp[MAX_QPATH];
 	char *o = tmp;
 	const char *i = url;
@@ -3258,7 +3253,7 @@ qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize)
 	}
 	*o = 0;
 
-	if (!FS_GetCleanPath(tmp, path, pathsize))
+	if (!FS_GetCleanPath(tmp, false, path, pathsize))
 		return false;
 
 	return true;
@@ -3377,7 +3372,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*yay q2!*/
 #define Q2CFG "set v_gammainverted 1\nset com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
-#define Q3CFG "set v_gammainverted 0\nset com_parseutf8 0\ngl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\nsv_port "STRINGIFY(PORT_Q3SERVER)"\n"
+#define Q3CFG "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 8\nset com_parseutf8 0\ngl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\nsv_port "STRINGIFY(PORT_Q3SERVER)"\n"
 //#define RMQCFG "sv_bigcoords 1\n"
 
 #ifdef HAVE_SSL
@@ -5899,13 +5894,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 						char *newprefix = "https://updates.";
 						e = COM_ParseFunString(CON_WHITEMASK, ENGINEWEBSITE, musite, sizeof(musite), false);
 						COM_DeFunString(musite, e, site, sizeof(site)-1, true, true);
-						printf("site: %s\n", site);
 						if (!strncmp(site, oldprefix, strlen(oldprefix)))
 						{
 							memmove(site+strlen(newprefix), site+strlen(oldprefix), strlen(site)-strlen(oldprefix)+1);
 							memcpy(site, newprefix, strlen(newprefix));
 						}
-						printf("site: %s\n", site);
 						Cmd_TokenizeString(va("downloadsurl \"%s%s\"", site, gamemode_info[i].downloadsurl), false, false);
 					}
 					else
@@ -6194,7 +6187,7 @@ static int QDECL FS_EnumerateFMFs(const char *fname, qofs_t fsize, time_t mtime,
 	return true;
 }
 
-//callback must call FS_Manifest_Free.
+//callback must call FS_Manifest_Free or return false.
 int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr)
 {
 	int i;
@@ -6826,6 +6819,7 @@ void COM_InitFilesystem (void)
 	Cmd_AddCommand("fs_showmanifest", FS_ShowManifest_f);
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 	Cmd_AddCommandAD("dir", COM_Dir_f,			FS_ArbitraryFile_c, "Displays filesystem listings. Accepts wildcards."); //q3 like
+	Cmd_AddCommandAD("ls", COM_Dir_f,			FS_ArbitraryFile_c, "Displays filesystem listings. Accepts wildcards."); //q3 like
 	Cmd_AddCommandD("path", COM_Path_f,			"prints a list of current search paths.");
 	Cmd_AddCommandAD("flocate", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
 	Cmd_AddCommandAD("which", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.

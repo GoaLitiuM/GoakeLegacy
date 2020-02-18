@@ -1087,7 +1087,7 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, uploadfmt_t encoding, int *re
 	if (!gl_config.ext_framebuffer_objects)
 		return false;
 
-	if (!TEXVALID(shadowmap[id]) || shadowmap[id]->width != w || shadowmap[id]->height != h || shadowmap[id]->format != encoding)
+	if (!TEXVALID(shadowmap[id]) || shadowmap[id]->width != w || shadowmap[id]->height != h || shadowmap[id]->format != encoding || shadowmap[id]->status != TEX_LOADED)
 	{
 		texid_t tex;
 		if (shadowmap[id])
@@ -1626,7 +1626,11 @@ void GLBE_Init(void)
 	shaderstate.identitylighting = 1;
 	shaderstate.identitylightmap = 1;
 	for (i = 0; i < MAXRLIGHTMAPS; i++)
+	{
 		shaderstate.dummybatch.lightmap[i] = -1;
+		shaderstate.dummybatch.lmlightstyle[i] = INVALID_LIGHTSTYLE;
+		shaderstate.dummybatch.vtlightstyle[i] = ~0;
+	}
 
 #ifdef RTLIGHTS
 	Sh_CheckSettings();
@@ -1826,7 +1830,7 @@ static float *tcgen3(const shaderpass_t *pass, int cnt, float *dst, const mesh_t
 		for (i = 0; i < cnt; i++, dst += 3)
 		{
 			dst[0] = src[i][0] - r_refdef.vieworg[0];
-			dst[1] = r_refdef.vieworg[1] - src[i][1];
+			dst[1] = src[i][1] - r_refdef.vieworg[1];
 			dst[2] = src[i][2] - r_refdef.vieworg[2];
 		}
 		return dst-cnt*3;
@@ -5571,6 +5575,7 @@ static void BE_UpdateLightmaps(void)
 			{
 				extern cvar_t r_lightmap_nearest;
 				TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", lmidx), NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
+				lm->lightmap_texture->format = lm->fmt;
 				qglGenTextures(1, &lm->lightmap_texture->num);
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

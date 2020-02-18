@@ -113,13 +113,15 @@ typedef struct
 	qboolean	csqcdebug;
 	unsigned int csqcchecksum;
 	qboolean	mapchangelocked;
+	qboolean	restarting;
 
 #ifdef SAVEDGAMES
 	char		loadgame_on_restart[MAX_QPATH];	//saved game to load on map_restart
 	double		autosave_time;
 #endif
-	double		time;
-	double		starttime;
+	double		time;			//current map time
+	double		restartedtime;	//sv.time from last map restart
+	double		starttime;		//system time we changed map.
 	int framenum;
 	int logindatabase;
 
@@ -1144,6 +1146,7 @@ void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *
 NORETURN void VARGS SV_Error (char *error, ...) LIKEPRINTF(1);
 void SV_Shutdown (void);
 float SV_Frame (void);
+void SV_ReadPacket(void);
 void SV_FinalMessage (char *message);
 void SV_DropClient (client_t *drop);
 struct quakeparms_s;
@@ -1284,8 +1287,10 @@ void SVQ2_BuildBaselines(void);
 
 //q3 stuff
 #ifdef Q3SERVER
-void SVQ3_ShutdownGame(void);
-qboolean SVQ3_InitGame(void);
+void SVQ3_ShutdownGame(qboolean restarting);
+qboolean SVQ3_InitGame(qboolean restarting);
+void SVQ3_ServerinfoChanged(const char *key);
+qboolean SVQ3_RestartGamecode(void);
 qboolean SVQ3_ConsoleCommand(void);
 qboolean SVQ3_HandleClient(void);
 void SVQ3_DirectConnect(void);

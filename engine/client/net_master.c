@@ -103,7 +103,7 @@ typedef struct {
 } net_masterlist_t;
 static net_masterlist_t net_masterlist[] = {
 #if 0	//for debugging
-	{MP_DPMASTER,	CVARFC("net_masterextra1",		"localhost:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
+	{MP_DPMASTER,	CVARFC("net_masterextra1",		"localhost:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: the reader...
 #else
 
 #ifndef QUAKETC
@@ -119,7 +119,7 @@ static net_masterlist_t net_masterlist[] = {
 #endif
 
 	//dpmaster is the generic non-quake-specific master protocol that we use for custom stand-alone mods.
-	{MP_DPMASTER,	CVARAFC("net_master1", "localhost", "sv_master1", 0, Net_Masterlist_Callback)},
+	{MP_DPMASTER,	CVARAFC("net_master1", "", "sv_master1", 0, Net_Masterlist_Callback)},
 	{MP_DPMASTER,	CVARAFC("net_master2", "", "sv_master2", 0, Net_Masterlist_Callback)},
 	{MP_DPMASTER,	CVARAFC("net_master3", "", "sv_master3", 0, Net_Masterlist_Callback)},
 	{MP_DPMASTER,	CVARAFC("net_master4", "", "sv_master4", 0, Net_Masterlist_Callback)},
@@ -145,11 +145,11 @@ static net_masterlist_t net_masterlist[] = {
 #ifdef HAVE_PACKET
 #ifndef QUAKETC
 	//engine-specified/maintained master lists (so users can be lazy and update the engine without having to rewrite all their configs).
-	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra1", "qwmaster.ocrana.de:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"Ocrana(2nd)"},	//german. admin unknown
-	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra2", ""/*"masterserver.exhale.de:27000" seems dead*/,	CVAR_NOSAVE, Net_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra1", ""/*"qwmaster.ocrana.de:27000" not responding*/,	CVAR_NOSAVE, Net_Masterlist_Callback),	"Ocrana(2nd)"},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra2", ""/*"masterserver.exhale.de:27000" dns dead*/,		CVAR_NOSAVE, Net_Masterlist_Callback)},	//german. admin unknown
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra3", "asgaard.morphos-team.net:27000",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Germany, admin: bigfoot"},
 	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra4", "master.quakeservers.net:27000",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Germany, admin: raz0?"},
-//	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra5", "qwmaster.fodquake.net:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"admin: bigfoot"},
+	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra5", "qwmaster.fodquake.net:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"admin: bigfoot"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27002",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master For CTF Servers"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27003",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master For TeamFortress Servers"},
@@ -167,7 +167,7 @@ static net_masterlist_t net_masterlist[] = {
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"master.teamdamage.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"master.teamdamage.com"},
 
 	//Total conversions will need to define their own in defaults.cfg or whatever.
-	{MP_DPMASTER,	CVARFC("net_masterextra1",		"frag-net.com:27950 198.58.111.37:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
+	{MP_DPMASTER,	CVARFC("net_masterextra1",		"master.frag-net.com:27950 198.58.111.37:27950",								CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
 //	{MP_DPMASTER,	CVARFC("net_masterextra1",		""/*"ghdigital.com:27950 207.55.114.154:27950"*/,								CVAR_NOSAVE, Net_Masterlist_Callback)}, //(was 69.59.212.88) admin: LordHavoc
 	{MP_DPMASTER,	CVARFC("net_masterextra2",		"dpmaster.deathmask.net:27950 107.161.23.68:27950 [2604:180::4ac:98c1]:27950",	CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Willis
 	{MP_DPMASTER,	CVARFC("net_masterextra3",		"dpmaster.tchr.no:27950 92.62.40.73:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: tChr
@@ -197,7 +197,6 @@ static net_masterlist_t net_masterlist[] = {
 	{MP_QUAKE3,		CVARFC("net_q3masterextra3",	"master.ioquake3.org:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"DE: ioquake3"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra4",	"master.huxxer.de:27950",						CVAR_NOSAVE, Net_Masterlist_Callback),	"DE: BMA Team"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra5",	"master.maverickservers.com:27950",				CVAR_NOSAVE, Net_Masterlist_Callback),	"US: Maverickservers.com"},
-	{MP_QUAKE3,		CVARFC("net_q3masterextra6",	"dpmaster.deathmask.net:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"US: DeathMask.net"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra8",	"master3.idsoftware.com:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"US: id Software Quake III Master"},
 #endif
 #endif
@@ -889,6 +888,14 @@ char	*Master_ServerToString (char *s, int len, serverinfo_t *a)
 	return NET_AdrToString(s, len, &a->adr);
 }
 
+static int Master_BaseGame(serverinfo_t *a)
+{
+	int prot = a->special&SS_PROTOCOLMASK;
+	if (prot == SS_DARKPLACES && (a->special&SS_FTESERVER))
+		prot = SS_QUAKEWORLD;
+	return prot;
+}
+
 static qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 {
 	if (sort_categories)
@@ -924,9 +931,8 @@ static qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 		}
 		return false;
 
-		break;
 	case SLKEY_BASEGAME:
-		return Master_CompareInteger(a->special&SS_PROTOCOLMASK, b->special&SS_PROTOCOLMASK, SLIST_TEST_LESS);
+		return Master_CompareInteger(Master_BaseGame(a), Master_BaseGame(b), SLIST_TEST_LESS);
 	case SLKEY_FLAGS:
 		return Master_CompareInteger(a->special&~SS_PROTOCOLMASK, b->special&~SS_PROTOCOLMASK, SLIST_TEST_LESS);
 	case SLKEY_CUSTOM:
@@ -1038,7 +1044,7 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 			break;
 
 		case SLKEY_BASEGAME:
-			res = Master_CompareInteger(a->special&SS_PROTOCOLMASK, visrules[i].operandi, visrules[i].compareop);
+			res = Master_CompareInteger(Master_BaseGame(a), visrules[i].operandi, visrules[i].compareop);
 			break;
 		case SLKEY_FLAGS:
 			res = Master_CompareInteger(a->special&~SS_PROTOCOLMASK, visrules[i].operandi, visrules[i].compareop);
@@ -1218,7 +1224,7 @@ float Master_ReadKeyFloat(serverinfo_t *server, hostcachekey_t keynum)
 		case SLKEY_FREEPLAYERS:
 			return server->maxplayers - server->players;
 		case SLKEY_BASEGAME:
-			return server->special&SS_PROTOCOLMASK;
+			return Master_BaseGame(server);
 		case SLKEY_FLAGS:
 			return server->special&~SS_PROTOCOLMASK;
 		case SLKEY_TIMELIMIT:
@@ -1982,7 +1988,7 @@ qboolean NET_SendPollPacket(int len, void *data, netadr_t to)
 			return true;
 
 		if (er == NET_ENETUNREACH)
-			Con_Printf("NET_SendPollPacket Warning: unreachable: %s\n", NET_AdrToString(buf, sizeof(buf), &to));
+			Con_DPrintf("NET_SendPollPacket Warning: unreachable: %s\n", NET_AdrToString(buf, sizeof(buf), &to));
 		else
 #ifdef _WIN32
 		if (er == NET_EADDRNOTAVAIL)
@@ -2351,7 +2357,7 @@ static void MasterInfo_ProcessHTTPInfo(serverinfo_t *srv, const char *info)
 	char adrbuf[MAX_ADR_SIZE];
 	if (info && (!(srv->status & SRVSTATUS_ALIVE) || srv->ping == PING_UNKNOWN))
 	{
-		if (srv->adr.prot == NP_RTC_TCP || srv->adr.prot == NP_RTC_TCP)
+		if (srv->adr.prot == NP_RTC_TLS || srv->adr.prot == NP_RTC_TCP)
 		{
 			srv->sends = 0;	//no point pinging it, it won't work.
 			srv->ping = PING_UNKNOWN;
@@ -2725,7 +2731,7 @@ void MasterInfo_Refresh(qboolean doreset)
 				url = va("http://%s/raw/%s", fs_manifest->rtcbroker+6, com_token);
 			else
 				url = va("http://%s/raw/%s", fs_manifest->rtcbroker, com_token);
-			Master_AddMasterHTTP(url,				MT_MASTERHTTP,		MP_QUAKEWORLD, "Public Servers Potentially Behind A NAT.");
+			Master_AddMasterHTTP(url,				MT_MASTERHTTP,		MP_DPMASTER, "Public Servers Potentially Behind A NAT.");
 		}
 
 		for (i = 0; net_masterlist[i].cv.name; i++)
@@ -3168,8 +3174,10 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				info->special |= SS_QUAKE2;	//q2 has a range!
 			else if (info->protocol > 60)
 				info->special |= SS_QUAKE3;
-			else
+			else if (!strcmp(Info_ValueForKey(msg, "gamename"), "DarkPlaces-Quake"))
 				info->special |= SS_DARKPLACES;
+			else
+				info->special |= SS_DARKPLACES|SS_FTESERVER;	//so its listed under qw-servers (but queried using dpmaster getinfo stuff).
 			break;
 		}
 	}

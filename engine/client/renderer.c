@@ -50,6 +50,7 @@ void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
 {
+	R_SetSky(var->string);
 //	Shader_NeedReload(false);
 }
 void R_ForceSky_f(void)
@@ -211,7 +212,7 @@ cvar_t r_menutint							= CVARF	("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= CVARD	("r_netgraph", "0", "Displays a graph of packet latency. A value of 2 will give additional info about what sort of data is being received from the server.");
 extern cvar_t r_lerpmuzzlehack;
-extern cvar_t mod_h2holey_bugged;
+extern cvar_t mod_h2holey_bugged, mod_halftexel;
 cvar_t r_nolerp								= CVARF	("r_nolerp", "0", CVAR_ARCHIVE);
 cvar_t r_noframegrouplerp					= CVARF	("r_noframegrouplerp", "0", CVAR_ARCHIVE);
 cvar_t r_nolightdir							= CVARF	("r_nolightdir", "0", CVAR_ARCHIVE);
@@ -328,6 +329,8 @@ cvar_t	r_stereo_method						= CVARFD("r_stereo_method", "0", CVAR_ARCHIVE, "Valu
 
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
+extern cvar_t r_keepimages;
+extern cvar_t r_ignoremapprefixes;
 extern cvar_t r_dodgymiptex;
 extern char *r_defaultimageextensions;
 extern cvar_t r_imageextensions;
@@ -560,6 +563,7 @@ void GLRenderer_Init(void)
 #endif
 #ifdef MD1MODELS
 	Cvar_Register (&mod_h2holey_bugged, GLRENDEREROPTIONS);
+	Cvar_Register (&mod_halftexel, GLRENDEREROPTIONS);
 #endif
 	Cvar_Register (&r_lerpmuzzlehack, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noframegrouplerp, GLRENDEREROPTIONS);
@@ -641,16 +645,17 @@ void	R_InitTextures (void)
 // create a simple checkerboard texture for the default
 	r_notexture_mip = (texture_t*)r_notexture_mip_mem;
 
-	r_notexture_mip->width = r_notexture_mip->height = 2;
+	r_notexture_mip->vwidth = r_notexture_mip->vheight = 2;
+	r_notexture_mip->srcwidth = r_notexture_mip->srcheight = 2;
+	r_notexture_mip->srcfmt = TF_RGBA32;
 
 	for (m=0 ; m<1 ; m++)
 	{
 		dest = (qbyte *)(r_notexture_mip+1);
-		for (y=0 ; y< (r_notexture_mip->height>>m) ; y++)
-			for (x=0 ; x< (r_notexture_mip->width>>m) ; x++)
+		for (y=0 ; y< (r_notexture_mip->srcheight>>m) ; y++)
+			for (x=0 ; x< (r_notexture_mip->srcwidth>>m) ; x++)
 			{
-				//if (  (y< (8>>m) ) ^ (x< (8>>m) ) )
-				if ((x < r_notexture_mip->width/2 && y < r_notexture_mip->height/2) || (x >= r_notexture_mip->width/2 && y >= r_notexture_mip->height/2))
+				if ((x < r_notexture_mip->srcwidth/2 && y < r_notexture_mip->srcheight/2) || (x >= r_notexture_mip->srcwidth/2 && y >= r_notexture_mip->srcheight/2))
 				{
 					*dest++ = 0;
 					*dest++ = 0;
@@ -780,17 +785,6 @@ void Renderer_Init(void)
 	Cmd_AddCommand("r_remapshader", Shader_RemapShader_f);
 	Cmd_AddCommand("r_showshader", Shader_ShowShader_f);
 
-#if defined(D3DQUAKE)
-	GLD3DRenderer_Init();
-#endif
-#if defined(GLQUAKE)
-	GLRenderer_Init();
-#endif
-
-#if defined(GLQUAKE) || defined(VKQUAKE)
-	R_BloomRegister();
-#endif
-
 #ifdef SWQUAKE
 	{
 	extern cvar_t sw_interlace;
@@ -870,6 +864,10 @@ void Renderer_Init(void)
 	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
 	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat
 
+	Cvar_Register(&r_keepimages, GRAPHICALNICETIES);
+	Cvar_Register(&r_ignoremapprefixes, GRAPHICALNICETIES);
+	Cvar_ForceCallback(&r_keepimages);
+	Cvar_ForceCallback(&r_ignoremapprefixes);
 #ifdef IMAGEFMT_TGA
 	Cvar_Register(&r_dodgytgafiles, "Hacky bug workarounds");
 #endif
@@ -1068,6 +1066,18 @@ void Renderer_Init(void)
 	Cmd_AddCommand ("listskins", R_ListSkins_f);
 	Cmd_AddCommand ("listskyboxes", R_ListSkyBoxes_f);
 	Cmd_AddCommand ("listconfigs", R_ListConfigs_f);
+
+
+#if defined(D3DQUAKE)
+	GLD3DRenderer_Init();
+#endif
+#if defined(GLQUAKE)
+	GLRenderer_Init();
+#endif
+
+#if defined(GLQUAKE) || defined(VKQUAKE)
+	R_BloomRegister();
+#endif
 
 	P_InitParticleSystem();
 	R_InitTextures();
@@ -3200,7 +3210,7 @@ void R_InitParticleTexture (void)
 		}
 	}
 
-	TEXASSIGN(particletexture, R_LoadTexture32("dotparticle", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP));
+	TEXASSIGN(particletexture, R_LoadTexture32("dotparticle", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE));
 
 
 	//
@@ -3224,7 +3234,7 @@ void R_InitParticleTexture (void)
 				data[y*32+x][3] = 255;
 		}
 	}
-	particlecqtexture = Image_GetTexture("classicparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP, data, NULL, 32, 32, TF_RGBA32);
+	particlecqtexture = Image_GetTexture("classicparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE, data, NULL, 32, 32, TF_RGBA32);
 
 	//draw a square in the top left. still a triangle.
 	for (x=0 ; x<16 ; x++)
@@ -3234,7 +3244,7 @@ void R_InitParticleTexture (void)
 			data[y*32+x][3] = 255;
 		}
 	}
-	Image_GetTexture("classicparticle_square", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP, data, NULL, 32, 32, TF_RGBA32);
+	Image_GetTexture("classicparticle_square", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE, data, NULL, 32, 32, TF_RGBA32);
 
 
 	for (x=0 ; x<16 ; x++)
@@ -3247,7 +3257,7 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	explosiontexture = Image_GetTexture("fte_fuzzyparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 16, 16, TF_RGBA32);
+	explosiontexture = Image_GetTexture("fte_fuzzyparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE, data, NULL, 16, 16, TF_RGBA32);
 
 	for (x=0 ; x<16 ; x++)
 	{
@@ -3259,7 +3269,7 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	Image_GetTexture("fte_bloodparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 16, 16, TF_RGBA32);
+	Image_GetTexture("fte_bloodparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE, data, NULL, 16, 16, TF_RGBA32);
 
 	for (x=0 ; x<16 ; x++)
 	{
@@ -3271,7 +3281,7 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = 255;
 		}
 	}
-	Image_GetTexture("fte_blooddecal", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 16, 16, TF_RGBA32);
+	Image_GetTexture("fte_blooddecal", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE, data, NULL, 16, 16, TF_RGBA32);
 
 	memset(data, 255, sizeof(data));
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)
@@ -3285,7 +3295,7 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
 		}
 	}
-	balltexture = R_LoadTexture32("balltexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+	balltexture = R_LoadTexture32("balltexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE);
 
 	memset(data, 255, sizeof(data));
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)
@@ -3298,7 +3308,7 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
 		}
 	}
-	beamtexture = R_LoadTexture32("beamparticle", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+	beamtexture = R_LoadTexture32("beamparticle", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE);
 
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)
 	{
@@ -3316,6 +3326,6 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d/2;
 		}
 	}
-	ptritexture = R_LoadTexture32("ptritexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+	ptritexture = R_LoadTexture32("ptritexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE);
 }
 

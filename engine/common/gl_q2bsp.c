@@ -37,7 +37,7 @@
 //#define Q3SURF_DUST			0x00040000
 cvar_t q3bsp_surf_meshcollision_flag = CVARD("q3bsp_surf_meshcollision_flag", "0x80000000", "The surfaceparm flag(s) that enables q3bsp trisoup collision");
 cvar_t q3bsp_surf_meshcollision_force = CVARD("q3bsp_surf_meshcollision_force", "0", "Force mesh-based collisions on all q3bsp trisoup surfaces.");
-cvar_t q3bsp_mergeq3lightmaps = CVARD("q3bsp_mergedlightmaps", "16", "Specifies the maximum number of lightmaps that may be merged for performance reasons. Unfortunately this breaks tcgen on lightmap passes - if you care, set this to 1.");
+cvar_t q3bsp_mergeq3lightmaps = CVARD("q3bsp_mergelightmaps", "1", "Specifies whether to merge lightmaps into atlases in order to boost performance. Unfortunately this breaks tcgen on lightmap passes - if you care, set this to 0.");
 cvar_t q3bsp_bihtraces = CVARFD("_q3bsp_bihtraces", "0", CVAR_RENDERERLATCH, "Uses runtime-generated bih collision culling for faster traces.");
 
 #if Q3SURF_NODRAW != TI_NODRAW
@@ -1338,10 +1338,10 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 
 	tex = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 
-	tex->width = wal->width;
-	tex->height = wal->height;
+	tex->vwidth = wal->width;
+	tex->vheight = wal->height;
 
-	if (!tex->width || !tex->height || wal == &replacementwal)
+	if (!tex->vwidth || !tex->vheight || wal == &replacementwal)
 	{
 		imageflags |= IF_LOADNOW;	//make sure the size is known BEFORE it returns.
 		if (wal->offsets[0])
@@ -1358,8 +1358,8 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 		{
 			if (base->status == TEX_LOADED||base->status==TEX_LOADING)
 			{
-				tex->width = base->width;
-				tex->height = base->height;
+				tex->vwidth = base->width;
+				tex->vheight = base->height;
 			}
 			else
 				Con_Printf("Unable to load textures/%s.wal\n", wal->name);
@@ -1368,21 +1368,23 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 	}
 	else
 	{
+		qbyte *out;
 		unsigned int size = 
 		(wal->width>>0)*(wal->height>>0) +
 		(wal->width>>1)*(wal->height>>1) +
 		(wal->width>>2)*(wal->height>>2) +
 		(wal->width>>3)*(wal->height>>3);
 
-		tex->mips[0] = BZ_Malloc(size);
+		tex->srcdata = out = BZ_Malloc(size);
 		tex->palette = host_basepal;
-		tex->mips[1] = tex->mips[0] + (wal->width>>0)*(wal->height>>0);
-		tex->mips[2] = tex->mips[1] + (wal->width>>1)*(wal->height>>1);
-		tex->mips[3] = tex->mips[2] + (wal->width>>2)*(wal->height>>2);
-		memcpy(tex->mips[0], (qbyte *)wal + wal->offsets[0], (wal->width>>0)*(wal->height>>0));
-		memcpy(tex->mips[1], (qbyte *)wal + wal->offsets[1], (wal->width>>1)*(wal->height>>1));
-		memcpy(tex->mips[2], (qbyte *)wal + wal->offsets[2], (wal->width>>2)*(wal->height>>2));
-		memcpy(tex->mips[3], (qbyte *)wal + wal->offsets[3], (wal->width>>3)*(wal->height>>3));
+		memcpy(out, (qbyte *)wal + wal->offsets[0], (wal->width>>0)*(wal->height>>0));
+		out += (wal->width>>0)*(wal->height>>0);
+		memcpy(out, (qbyte *)wal + wal->offsets[1], (wal->width>>1)*(wal->height>>1));
+		out += (wal->width>>1)*(wal->height>>1);
+		memcpy(out, (qbyte *)wal + wal->offsets[2], (wal->width>>2)*(wal->height>>2));
+		out += (wal->width>>2)*(wal->height>>2);
+		memcpy(out, (qbyte *)wal + wal->offsets[3], (wal->width>>3)*(wal->height>>3));
+		out += (wal->width>>3)*(wal->height>>3);
 
 		BZ_Free(wal);
 	}
@@ -1476,7 +1478,7 @@ static qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, ch
 					*lwr = *lwr - 'A' + 'a';
 			}
 			out->texture = Mod_LoadWall (mod, mapname, in->texture, sname, (out->flags&TEX_SPECIAL)?0:IF_NOALPHA);
-			if (!out->texture || !out->texture->width || !out->texture->height)
+			if (!out->texture || !out->texture->srcwidth || !out->texture->srcheight)
 			{
 				out->texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
@@ -3787,12 +3789,16 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	qbyte *in = mod_base + l->fileofs;
 	qbyte *out;
 	unsigned int samples = l->filelen;
-	int m, s;
-	int mapsize = loadmodel->lightmaps.width*loadmodel->lightmaps.height*3;
+	int m, s, t;
+	int mapstride = loadmodel->lightmaps.width*3;
+	int mapsize = mapstride*loadmodel->lightmaps.height;
 	int maps;
+	int merge;
+	int mergestride;
 
 	extern cvar_t gl_overbright;
-	extern qbyte lmgamma[256];
+	float scale = (1<<(2-gl_overbright.ival));
+
 	loadmodel->lightmaps.fmt = LM_L8;
 
 	//round up the samples, in case the last one is partial.
@@ -3803,7 +3809,8 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	gl_overbright.flags |= CVAR_RENDERERLATCH;
 	BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
 
-	loadmodel->lightmaps.merge = 0;
+	loadmodel->lightmaps.mergew = 0;
+	loadmodel->lightmaps.mergeh = 0;
 
 	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 
@@ -3816,11 +3823,28 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		maps /= 2;
 
 	{
-		int limit = min(sh_config.texture2d_maxsize / loadmodel->lightmaps.height, q3bsp_mergeq3lightmaps.ival);
-		loadmodel->lightmaps.merge = 1;
-		while (loadmodel->lightmaps.merge*2 <= limit && loadmodel->lightmaps.merge < maps)
-			loadmodel->lightmaps.merge *= 2;
+		int limitw = sh_config.texture2d_maxsize / loadmodel->lightmaps.width;
+		int limith = sh_config.texture2d_maxsize / loadmodel->lightmaps.height;
+		if (!q3bsp_mergeq3lightmaps.ival)
+		{
+			limitw = 1;
+			limith = 1;
+		}
+		loadmodel->lightmaps.mergeh = loadmodel->lightmaps.mergew = 1;
+		while (loadmodel->lightmaps.mergew*loadmodel->lightmaps.mergeh < maps)
+		{	//this could probably be smarter.
+			if (loadmodel->lightmaps.mergew*2 <= limitw && loadmodel->lightmaps.mergew < loadmodel->lightmaps.mergeh)
+				loadmodel->lightmaps.mergew *= 2;
+			else if (loadmodel->lightmaps.mergeh*2 <= limith)
+				loadmodel->lightmaps.mergeh *= 2;
+			else if (loadmodel->lightmaps.mergew*2 <= limitw)
+				loadmodel->lightmaps.mergew *= 2;
+			else
+				break;	//can't expand in either direction.
+		}
 	}
+	merge = loadmodel->lightmaps.mergew*loadmodel->lightmaps.mergeh;
+	mergestride = loadmodel->lightmaps.mergew*mapstride;
 
 	//q3bsp itself does not support deluxemapping.
 	//the way it works is by interleaving the data in lightmap+deluxemap pairs.
@@ -3833,16 +3857,19 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	//if we have deluxemapping data then we split it here. beware externals.
 	if (loadmodel->lightmaps.deluxemapping)
 	{
-		m = loadmodel->lightmaps.merge;
+		m = merge;
 		while (m < maps)
-			m += loadmodel->lightmaps.merge;
+			m += merge;
 		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, mapsize*m*2);
 		loadmodel->lightdatasize = mapsize*m*2;
 	}
 	else
 	{
-		loadmodel->lightdatasize = samples;
-		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, samples);
+		m = merge;
+		while (m < maps)
+			m += merge;
+		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, mapsize*m);
+		loadmodel->lightdatasize = mapsize*m;
 	}
 
 	if (!loadmodel->lightdata)
@@ -3854,57 +3881,65 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	{
 		out = loadmodel->lightdata;
 		//figure out which merged lightmap we're putting it into
-		out += (m/loadmodel->lightmaps.merge)*loadmodel->lightmaps.merge*mapsize * (loadmodel->lightmaps.deluxemapping?2:1);
+		out += (m/merge)*merge*mapsize * (loadmodel->lightmaps.deluxemapping?2:1);
 		//and the submap
-		out += (m%loadmodel->lightmaps.merge)*mapsize;
+		s = m%merge;
+		t = s/loadmodel->lightmaps.mergew;
+		s = s%loadmodel->lightmaps.mergew;
+		out += s*mapstride;
+		out += t*mergestride*loadmodel->lightmaps.height;
 
-#if 1
 		//q3bsp has 4-fold overbrights, so if we're not using overbrights then we basically need to scale the values up by 4
 		//this will require clamping, which can result in oversaturation of channels, meaning discolouration
-		for(s = 0; s < mapsize; )
+		for (t = 0; t < loadmodel->lightmaps.height; t++)
 		{
-			float scale = (1<<(2-gl_overbright.ival));
-			float i;
-			vec3_t l;
-			l[0] = *in++;
-			l[1] = *in++;
-			l[2] = *in++;
-			VectorScale(l, scale, l);		//it should be noted that this maths is wrong if you're trying to use srgb lightmaps.
-			i = max(l[0], max(l[1], l[2]));
-			if (i > 255)
-				VectorScale(l, 255/i, l);	//clamp the brightest channel, scaling the others down to retain chromiance.
-			out[s++] = l[0];
-			out[s++] = l[1];
-			out[s++] = l[2];
+			for (s = 0; s < loadmodel->lightmaps.width; s++)
+			{
+				float i;
+				vec3_t l;
+				l[0] = *in++;
+				l[1] = *in++;
+				l[2] = *in++;
+				VectorScale(l, scale, l);		//it should be noted that this maths is wrong if you're trying to use srgb lightmaps.
+				i = max(l[0], max(l[1], l[2]));
+				if (i > 255)
+					VectorScale(l, 255/i, l);	//clamp the brightest channel, scaling the others down to retain chromiance.
+				*out++ = l[0];
+				*out++ = l[1];
+				*out++ = l[2];
+			}
+			out += mergestride-mapstride;
 		}
-#else
-		for(s = 0; s < mapsize; s++)
-			out[s] = lmgamma[*in++];
-#endif
+
 		if (r_lightmap_saturation.value != 1.0f)
 			SaturateR8G8B8(out, mapsize, r_lightmap_saturation.value);
 		
 		if (loadmodel->lightmaps.deluxemapping)
 		{
-			out+= loadmodel->lightmaps.merge*mapsize;
+			out -= mergestride*loadmodel->lightmaps.height;
+			out += merge*mapsize;
 
 			//no gamma for deluxemap
-			for(s = 0; s < mapsize; s+=3)
+			for (t = 0; t < loadmodel->lightmaps.height; t++)
 			{
-				*out++ = in[0];
-				*out++ = in[1];
-				*out++ = in[2];
-				in += 3;
+				for (s = 0; s < loadmodel->lightmaps.width; s++)
+				{
+					*out++ = in[0];
+					*out++ = in[1];
+					*out++ = in[2];
+					in += 3;
+				}
+				out += mergestride-mapstride;
 			}
 		}
 	}
-	/*for (; m%loadmodel->lightmaps.merge; m++)
+	/*for (; m%merge; m++)
 	{
 		out = loadmodel->lightdata;
 		//figure out which merged lightmap we're putting it into
-		out += (m/loadmodel->lightmaps.merge)*loadmodel->lightmaps.merge*mapsize * (loadmodel->lightmaps.deluxemapping?2:1);
+		out += (m/merge)*merge*mapsize * (loadmodel->lightmaps.deluxemapping?2:1);
 		//and the submap
-		out += (m%loadmodel->lightmaps.merge)*mapsize;
+		out += (m%merge)*mapsize;
 
 		for(s = 0; s < mapsize; s+=3)
 		{
