@@ -248,6 +248,7 @@ cvar_t	scr_loadingscreen_scale = CVAR("scr_loadingscreen_scale", "1");
 cvar_t	scr_loadingscreen_scale_limit = CVAR("scr_loadingscreen_scale_limit", "2");
 
 void *scr_curcursor;
+qboolean scr_nativecursor;
 
 
 static void SCR_CPrint_f(void)
@@ -933,7 +934,7 @@ int R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int d
 qboolean SCR_HardwareCursorIsActive(void)
 {
 	if (Key_MouseShouldBeFree())
-		return !!scr_curcursor;
+		return !!scr_curcursor || scr_nativecursor;
 	return false;
 }
 void SCR_DrawCursor(void)
@@ -1030,6 +1031,7 @@ void SCR_DrawCursor(void)
 			}
 			if (!filedata)
 			{
+				#ifndef WIN32
 				static qbyte lamecursor[] =
 				{
 #define W 0x8f,0x8f,0x8f,0xff,
@@ -1057,6 +1059,9 @@ void SCR_DrawCursor(void)
 #undef B
 				};
 				kcurs->handle = rf->VID_CreateCursor(lamecursor, 8, 15, PTI_LLLA8, 0, 0, 1);	//try the fallback
+				#endif
+				
+				scr_nativecursor = !kcurs->handle;
 			}
 			else if (!filedata)
 				FS_FreeFile(filedata);	//format not okay, just free it.
@@ -1086,7 +1091,7 @@ void SCR_DrawCursor(void)
 	if (oldcurs)
 		rf->VID_DestroyCursor(oldcurs);
 
-	if (scr_curcursor)
+	if (scr_curcursor || scr_nativecursor)
 		return;
 	//system doesn't support a hardware cursor, so try to draw a software one.
 
