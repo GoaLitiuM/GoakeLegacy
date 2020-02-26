@@ -21,6 +21,7 @@ vector camera_velocity;
 .vector view_ofs;
 float fixanglefix;
 float weapon_impulse;
+vector attack_angle;
 .entity beam_ent;	// player's active lightning beam, updated in predraw
 
 // teleport entity

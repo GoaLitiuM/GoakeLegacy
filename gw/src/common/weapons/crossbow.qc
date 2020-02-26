@@ -7,9 +7,9 @@ void WeaponCrossbow_ArrowDestroy()
 	remove(self);
 }
 
-int WeaponCrossbow_Fire()
+int WeaponCrossbow_Fire(vector forward)
 {
-	local vector forward = getForwardVector(getViewAngles());
+	//local vector forward = getForwardVector(getViewAngles());
 	local vector offset = self.view_ofs;
 
 	clientsound(self, CHAN_WEAPON, SND_WEAPON_CROSSBOW, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW);

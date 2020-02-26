@@ -1,8 +1,8 @@
 void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player);
 
-int WeaponLightning_Fire()
+int WeaponLightning_Fire(vector forward)
 {
-	local vector forward = getForwardVector(getViewAngles());
+	//local vector forward = getForwardVector(getViewAngles());
 	local vector offset = self.view_ofs;
 
 	if (svtime - self.weapon_sound_loop_time > 0.5)

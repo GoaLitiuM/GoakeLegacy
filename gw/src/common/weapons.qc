@@ -3,7 +3,7 @@ struct Weapon
 	string name;
 	float reload_time;
 
-	int() attack; // returns: ammo consumed
+	int(vector) attack; // returns: ammo consumed
 	void() tick; // optional
 	float() reload; // optional, returns: reload time
 };
@@ -20,7 +20,7 @@ void Weapon_Init()
 	weapon_defs[WEAPON_CROSSBOW] = (Weapon){ "Crossbow", CROSSBOW_RELOAD, WeaponCrossbow_Fire, 0, 0 };
 }
 
-void Player_WeaponAttack();
+void Player_WeaponAttack(vector angle);
 void Player_WeaponReload(float reloadtime);
 
 bool Player_IsReloading()
@@ -31,17 +31,25 @@ bool Player_IsReloading()
 void Player_WeaponTick()
 {
 	if (input_buttons & BUTTON_ATTACK != 0 && !Player_IsReloading())
-		Player_WeaponAttack();
+	{
+#ifdef CSQC
+		input_subframe_angles = attack_angle; // FIXME
+#endif
+		vector player_angle = getForwardVector(input_subframe_angles);
+
+		// TODO: server-side verify the angle
+		Player_WeaponAttack(player_angle);
+	}
 
 	if (weapon_defs[self.weapon].tick != 0)
 		weapon_defs[self.weapon].tick();
 }
 
-void Player_WeaponAttack()
+void Player_WeaponAttack(vector angle)
 {
 	int ammo_consumed = 0;
 	if (weapon_defs[self.weapon].attack != 0)
-		ammo_consumed = weapon_defs[self.weapon].attack();
+		ammo_consumed = weapon_defs[self.weapon].attack(angle);
 
 	if (ammo_consumed != 0)
 	{

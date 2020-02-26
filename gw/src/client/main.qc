@@ -218,28 +218,53 @@ void CSQC_WorldLoaded()
 	}
 }
 
+
+bool had_attack;
+bool had_released;
+bool attacking;
 float CSQC_InputEvent(float evtype, float scanx, float chary, float devid)
 {
 	switch(evtype)
 	{
+	case IE_KEYUP:
+	{
+		if (scanx == 512)
+			attacking = false;
+		break;
+	}
 	case IE_KEYDOWN:
 	{
+		// FIXME
+		if (scanx == 512) //LMB
+		{
+			// flush latest viewangles to CSQC
+			float seat = getviewprop(VF_ACTIVESEAT);
+			setviewprop(VF_ACTIVESEAT, -1);
+			setviewprop(VF_ACTIVESEAT, seat);
+
+			input_subframe_angles = getviewprop(VF_CL_VIEWANGLES);
+			attack_angle = input_subframe_angles;
+			had_attack = true;
+			attacking = true;
+			break;
+		}
+
 		// weapon impulses may get lost in some rare cases (high framerate, other impulses during the same frame...),
 		// so we handle weapon commands here in case the input_impulse misses the request.
-		local string bind = strtolower(getkeybind(scanx));
-		local int weapon_str_index = strstrofs(bind, "weapon ");
+		string bind = strtolower(getkeybind(scanx));
+		int weapon_str_index = strstrofs(bind, "weapon ");
 		if (weapon_str_index >= 0)
 		{
 			weapon_str_index += 7; //'weapon '
 
-			local string str;
-			local int end = strstrofs(bind, ";", weapon_str_index);
+			string str;
+			int end = strstrofs(bind, ";", weapon_str_index);
 			if (end >= 0)
 				str = substring(bind, weapon_str_index, end-1-weapon_str_index);
 			else
 				str = substring(bind, weapon_str_index, 2);
 
-			local int weap = stoi(strtrim(str));
+			int weap = stoi(strtrim(str));
 			if (weap > 0)
 				weapon_impulse = weap;
 		}
@@ -255,6 +280,47 @@ float CSQC_InputEvent(float evtype, float scanx, float chary, float devid)
 
 void CSQC_Input_Frame()
 {
+	if (cvar("cl_subframe_input") != 0)
+	{
+		if (had_attack)
+		{
+			input_subframe_angles = attack_angle;
+			had_attack = false;
+			had_released = false;
+		}
+		else
+		{
+			if (input_buttons & BUTTON_ATTACK)
+			{
+				// flush latest viewangles to CSQC
+				float seat = getviewprop(VF_ACTIVESEAT);
+				setviewprop(VF_ACTIVESEAT, -1);
+				setviewprop(VF_ACTIVESEAT, seat);
+
+				vector ang = getviewprop(VF_CL_VIEWANGLES);
+				if (!had_released)
+				{
+					input_subframe_angles = attack_angle;
+					had_released = true;
+				}
+				else
+				{
+					attack_angle = ang;
+					input_subframe_angles = ang;
+				}
+			}
+		}
+	}
+	else
+	{
+		float seat = getviewprop(VF_ACTIVESEAT);
+		setviewprop(VF_ACTIVESEAT, -1);
+		setviewprop(VF_ACTIVESEAT, seat);
+
+		input_subframe_angles = getviewprop(VF_CL_VIEWANGLES);
+		attack_angle = input_subframe_angles;
+	}
+
 	// ensure input_impulse handles weapon switching properly
 	if (weapon_impulse != 0)
 	{

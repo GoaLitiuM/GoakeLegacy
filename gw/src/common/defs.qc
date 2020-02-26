@@ -92,9 +92,10 @@ int WEAPON_AMMO_INDEX(int weapon)
 #define STAT_WEAPON(x) (STAT_AMMO_FIRST + x)
 #define ALL_WEAPONS (-1)
 
-int WeaponRocket_Fire();
-int WeaponLightning_Fire();
-int WeaponCrossbow_Fire();
+// FIXME
+int WeaponRocket_Fire(vector forward);
+int WeaponLightning_Fire(vector forward);
+int WeaponCrossbow_Fire(vector forward);
 
 // globals for global stats
 float sv_autojump;
@@ -116,6 +117,7 @@ float maxfps;
 .float landed_time;
 .float race_start_time;
 .bool race_started;
+vector input_subframe_angles;
 
 // projectiles
 .int projectile_id;

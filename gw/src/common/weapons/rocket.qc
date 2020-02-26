@@ -25,9 +25,9 @@ void WeaponRocket_Init(entity missile)
 #endif
 }
 
-int WeaponRocket_Fire()
+int WeaponRocket_Fire(vector forward)
 {
-	local vector forward = getForwardVector(getViewAngles());
+	//local vector forward = getForwardVector(getViewAngles());
 	local vector offset = self.view_ofs;
 
 	WeaponRocket_SpawnRocket((self.origin + (forward * 16)) + offset, forward, self);
