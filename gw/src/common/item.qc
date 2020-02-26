@@ -45,7 +45,7 @@ void Item_Init(string texture, string sound)
 void Item_InitSimple()
 {
 	Item_Init(strcat("textures/simple_items/", self.classname), SND_WEAPON_PICKUP);
-	setsize(self, '-16 -16 -16', '16 16 16');
+	setsize(self, '-16 -16 -16', '16 16 24'); // items should be slightly taller to make them easier to pickup
 }
 
 #ifdef CSQC
