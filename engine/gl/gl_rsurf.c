@@ -552,7 +552,7 @@ void GLBE_UploadAllLightmaps(void)
 			continue;
 		lm->modified = false;
 		if (!TEXVALID(lm->lightmap_texture))
-			TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", i), NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
+			TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", i), NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP|IF_NOSRGB));
 		if (!lm->lightmap_texture->num)
 			qglGenTextures(1, &lm->lightmap_texture->num);
 		GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
