@@ -40,7 +40,7 @@ void RaceStart_OnTouch()
 	if (other.classname != CLASS_PLAYER)
 		return;
 
-	if (!other.race_started)
+	if (!other.race_started || time-other.race_start_time > 1)
 		println(CLSV, "Race started...");
 
 	other.race_start_time = time;
