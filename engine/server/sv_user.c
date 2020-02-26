@@ -7930,9 +7930,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 				if (split)
 					split->lossage = cl->lossage;
 			}
-			MSG_ReadDeltaUsercmd (&nullcmd, &oldest, PROTOCOL_VERSION_QW);
-			MSG_ReadDeltaUsercmd (&oldest, &oldcmd, PROTOCOL_VERSION_QW);
-			MSG_ReadDeltaUsercmd (&oldcmd, &newcmd, PROTOCOL_VERSION_QW);
+			MSG_ReadDeltaUsercmd (&nullcmd, &oldest, PROTOCOL_VERSION_QW, cl->fteprotocolextensions2);
+			MSG_ReadDeltaUsercmd (&oldest, &oldcmd, PROTOCOL_VERSION_QW, cl->fteprotocolextensions2);
+			MSG_ReadDeltaUsercmd (&oldcmd, &newcmd, PROTOCOL_VERSION_QW, cl->fteprotocolextensions2);
 			if (!split)
 				break;		// either someone is trying to cheat, or they sent input commands for splitscreen clients they no longer own.
 

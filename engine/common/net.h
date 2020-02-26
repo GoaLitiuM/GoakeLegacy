@@ -214,6 +214,7 @@ typedef struct
 #endif
 	qboolean	pext_fragmentation;	//fte's packet fragmentation extension, to avoid issues with low mtus.
 	qboolean	pext_stunaware;		//prevent the two lead-bits of packets from being either 0(stun), so stray stun packets cannot mess things up for us.
+	qboolean	pext_attackangle;
 	struct netprim_s netprim;
 	int			mtu;				//the path mtu, if known
 	int			dupe;				//how many times to dupe packets

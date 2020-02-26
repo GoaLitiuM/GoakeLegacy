@@ -2319,7 +2319,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 			else
 				cmd.impulse = 0;
 
-			MSG_WriteDeltaUsercmd (msg, &nullcmd, &cmd);
+			MSG_WriteDeltaUsercmd (msg, &nullcmd, &cmd, ent->cl->fteprotocolextensions2);
 		}
 
 		if (ent->velocity)

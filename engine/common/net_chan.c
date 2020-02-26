@@ -230,6 +230,7 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 			mask |= PEXT2_NEWSIZEENCODING;	//use if we can
 
 		mask |= PEXT2_STUNAWARE;
+		mask |= PEXT2_SUBFRAMEANGLE;
 
 		if (fornq)
 		{

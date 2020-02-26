@@ -26,7 +26,7 @@ float IN_DetermineMouseRate(void);
 
 void IN_Shutdown (void);
 
-void IN_Commands (void);
+void IN_Commands (float frametime);
 // oportunity for devices to stick commands on the script buffer
 
 qboolean IN_MouseDevIsTouch(unsigned int devid);	//check if a mouse devid is a touch screen, and thus if we should check the cursor and simulate a ui event or not

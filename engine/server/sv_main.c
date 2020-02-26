@@ -2890,6 +2890,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		newcl->netchan.compresstable = NULL;
 	newcl->netchan.pext_fragmentation = info->mtu?true:false;
 	newcl->netchan.pext_stunaware = !!(info->ftepext2&PEXT2_STUNAWARE);
+	newcl->netchan.pext_attackangle = !!(info->ftepext2&PEXT2_SUBFRAMEANGLE);
 	//this is the upper bound of the mtu, if its too high we'll get EMSGSIZE and we'll reduce it.
 	//however, if it drops below newcl->netchan.message.maxsize then we'll start to see undeliverable reliables, which means dropped clients.
 	newcl->netchan.mtu = MAX_DATAGRAM;	//vanilla qw clients are assumed to have an mtu of this size.

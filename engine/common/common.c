@@ -1173,7 +1173,7 @@ unsigned int MSGCL_ReadEntity(void)
 }
 #endif
 
-void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
+void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd, int fteprotocolextensions2)
 {
 	int		bits;
 
@@ -1320,6 +1320,13 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 		if (bits & CM_IMPULSE)
 			MSG_WriteByte (buf, cmd->impulse);
 		MSG_WriteByte (buf, bound(0, cmd->msec, 255));
+		
+		if (fteprotocolextensions2 & PEXT2_SUBFRAMEANGLE)
+		if (bits & CM_BUTTONS && cmd->buttons & BUTTON_ATTACK)
+		{
+			MSG_WriteShort (buf, cmd->subframe_angles[0]);
+			MSG_WriteShort (buf, cmd->subframe_angles[1]);
+		}
 	}
 }
 
@@ -1773,7 +1780,7 @@ float MSG_ReadAngle (void)
 	}
 }
 
-void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move, int protover)
+void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move, int protover, int fteprotocolextensions2)
 {
 	int bits;
 
@@ -1835,6 +1842,13 @@ void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move, int protover)
 
 // read time to run command
 		move->msec = MSG_ReadByte();
+	}
+
+	if (fteprotocolextensions2 & PEXT2_SUBFRAMEANGLE)
+	if (bits & CM_BUTTONS && move->buttons & BUTTON_ATTACK)
+	{
+		move->subframe_angles[0] = MSG_ReadShort();
+		move->subframe_angles[1] = MSG_ReadShort();
 	}
 }
 

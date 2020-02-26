@@ -284,7 +284,7 @@ void MSG_WriteBigCoord (sizebuf_t *sb, float f);
 void MSG_WriteAngle (sizebuf_t *sb, float f);
 void MSG_WriteAngle8 (sizebuf_t *sb, float f);
 void MSG_WriteAngle16 (sizebuf_t *sb, float f);
-void MSG_WriteDeltaUsercmd (sizebuf_t *sb, struct usercmd_s *from, struct usercmd_s *cmd);
+void MSG_WriteDeltaUsercmd (sizebuf_t *sb, struct usercmd_s *from, struct usercmd_s *cmd, int fteprotocolextensions2);
 void MSG_WriteDir (sizebuf_t *sb, float *dir);
 
 extern	int			msg_readcount;
@@ -312,7 +312,7 @@ float MSG_ReadCoordFloat (void);
 void MSG_ReadPos (float *pos);
 float MSG_ReadAngle (void);
 float MSG_ReadAngle16 (void);
-void MSG_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *cmd, int qwprotocolver);
+void MSG_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *cmd, int qwprotocolver, int fteprotocolextensions2);
 void MSGQ2_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *move);
 void MSG_ReadData (void *data, int len);
 void MSG_ReadSkip (int len);

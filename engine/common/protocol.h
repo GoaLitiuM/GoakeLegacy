@@ -84,7 +84,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_INFOBLOBS				0x00000080	//serverinfo+userinfo lengths can be MUCH higher (protocol is unbounded, but expect low sanity limits on userinfo), and contain nulls etc.
 #define PEXT2_STUNAWARE				0x00000100	//changes the netchan to biased-bigendian (so lead two bits are 1 and not stun's 0, so we don't get confused)
 //#define PEXT2_NEWINTENTS			0x00000200	//clc_move changes, more buttons etc
-#define PEXT2_CLIENTSUPPORT			(PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING|PEXT2_INFOBLOBS|PEXT2_STUNAWARE)
+#define PEXT2_SUBFRAMEANGLE			0x00010000
+#define PEXT2_CLIENTSUPPORT			(PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING|PEXT2_INFOBLOBS|PEXT2_STUNAWARE|PEXT2_SUBFRAMEANGLE)
 
 //EzQuake/Mvdsv extensions. (use ezquake name, to avoid confusion about .mvd format and its protocol differences)
 #define EZPEXT1_FLOATENTCOORDS		0x00000001	//quirky - doesn't apply to broadcasts, just players+ents. this gives more precision, but will bug out if you try using it to increase map bounds in ways that may not be immediately apparent. iiuc this was added instead of fixing some inconsistent rounding...
@@ -1196,6 +1197,7 @@ typedef struct usercmd_s
 	int		servertime;	//q3 networks the time in order to calculate msecs
 	float	fservertime;//used as part of nq msec calcs
 	float	fclienttime;//not used?
+	short	subframe_angles[2];
 
 	//prydon cursor crap
 	vec2_t	cursor_screen;

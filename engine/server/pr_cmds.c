@@ -984,6 +984,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalvec		(false, input_angles);
 	globalvec		(false, input_movevalues);
 	globalfloat		(false, input_buttons);
+	globalvec		(false, input_subframe_angles);
 	globalint		(false, serverid);
 	globalvec		(false, global_gravitydir);
 	globalstring	(false, parm_string);
@@ -7668,6 +7669,8 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 			Info_SetValueForKey(clfeatures, "PEXT2_NEWSIZEENCODING", "1", sizeof(clfeatures));
 		if (pext2 & PEXT2_INFOBLOBS)
 			Info_SetValueForKey(clfeatures, "PEXT2_INFOBLOBS", "1", sizeof(clfeatures));
+		if (pext2 & PEXT2_SUBFRAMEANGLE)
+			Info_SetValueForKey(clfeatures, "PEXT2_SUBFRAMEANGLE", "1", sizeof(clfeatures));
 
 		if (ezpext1 & EZPEXT1_FLOATENTCOORDS)
 			Info_SetValueForKey(clfeatures, "EZPEXT1_FLOATENTCOORDS", "1", sizeof(clfeatures));
@@ -10196,6 +10199,8 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 
 		pr_global_struct->input_timelength = ucmd->msec/1000.0f * sv.gamespeed;
 		pr_global_struct->input_impulse = ucmd->impulse;
+		(pr_global_struct->input_subframe_angles)[0] = SHORT2ANGLE(ucmd->subframe_angles[0]);
+		(pr_global_struct->input_subframe_angles)[1] = SHORT2ANGLE(ucmd->subframe_angles[1]);
 	//precision inaccuracies. :(
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
 		if (sv_player->v->fixangle)

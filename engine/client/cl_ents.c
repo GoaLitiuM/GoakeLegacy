@@ -4828,7 +4828,7 @@ void CLQW_ParsePlayerinfo (void)
 
 	if (flags & PF_COMMAND)
 	{
-		MSG_ReadDeltaUsercmd (&nullcmd, &state->command, cl.protocol_qw);
+		MSG_ReadDeltaUsercmd (&nullcmd, &state->command, cl.protocol_qw, cls.fteprotocolextensions2);
 
 		state->viewangles[0] = state->command.angles[0] * (360.0/65536);
 		state->viewangles[1] = state->command.angles[1] * (360.0/65536);

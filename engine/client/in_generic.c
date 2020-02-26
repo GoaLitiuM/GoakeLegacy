@@ -12,6 +12,8 @@
 
 extern qboolean mouse_active;
 
+extern cvar_t cl_subframe_input;
+
 static cvar_t m_filter = CVARF("m_filter", "0", CVAR_ARCHIVE);
 static cvar_t m_forcewheel = CVARD("m_forcewheel", "1", "0: ignore mousewheels in apis where it is abiguous.\n1: Use mousewheel when it is treated as a third axis. Motion above a threshold is ignored, to avoid issues with an unknown threshold.\n2: Like 1, but excess motion is retained. The threshold specifies exact z-axis distance per notice.");
 static cvar_t m_forcewheel_threshold = CVARD("m_forcewheel_threshold", "32", "Mousewheel graduations smaller than this will not trigger mousewheel deltas.");
@@ -20,11 +22,19 @@ static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_AR
 static cvar_t m_touchmajoraxis = CVARFD("m_touchmajoraxis", "1", CVAR_ARCHIVE, "When using a touchscreen, use only the major axis for strafing.");
 static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "10", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
 
+#ifdef NOLEGACY2
+static cvar_t m_accel			= CVARFD("m_accel",		"0", CVAR_ARCHIVE, "Values >0 will amplify mouse movement proportional to velocity. Small values have great effect. A lot of good Quake Live players use around the 0.1-0.2 mark, but this depends on your mouse CPI and polling rate.");
+static cvar_t m_accel_style		= CVARFD("m_accel_style",	"1", CVAR_HIDDEN, "1 = Quake Live mouse acceleration, 0 = Old style accelertion.");
+static cvar_t m_accel_power		= CVARD("m_accel_power",	"2", "Values 1 or below are dumb. 2 is linear and the default. 99% of accel users use this. Above 2 begins to amplify exponentially and you will get more acceleration at higher velocities. Great if you want low accel for slow movements, and high accel for fast movements. Good in combination with a sensitivity cap.");
+static cvar_t m_accel_offset	= CVARD("m_accel_offset",	"0", "Acceleration will not be active until the mouse movement exceeds this speed (counts per millisecond). Negative values are supported, which has the effect of causing higher rates of acceleration to happen at lower velocities.");
+static cvar_t m_accel_senscap	= CVARD("m_accel_senscap",	"0", "Sets an upper limit on the amplified mouse movement. Great for tuning acceleration around lower velocities while still remaining in control of fast motion such as flicking.");
+#else
 static cvar_t m_accel			= CVARAFD("m_accel",		"0",	"cl_mouseAccel", CVAR_ARCHIVE, "Values >0 will amplify mouse movement proportional to velocity. Small values have great effect. A lot of good Quake Live players use around the 0.1-0.2 mark, but this depends on your mouse CPI and polling rate.");
 static cvar_t m_accel_style		= CVARAD("m_accel_style",	"1",	"cl_mouseAccelStyle",	"1 = Quake Live mouse acceleration, 0 = Old style accelertion.");
 static cvar_t m_accel_power		= CVARAD("m_accel_power",	"2",	"cl_mouseAccelPower",	"Used when m_accel_style is 1.\nValues 1 or below are dumb. 2 is linear and the default. 99% of accel users use this. Above 2 begins to amplify exponentially and you will get more acceleration at higher velocities. Great if you want low accel for slow movements, and high accel for fast movements. Good in combination with a sensitivity cap.");
 static cvar_t m_accel_offset	= CVARAD("m_accel_offset",	"0",	"cl_mouseAccelOffset",	"Used when m_accel_style is 1.\nAcceleration will not be active until the mouse movement exceeds this speed (counts per millisecond). Negative values are supported, which has the effect of causing higher rates of acceleration to happen at lower velocities.");
 static cvar_t m_accel_senscap	= CVARAD("m_accel_senscap",	"0",	"cl_mouseSensCap",		"Used when m_accel_style is 1.\nSets an upper limit on the amplified mouse movement. Great for tuning acceleration around lower velocities while still remaining in control of fast motion such as flicking.");
+#endif
 
 void QDECL joyaxiscallback(cvar_t *var, char *oldvalue)
 {
@@ -403,9 +413,12 @@ int IN_TranslateMButtonPress(unsigned int devid)
 	return ret;
 }
 
+extern void CL_ClampPitch (int pnum, float frametime);
+void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frametime);
+
 /*a 'pointer' is either a multitouch pointer, or a separate device
 note that mice use the keyboard button api, but separate devices*/
-void IN_Commands(void)
+void IN_Commands(float frametime)
 {
 	struct eventlist_s *ev;
 
@@ -514,7 +527,20 @@ void IN_Commands(void)
 				}
 
 				if (ev->mouse.x || ev->mouse.y)
+				{
 					ptr[ev->devid].updates++;
+					
+					if (cl_subframe_input.ival != 0)
+					{
+						for (int plnum = 0; plnum < (cl.splitclients?cl.splitclients:1); plnum++)
+						{
+							vec3_t mousemovements;
+							VectorClear(mousemovements);
+							IN_MoveMouse(&ptr[ev->devid], mousemovements, plnum, frametime);
+							CL_ClampPitch(plnum, frametime);
+						}
+					}
+				}
 			}
 			break;
 		case IEV_MOUSEABS:
@@ -1000,8 +1026,11 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 void IN_Move (float *movements, int pnum, float frametime)
 {
 	int i;
-	for (i = 0; i < MAXPOINTERS; i++)
-		IN_MoveMouse(&ptr[i], movements, pnum, frametime);
+	if (cl_subframe_input.ival == 0)
+	{
+		for (i = 0; i < MAXPOINTERS; i++)
+			IN_MoveMouse(&ptr[i], movements, pnum, frametime);
+	}
 
 	for (i = 0; i < MAXJOYSTICKS; i++)
 		IN_MoveJoystick(&joy[i], movements, pnum, frametime);

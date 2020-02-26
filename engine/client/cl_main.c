@@ -6081,7 +6081,7 @@ double Host_Frame (double time)
 	INS_Move();				//from things that need special polling
 
 	// check what we got, and handle any click/button events
-	IN_Commands ();
+	IN_Commands (host_frametime);
 
 	// process console commands from said click/button events
 	Cbuf_Execute ();

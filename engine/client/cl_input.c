@@ -64,6 +64,8 @@ extern cvar_t cl_splitscreen;
 
 cvar_t cl_mouselook = CVARFCD("cl_mouselook", "1", CVAR_NOTFROMSERVER, cl_mouselook_callback, "Enables mouse look (+mlook)");
 
+cvar_t cl_subframe_input = CVARD("cl_subframe_input", "1", "Enables subframe input handling in CSQC. CSQC_InputEvent is called for each individual mouse movement packet, making it possible to detect the exact angle where player was looking at.");
+
 int CL_TargettedSplit(qboolean nowrap)
 {
 	int mod;
@@ -974,7 +976,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime)
 		CL_GatherButtons(cmd, pnum);
 }
 
-static void CL_ClampPitch (int pnum, float frametime)
+void CL_ClampPitch (int pnum, float frametime)
 {
 	float mat[16];
 	float roll;
@@ -1741,21 +1743,21 @@ qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 	cmd = &cl.outframes[i].cmd[plnum];
 	if (cl_c2sImpulseBackup.ival >= 2)
 		dontdrop = dontdrop || cmd->impulse;
-	MSG_WriteDeltaUsercmd (buf, &nullcmd, cmd);
+	MSG_WriteDeltaUsercmd (buf, &nullcmd, cmd, cls.fteprotocolextensions2);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence-1) & UPDATE_MASK;
 	if (cl_c2sImpulseBackup.ival >= 3)
 		dontdrop = dontdrop || cmd->impulse;
 	cmd = &cl.outframes[i].cmd[plnum];
-	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
+	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd, cls.fteprotocolextensions2);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
 	if (cl_c2sImpulseBackup.ival >= 1)
 		dontdrop = dontdrop || cmd->impulse;
 	cmd = &cl.outframes[i].cmd[plnum];
-	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
+	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd, cls.fteprotocolextensions2);
 
 	return dontdrop;
 }
@@ -2613,6 +2615,8 @@ void CL_InitInput (void)
 
 	Cvar_Register(&cl_mouselook, inputnetworkcvargroup);
 	cl_mouselook_callback(&cl_mouselook, cl_mouselook.string);
+	
+	Cvar_Register(&cl_subframe_input, inputnetworkcvargroup);
 
 	/*then alternative arged ones*/
 	Cmd_AddCommand ("p",			CL_SplitA_f);

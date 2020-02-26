@@ -223,6 +223,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(input_cursor_start,	"input_cursor_trace_start");	/*float		filled by getinputstate*/ \
 	globalvector(input_cursor_impact,	"input_cursor_trace_endpos");	/*float		filled by getinputstate*/ \
 	globalfloat(input_cursor_entitynumber,	"input_cursor_entitynumber");	/*float		filled by getinputstate*/ \
+	globalvector(input_subframe_angles,	"input_subframe_angles");		/*vector	filled by getinputstate, read by runplayerphysics*/ \
 	\
 	globalvector(global_gravitydir,		"global_gravitydir");	/*vector	used when .gravitydir is 0 0 0 */ \
 	globalfloat(dimension_default,		"dimension_default");	/*float		default value for dimension_hit+dimension_solid*/ \
@@ -3619,6 +3620,11 @@ static void cs_set_input_state (usercmd_t *cmd)
 		csqcg.input_angles[1] = SHORT2ANGLE(cmd->angles[1]);
 		csqcg.input_angles[2] = SHORT2ANGLE(cmd->angles[2]);
 	}
+	if (csqcg.input_subframe_angles)
+	{
+		csqcg.input_subframe_angles[0] = SHORT2ANGLE(cmd->subframe_angles[0]);
+		csqcg.input_subframe_angles[1] = SHORT2ANGLE(cmd->subframe_angles[1]);
+	}
 	if (csqcg.input_movevalues)
 	{
 		csqcg.input_movevalues[0] = cmd->forwardmove;
@@ -3661,6 +3667,11 @@ static void cs_get_input_state (usercmd_t *cmd)
 		cmd->angles[0] = ANGLE2SHORT(csqcg.input_angles[0]);
 		cmd->angles[1] = ANGLE2SHORT(csqcg.input_angles[1]);
 		cmd->angles[2] = ANGLE2SHORT(csqcg.input_angles[2]);
+	}
+	if (csqcg.input_subframe_angles)
+	{
+		cmd->subframe_angles[0] = ANGLE2SHORT(csqcg.input_subframe_angles[0]);
+		cmd->subframe_angles[1] = ANGLE2SHORT(csqcg.input_subframe_angles[1]);
 	}
 	if (csqcg.input_movevalues)
 	{
