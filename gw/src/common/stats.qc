@@ -216,9 +216,17 @@ void UpdateGlobalStats(bool forced = false)
 #endif
 	}
 
+	float netfps = cvar("cl_netfps");
+	float drawfps = cvar("cl_maxfps");
 	maxfps = stof(infokey(world, "maxfps"));
-	if (maxfps == 0)
+	if (maxfps < 20)
 		maxfps = 72;
+	else if (maxfps < 30)
+		maxfps = 30;
+	if (maxfps > netfps)
+		maxfps = netfps;
+	if (maxfps > drawfps && drawfps > 0) // only should be applied to listen-servers
+		maxfps = drawfps;
 }
 
 void RegisterFieldStat(int statnum, int stattype, .__variant fld)
