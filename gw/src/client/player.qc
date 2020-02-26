@@ -7,6 +7,8 @@ void PlayerPrediction_Reset();
 
 void Player_Update(bool isnew)
 {
+	self.server_time = time; // cltime?
+
 	float send_flags = readFloat();
 	if (send_flags & SENDFLAGS_PLAYER_EVENT_FLAGS)
 		self.event_flags = readFloat();
@@ -148,6 +150,14 @@ float Player_PreDraw()
 	{
 		self.movetype = MOVETYPE_NONE;
 		PlayerPrediction_ApplyServerState();
+
+		// extrapolate
+		float delta = time - self.server_time;
+
+		self.origin = self.origin + (self.velocity*delta);
+		self.angles = self.angles + (self.avelocity*delta);
+		setorigin(self, self.origin);
+
 		Player_Animate();
 	}
 

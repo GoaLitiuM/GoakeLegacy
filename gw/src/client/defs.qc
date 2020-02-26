@@ -43,6 +43,8 @@ float weapon_impulse;
 .float server_jump_time;
 .float server_jump_count;
 
+.float server_time; // last known time the player was updated, used with extrapolation
+
 // not used by client
 .float SendFlags;
 
