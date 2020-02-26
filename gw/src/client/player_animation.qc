@@ -31,20 +31,23 @@ float GetJumpOffset(float frame, float start_frame)
 
 void Model_SetPlayerModel(entity ent, string model)
 {
-	if (self.model_legs == world)
+	if (ent.model_legs == world)
 	{
-		self.model_legs = spawn();
-		self.model_legs.owner = self;
+		ent.model_legs = spawn();
+		ent.model_legs.owner = ent;
+		ent.model_legs.solid = SOLID_NOT;
 	}
-	if (self.model_torso == world)
+	if (ent.model_torso == world)
 	{
-		self.model_torso = spawn();
-		self.model_torso.owner = self;
+		ent.model_torso = spawn();
+		ent.model_torso.owner = ent;
+		ent.model_torso.solid = SOLID_NOT;
 	}
-	if (self.model_head == world)
+	if (ent.model_head == world)
 	{
-		self.model_head = spawn();
-		self.model_head.owner = self;
+		ent.model_head = spawn();
+		ent.model_head.owner = ent;
+		ent.model_head.solid = SOLID_NOT;
 	}
 
 	ent.anim_model_index = GetModel(model);
