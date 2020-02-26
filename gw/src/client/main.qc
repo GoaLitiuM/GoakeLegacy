@@ -263,3 +263,30 @@ void CSQC_Input_Frame()
 			input_impulse = IMPULSE_RESPAWN;
 	}
 }
+
+void CSQC_RendererRestarted(string rendererdescription)
+{
+	if (models)
+	{
+		memfree(models);
+		models = 0;
+		models_count = 0;
+		models_allocated_count = 0;
+	}
+
+	precache();
+
+	// TODO: apply for non-player characters as well
+	entity ent = world;
+	while (true)
+	{
+		ent = find(ent, classname, CLASS_PLAYER);
+		if (ent == world)
+			break;
+
+		entity oldself = self;
+		self = ent;
+		Player_InitModel();
+		self = oldself;
+	}
+}

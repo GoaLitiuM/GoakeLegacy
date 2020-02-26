@@ -196,6 +196,11 @@ void Player_Animate()
 	setorigin(legs, legs.origin);
 	setorigin(torso, torso.origin);
 	setorigin(head, head.origin);
+
+	legs.renderflags = self.renderflags;
+	torso.renderflags = self.renderflags;
+	head.renderflags = self.renderflags;
+
 	addentity(legs);
 	addentity(torso);
 	addentity(head);
