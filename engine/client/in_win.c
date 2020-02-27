@@ -1080,7 +1080,7 @@ void INS_RawInput_Init(void)
 {
 	  // "0" to exclude, "1" to include
 	PRAWINPUTDEVICELIST pRawInputDeviceList;
-	int inputdevices, i, j, mtemp, ktemp;
+	int inputdevices, i, j, k, mcount, kcount;
 	char dname[MAX_RI_DEVICE_SIZE];
 
 	// Return 0 if rawinput is not available
@@ -1138,7 +1138,7 @@ void INS_RawInput_Init(void)
 	}
 
 	// Loop through all devices and count the mice
-	for (i = 0, mtemp = 0, ktemp = 0; i < inputdevices; i++)
+	for (i = 0, mcount = 0, kcount = 0; i < inputdevices; i++)
 	{
 		j = MAX_RI_DEVICE_SIZE;
 
@@ -1155,13 +1155,13 @@ void INS_RawInput_Init(void)
 			if (!in_rawinput_mice.ival)
 				continue;
 
-			mtemp++;
+			mcount++;
 			break;
 		case RIM_TYPEKEYBOARD:
 			if (!in_rawinput_keyboard.ival)
 				continue;
 
-			ktemp++;
+			kcount++;
 			break;
 		default: // (RIM_TYPEHID) support joysticks?
 			break;
@@ -1169,15 +1169,17 @@ void INS_RawInput_Init(void)
 	}
 
 	// exit out if no devices found
-	if (!mtemp && !ktemp)
+	if (!mcount && !kcount)
 	{
 		Con_SafePrintf("Raw input: no usable device found\n");
 		return;
 	}
 
 	// Loop again and bind devices
-	rawmice = (mouse_t *)Z_Malloc(sizeof(mouse_t) * mtemp);
-	rawkbd = (keyboard_t *)Z_Malloc(sizeof(keyboard_t) * ktemp);
+	if (mcount)
+		rawmice = (mouse_t *)Z_Malloc(sizeof(mouse_t) * (mcount+1));
+	if (kcount)
+		rawkbd = (keyboard_t *)Z_Malloc(sizeof(keyboard_t) * kcount);
 	for (i = 0; i < inputdevices; i++)
 	{
 		j = MAX_RI_DEVICE_SIZE;
@@ -1218,17 +1220,27 @@ void INS_RawInput_Init(void)
 
 		// print pretty message about device
 		dname[MAX_RI_DEVICE_SIZE - 1] = 0;
-		for (mtemp = strlen(dname); mtemp >= 0; mtemp--)
+		for (k = strlen(dname); k >= 0; k--)
 		{
-			if (dname[mtemp] == '#')
+			if (dname[k] == '#')
 			{
-				dname[mtemp + 1] = 0;
+				dname[k + 1] = 0;
 				break;
 			}
 		}
 		Con_DPrintf("Raw input type %i: [%i] %s\n", (int)pRawInputDeviceList[i].dwType, i, dname);
 	}
-
+	
+	if (mcount)
+	{
+		// insert a dummy device to catch generated input messages
+		rawmice[rawmicecount].handles.rawinputhandle = 0;
+		rawmice[rawmicecount].sysname[0] = 0;
+		rawmice[rawmicecount].numbuttons = 16;
+		rawmice[rawmicecount].oldbuttons = 0;
+		rawmice[rawmicecount].qdeviceid = DEVID_UNSET;
+		rawmicecount++;
+	}
 
 	// free the RAWINPUTDEVICELIST
 	Z_Free(pRawInputDeviceList);
@@ -2358,8 +2370,8 @@ static int MapKey (int vkey)
 		case K_KP_EQUALS:		return '=';
 		}
 	}
-	if (key == 0)
-		Con_DPrintf("key 0x%02x has no translation\n", key);
+	//if (key == 0)
+	//	Con_DPrintf("key 0x%02x has no translation\n", key);
 
 	return key;
 }
