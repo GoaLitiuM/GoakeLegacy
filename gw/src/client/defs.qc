@@ -29,8 +29,8 @@ float weapon_impulse;
 .vector client_origin;
 .vector client_velocity;
 .vector client_angles;
-.float client_flags;
-.float client_pmove_flags;
+.int client_flags;
+.int client_pmove_flags;
 .float client_jump_time;
 .float client_jump_count;
 
@@ -38,8 +38,8 @@ float weapon_impulse;
 .vector server_origin;
 .vector server_velocity;
 .vector server_angles;
-.float server_flags;
-.float server_pmove_flags;
+.int server_flags;
+.int server_pmove_flags;
 .float server_jump_time;
 .float server_jump_count;
 
@@ -52,7 +52,7 @@ float noop_predraw() { return PREDRAW_NEXT; }
 
 entity getEntity(float entitynum)
 {
-	local entity ent = nextent(world);
+	entity ent = nextent(world);
 	while (ent != world)
 	{
 		if (ent.entnum == entitynum)
@@ -64,12 +64,14 @@ entity getEntity(float entitynum)
 
 #define readFloat readfloat
 #define readByte readbyte
+#define readShort readshort
+#define readInt readint
 #define readEntityNum readentitynum
 #define readString readstring
 
 vector readVector()
 {
-	local vector vec;
+	vector vec;
 	vec_x = readcoord();
 	vec_y = readcoord();
 	vec_z = readcoord();
@@ -77,7 +79,7 @@ vector readVector()
 }
 vector readVectorFloat()
 {
-	local vector vec;
+	vector vec;
 	vec_x = readFloat();
 	vec_y = readFloat();
 	vec_z = readFloat();

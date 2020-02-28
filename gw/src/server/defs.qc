@@ -1,5 +1,7 @@
 #define writeFloat WriteFloat
 #define writeByte WriteByte
+#define writeShort WriteShort
+#define writeInt WriteInt
 #define writeEntity WriteEntity
 #define writeString WriteString
 

@@ -9,9 +9,7 @@ void Player_Update(bool isnew)
 {
 	self.server_time = time; // cltime?
 
-	float send_flags = readFloat();
-	if (send_flags & SENDFLAGS_PLAYER_EVENT_FLAGS)
-		self.event_flags = readFloat();
+	int send_flags = readShort();
 	if (send_flags & SENDFLAGS_ORIGIN)
 		self.server_origin = readVector();
 	if (send_flags & SENDFLAGS_ANGLES)
@@ -20,8 +18,8 @@ void Player_Update(bool isnew)
 		self.server_velocity = readVector();
 	if (send_flags & SENDFLAGS_FLAGS)
 	{
-		self.server_flags = readFloat();
-		self.server_pmove_flags = readFloat();
+		self.server_flags = readInt();
+		self.server_pmove_flags = readByte();
 	}
 	if (send_flags & SENDFLAGS_JUMP)
 	{
@@ -31,7 +29,26 @@ void Player_Update(bool isnew)
 
 	if (isnew)
 	{
-		if (self.entnum == player_localentnum)
+		send_flags |= SENDFLAGS_PLAYER_INIT; // just to make sure the player is reinitialized properly
+
+		self.predraw = Player_PreDraw;
+		self.drawmask = MASK_ENGINE;
+		self.customphysics = noop;
+
+		Player_InitModel();
+	}
+
+	if (send_flags & SENDFLAGS_PLAYER_INIT)
+	{
+		PlayerPrediction_ApplyServerState();
+		PlayerPrediction_Reset();
+		Player_Init();
+		self.fixangle = 1;
+
+		UpdatePlayerStats(true);
+		UpdateGlobalStats(true);
+
+		if (isnew && self.entnum == player_localentnum)
 		{
 			local_player = self;
 
@@ -41,49 +58,7 @@ void Player_Update(bool isnew)
 
 			camera_origin = self.origin + self.view_ofs;
 		}
-
-		// reset values for prediction
-		self.origin = self.server_origin;
-		self.velocity = self.server_velocity;
-		self.angles = self.server_angles;
-		self.flags = self.server_flags;
-		self.pmove_flags = self.server_pmove_flags;
-		self.jump_time = self.server_jump_time;
-		self.jump_count = self.server_jump_count;
-		setorigin(self, self.origin);
-
-		self.client_origin = self.origin;
-		self.client_velocity = self.velocity;
-		self.client_angles = self.angles;
-		self.client_flags = self.flags;
-		self.client_pmove_flags = self.pmove_flags;
-		self.client_jump_time = self.jump_time;
-		self.client_jump_count = self.jump_count;
-
-		Player_Init();
-		self.event_flags &= PLAYER_EVENT_INIT;
-		UpdatePlayerStats(true);
-		UpdateGlobalStats(true);
-
-		self.predraw = Player_PreDraw;
-		self.drawmask = MASK_ENGINE;
-		self.customphysics = noop;
-
-		Player_InitModel();
 	}
-
-	if (self.event_flags & PLAYER_EVENT_INIT)
-	{
-		Player_Init();
-		PlayerPrediction_ApplyServerState();
-		PlayerPrediction_Reset();
-		self.fixangle = 1;
-
-		UpdatePlayerStats(true);
-		UpdateGlobalStats(true);
-	}
-
-	self.event_flags = 0;
 }
 
 void Player_UpdateCamera()

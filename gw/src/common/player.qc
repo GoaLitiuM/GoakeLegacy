@@ -31,7 +31,7 @@ void Player_Init()
 	setorigin(self, self.origin);
 
 	self.SendFlags |= SENDFLAGS_ALL;
-	self.event_flags |= PLAYER_EVENT_INIT;
+	self.SendFlags |= SENDFLAGS_PLAYER_INIT;
 
 	self.death_time = 0;
 }
@@ -106,7 +106,7 @@ void Player_Physics()
 		self.SendFlags |= SENDFLAGS_ORIGIN;
 	if (self.velocity != old_velocity)
 		self.SendFlags |= SENDFLAGS_VELOCITY;
-	if (self.velocity != old_angles)
+	if (self.angles != old_angles)
 		self.SendFlags |= SENDFLAGS_ANGLES;
 	if (self.flags != old_flags || self.pmove_flags != old_pmove_flags)
 		self.SendFlags |= SENDFLAGS_FLAGS;
