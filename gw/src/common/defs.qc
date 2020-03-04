@@ -1,5 +1,6 @@
 #ifdef CSQC
-float svtime; // version of 'time' which is more suitable for prediction (time + ping)
+// version of 'time' which is more suitable for prediction (time + ping)
+#define svtime (time + ((clientcommandframe - servercommandframe) * (1.0f/maxfps)))
 #else
 #define svtime time
 #endif

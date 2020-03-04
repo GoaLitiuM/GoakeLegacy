@@ -45,9 +45,6 @@ float CSQC_ConsoleCommand(string cmd)
 
 void CSQC_UpdateView(float width, float height, float notmenu)
 {
-	// calculate the delay to the server for svtime
-	float delay = (clientcommandframe - servercommandframe) * (1.0f/maxfps);
-	svtime = time + delay;
 
 	clearscene();
 
