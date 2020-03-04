@@ -9927,7 +9927,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	unsigned int i, n;
 	extern qbyte *playertouch;
 	extern size_t playertouchmax;
-	unsigned int msecs;
+	float msecs;
 	extern cvar_t sv_gravity;
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
 	edict_t *touched;
@@ -9964,7 +9964,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	pmove.jump_count = ent->v->jump_count;
 
 //set up the movement command
-	msecs = pr_global_struct->input_timelength*1000 + 0.5f;
+	msecs = pr_global_struct->input_timelength*1000/* + 0.5f*/;
 	//precision inaccuracies. :(
 	pmove.cmd.angles[0] = ANGLE2SHORT((pr_global_struct->input_angles)[0]);
 	pmove.cmd.angles[1] = ANGLE2SHORT((pr_global_struct->input_angles)[1]);
@@ -10022,13 +10022,20 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	AddAllLinksToPmove(&sv.world, (wedict_t*)ent);
 
 	SV_PreRunCmd();
+	
+	float min_msec = 0.0f;
+	float max_msec = 1.0f;
+	int pmove_flags = 0;
 
-	while(msecs)	//break up longer commands
+	while(msecs > min_msec)	//break up longer commands
 	{
 		if (msecs > 50)
 			pmove.cmd.msec = 50;
 		else
 			pmove.cmd.msec = msecs;
+			
+		if (pmove.cmd.msec > max_msec)
+			pmove.cmd.msec = max_msec;		
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
 		
@@ -10036,11 +10043,14 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		ent->v->jump_count = pmove.jump_count;
 
 		if (client)
-			client->jump_held = pmove.jump_held;
-		ent->xv->pmove_flags = 0;
-		ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
-		ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
-		ent->xv->pmove_flags += ((int)pmove.jumped?PMF_JUMPED:0);
+			client->jump_held = (pmove_flags & PMF_JUMP_HELD) != 0;
+		pmove_flags &= ~PMF_LADDER;
+		pmove_flags |= pmove.onladder ? PMF_LADDER : 0;
+		pmove_flags |= pmove.jump_held ? PMF_JUMP_HELD : 0;
+		pmove_flags |= pmove.jumped ? PMF_JUMPED : 0;
+		
+		ent->xv->pmove_flags = pmove_flags;
+		
 		if (progstype != PROG_QW)	//this is just annoying.
 			ent->v->teleport_time = sv.time + pmove.waterjumptime;
 		else
@@ -10075,8 +10085,6 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		}
 		else
 			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
-
-
 
 		World_LinkEdict(&sv.world, (wedict_t*)ent, true);
 		for (i=0 ; i<pmove.numtouch ; i++)

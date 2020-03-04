@@ -3831,34 +3831,44 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.jump_count = ent->v->jump_count;
 
 	CL_SetSolidEntities();
+	
+	float min_msec = 0.0f;
+	float max_msec = 1.0f;
+	int pmove_flags = 0;
 
-	while(msecs > 0)	//break up longer commands
+	while(msecs > min_msec)	//break up longer commands
 	{
 		pmove.cmd.msec = msecs;
 		if (pmove.cmd.msec > 50)
 			pmove.cmd.msec = 50;
+			
+		if (pmove.cmd.msec > max_msec)
+			pmove.cmd.msec = max_msec;
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
-	}
+
+		ent->v->jump_time = pmove.jump_time;
+		ent->v->jump_count = pmove.jump_count;
+		
+		pmove_flags &= ~PMF_LADDER;
+		pmove_flags |= pmove.onladder ? PMF_LADDER : 0;	
+		pmove_flags |= pmove.jump_held ? PMF_JUMP_HELD : 0;
+		pmove_flags |= pmove.jumped ? PMF_JUMPED : 0;
+		
+		ent->xv->pmove_flags = pmove_flags;
+
+		VectorCopy(pmove.angles, ent->v->angles);
+		ent->v->angles[0] *= r_meshpitch.value * 1/3.0f;	//FIXME
+		VectorCopy(pmove.origin, ent->v->origin);
+		VectorCopy(pmove.velocity, ent->v->velocity);
+		if (pmove.onground)
+			ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
+		else
+			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
 	
-	ent->v->jump_time = pmove.jump_time;
-	ent->v->jump_count = pmove.jump_count;
-
-	VectorCopy(pmove.angles, ent->v->angles);
-	ent->v->angles[0] *= r_meshpitch.value * 1/3.0f;	//FIXME
-	VectorCopy(pmove.origin, ent->v->origin);
-	VectorCopy(pmove.velocity, ent->v->velocity);
-	if (pmove.onground)
-		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
-	else
-		ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
-	ent->xv->pmove_flags = 0;
-	ent->xv->pmove_flags += pmove.jump_held ? PMF_JUMP_HELD : 0;
-	ent->xv->pmove_flags += pmove.onladder ? PMF_LADDER : 0;
-	ent->xv->pmove_flags += pmove.jumped ? PMF_JUMPED : 0;
-
-	//fixme: touch triggers?
-	World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
+		//fixme: touch triggers?
+		World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
+	}
 
 	*csqcg.simtime = oldtime;
 }

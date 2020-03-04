@@ -84,8 +84,8 @@ void PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 	{
 		change = normal[i]*backoff;
 		out[i] = in[i] - change;
-		if (out[i] > -STOP_EPSILON && out[i] < STOP_EPSILON)
-			out[i] = 0;
+		//if (out[i] > -STOP_EPSILON && out[i] < STOP_EPSILON)
+		//	out[i] = 0;
 	}
 }
 
@@ -533,7 +533,7 @@ void PM_Friction (void)
 		return;
 
 	speed = Length(pmove.velocity);
-	if (speed < 1)
+	if (speed < 0.01)
 	{
 //fixme: gravitydir fix needed
 		pmove.velocity[0] = 0;
