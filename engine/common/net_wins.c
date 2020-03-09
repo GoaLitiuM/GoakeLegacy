@@ -8115,12 +8115,14 @@ qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 	FD_ZERO(&readfdset);
 	FD_ZERO(&writefdset);
 
+#ifndef _WIN32
 	if (stdinissocket)
 	{
 		sock = STDIN_FILENO;	//stdin tends to be socket/filehandle 0 in unix
 		FD_SET(sock, &readfdset);
 		maxfd = sock;
 	}
+#endif
 
 #ifdef SV_MASTER
 	{
@@ -8186,8 +8188,10 @@ qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 		select(maxfd+1, &readfdset, &writefdset, NULL, &timeout);
 	}
 
+#ifndef _WIN32
 	if (stdinissocket)
 		return FD_ISSET(STDIN_FILENO, &readfdset);
+#endif
 #endif
 	return true;
 }
