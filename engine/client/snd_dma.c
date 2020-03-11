@@ -58,7 +58,7 @@ static struct
 	vec3_t	right;
 	vec3_t	up;
 } listener[MAX_SPLITS];
-cvar_t snd_nominaldistance		= CVARAFD("snd_nominaldistance", "1500", "snd_soundradius", CVAR_CHEAT | CVAR_HIDDEN_LEGACY, "This cvar defines how far an attenuation=1 sound can be heard.");
+cvar_t snd_nominaldistance		= CVARFD("snd_nominaldistance", "2500", CVAR_CHEAT, "This cvar defines how far an attenuation=1 sound can be heard.");
 
 #define	MAX_SFX		8192
 sfx_t		*known_sfx;		// hunk allocated [MAX_SFX]
@@ -111,6 +111,7 @@ cvar_t snd_mixerthread			= CVARD("snd_mixerthread", "1", "When enabled sound mix
 cvar_t snd_device				= CVARFD("snd_device", "", CVAR_ARCHIVE, "This is the sound device(s) to use, in the form of driver:device.\nIf desired, multiple devices can be listed in space-seperated (quoted) tokens. _s_device_opts contains any enumerated options.\nIn all seriousness, use the menu to set this if you wish to keep your hair.");
 cvar_t snd_device_opts			= CVARFD("snd_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs, for gamecode to read.");
 cvar_t snd_scale				= CVARFD("snd_scale", "1", CVAR_ARCHIVE, "Enables logarithmic scale for volume controls.");
+cvar_t snd_falloff				= CVARFD("snd_falloff", "0", CVAR_ARCHIVE, "Determines the sound attenuation function. 0=linear, 1=squared.");
 
 #ifdef VOICECHAT
 static void QDECL S_Voip_Play_Callback(cvar_t *var, char *oldval);
@@ -2293,6 +2294,7 @@ void S_Init (void)
 	Cvar_Register(&snd_linearresample_stream, "Sound controls");
 	
 	Cvar_Register(&snd_scale, "Sound controls");
+	Cvar_Register(&snd_falloff, "Sound controls");
 
 #ifdef VOICECHAT
 	S_Voip_Init();
@@ -2665,12 +2667,14 @@ static void SND_AccumulateSpacialization(soundcardinfo_t *sc, channel_t *ch, vec
 // calculate stereo seperation and distance attenuation
 	VectorSubtract(origin, listener[seat].origin, world_vec);
 
-	dist = VectorNormalize(world_vec) * ch->dist_mult;
+	dist = 1.0 - (VectorNormalize(world_vec) * ch->dist_mult);
+	if (snd_falloff.ival != 0 && dist > 0)
+		dist = dist * dist;
 
 	if ((ch->flags & CF_NOSPACIALISE) || !ch->dist_mult)
 	{
 		scale = 1;
-		scale = (1.0 - dist) * scale;
+		scale = dist * scale;
 		v = ch->master_vol * scale * volscale;
 		for (i = 0; i < sc->sn.numchannels; i++)
 			ch->vol[i] += bound(0, v, 255);
@@ -2688,7 +2692,7 @@ static void SND_AccumulateSpacialization(soundcardinfo_t *sc, channel_t *ch, vec
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
 		scale = 1 + DotProduct(listener_vec, sc->speakerdir[i]);
-		scale = (1.0 - dist) * scale * sc->dist[i];
+		scale = dist * scale * sc->dist[i];
 		v = ch->master_vol * scale * volscale;
 		ch->vol[i] += bound(0, v, 255);
 	}
@@ -2801,12 +2805,14 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 // calculate stereo seperation and distance attenuation
 	VectorSubtract(ch->origin, listener[seat].origin, world_vec);
 
-	dist = VectorNormalize(world_vec) * ch->dist_mult;
+	dist = 1.0 - (VectorNormalize(world_vec) * ch->dist_mult);
+	if (snd_falloff.ival != 0 && dist > 0)
+		dist = dist * dist;
 
 	if ((ch->flags & CF_NOSPACIALISE) || !ch->dist_mult)
 	{
 		scale = 1;
-		scale = (1.0 - dist) * scale;
+		scale = dist * scale;
 		v = ch->master_vol * scale * volscale;
 		for (i = 0; i < sc->sn.numchannels; i++)
 			ch->vol[i] = bound(0, v, 255);
@@ -2839,7 +2845,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
 		scale = 1 + DotProduct(listener_vec, sc->speakerdir[i]);
-		scale = (1.0 - dist) * scale * sc->dist[i];
+		scale = dist * scale * sc->dist[i];
 		v = ch->master_vol * scale * volscale;
 		ch->vol[i] = bound(0, v, 255);
 	}
