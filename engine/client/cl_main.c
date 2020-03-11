@@ -2377,6 +2377,7 @@ void CL_CheckServerInfo(void)
 		movevars.extrajumpcap =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajumpcap"));
 		movevars.strafeaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_strafeaccelerate"));
 		movevars.extrajump =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajump"));
+		movevars.rampvelocity =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_rampvelocity"));
 	}
 	movevars.coordtype = cls.netchan.netprim.coordtype;
 

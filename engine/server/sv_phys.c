@@ -62,16 +62,17 @@ cvar_t	sv_maxairstrafespeed = CVARF("sv_maxairstrafespeed", "30", CVAR_SERVERINF
 cvar_t	sv_aircontrol		 = CVARF("sv_aircontrol", "0", CVAR_SERVERINFO);
 cvar_t	sv_airstopaccelerate = CVARF("sv_airstopaccelerate", "2.5", CVAR_SERVERINFO);
 cvar_t	sv_movementstyle	 = CVARFD("sv_movementstyle", "2", CVAR_SERVERINFO, "Toggles between classic movement and promode style strafe movement, value 2 enables classic forward movement");
-cvar_t	sv_autojump			 = CVARFD("sv_autojump", "0", CVAR_SERVERINFO, "Minimum time in seconds for whe. Value of 0 disables autojumping.");
+cvar_t	sv_autojump			 = CVARFD("sv_autojump", "0", CVAR_SERVERINFO, "Minimum time in seconds for autojump to trigger. Value of 0 disables autojumping.");
 cvar_t	sv_extrajump		 = CVARFD("sv_extrajump", "0", CVAR_SERVERINFO, "Time window in seconds when jump boost is applied to additional jumps.");
 cvar_t	sv_extrajumpboost	 = CVARFD("sv_extrajumpboost", "100", CVAR_SERVERINFO, "Additional jump velocity added to following jumps.");
 cvar_t	sv_extrajumpcap		 = CVARFD("sv_extrajumpcap", "0", CVAR_SERVERINFO, "Number of jumps affected by sv_extrajumpboost, 1: double jumps, 2: triple jumps, etc.");
+cvar_t	pm_rampvelocity		 = CVARFD("pm_rampvelocity", "180", CVAR_SERVERINFO, "The minimum vertical velocity when player should be considered being in air during ramp sliding.");
 
 
 cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse", "0");
 cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1, while NQ expects 0.");
 cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
-cvar_t	sv_gameplayfix_bouncedownslopes		= CVARD( "sv_gameplayfix_grenadebouncedownslopes", "0", "MOVETYPE_BOUNCE speeds are calculated relative to the impacted surface, instead of the vertical, reducing the chance of grenades just sitting there on slopes.");
+cvar_t	sv_gameplayfix_bouncedownslopes		= CVARD( "sv_gameplayfix_grenadebouncedownslopes", "1", "MOVETYPE_BOUNCE speeds are calculated relative to the impacted surface, instead of the vertical, reducing the chance of grenades just sitting there on slopes.");
 cvar_t	sv_gameplayfix_trappedwithin		= CVARD( "sv_gameplayfix_trappedwithin", "0", "Blocks further entity movement when an entity is already inside another entity. This ensures that bsp precision issues cannot allow the entity to completely pass through eg the world.");
 #if !defined(CLIENTONLY) && defined(NQPROT) && defined(HAVE_LEGACY)
 cvar_t	sv_gameplayfix_spawnbeforethinks	= CVARD( "sv_gameplayfix_spawnbeforethinks", "0", "Fixes an issue where player thinks (including Pre+Post) can be called before PutClientInServer. Unfortunately at least one mod depends upon PreThink being called first in order to correctly determine spawn positions.");
@@ -122,6 +123,7 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_extrajump,						cvargroup_serverphysics);
 	Cvar_Register (&sv_extrajumpboost,					cvargroup_serverphysics);
 	Cvar_Register (&sv_extrajumpcap,					cvargroup_serverphysics);
+	Cvar_Register (&pm_rampvelocity,					cvargroup_serverphysics);
 
 	Cvar_Register (&sv_gameplayfix_noairborncorpse,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
@@ -2763,5 +2765,6 @@ void SV_SetMoveVars(void)
 	movevars.extrajump			= sv_extrajump.value;
 	movevars.extrajumpboost		= sv_extrajumpboost.value;
 	movevars.extrajumpcap		= sv_extrajumpcap.value;
+	movevars.rampvelocity		= pm_rampvelocity.value;
 }
 #endif
