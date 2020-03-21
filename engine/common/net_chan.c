@@ -87,7 +87,9 @@ cvar_t	showpackets = CVAR("showpackets", "0");
 cvar_t	showdrop = CVAR("showdrop", "0");
 cvar_t	qport = CVARF("qport_", "0", CVAR_NOSAVE);
 cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
+#ifdef HUFFNETWORK
 cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");
+#endif
 
 cvar_t	pext_infoblobs = CVARD("_pext_infoblobs", "0", "RENAME ME WHEN STABLE. Enables the use of very large infokeys containing potentially invalid chars. Note that the userinfo is still limited by sv_userinfo_bytelimit and sv_userinfo_keylimit.");
 cvar_t	pext_replacementdeltas = CVARD("pext_replacementdeltas", "1", "Enables the use of alternative nack-based entity deltas");
@@ -274,7 +276,9 @@ void Netchan_Init (void)
 	Cvar_Register (&showdrop, "Networking");
 	Cvar_Register (&qport, "Networking");
 	Cvar_Register (&net_mtu, "Networking");
+#ifdef HUFFNETWORK
 	Cvar_Register (&net_compress, "Networking");
+#endif
 }
 
 /*

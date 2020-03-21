@@ -74,7 +74,9 @@ cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMIC
 cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
 #endif
+#ifdef HUFFNETWORK
 extern cvar_t net_compress;
+#endif
 
 cvar_t	cl_defaultport		=
 	#ifdef GAME_DEFAULTPORT	//remove the confusing port alias if we're running as a TC, as well as info about irrelevant games.
