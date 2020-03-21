@@ -1145,9 +1145,9 @@ void R2D_Font_Changed(void)
 		LOGFONTW lf = {0};
 		CHOOSEFONTW cf = {sizeof(cf)};
 		extern HWND	mainwindow;
-		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival);
+		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival, 0);
 		if (tsize != 8)
-			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival);
+			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival, 0);
 		if (!font_console)
 			font_console = font_default;
 
@@ -1190,15 +1190,15 @@ void R2D_Font_Changed(void)
 #endif
 	}
 
-	font_default = Font_LoadFont(gl_font.string, 8, 1, r_font_postprocess_outline.ival);
+	font_default = Font_LoadFont(gl_font.string, 8, 1, r_font_postprocess_outline.ival, 0);
 	if (!font_default && *gl_font.string)
-		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival);
+		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival, 0);
 
 	if (tsize != 8 || strcmp(gl_font.string, con_font_name))
 	{
-		font_console = Font_LoadFont(con_font_name, tsize, 1, r_font_postprocess_outline.ival);
+		font_console = Font_LoadFont(con_font_name, tsize, 1, r_font_postprocess_outline.ival, 0);
 		if (!font_console)
-			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival);
+			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival, 0);
 	}
 	if (!font_console)
 		font_console = font_default;

@@ -15,7 +15,7 @@
 
 void Font_Init(void);
 void Font_Shutdown(void);
-struct font_s *Font_LoadFont(const char *fontfilename, float height, float scale, int outline);
+struct font_s *Font_LoadFont(const char *fontfilename, float height, float scale, int outline, float blur);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
@@ -284,6 +284,7 @@ typedef struct font_s
 		FIMAGEIDXTYPE texplane;
 		unsigned char advance;	//how wide this char is, when drawn
 		unsigned short block;	//to quickly find the char again
+		unsigned short padding; //how much the char is padded by outline/blur
 
 		//texture offsets.
 		unsigned short bmx;
@@ -306,6 +307,7 @@ typedef struct font_s
 	unsigned short truecharheight;	//what you actually got, for compat with dp's lets-use-the-wrong-size-for-double-padding-between-lines thing.
 	float scale;	//some sort of poop
 	short outline;
+	float blur;
 
 	unsigned short faces;
 	fontface_t *face[MAX_FACES];
@@ -452,7 +454,7 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST|IF_NOPURGE)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE));
+		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE));
 	}
 
 	fontplanes.shader = R_RegisterShader("ftefont", SUF_2D,
@@ -627,6 +629,110 @@ static struct charcache_s *Font_CopyChar(font_t *f, unsigned int oldcharidx, uns
 	return new;
 }
 
+#define gauss_constant 0.3989422804014327f // 1.0 / sqrt(2.0 * M_PI)
+#define MAXBLUR 16
+
+static float gaussian_distribution(float d, float sigma)
+{
+	return exp(-d*d / (2.0*sigma*sigma)) * (gauss_constant / sigma);
+}
+
+void gaussian_blur2(int* src, int* dst, int width, int height, int src_pitch, int dst_pitch, float blur, qboolean vert)
+{
+	static float gauss_weights[3*MAXBLUR+1];
+	static float cached_sigma = 0.0f;
+	
+	if (cached_sigma != blur)
+	{
+		if (3*blur >= 3*MAXBLUR+1)
+			Sys_Error("fuck");
+		cached_sigma = blur;
+		for (int k=0; k<=3*blur; k++)
+			gauss_weights[k] = gaussian_distribution(k, blur);
+	}
+	
+	int* out = dst;
+	int* in = src;
+	for (int y=0; y<height; y++, out+=dst_pitch-width, in+=src_pitch-width)
+	for (int x=0; x<width; x++, out++, in++)
+	{
+		float weight = gauss_weights[0];
+		float div = weight;
+
+		float samp[4];
+		samp[3] = weight * ((*in & 4278190080)>>24);
+	 	samp[2] = weight * ((*in & 16711680)>>16);
+		samp[1] = weight * ((*in & 65280)>>8);
+	 	samp[0] = weight * ((*in & 255));
+		
+		for (int k=1; k<=3*blur; k++)
+		{
+			weight = gauss_weights[k];
+			
+			int* p;
+			if (vert)
+			{
+				if (y + k >= height)
+					p = in + ((height-1-y)*src_pitch);
+				else
+					p = in + (k*src_pitch);
+			}
+			else
+			{
+				if (x + k >= width)
+					p = in + (width-1-x);
+				else
+					p = in + k;
+			}
+
+			float samp2[4];			 
+			samp2[3] = ((*p & 4278190080)>>24);
+		 	samp2[2] = ((*p & 16711680)>>16);
+			samp2[1] = ((*p & 65280)>>8);
+		 	samp2[0] = ((*p & 255));
+
+			if (vert)
+			{
+				if (y - k < 0)
+					p = in - (y*src_pitch);
+				else
+					p = in - (k*src_pitch);
+			}
+			else
+			{
+				if (x - k < 0)
+					p = in - x;
+				else
+					p = in - k;
+			}
+
+			samp2[3] += (((*p & 4278190080)>>24));
+		 	samp2[2] += (((*p & 16711680)>>16));
+			samp2[1] += (((*p & 65280)>>8));
+		 	samp2[0] += (((*p & 255)));
+			
+			samp[0] += weight * samp2[0];
+			samp[1] += weight * samp2[1];
+			samp[2] += weight * samp2[2];
+			samp[3] += weight * samp2[3];
+			
+			div += 2*weight;
+		}
+
+		samp[0] /= div;
+		samp[1] /= div;
+		samp[2] /= div;
+		samp[3] /= div;
+
+		samp[0] += 0.5;
+		samp[1] += 0.5;
+		samp[2] += 0.5;
+		samp[3] += 0.5;
+
+		*out = ((int)samp[3] << 24) + ((int)samp[2] << 16) + ((int)samp[1] << 8) + (int)samp[0];
+	}
+}
+
 //loads a new image into a given character slot for the given font.
 //note: make sure it doesn't already exist or things will get cyclic
 //alphaonly says if its a greyscale image. false means rgba.
@@ -637,14 +743,17 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 	int pad = 0;
 #define BORDERCOLOUR 0
 
-#define MAXOUTLINE 4
+#define MAXOUTLINE 14
+#define BLURPAD (blur*2.8) //8->15
 
 	int outline = min(f->outline, MAXOUTLINE);
+	float blur = max(min(f->blur, MAXBLUR), 0);
 
 	if (!bmw || !bmh)
 		outline = 0;
 
-	pad+=outline;
+	pad += outline;
+	pad += BLURPAD;
 	
 	if (fontplanes.texnum[0]->flags & IF_LINEAR)
 		pad += 1;	//pad the image data to avoid sampling outside
@@ -672,6 +781,7 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 	c->bmy = fontplanes.planerowy+pad;
 	c->bmw = bmw;
 	c->bmh = bmh;
+	c->padding = pad;
 
 	if (fontplanes.planerowh < (int)bmh+pad*2)
 		fontplanes.planerowh = bmh+pad*2;
@@ -843,6 +953,37 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 		c->bmy -= outline;
 		c->bmw += outline*2;
 		c->bmh += outline*2;
+	}
+	
+	if (blur > 0)
+	{
+		int blurpad = BLURPAD;
+		
+		static int* blur_data = 0;
+		static int blur_pixels = 0;
+		
+		int blur_width = c->bmw + (pad*2);
+		int blur_height = c->bmh + (pad*2);
+		if (blur_width*blur_height > blur_pixels)
+		{
+			blur_pixels = blur_width*blur_height;
+			if (blur_data)
+				BZ_Free(blur_data);
+				
+			blur_data = (int*)BZ_Malloc(blur_pixels*sizeof(int));
+		}
+		
+		out = &fontplanes.plane[c->bmx+((int)c->bmy-pad)*PLANEHEIGHT - pad];
+
+		// perform two pass gaussian blur, blurring the pixels horizontally and then blurring the result vertically
+		gaussian_blur2((int*)out, blur_data, blur_width, blur_height, PLANEWIDTH, blur_width, blur, false);
+		gaussian_blur2(blur_data, (int*)out, blur_width, blur_height, blur_width, PLANEWIDTH, blur, true);
+
+		c->bmx -= blurpad;
+		c->bmy -= blurpad;
+		
+		c->bmw += (blurpad)*2;
+		c->bmh += (blurpad)*2;
 	}
 
 	fontplanes.planechanged = true;
@@ -1954,7 +2095,7 @@ void Doom_ExpandPatch(doompatch_t *p, unsigned char *b, int stride)
 
 //creates a new font object from the given file, with each text row with the given height.
 //width is implicit and scales with height and choice of font.
-struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scale, int outline)
+struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scale, int outline, float blur)
 {
 	struct font_s *f;
 	int i = 0;
@@ -1977,6 +2118,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		*parms++ = 0;
 
 	f = Z_Malloc(sizeof(*f));
+	f->blur = blur;
 	f->outline = outline;
 	f->scale = scale;
 	f->charheight = height;
@@ -2198,7 +2340,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		}
 		else
 		{
-			f->alt = Font_LoadFont(aname, vheight, scale, outline);
+			f->alt = Font_LoadFont(aname, vheight, scale, outline, blur);
 			if (f->alt)
 			{
 				VectorCopy(f->alt->tint, f->alttint);
@@ -2490,10 +2632,12 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, 
 
 void Font_EndString(struct font_s *font)
 {
-//	Font_Flush();
-//	curfont = NULL;
+	if (!font_foremesh.numindexes)
+		return;
+	if (R2D_Flush && R2D_Flush != Font_Flush)
+		R2D_Flush();
 
-	R2D_Flush = font_foremesh.numindexes?Font_Flush:NULL;
+	R2D_Flush = Font_Flush;
 }
 
 //obtains the font's row height (each row of chars should be drawn using this increment)
@@ -3215,6 +3359,12 @@ float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned in
 		sw = ((c->bmw*cw));
 		sh = ((c->bmh*ch));
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
+	}
+	
+	if (c->padding)
+	{
+		sx -= c->padding;
+		sy -= c->padding;
 	}
 
 	sx += dxbias;

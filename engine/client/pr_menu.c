@@ -112,6 +112,7 @@ struct {
 	char facename[MAX_OSPATH];
 	float scale; //poop
 	int outline; //argh
+	float blur;
 	int sizes;
 	int size[FONT_SIZES];
 	struct font_s *font[FONT_SIZES];
@@ -218,6 +219,7 @@ void PR_ReleaseFonts(unsigned int purgeowner)
 		fontslot[i].facename[0] = '\0';
 		fontslot[i].scale = 1;
 		fontslot[i].outline = 0;
+		fontslot[i].blur = 0;
 	}
 }
 void PR_ReloadFonts(qboolean reload)
@@ -245,7 +247,7 @@ void PR_ReloadFonts(qboolean reload)
 		{	//otherwise load it.
 			for (j = 0; j < fontslot[i].sizes; j++)
 			{
-				fontslot[i].font[j] = Font_LoadFont(fontslot[i].facename, fontslot[i].size[j], fontslot[i].scale, fontslot[i].outline);
+				fontslot[i].font[j] = Font_LoadFont(fontslot[i].facename, fontslot[i].size[j], fontslot[i].scale, fontslot[i].outline, fontslot[i].blur);
 			}
 		}
 	}
@@ -296,6 +298,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		fontslot[slotnum].owner = 0;
 		fontslot[slotnum].scale = 1;
 		fontslot[slotnum].outline = r_font_postprocess_outline.ival;
+		fontslot[slotnum].blur = 0.0f;
 	}
 	fontslot[slotnum].owner |= world->keydestmask;
 
@@ -314,7 +317,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		}
 		if (!strncmp(com_token, "blur=", 5))
 		{
-			//fontslot[slotnum].blur = atoi(com_token+5);
+			fontslot[slotnum].blur = atof(com_token+5);
 			continue;
 		}
 		if (!strncmp(com_token, "voffset=", 8))
@@ -345,7 +348,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (qrenderer > QR_NONE)
 	{
 		for (i = 0; i < fontslot[slotnum].sizes; i++)
-			fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i], fontslot[slotnum].scale, fontslot[slotnum].outline);
+			fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i], fontslot[slotnum].scale, fontslot[slotnum].outline, fontslot[slotnum].blur);
 	}
 
 	G_FLOAT(OFS_RETURN) = slotnum;
