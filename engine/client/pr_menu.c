@@ -108,7 +108,7 @@ void QCBUILTIN PF_CL_drawresetcliparea (pubprogfuncs_t *prinst, struct globalvar
 #define FONT_SIZES 16
 struct {
 	unsigned int owner;	//kdm_foo. whoever has an interest in this font. font is purged when this becomes 0.
-	char slotname[16];
+	char slotname[32];
 	char facename[MAX_OSPATH];
 	float scale; //poop
 	int outline; //argh
@@ -163,7 +163,7 @@ int PR_findnamedfont(const char *name, qboolean isslotname)
 	{
 		for (i = 0; i < FONT_SLOTS; i++)
 		{
-			if (!stricmp(fontslot[i].slotname, name))
+			if (!strnicmp(fontslot[i].slotname, name, sizeof(fontslot[i].slotname)))
 				return i;
 		}
 	}
