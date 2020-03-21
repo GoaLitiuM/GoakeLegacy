@@ -158,6 +158,7 @@ void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, fl
 int PR_findnamedfont(const char *name, qboolean isslotname)
 {
 	int i;
+	int found = -1;
 	if (isslotname)
 	{
 		for (i = 0; i < FONT_SLOTS; i++)
@@ -171,10 +172,14 @@ int PR_findnamedfont(const char *name, qboolean isslotname)
 		for (i = 0; i < FONT_SLOTS; i++)
 		{
 			if (!stricmp(fontslot[i].facename, name))
-				return i;
+			{
+				found = i;
+				if (*fontslot[i].slotname == 0)
+					break; // prefer empty slot over named ones
+			}
 		}
 	}
-	return -1;
+	return found;
 }
 int PR_findunusedfont(void)
 {
