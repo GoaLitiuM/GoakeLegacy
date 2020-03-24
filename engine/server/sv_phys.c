@@ -67,6 +67,7 @@ cvar_t	sv_extrajump		 = CVARFD("sv_extrajump", "0", CVAR_SERVERINFO, "Time windo
 cvar_t	sv_extrajumpboost	 = CVARFD("sv_extrajumpboost", "100", CVAR_SERVERINFO, "Additional jump velocity added to following jumps.");
 cvar_t	sv_extrajumpcap		 = CVARFD("sv_extrajumpcap", "0", CVAR_SERVERINFO, "Number of jumps affected by sv_extrajumpboost, 1: double jumps, 2: triple jumps, etc.");
 cvar_t	pm_rampvelocity		 = CVARFD("pm_rampvelocity", "180", CVAR_SERVERINFO, "The minimum vertical velocity when player should be considered being in air during ramp sliding.");
+cvar_t	pm_cliptime			 = CVARFD("pm_cliptime", "0.25", CVAR_SERVERINFO, "The maximum allowed time window when clipping is allowed after jump.");
 
 
 cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse", "0");
@@ -124,6 +125,7 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_extrajumpboost,					cvargroup_serverphysics);
 	Cvar_Register (&sv_extrajumpcap,					cvargroup_serverphysics);
 	Cvar_Register (&pm_rampvelocity,					cvargroup_serverphysics);
+	Cvar_Register (&pm_cliptime,						cvargroup_serverphysics);
 
 	Cvar_Register (&sv_gameplayfix_noairborncorpse,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
@@ -2766,5 +2768,6 @@ void SV_SetMoveVars(void)
 	movevars.extrajumpboost		= sv_extrajumpboost.value;
 	movevars.extrajumpcap		= sv_extrajumpcap.value;
 	movevars.rampvelocity		= pm_rampvelocity.value;
+	movevars.cliptime			= pm_cliptime.value;
 }
 #endif

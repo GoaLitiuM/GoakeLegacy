@@ -409,6 +409,17 @@ int PM_StepSlideMove (qboolean in_air)
 
 	if (in_air)
 	{
+		if (blocked && movevars.cliptime > 0)
+		{
+			// wallclipping
+			if (pmove.jump_time > 0 && pmove.jump_time <= movevars.cliptime)
+			{
+				float zvel = pmove.velocity[2];
+				VectorCopy(originalvel, pmove.velocity);
+				pmove.velocity[2] = min(pmove.velocity[2], zvel); // nullifies vertical clipping
+			}
+		}
+		
 		if (!(blocked & BLOCKED_STEP))
 			return blocked;
 
@@ -1594,7 +1605,7 @@ void PM_PlayerMove (float gamespeed)
 	if (pmove.jump_count != 0)
 	{
 		pmove.jump_time += frametime;
-		if (pmove.jump_time > max(movevars.extrajump, movevars.autojump))
+		if (pmove.jump_time > max(max(movevars.extrajump, movevars.autojump), movevars.cliptime))
 		{
 			pmove.jump_time = 0;
 			pmove.jump_count = 0;

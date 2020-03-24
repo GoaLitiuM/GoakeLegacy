@@ -141,6 +141,7 @@ typedef struct {
 	float extrajump;
 	qboolean rampfix;
 	float rampvelocity;
+	float cliptime;
 
 	qbyte coordtype;	//FIXME: EZPEXT1_FLOATENTCOORDS should mean 4, but the result does not match ezquake/mvdsv which would result in inconsistencies. so player coords are rounded inconsistently.
 
