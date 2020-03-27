@@ -6,19 +6,22 @@ struct GameMode
 	void() init;
 	void() tick;
 
-	// called when a new player connects
+	// called when new player connects
 	void(entity player) onClientConnect;
 
-	// called when a player uses 'kill' command
+	// called when player uses 'kill' command
 	void(entity player) onClientKill;
 
-	// called when a player wants to respawn, return true if player is allowed to respawn
+	// called when player wants to respawn, return true if player is allowed to respawn
 	bool(entity player) onPlayerRequestRespawn;
 
-	// called when a player (re)spawns
+	// called when player (re)spawns
 	void(entity player) onPlayerSpawn;
 
-	// called when a player dies
+	// called when player takes damage, return final damage the player should receive
+	float(entity player, float damage, entity source) onPlayerTakeDamage;
+
+	// called when player dies
 	void(entity player, entity source) onPlayerDeath;
 };
 
@@ -125,6 +128,19 @@ void GameMode_OnPlayerSpawn(entity player)
 		gamemode->onPlayerSpawn(player);
 		self = oldself;
 	}
+}
+
+float GameMode_OnPlayerTakeDamage(entity player, float damage, entity source)
+{
+	if (gamemode->onPlayerDeath)
+	{
+		entity oldself = self;
+		self = player;
+		damage = gamemode->onPlayerTakeDamage(player, damage, source);
+		self = oldself;
+	}
+
+	return damage;
 }
 
 void GameMode_OnPlayerDeath(entity player, entity source)

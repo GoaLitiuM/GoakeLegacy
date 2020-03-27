@@ -32,12 +32,13 @@ void Race_OnPlayerSpawn(entity player)
 	player.health = 100;
 }
 
-void Race_OnPlayerTakeDamage(entity player, entity source, float damage)
+float Race_OnPlayerTakeDamage(entity player, float damage, entity source)
 {
+	return 0;
 }
 
 void Race_OnPlayerDeath(entity player, entity source)
 {
 }
 
-#define GameMode_Race { "race", "Race", Race_Init, Race_Tick, Race_OnClientConnect, Race_OnClientKill, Race_OnPlayerRequestRespawn, Race_OnPlayerSpawn, Race_OnPlayerDeath }
+#define GameMode_Race { "race", "Race", Race_Init, Race_Tick, Race_OnClientConnect, Race_OnClientKill, Race_OnPlayerRequestRespawn, Race_OnPlayerSpawn, Race_OnPlayerTakeDamage, Race_OnPlayerDeath }

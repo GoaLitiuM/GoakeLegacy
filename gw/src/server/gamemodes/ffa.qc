@@ -44,6 +44,11 @@ void FFA_OnPlayerSpawn(entity player)
 	player.armortype = ARMOR_GREEN_ABSORB;
 }
 
+float FFA_OnPlayerTakeDamage(entity player, float damage, entity source)
+{
+	return damage;
+}
+
 void FFA_OnPlayerDeath(entity player, entity source)
 {
 	entity source_player = world;
@@ -64,4 +69,4 @@ void FFA_OnPlayerDeath(entity player, entity source)
 		source_player.frags++;
 }
 
-#define GameMode_FFA { "ffa", "Free For All", FFA_Init, FFA_Tick, FFA_OnClientConnect, FFA_OnClientKill, FFA_OnPlayerRequestRespawn, FFA_OnPlayerSpawn, FFA_OnPlayerDeath }
+#define GameMode_FFA { "ffa", "Free For All", FFA_Init, FFA_Tick, FFA_OnClientConnect, FFA_OnClientKill, FFA_OnPlayerRequestRespawn, FFA_OnPlayerSpawn, FFA_OnPlayerTakeDamage, FFA_OnPlayerDeath }

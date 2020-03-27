@@ -1,6 +1,7 @@
 #ifdef SSQC
 void GameMode_OnPlayerSpawn(entity player);
 bool GameMode_OnPlayerRequestRespawn(entity player);
+float GameMode_OnPlayerTakeDamage(entity player, float damage, entity source);
 void GameMode_OnPlayerDeath(entity player, entity source);
 #endif
 
@@ -215,15 +216,19 @@ void Player_OnDeath(entity source, entity sourcePlayer)
 
 void Player_TakeDamage(float damage, entity source)
 {
-	if ((int)damage <= 0)
-		return;
-
 	if (self.health <= 0)
 		return;
 
 	entity sourcePlayer = source.owner;
 	if (sourcePlayer.classname != CLASS_PLAYER)
 		sourcePlayer = world;
+
+#ifdef SSQC
+	damage = GameMode_OnPlayerTakeDamage(self, damage, source);
+#endif
+
+	if ((int)damage <= 0)
+		return;
 
 	if (sourcePlayer == self)
 		damage *= DAMAGE_MULTIPLIER_SELF;
