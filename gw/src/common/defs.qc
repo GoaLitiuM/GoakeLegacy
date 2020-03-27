@@ -123,6 +123,11 @@ float maxfps;
 // items
 .entity last_touched; // last entity who touched the item
 .string pickup_sound;
+.bool() touch2;
+
+// item_armor*
+#define armorvalue_min armorvalue
+.float armorvalue_max;
 
 // sound flags
 const float SOUNDFLAG_PREDICT = 128;

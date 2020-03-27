@@ -37,6 +37,7 @@ void Item_Init(string texture, string sound)
 #endif
 
 	self.touch = Item_OnTouch;
+	self.touch2 = 0;
 	self.pickup_sound = sound;
 
 	Item_SetActive(true);
@@ -44,7 +45,8 @@ void Item_Init(string texture, string sound)
 
 void Item_InitSimple()
 {
-	Item_Init(strcat("textures/simple_items/", self.classname), SND_WEAPON_PICKUP);
+	string texture = strcat("textures/simple_items/", self.classname);
+	Item_Init(texture, SND_WEAPON_PICKUP);
 	setsize(self, '-16 -16 -16', '16 16 24'); // items should be slightly taller to make them easier to pickup
 }
 
@@ -91,6 +93,9 @@ void Item_Respawn()
 
 void Item_Touched(entity source)
 {
+	if (self.touch2 && !self.touch2())
+		return;
+
 	bool is_weapon = strstrofs(strtolower(self.classname), "weapon_") == 0;
 	float respawn_time = is_weapon ? WEAPON_RESPAWN_TIME : ITEM_RESPAWN_TIME;
 	if (respawn_time <= 0)
@@ -116,4 +121,9 @@ void Item_OnTouch()
 #endif
 
 	Item_Touched(other);
+}
+
+void Item_SetTouch(bool() ontouch)
+{
+	self.touch2 = ontouch;
 }

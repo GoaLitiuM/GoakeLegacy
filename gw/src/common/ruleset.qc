@@ -5,13 +5,13 @@ const float DAMAGE_MULTIPLIER_SELF = 0.5;
 // armor mitigation/protection ratio, maximum armor value from armor pickups, minimum armor value
 const float ARMOR_RED_ABSORB = 0.8;
 const float ARMOR_RED_MAX = 200;
-const float ARMOR_RED_MIN = 200;
+const float ARMOR_RED_MIN = 150;
 const float ARMOR_YELLOW_ABSORB = 0.666666666666;
 const float ARMOR_YELLOW_MAX = 200;
-const float ARMOR_YELLOW_MIN = 200;
+const float ARMOR_YELLOW_MIN = 150;
 const float ARMOR_GREEN_ABSORB = 0.5;
-const float ARMOR_GREEN_MAX = 200;
-const float ARMOR_GREEN_MIN = 200;
+const float ARMOR_GREEN_MAX = 150;
+const float ARMOR_GREEN_MIN = 100;
 
 const float ROCKET_RELOAD = 0.8;
 const float ROCKET_DAMAGE = 100;
