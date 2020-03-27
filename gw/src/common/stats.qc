@@ -48,6 +48,8 @@ void RegisterStats()
 
 	// register stats, maps fields to stats
 	RegisterFieldStat(STAT_HEALTH, EV_FLOAT, health);
+	RegisterFieldStat(STAT_ARMOR, EV_FLOAT, armorvalue);
+	RegisterFieldStat(STAT_ARMOR_MULTIPLIER, EV_FLOAT, armortype);
 	RegisterFieldStat(STAT_CURRENT_WEAPON, EV_FLOAT, weapon);
 	//RegisterFieldStat(STAT_NEXT_WEAPON, EV_FLOAT, weapon_next);
 	RegisterFieldStat(STAT_WEAPONS, EV_INTEGER, weapons);

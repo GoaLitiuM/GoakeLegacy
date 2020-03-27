@@ -40,6 +40,8 @@ void FFA_OnPlayerSpawn(entity player)
 	player.angles = spawn.angles;
 
 	player.health = 100;
+	player.armorvalue = 0;
+	player.armortype = ARMOR_GREEN_ABSORB;
 }
 
 void FFA_OnPlayerDeath(entity player, entity source)

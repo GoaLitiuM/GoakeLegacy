@@ -1,8 +1,20 @@
 const float WEAPON_RESPAWN_TIME = 0;
 const float ITEM_RESPAWN_TIME = 20;
+const float DAMAGE_MULTIPLIER_SELF = 0.5;
+
+// armor mitigation/protection ratio, maximum armor value from armor pickups, minimum armor value
+const float ARMOR_RED_ABSORB = 0.8;
+const float ARMOR_RED_MAX = 200;
+const float ARMOR_RED_MIN = 200;
+const float ARMOR_YELLOW_ABSORB = 0.666666666666;
+const float ARMOR_YELLOW_MAX = 200;
+const float ARMOR_YELLOW_MIN = 200;
+const float ARMOR_GREEN_ABSORB = 0.5;
+const float ARMOR_GREEN_MAX = 200;
+const float ARMOR_GREEN_MIN = 200;
 
 const float ROCKET_RELOAD = 0.8;
-const float ROCKET_DAMAGE = 110;
+const float ROCKET_DAMAGE = 100;
 const float ROCKET_SPEED = 1000;
 const float ROCKET_RADIUS = 120;
 const float ROCKET_FORCE = 490;

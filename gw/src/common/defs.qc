@@ -17,6 +17,7 @@ enum
 	// player stats
 	STAT_HEALTH,            // EV_FLOAT
 	STAT_ARMOR,             // EV_FLOAT
+	STAT_ARMOR_MULTIPLIER,	// EV_FLOAT
 	STAT_CURRENT_WEAPON,	// EV_FLOAT
 	STAT_NEXT_WEAPON,		// EV_FLOAT
 	STAT_WEAPONS,           // EV_INTEGER

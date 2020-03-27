@@ -14,6 +14,8 @@ vector camera_velocity;
 
 // player entity
 .float health;
+.float armortype;
+.float armorvalue;
 .float watertype;
 .float fixangle;
 .vector view_ofs;

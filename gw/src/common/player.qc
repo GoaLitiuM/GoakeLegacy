@@ -10,6 +10,8 @@ void Player_OnJump();
 void Player_Init()
 {
 	self.health = /*self.max_health =*/ 100;
+	self.armortype = ARMOR_GREEN_ABSORB;
+	self.armorvalue = 0;
 	self.fixangle = 1;
 	self.velocity = '0 0 0';
 
@@ -223,7 +225,17 @@ void Player_TakeDamage(float damage, entity source)
 	if (sourcePlayer.classname != CLASS_PLAYER)
 		sourcePlayer = world;
 
-	self.health -= (int)damage;
+	if (sourcePlayer == self)
+		damage *= DAMAGE_MULTIPLIER_SELF;
+
+	float armor_damage = min(self.armorvalue, damage * self.armortype);
+	damage = damage - armor_damage;
+
+	self.health -= damage;
+	self.armorvalue -= armor_damage;
+
+	if (self.armorvalue <= 0)
+		self.armortype = ARMOR_GREEN_ABSORB;
 
 	if (self.health <= 0)
 		Player_OnDeath(source, sourcePlayer);
@@ -239,5 +251,6 @@ void Player_Kill(entity source)
 		sourcePlayer = world;
 
 	self.health = 0;
+	self.armorvalue = 0;
 	Player_OnDeath(source, sourcePlayer);
 }
