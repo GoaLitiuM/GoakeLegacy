@@ -9,7 +9,7 @@ void Player_Update(bool isnew)
 {
 	self.server_time = time; // cltime?
 
-	int send_flags = readShort();
+	int send_flags = readInt();
 	if (send_flags & SENDFLAGS_ORIGIN)
 		self.server_origin = readVector();
 	if (send_flags & SENDFLAGS_ANGLES)
