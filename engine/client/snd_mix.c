@@ -555,7 +555,7 @@ static void SND_PaintChannel16_O2I1 (channel_t *ch, sfxcache_t *sc, int starttim
 		for (i=0 ; i<count ; i++)
 		{
 			int frac = pos&((1<<PITCHSHIFT)-1);
-			data = sfx[pos>>PITCHSHIFT] * ((1<<PITCHSHIFT)-frac) + sfx[(pos>>PITCHSHIFT)+1] * frac;
+			data = sfx[pos>>PITCHSHIFT] * ((1<<PITCHSHIFT)-1-frac) + sfx[(pos>>PITCHSHIFT)] * frac;
 			pos += rate;
 			paintbuffer[starttime+i].s[0] += (leftvol * data)>>(PITCHSHIFT+8);
 			paintbuffer[starttime+i].s[1] += (rightvol * data)>>(PITCHSHIFT+8);
