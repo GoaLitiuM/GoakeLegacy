@@ -90,6 +90,9 @@ void Player_Animate()
 	entity torso = self.model_torso;
 	entity head = self.model_head;
 
+	if (legs == world || torso == world || head == world)
+		return;
+
 	vector playerpos = self.origin;
 	entity player = self;
 

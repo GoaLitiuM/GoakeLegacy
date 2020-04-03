@@ -120,6 +120,7 @@ float Player_PreDraw()
 		}
 
 		self.renderflags = RF_EXTERNALMODEL;
+		Player_Animate();
 	}
 	else
 	{
