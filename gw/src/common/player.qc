@@ -96,12 +96,13 @@ void Player_Physics()
 #ifdef SSQC
 	vector old_origin = self.origin;
 	vector old_velocity = self.velocity;
-	vector old_angles = self.angles;
+	vector old_angles = self.last_angles;
 	float old_flags = self.flags;
 	float old_pmove_flags = self.pmove_flags;
 	float old_jump_time = self.jump_time;
 	float old_jump_count = self.jump_count;
 #endif
+
 	runstandardplayerphysics(self);
 
 #ifdef SSQC
@@ -110,7 +111,10 @@ void Player_Physics()
 	if (self.velocity != old_velocity)
 		self.SendFlags |= SENDFLAGS_VELOCITY;
 	if (self.angles != old_angles)
+	{
 		self.SendFlags |= SENDFLAGS_ANGLES;
+		self.last_angles = self.angles; // angles are not updated during this frame
+	}
 	if (self.flags != old_flags || self.pmove_flags != old_pmove_flags)
 		self.SendFlags |= SENDFLAGS_FLAGS;
 	if (self.jump_time != old_jump_time || self.jump_count != old_jump_count)

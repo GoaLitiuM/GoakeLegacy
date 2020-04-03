@@ -118,6 +118,7 @@ float maxfps;
 .float race_start_time;
 .bool race_started;
 vector input_subframe_angles;
+.vector last_angles;
 
 // projectiles
 .int projectile_id;
