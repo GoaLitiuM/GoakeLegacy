@@ -49,7 +49,7 @@ void CSQC_UpdateView(float width, float height, float notmenu)
 	clearscene();
 
 	setviewprop(VF_DRAWWORLD, 1);
-	setviewprop(VF_DRAWCROSSHAIR, 1);
+	setviewprop(VF_DRAWCROSSHAIR, 0);
 
 	addentities(MASK_ENGINE | MASK_VIEWMODEL);
 
