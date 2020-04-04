@@ -1,5 +1,13 @@
 // all the CSQC entry functions should be placed here
 
+void CSQC_Parse_Print(string printmsg, float printlvl)
+{
+	if (printlvl == 3) // PRINT_CHAT
+		Chat_OnPrint(printmsg);
+	else
+		print(printmsg);
+}
+
 void CSQC_Init(float apilevel, string enginename, float engineversion)
 {
 	precache();

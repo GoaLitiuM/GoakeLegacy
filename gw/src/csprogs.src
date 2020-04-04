@@ -22,6 +22,7 @@
 
 #include <client/misc.qc>
 #include <client/hud.qc>
+#include <client/hud/chat.qc>
 #include <client/hud/crosshair.qc>
 #include <client/model.qc>
 #include <client/player_prediction.qc>

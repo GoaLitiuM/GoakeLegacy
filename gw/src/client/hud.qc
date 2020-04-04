@@ -4,6 +4,8 @@ Font font_engine;
 Font font_main;
 Font font_main_med;
 Font font_main_big;
+Font font_chat;
+Font font_chat_bold;
 
 void Hud_Init()
 {
@@ -11,11 +13,15 @@ void Hud_Init()
 	font_main = LoadFont("fonts/SairaCondensed-SemiBold.ttf", 16);
 	font_main_med = LoadFont("fonts/SairaCondensed-SemiBold.ttf", 28);
 	font_main_big = LoadFont("fonts/SairaCondensed-Black.ttf", 48);
+
+	font_chat = LoadFont("fonts/Oxanium-Regular.ttf", 10);
+	font_chat_bold = LoadFont("fonts/Oxanium-Bold.ttf", 10);
 }
 
 void Hud_Keys(float width, float height);
 void Hud_Player(float width, float height);
 void Hud_Scoreboard(float width, float height);
+void Hud_Chat(float width, float height);
 void Hud_Crosshair(float width, float height);
 
 void Hud_Render(float width, float height, bool in_menu)
@@ -28,6 +34,7 @@ void Hud_Render(float width, float height, bool in_menu)
 	{
 		Hud_Keys(width, height);
 		Hud_Player(width, height);
+		Hud_Chat(width, height);
 		Hud_Crosshair(width, height);
 	}
 }
