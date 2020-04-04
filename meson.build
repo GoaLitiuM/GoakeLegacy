@@ -1,35 +1,25 @@
 project('goake', 'c', 'cpp', default_options: 'c_std=c99')
 
-win = import('windows')
+config = 'config_goake.h'
 
-c_args = [
-  #'-Wstrict-prototypes',
-  #'-Wold-style-definition',
-  #'-Wold-style-declaration',
-  #'-Wvla',
-  #'-Wdeclaration-after-statement',
-
-  #debug
-  #'-fstack-protector-strong',
-  #'-std=gnu89',
+deps = [
+  meson.get_compiler('c').find_library('wsock32', required : true),
+  meson.get_compiler('c').find_library('ws2_32', required : true),
+  meson.get_compiler('c').find_library('winmm', required : true),
+  
+  #dependency('zlib'),
+  #dependency('gnutls'),
+  #dependency('alsa'),
+  #dependency('x11'),
+  #dependency('opengl'),
+  
+  #meson.get_compiler('c').find_library('dl', required : false),
+  #meson.get_compiler('c').find_library('m', required : false),
+  #meson.get_compiler('c').find_library('ole32', required : true),
+  #meson.get_compiler('c').find_library('gdi32', required : true),
 ]
-
-c_args += [
-  '-DCONFIG_FILE_NAME=config_goake.h',
-]
-
-if get_option('buildtype') == 'debug'
-  c_args += '-DDEBUG'
-endif
-
-client_c_args = [
-  '-DGLQUAKE',
-  '-DVKQUAKE',
-  '-DD3D9QUAKE',
-  '-DD3D11QUAKE',
-]
-
-server_c_args = '-DSERVERONLY'
+client_deps = []
+plugin_deps = []
 
 includes = [
   include_directories('engine/common'),
@@ -40,10 +30,51 @@ includes = [
   include_directories('engine'),
 ]
 
+c_args = [
+  #'-Wstrict-prototypes',
+  #'-Wold-style-definition',
+  #'-Wold-style-declaration',
+  #'-Wvla',
+  #'-Wdeclaration-after-statement',
+
+  #'-fstack-protector-strong',
+]
+
+c_args += [
+  '-DCONFIG_FILE_NAME=' + config
+]
+
 # icon file for Windows
+win = import('windows')
 resource_files = [
   win.compile_resources('engine/client/winquake.rc', include_directories: includes, args: c_args)
-] 
+]
+
+client_c_args = [
+  '-DGLQUAKE',
+  '-DVKQUAKE',
+#  '-DD3D9QUAKE',
+#  '-DD3D11QUAKE',
+]
+server_c_args = ['-DSERVERONLY']
+
+client_link_args = []
+c_link_args = []
+
+if get_option('buildtype') == 'debug' or get_option('buildtype') == 'debugoptimized'
+  c_args += '-DDEBUG'
+endif
+
+# no LTO support for windows yet, specify these manually
+if get_option('buildtype') == 'release' or get_option('buildtype') == 'debugoptimized'
+  c_args += ['-DOMIT_QCC', '-DSIMPLE_QCVM']
+
+  c_args += ['/GL', '/GS-']
+  c_link_args += ['/LTCG']
+
+  #c_link_args += ['/GENPROFILE'] # gather profiling data
+  c_link_args += ['/USEPROFILE'] # load profiling data
+endif
 
 arch_src_files = [
   resource_files,
@@ -295,21 +326,6 @@ fteq3bot_src_files = [
   'engine/botlib/standalone.c',
 ]
 
-deps = [
-  #dependency('zlib'),
-  #dependency('gnutls'),
-  #dependency('alsa'),
-  #dependency('x11'),
-  #dependency('opengl'),
-  #meson.get_compiler('c').find_library('dl', required : false),
-  #meson.get_compiler('c').find_library('m', required : false),
-  #meson.get_compiler('c').find_library('ole32', required : true),
-  #meson.get_compiler('c').find_library('gdi32', required : true),
-  meson.get_compiler('c').find_library('wsock32', required : true),
-  meson.get_compiler('c').find_library('ws2_32', required : true),
-  meson.get_compiler('c').find_library('winmm', required : true),
-]
-
 bullet = declare_dependency(
   include_directories: include_directories('thirdparty/bullet2/src'),
   link_args: [
@@ -338,7 +354,7 @@ if not png.found()
   png = dependency('png', required: false)
 endif
 if png.found()
-  deps += png
+  client_deps += png
   c_args += '-DLIBPNG_STATIC'
 else
   c_args += '-DNO_PNG'
@@ -351,7 +367,7 @@ if not jpeg.found()
   jpeg = dependency('jpeg', required: false)
 endif
 if jpeg.found()
-  deps += jpeg
+  client_deps += jpeg
   c_args += '-DLIBJPEG_STATIC'
 else
   c_args += '-DNO_JPEG'
@@ -370,8 +386,8 @@ if not vorbisfile.found()
 endif
 
 if ogg.found() and vorbisfile.found()
-  deps += ogg
-  deps += vorbisfile
+  client_deps += ogg
+  client_deps += vorbisfile
 else
   c_args += '-DNO_OGG'
 endif
@@ -386,7 +402,7 @@ if not freetype.found()
   freetype = dependency('freetype', required: false)
 endif
 if freetype.found()
-  deps += freetype
+  client_deps += freetype
   c_args += '-DFREETYPE_STATIC'
 else
   c_args += '-DNO_FREETYPE'
@@ -404,11 +420,10 @@ else
   c_args += '-DNO_ZLIB'
 endif
 
-linker_args = []
 #if get_option('buildtype') == 'debug'
-#  linker_args = ['/nodefaultlib:libcmt', '/nodefaultlib:msvcrt', '/nodefaultlib:msvcrtd']
+#  c_link_args += ['/nodefaultlib:libcmt', '/nodefaultlib:msvcrt', '/nodefaultlib:msvcrtd']
 #else
-linker_args = ['/nodefaultlib:msvcrtd', '/nodefaultlib:libcmt', '/nodefaultlib:libcmtd']
+#c_link_args += ['/nodefaultlib:msvcrtd', '/nodefaultlib:libcmt', '/nodefaultlib:libcmtd']
 #endif
 
 out = join_paths('..', 'out')
@@ -416,10 +431,10 @@ out = join_paths('..', 'out')
 executable(join_paths(out, 'goake'),
   sources: [common_src_files, arch_src_files, client_src_files],
   include_directories: includes,
-  dependencies: deps,
+  dependencies: [deps, client_deps, plugin_deps],
   c_args: [client_c_args, c_args],
   cpp_args: [client_c_args, c_args],
-  link_args: linker_args,
+  link_args: [client_link_args, c_link_args],
   gui_app: true
 )
 
@@ -429,7 +444,7 @@ executable(join_paths(out, 'goake-sv'),
   dependencies: deps,
   c_args: [server_c_args, c_args],
   cpp_args: [server_c_args, c_args],
-  link_args: linker_args
+  link_args: c_link_args
 )
 
 executable(join_paths(out, 'fteqcc'),
@@ -454,8 +469,8 @@ executable(join_paths(out, 'imgtool'),
     'imgtool.c'
   ],
   include_directories: includes,
-  dependencies: deps,
+  dependencies: [deps, client_deps],
   c_args: [server_c_args, c_args, '-DIMGTOOL'],
-  link_args: linker_args
+  link_args: c_link_args
   #override_options: ['buildtype=release', 'optimization=2', 'debug=false']
 )
