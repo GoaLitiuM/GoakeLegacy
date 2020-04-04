@@ -130,18 +130,20 @@ typedef struct {
 	float maxairspeed;
 	float maxairstrafespeed;
 	float jumpvelocity;
-	float extrajumpboost;
+	float jumpboost;
 	float wallfriction;
 	float strafeaccelerate;
 	float aircontrol;
 	float airstopaccelerate;
-	int movementstyle;
+	int airstrafeaccelerate;
 	float autojump;
-	int extrajumpcap;
-	float extrajump;
+	int maxjumps;
+	float jumpboost_time;
 	qboolean rampfix;
 	float rampvelocity;
 	float cliptime;
+	float msec_min;
+	float msec_max;
 
 	qbyte coordtype;	//FIXME: EZPEXT1_FLOATENTCOORDS should mean 4, but the result does not match ezquake/mvdsv which would result in inconsistencies. so player coords are rounded inconsistently.
 

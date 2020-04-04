@@ -49,7 +49,7 @@ cvar_t	sv_stopspeed		 = CVARF( "sv_stopspeed", "100", CVAR_SERVERINFO);
 cvar_t	sv_maxspeed			 = CVARF( "sv_maxspeed", "320", CVAR_SERVERINFO);
 cvar_t	sv_spectatormaxspeed = CVARF( "sv_spectatormaxspeed", "500", CVAR_SERVERINFO);
 cvar_t	sv_accelerate		 = CVARFD( "sv_accelerate", "15", CVAR_SERVERINFO, "Ground acceleration");
-cvar_t	sv_airaccelerate	 = CVARFD( "sv_airaccelerate", "0.4", CVAR_SERVERINFO, "Diagonal air acceleration");
+cvar_t	sv_airaccelerate	 = CVARFD( "sv_airaccelerate", "0.4", CVAR_SERVERINFO, "Q2+ style diagonal air acceleration.");
 cvar_t	sv_wateraccelerate	 = CVARF( "sv_wateraccelerate", "10", CVAR_SERVERINFO);
 cvar_t	sv_friction			 = CVARF( "sv_friction", "8", CVAR_SERVERINFO);
 cvar_t	sv_waterfriction	 = CVARF( "sv_waterfriction", "4", CVAR_SERVERINFO);
@@ -57,17 +57,20 @@ cvar_t	sv_wallfriction		 = CVARFD( "sv_wallfriction", "1", CVAR_SERVERINFO, "Add
 cvar_t	sv_edgefriction		 = CVARF("sv_edgefriction", "2", CVAR_SERVERINFO);
 cvar_t	sv_maxairspeed		 = CVARF("sv_maxairspeed", "320", CVAR_SERVERINFO);
 cvar_t	sv_jumpvelocity		 = CVARF("sv_jumpvelocity", "270", CVAR_SERVERINFO);
-cvar_t	sv_strafeaccelerate	 = CVARF("sv_strafeaccelerate", "10", CVAR_SERVERINFO);
-cvar_t	sv_maxairstrafespeed = CVARF("sv_maxairstrafespeed", "30", CVAR_SERVERINFO);
-cvar_t	sv_aircontrol		 = CVARF("sv_aircontrol", "0", CVAR_SERVERINFO);
+cvar_t	sv_strafeaccelerate	 = CVARFD("sv_strafeaccelerate", "10", CVAR_SERVERINFO, "QW style air acceleration.");
+cvar_t	sv_maxairstrafespeed = CVARFD("sv_maxairstrafespeed", "30", CVAR_SERVERINFO, "Maximum air strafing speed (wishspeed) for QW strafing.");
+cvar_t	sv_aircontrol		 = CVARFD("sv_aircontrol", "0", CVAR_SERVERINFO, "Enables CPM-like air control mechanics while holding forward/backward keys.");
 cvar_t	sv_airstopaccelerate = CVARF("sv_airstopaccelerate", "2.5", CVAR_SERVERINFO);
-cvar_t	sv_movementstyle	 = CVARFD("sv_movementstyle", "2", CVAR_SERVERINFO, "Toggles between classic movement and promode style strafe movement, value 2 enables classic forward movement");
+cvar_t	sv_airstrafeaccelerate
+							 = CVARFD("sv_airstrafeaccelerate", "0.4", CVAR_SERVERINFO, "Separate air acceleration for strafing, only used with sv_airaccelerate.");
 cvar_t	sv_autojump			 = CVARFD("sv_autojump", "0", CVAR_SERVERINFO, "Minimum time in seconds for autojump to trigger. Value of 0 disables autojumping.");
-cvar_t	sv_extrajump		 = CVARFD("sv_extrajump", "0", CVAR_SERVERINFO, "Time window in seconds when jump boost is applied to additional jumps.");
-cvar_t	sv_extrajumpboost	 = CVARFD("sv_extrajumpboost", "100", CVAR_SERVERINFO, "Additional jump velocity added to following jumps.");
-cvar_t	sv_extrajumpcap		 = CVARFD("sv_extrajumpcap", "0", CVAR_SERVERINFO, "Number of jumps affected by sv_extrajumpboost, 1: double jumps, 2: triple jumps, etc.");
+cvar_t	sv_jumpboost_time	 = CVARFD("sv_jumpboost_time", "0", CVAR_SERVERINFO, "Time window in seconds when jump boost is applied to additional jumps.");
+cvar_t	sv_jumpboost_velocity= CVARFD("sv_jumpboost_velocity", "100", CVAR_SERVERINFO, "Additional jump velocity added to following jumps.");
+cvar_t	sv_maxjumps		 	 = CVARFD("sv_maxjumps", "0", CVAR_SERVERINFO, "Number of jumps affected by sv_jumpboost_velocity, 1: double jumps, 2: triple jumps, etc.");
 cvar_t	pm_rampvelocity		 = CVARFD("pm_rampvelocity", "180", CVAR_SERVERINFO, "The minimum vertical velocity when player should be considered being in air during ramp sliding.");
 cvar_t	pm_cliptime			 = CVARFD("pm_cliptime", "0.25", CVAR_SERVERINFO, "The maximum allowed time window when clipping is allowed after jump.");
+cvar_t	pm_msec_min			 = CVARFD("pm_msec_min", "0", CVAR_SERVERINFO, "Minimum frametime used for simulating player movement.");
+cvar_t	pm_msec_max			 = CVARFD("pm_msec_max", "50", CVAR_SERVERINFO, "Maximum frametime used for simulating player movement.");
 
 
 cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse", "0");
@@ -119,13 +122,15 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_maxairstrafespeed,				cvargroup_serverphysics);
 	Cvar_Register (&sv_aircontrol,						cvargroup_serverphysics);
 	Cvar_Register (&sv_airstopaccelerate,				cvargroup_serverphysics);
-	Cvar_Register (&sv_movementstyle,					cvargroup_serverphysics);
+	Cvar_Register (&sv_airstrafeaccelerate,				cvargroup_serverphysics);
 	Cvar_Register (&sv_autojump,						cvargroup_serverphysics);
-	Cvar_Register (&sv_extrajump,						cvargroup_serverphysics);
-	Cvar_Register (&sv_extrajumpboost,					cvargroup_serverphysics);
-	Cvar_Register (&sv_extrajumpcap,					cvargroup_serverphysics);
+	Cvar_Register (&sv_jumpboost_time,					cvargroup_serverphysics);
+	Cvar_Register (&sv_jumpboost_velocity,				cvargroup_serverphysics);
+	Cvar_Register (&sv_maxjumps,						cvargroup_serverphysics);
 	Cvar_Register (&pm_rampvelocity,					cvargroup_serverphysics);
 	Cvar_Register (&pm_cliptime,						cvargroup_serverphysics);
+	Cvar_Register (&pm_msec_min,						cvargroup_serverphysics);
+	Cvar_Register (&pm_msec_max,						cvargroup_serverphysics);
 
 	Cvar_Register (&sv_gameplayfix_noairborncorpse,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
@@ -2759,15 +2764,17 @@ void SV_SetMoveVars(void)
 	movevars.maxairstrafespeed	= sv_maxairstrafespeed.value;
 	movevars.aircontrol			= sv_aircontrol.value;
 	movevars.airstopaccelerate	= sv_airstopaccelerate.value;
-	movevars.movementstyle		= sv_movementstyle.value;
+	movevars.airstrafeaccelerate= sv_airstrafeaccelerate.value;
 	movevars.slidefix			= pm_slidefix.value;
 	movevars.slidyslopes		= pm_slidyslopes.value;
 	movevars.airstep			= pm_airstep.value;
 	movevars.autojump			= sv_autojump.value;
-	movevars.extrajump			= sv_extrajump.value;
-	movevars.extrajumpboost		= sv_extrajumpboost.value;
-	movevars.extrajumpcap		= sv_extrajumpcap.value;
+	movevars.jumpboost_time		= sv_jumpboost_time.value;
+	movevars.jumpboost			= sv_jumpboost_velocity.value;
+	movevars.maxjumps			= sv_maxjumps.value;
 	movevars.rampvelocity		= pm_rampvelocity.value;
 	movevars.cliptime			= pm_cliptime.value;
+	movevars.msec_min			= pm_msec_min.value;
+	movevars.msec_max			= pm_msec_max.value;
 }
 #endif

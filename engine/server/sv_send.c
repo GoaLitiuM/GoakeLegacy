@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_edgefriction, sv_reliable_sound;;
 extern cvar_t  dpcompat_stats;
-extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_movementstyle, sv_extrajumpboost, sv_maxairstrafespeed, pm_airstep, pm_slidyslopes, pm_slidefix, sv_stepheight;
+extern cvar_t sv_maxvelocity, sv_wallfriction, sv_jumpvelocity, sv_maxairspeed, sv_strafeaccelerate, sv_aircontrol, sv_airstopaccelerate, sv_airstrafeaccelerate, sv_jumpboost_velocity, sv_maxairstrafespeed, pm_airstep, pm_slidyslopes, pm_slidefix, sv_stepheight;
 
 /*
 =============================================================================

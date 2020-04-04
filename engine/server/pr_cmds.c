@@ -10023,19 +10023,16 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 
 	SV_PreRunCmd();
 	
-	float min_msec = 0.0f;
-	float max_msec = 1.0f;
+	float min_msec = movevars.msec_min;
+	float max_msec = movevars.msec_max;
 	int pmove_flags = 0;
 
 	while(msecs > min_msec)	//break up longer commands
 	{
-		if (msecs > 50)
-			pmove.cmd.msec = 50;
+		if (msecs > max_msec)
+			pmove.cmd.msec = max_msec;		
 		else
 			pmove.cmd.msec = msecs;
-			
-		if (pmove.cmd.msec > max_msec)
-			pmove.cmd.msec = max_msec;		
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
 		

@@ -3832,18 +3832,16 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 
 	CL_SetSolidEntities();
 	
-	float min_msec = 0.0f;
-	float max_msec = 1.0f;
+	float min_msec = movevars.msec_min;
+	float max_msec = movevars.msec_max;
 	int pmove_flags = 0;
 
 	while(msecs > min_msec)	//break up longer commands
 	{
-		pmove.cmd.msec = msecs;
-		if (pmove.cmd.msec > 50)
-			pmove.cmd.msec = 50;
-			
-		if (pmove.cmd.msec > max_msec)
+		if (msecs > max_msec)
 			pmove.cmd.msec = max_msec;
+		else
+			pmove.cmd.msec = msecs;
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
 

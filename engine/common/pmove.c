@@ -911,58 +911,31 @@ void PM_AirMove (void)
 			
 		float wishspeed2 = wishspeed;
 
-		if (movevars.movementstyle == 1)
+		if (movevars.airaccelerate != 0)
 		{
-			// CPM movement
+			// Q2+ air acceleration
 			float accel = movevars.airaccelerate;
 			if (DotProduct(pmove.velocity, wishdir) < 0)
 				accel = movevars.airstopaccelerate;
 
-			if (fabs(smove) > 0 && fmove == 0)
+			if (movevars.airstrafeaccelerate != 0 && fabs(smove) > 0 && fmove == 0)
 			{
 				// only strafe movement
 				if (wishspeed > movevars.maxairstrafespeed)
 					wishspeed = movevars.maxairstrafespeed;
 
-				accel = movevars.strafeaccelerate;
+				accel = movevars.airstrafeaccelerate;
 			}
 
 			PM_Accelerate(wishdir, wishspeed, accel);
 		}
-		else if (movevars.movementstyle >= 4)
-		{
-			// Q3 diagonal strafe movement
-			float accel = movevars.airaccelerate;
-			if (DotProduct(pmove.velocity, wishdir) < 0)
-				accel = movevars.airstopaccelerate;
-			PM_Accelerate(wishdir, wishspeed, accel);
-			
-			// additional QW diagonal strafing
+		
+		// QW air acceleration
+		if (movevars.strafeaccelerate != 0)
 			PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
-		}
-		else
-		{
-			if (movevars.movementstyle >= 2 && (fabs(smove) > 0 && fabs(fmove) > 0))
-			{
-				// Q3 diagonal strafe movement
-				float accel = movevars.airaccelerate;
-				if (DotProduct(pmove.velocity, wishdir) < 0)
-					accel = movevars.airstopaccelerate;
-				PM_Accelerate(wishdir, wishspeed, accel);
-				
-				// additional QW diagonal strafing
-				if (movevars.movementstyle == 3)
-					PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
-			}
-			else
-			{
-				// QW movement
-				PM_AirAccelerate(wishdir, wishspeed, movevars.strafeaccelerate);
-			}
-		}
 		
 		// air control while holding forward/back buttons
-		if (movevars.movementstyle != 4 && fabs(movevars.aircontrol) > 0 && smove == 0 && fabs(fmove) > 0)
+		if (movevars.aircontrol != 0 && smove == 0 && fabs(fmove) > 0)
 			PM_Aircontrol(wishdir, wishspeed2);
 
 		// add gravity
@@ -1229,8 +1202,8 @@ static void PM_CheckJump (void)
 
 	// double jumping mechanism, give a boost to jump velocity when player has jumped recently
 	float jumpvelocity = movevars.jumpvelocity;
-	if (pmove.jump_count > 0 && pmove.jump_count <= movevars.extrajumpcap && pmove.jump_time < movevars.extrajump)
-		jumpvelocity += movevars.extrajumpboost;
+	if (pmove.jump_count > 0 && pmove.jump_count <= movevars.maxjumps && pmove.jump_time < movevars.jumpboost_time)
+		jumpvelocity += movevars.jumpboost;
 
 	pmove.jump_time = frametime;
 	pmove.jump_count++;
@@ -1258,7 +1231,7 @@ static void PM_CheckJump (void)
 				+ jumpvelocity * movevars.ktjump;
 	}
 	
-	if (pmove.jump_count == 1 && -DotProduct(pmove.gravitydir, groundplane.normal) > 0.85)
+	if (movevars.maxjumps > 1 && pmove.jump_count == 1 && -DotProduct(pmove.gravitydir, groundplane.normal) > 0.85)
 	{
 		// check if we are about to step into stairs
 		vec3_t orig, vel;
@@ -1605,7 +1578,7 @@ void PM_PlayerMove (float gamespeed)
 	if (pmove.jump_count != 0)
 	{
 		pmove.jump_time += frametime;
-		if (pmove.jump_time > max(max(movevars.extrajump, movevars.autojump), movevars.cliptime))
+		if (pmove.jump_time > max(max(movevars.jumpboost_time, movevars.autojump), movevars.cliptime))
 		{
 			pmove.jump_time = 0;
 			pmove.jump_count = 0;

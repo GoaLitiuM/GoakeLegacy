@@ -2370,17 +2370,19 @@ void CL_CheckServerInfo(void)
 		movevars.maxairspeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxairspeed"));
 		movevars.maxairstrafespeed = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxairstrafespeed"));
 		movevars.jumpvelocity = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_jumpvelocity"));
-		movevars.extrajumpboost = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajumpboost"));
+		movevars.jumpboost = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_jumpboost_velocity"));
 		movevars.edgefriction = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_edgefriction"));
 		movevars.aircontrol = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_aircontrol"));
 		movevars.airstopaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_airstopaccelerate"));
-		movevars.movementstyle = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_movementstyle"));
+		movevars.airstrafeaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_airstrafeaccelerate"));
 		movevars.autojump = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_autojump"));
-		movevars.extrajumpcap =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajumpcap"));
+		movevars.maxjumps = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_maxjumps"));
 		movevars.strafeaccelerate = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_strafeaccelerate"));
-		movevars.extrajump =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_extrajump"));
-		movevars.rampvelocity =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_rampvelocity"));
-		movevars.cliptime =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_cliptime"));
+		movevars.msec_min =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_msec_min"));
+		movevars.msec_max =  Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_msec_max"));
+		movevars.jumpboost_time = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_jumpboost_time"));
+		movevars.rampvelocity = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_rampvelocity"));
+		movevars.cliptime = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_cliptime"));
 	}
 	movevars.coordtype = cls.netchan.netprim.coordtype;
 
