@@ -58,7 +58,7 @@ void CSQC_UpdateView(float width, float height, float notmenu)
 
 	renderscene();
 
-	DrawHud(width, height, !notmenu);
+	Hud_Render(width, height, !notmenu);
 }
 
 void CSQC_Ent_Update(float isnew)
