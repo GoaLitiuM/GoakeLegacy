@@ -206,7 +206,7 @@ static const char *imgs[] =
 #define DEFAULTPLANE ((1<<(8*sizeof(FIMAGEIDXTYPE)))-3)
 #define SINGLEPLANE ((1<<(8*sizeof(FIMAGEIDXTYPE)))-4)
 #define TRACKERIMAGE ((1<<(8*sizeof(FIMAGEIDXTYPE)))-5)
-#define FIMAGEWIDTH (1<<10)
+#define FIMAGEWIDTH (1<<11)
 #define FIMAGEHEIGHT FIMAGEWIDTH
 
 #define FONTPLANES FONTIMAGES
