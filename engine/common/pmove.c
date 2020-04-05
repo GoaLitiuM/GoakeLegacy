@@ -578,6 +578,18 @@ void PM_Friction (void)
 			if (trace.fraction == 1 && !trace.startsolid)
 				friction *= movevars.edgefriction;
 		}
+		
+#ifdef Q3BSPS
+		// slick surfaces have no friction
+		if (pmove.physents[0].model->fromgame == fg_quake3)
+		{
+			trace_t t;
+			pmove.physents[0].model->funcs.NativeTrace(pmove.physents[0].model, 0, PE_FRAMESTATE, NULL, pmove.origin, pmove.gravitydir, pmove.player_mins, pmove.player_maxs, pmove.capsule, MASK_PLAYERSOLID, &t);
+			if (t.surface && t.surface->flags & TI_SLICK)
+				friction = 0.0f;
+		}
+#endif
+		
 		control = speed < movevars.stopspeed ? movevars.stopspeed : speed;
 		drop = control*friction*frametime;
 	}
