@@ -23,15 +23,15 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 float CSQC_ConsoleCommand(string cmd)
 {
 	cmd = strtolower(strtrim(cmd));
-	local string key = "";
+	string key = "";
 
 	// commands may have the triggering key appended at the end, parse it
 	if (str2chr(cmd, 0) == '+' || str2chr(cmd, 0) == '-')
 	{
-		local int last_space = -1;
+		int last_space = -1;
 		while (true)
 		{
-			local int ind = strstrofs(cmd, " ", last_space+1);
+			int ind = strstrofs(cmd, " ", last_space+1);
 			if (ind == -1)
 				break;
 
@@ -222,20 +222,28 @@ void CSQC_WorldLoaded()
 bool had_attack;
 bool had_released;
 bool attacking;
+
+bool IsAttackKey(float scanx)
+{
+	string bind = strtolower(getkeybind(scanx));
+	if (strstrofs(bind, "+attack") >= 0)
+		return true;
+	return false;
+}
+
 float CSQC_InputEvent(float evtype, float scanx, float chary, float devid)
 {
 	switch(evtype)
 	{
 	case IE_KEYUP:
 	{
-		if (scanx == 512)
+		if (IsAttackKey(scanx))
 			attacking = false;
 		break;
 	}
 	case IE_KEYDOWN:
 	{
-		// FIXME
-		if (scanx == 512) //LMB
+		if (IsAttackKey(scanx))
 		{
 			// flush latest viewangles to CSQC
 			float seat = getviewprop(VF_ACTIVESEAT);
