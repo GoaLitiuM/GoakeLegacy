@@ -124,9 +124,9 @@ static void QDECL SV_Public_Callback(struct cvar_s *var, char *oldvalue)
 	else
 		FTENET_AddToCollection(svs.sockets, var->name, "", NA_INVALID, NP_INVALID);
 }
-cvar_t sv_public			= CVARCD("sv_public", "0", SV_Public_Callback, "-1: Fully blocks all inbound connections.\n0: Disable subscribing to master servers (for private lan-only games).\n1: Subscribe to public master servers. Your IP address will be listed publicly. Make sure your Router/NAT+Firewall are set to allow inbound connections.\n2: Subscribe to a broker master, allowing firewall hole punching.");
+cvar_t sv_public			= CVARFCD("sv_public", "0", CVAR_NOSAVE, SV_Public_Callback, "-1: Fully blocks all inbound connections.\n0: Disable subscribing to master servers (for private lan-only games).\n1: Subscribe to public master servers. Your IP address will be listed publicly. Make sure your Router/NAT+Firewall are set to allow inbound connections.\n2: Subscribe to a broker master, allowing firewall hole punching.");
 #else
-cvar_t sv_public			= CVARD("sv_public", "0", "-1: Fully blocks all inbound connections.\n0: Disable subscribing to master servers (for private lan-only games).\n1: Subscribe to public master servers. Your IP address will be listed publicly. Make sure your Router/NAT+Firewall are set to allow inbound connections.");
+cvar_t sv_public			= CVARFD("sv_public", "0", CVAR_NOSAVE, "-1: Fully blocks all inbound connections.\n0: Disable subscribing to master servers (for private lan-only games).\n1: Subscribe to public master servers. Your IP address will be listed publicly. Make sure your Router/NAT+Firewall are set to allow inbound connections.");
 #endif
 
 cvar_t sv_guidhash			= CVARD("sv_guidkey", "", "If set, clients will calculate their GUID values against this string instead of the server's IP address. This allows consistency between multiple servers (for stats tracking), but do NOT treat the client's GUID as something that is secure.");

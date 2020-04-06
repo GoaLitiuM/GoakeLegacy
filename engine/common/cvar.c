@@ -1553,7 +1553,7 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all, qboolean changedonly)
 				if (var->flags & CVAR_ARCHIVE)
 					s = va("seta %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 				else
-					s = va("set %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+					s = va("%s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 			}
 			else
 				s = va("%s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
