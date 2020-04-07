@@ -193,15 +193,16 @@ extern cvar_t			scr_fov;
 extern cvar_t			scr_conspeed;
 extern cvar_t			scr_centertime;
 extern cvar_t			scr_logcenterprint;
-extern cvar_t			scr_showturtle;
-extern cvar_t			scr_turtlefps;
-extern cvar_t			scr_showpause;
 extern cvar_t			scr_printspeed;
 extern cvar_t			scr_allowsnap;
 extern cvar_t			scr_sshot_type;
 extern cvar_t			scr_sshot_prefix;
-extern cvar_t			crosshair;
 extern cvar_t			scr_consize;
+#ifndef NOLEGACY2
+extern cvar_t			scr_turtlefps;
+extern cvar_t			scr_showturtle;
+extern cvar_t			scr_showpause;
+#endif
 cvar_t			scr_neticontimeout = CVAR("scr_neticontimeout", "0.3");
 cvar_t			scr_diskicontimeout = CVAR("scr_diskicontimeout", "0.3");
 
@@ -1659,6 +1660,7 @@ void SCR_StringXY(const char *str, float x, float y)
 	Font_EndString(font);
 }
 
+#ifndef NOLEGACY2
 /*
 ==============
 SCR_DrawTurtle
@@ -1684,20 +1686,6 @@ void SCR_DrawTurtle (void)
 	R2D_ScalePic (scr_vrect.x, scr_vrect.y, 64, 64, scr_turtle);
 }
 
-void SCR_DrawDisk (void)
-{
-	extern float fs_accessed_time;
-	if ((float)realtime - fs_accessed_time > scr_diskicontimeout.value)
-		return;
-	if (!draw_disc || !scr_showdisk.ival)
-		return;
-
-	if (!R_GetShaderSizes(draw_disc, NULL, NULL, true))
-		SCR_StringXY("FS", scr_showdisk_x.value, scr_showdisk_y.value);
-	else
-		R2D_ScalePic (scr_showdisk_x.value + (scr_showdisk_x.value<0?vid.width:0), scr_showdisk_y.value + (scr_showdisk_y.value<0?vid.height:0), 24, 24, draw_disc);
-}
-
 /*
 ==============
 SCR_DrawNet
@@ -1711,6 +1699,21 @@ void SCR_DrawNet (void)
 		return;
 
 	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
+}
+#endif
+
+void SCR_DrawDisk (void)
+{
+	extern float fs_accessed_time;
+	if ((float)realtime - fs_accessed_time > scr_diskicontimeout.value)
+		return;
+	if (!draw_disc || !scr_showdisk.ival)
+		return;
+
+	if (!R_GetShaderSizes(draw_disc, NULL, NULL, true))
+		SCR_StringXY("FS", scr_showdisk_x.value, scr_showdisk_y.value);
+	else
+		R2D_ScalePic (scr_showdisk_x.value + (scr_showdisk_x.value<0?vid.width:0), scr_showdisk_y.value + (scr_showdisk_y.value<0?vid.height:0), 24, 24, draw_disc);
 }
 
 void SCR_DrawFPS (void)
@@ -1822,6 +1825,7 @@ void SCR_DrawFPS (void)
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 }
 
+#if !defined(NOLEGACY2) || defined(QUAKEHUD)
 void SCR_DrawClock(void)
 {
 	struct tm *newtime;
@@ -1877,6 +1881,9 @@ void SCR_DrawGameClock(void)
 	SCR_StringXY(str, show_gameclock_x.value, show_gameclock_y.value);
 #endif
 }
+#endif
+
+#ifndef NOLEGACY2
 
 /*
 ==============
@@ -1910,8 +1917,7 @@ void SCR_DrawPause (void)
 	else
 		Draw_FunString((vid.width-strlen("Paused")*8)/2, (vid.height-8)/2, "Paused");
 }
-
-
+#endif
 
 /*
 ==============
@@ -3334,6 +3340,7 @@ void SCR_DrawTwoDimensional(qboolean nohud)
 		SCR_DrawFPS ();
 		SCR_CheckDrawCenterString ();
 	}
+#ifndef NOLEGACY2
 	else if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
 	{
 		SCR_CheckDrawCenterString ();
@@ -3354,6 +3361,7 @@ void SCR_DrawTwoDimensional(qboolean nohud)
 		SCR_ShowPics_Draw();
 		SCR_CheckDrawCenterString ();
 	}
+#endif
 
 //#ifdef TEXTEDITOR
 //	if (editoractive)

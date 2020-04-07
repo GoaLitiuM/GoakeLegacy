@@ -6167,6 +6167,7 @@ ucmd_t ucmds[] =
 	{"addseat",		Cmd_AddSeat_f},	//splitscreen
 	{"join",		Cmd_Join_f},
 	{"observe",		Cmd_Observe_f},
+	{"spectate",	Cmd_Observe_f},
 	{"ptrack",		SV_PTrack_f}, //ZOID - used with autocam
 	{"snap",		SV_NoSnap_f},	//cheat detection
 

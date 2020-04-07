@@ -48,6 +48,7 @@ int PR_EnableEBFSBuiltin(const char *name, int binum);
 int PR_CSQC_BuiltinValid(const char *name, int num);
 #endif
 
+#ifdef SAVEDGAMES
 /*cvars for the gamecode only*/
 cvar_t	nomonsters = CVAR("nomonsters", "0");
 cvar_t	gamecfg = CVAR("gamecfg", "0");
@@ -62,6 +63,7 @@ cvar_t	saved3 = CVARF("saved3", "0", CVAR_ARCHIVE);
 cvar_t	saved4 = CVARF("saved4", "0", CVAR_ARCHIVE);
 cvar_t	temp1 = CVARF("temp1", "0", CVAR_ARCHIVE);
 cvar_t	noexit = CVAR("noexit", "0");
+#endif
 extern cvar_t sv_specprint;
 
 //cvar_t	sv_aim = {"sv_aim", "0.93"};
@@ -1579,6 +1581,7 @@ void PR_Init(void)
 		Cvar_Register(&sv_addon[i], cvargroup_progs);
 	}
 
+#ifdef SAVEDGAMES
 	Cvar_Register (&nomonsters, cvargroup_progs);
 	Cvar_Register (&gamecfg, cvargroup_progs);
 	Cvar_Register (&scratch1, cvargroup_progs);
@@ -1592,6 +1595,7 @@ void PR_Init(void)
 	Cvar_Register (&saved4, cvargroup_progs);
 	Cvar_Register (&temp1, cvargroup_progs);
 	Cvar_Register (&noexit, cvargroup_progs);
+#endif
 
 	Cvar_Register (&pr_ssqc_progs, cvargroup_progs);
 	Cvar_Register (&pr_compatabilitytest, cvargroup_progs);

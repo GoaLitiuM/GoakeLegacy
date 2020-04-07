@@ -155,8 +155,10 @@ cvar_t	rate		= CVARFD("rate",		"30000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO,
 cvar_t	drate		= CVARFD("drate",		"3000000",	CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while downloading (in bytes per second).");		// :)
 cvar_t	noaim		= CVARF("noaim",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	msg			= CVARFD("msg",			"1",		CVAR_ARCHIVE | CVAR_USERINFO, "Filter console prints/messages. Only functions on QuakeWorld servers. 0=pickup messages. 1=death messages. 2=critical messages. 3=chat.");
+#ifndef NOLEGACY2
 cvar_t	b_switch	= CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	w_switch	= CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+#endif
 #ifdef HEXEN2
 cvar_t	cl_playerclass=CVARF("cl_playerclass","",		CVAR_ARCHIVE | CVAR_USERINFO);
 #endif
@@ -207,7 +209,7 @@ cvar_t  cl_parsewhitetext		= CVARD("cl_parsewhitetext", "1", "When parsing chat 
 cvar_t	cl_dlemptyterminate		= CVAR("cl_dlemptyterminate", "1");
 
 cvar_t	host_mapname			= CVARAF("mapname", "",
-									  "host_mapname", 0);
+									  "host_mapname", CVAR_HIDDEN_LEGACY);
 
 #define RULESETADVICE " You should not normally change this cvar from its permissive default, instead impose limits on yourself only through the 'ruleset' cvar."
 cvar_t	ruleset_allow_playercount			= CVARD("ruleset_allow_playercount", "1", "Specifies whether teamplay triggers that count nearby players are allowed in the current ruleset."RULESETADVICE);
@@ -4777,8 +4779,10 @@ void CL_Init (void)
 	Cvar_Register (&drate,						cl_controlgroup);
 	Cvar_Register (&msg,						cl_controlgroup);
 	Cvar_Register (&noaim,						cl_controlgroup);
+#ifndef NOLEGACY2
 	Cvar_Register (&b_switch,					cl_controlgroup);
 	Cvar_Register (&w_switch,					cl_controlgroup);
+#endif
 #ifdef HEXEN2
 	Cvar_Register (&cl_playerclass,				cl_controlgroup);
 #endif
@@ -4925,6 +4929,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 	Cmd_AddCommandAD ("join", CL_Join_f, CL_Connect_c, "Switches away from spectator mode, optionally connecting to a different server.");
 	Cmd_AddCommandAD ("observe", CL_Observe_f, CL_Connect_c, "Switches to spectator mode, optionally connecting to a different server.");
+	Cmd_AddCommandAD ("spectate", CL_Observe_f, CL_Connect_c, "Switches to spectator mode, optionally connecting to a different server.");
 
 	Cmd_AddCommand ("rcon", CL_Rcon_f);
 	Cmd_AddCommand ("packet", CL_Packet_f);
@@ -4960,8 +4965,9 @@ void CL_Init (void)
 	Cmd_AddCommand ("fly", NULL);
 	Cmd_AddCommand ("setpos", NULL);
 	Cmd_AddCommand ("notarget", NULL);
-
+#ifdef SVRANKING
 	Cmd_AddCommand ("topten", NULL);
+#endif
 
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
@@ -4983,7 +4989,7 @@ void CL_Init (void)
 //  Windows commands
 //
 #if defined(_WIN32) && !defined(WINRT) && !defined(_XBOX)
-	Cmd_AddCommand ("windows", CL_Windows_f);
+	//Cmd_AddCommand ("windows", CL_Windows_f);
 #endif
 
 	Ignore_Init();
