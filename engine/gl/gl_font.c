@@ -454,7 +454,7 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE));
+		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE|IF_NOSRGB));
 	}
 
 	fontplanes.shader = R_RegisterShader("ftefont", SUF_2D,
@@ -499,7 +499,7 @@ static void Font_Flush(void)
 		return;
 	if (fontplanes.planechanged)
 	{
-		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
+		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE|IF_NOSRGB);
 
 		fontplanes.planechanged = false;
 	}
@@ -565,7 +565,7 @@ void Font_FlushPlane(void)
 
 	if (fontplanes.planechanged)
 	{
-		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
+		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE|IF_NOSRGB);
 
 		fontplanes.planechanged = false;
 	}
