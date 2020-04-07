@@ -1165,6 +1165,7 @@ PM_CheckJump
 */
 static void PM_CheckJump (void)
 {
+	vec3_t oldvel;
 	if (pmove.pm_type == PM_FLY)
 		return;
 
@@ -1220,8 +1221,7 @@ static void PM_CheckJump (void)
 	pmove.jump_time = frametime;
 	pmove.jump_count++;
 	
-	vec3_t walkvel;
-	VectorCopy(pmove.velocity, walkvel);
+	VectorCopy(pmove.velocity, oldvel);
 
 	// check for jump bug
 	// groundplane normal was set in the call to PM_CategorizePosition
@@ -1243,25 +1243,29 @@ static void PM_CheckJump (void)
 				+ jumpvelocity * movevars.ktjump;
 	}
 	
-	if (movevars.maxjumps > 1 && pmove.jump_count == 1 && -DotProduct(pmove.gravitydir, groundplane.normal) > 0.85)
+	// allow stair jumping during first jump
+	if (movevars.maxjumps >= 1 && pmove.jump_count == 1 && -DotProduct(pmove.gravitydir, groundplane.normal) > 0.85)
 	{
-		// check if we are about to step into stairs
 		vec3_t orig, vel;
+		int movedup;
 		VectorCopy(pmove.origin, orig);
 		VectorCopy(pmove.velocity, vel);
 
+		// look ahead stepheight units to see if we would step up at current ground velocity
+		VectorNormalize(oldvel);
 		for (int i=0; i<3; i++)
-			pmove.velocity[i] = walkvel[i] * 2;
-		int blocked = PM_StepSlideMove(false);
+			pmove.velocity[i] = oldvel[i] * (movevars.stepheight / frametime);
 		
-		// sometimes we hit a step without stepping up
-		int movedup = pmove.origin[2] > orig[2];
+		pmove.velocity[2] = 0;
+		int blocked = PM_StepSlideMove(false);
+
+		movedup = pmove.origin[2] - orig[2];
 		
 		VectorCopy(orig, pmove.origin);
 		VectorCopy(vel, pmove.velocity);
 		
-		// kill jump velocity for first jump after a step is hit
-		if (blocked & BLOCKED_STEP && movedup)
+		// let the step eat jump velocity when hit
+		if (movedup > 0 && blocked & BLOCKED_STEP)
 		{
 			pmove.velocity[2] = 0;
 			pmove.onground = true;
