@@ -2529,6 +2529,9 @@ static void Cmd_Apropos_f (void)
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	for (var=grp->cvars ; var ; var=var->next)
 	{
+		if (var->flags & CVAR_HIDDEN)
+			continue;
+
 		if (var->name && Q_strcasestr(var->name, query))
 			name = var->name;
 		else if (var->name2 && Q_strcasestr(var->name2, query))
