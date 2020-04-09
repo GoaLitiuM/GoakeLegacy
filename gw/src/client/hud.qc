@@ -64,16 +64,17 @@ void Hud_Keys(float width, float height)
 // health, armor and ammo
 void Hud_Player(float width, float height)
 {
-	int playernum = player_localentnum;
-	entity playerent = playernum == player_localnum ? local_player : getEntity(playernum);
-	string left_str = itos(playerent.health);//itos(getplayerstat(playernum, STAT_HEALTH, EV_INTEGER));
-	string right_str = itos(playerent.armorvalue);//itos(getplayerstat(playernum, STAT_ARMOR, EV_INTEGER));
-	int weapon = getplayerstat(playernum, STAT_CURRENT_WEAPON, EV_INTEGER);
+	entity playerent = player_localentnum == player_localnum ? local_player : getEntity(player_localentnum);
+	string left_str = itos(playerent.health);//itos(getplayerstat(player_localentnum, STAT_HEALTH, EV_INTEGER));
+	string right_str = itos(playerent.armorvalue);//itos(getplayerstat(player_localentnum, STAT_ARMOR, EV_INTEGER));
+	int weapon = getplayerstat(player_localentnum, STAT_CURRENT_WEAPON, EV_INTEGER);
 	int weapon_ammo = playerent.ammo[WEAPON_AMMO_INDEX(weapon)];
 	string ammo_str = weapon == 0 ? "" : itos(weapon_ammo);
 
+	int center_offset = 5;
+
 	// health
-	DrawTextShadow(font_main_big, [width * (0.5-0.10), height - font_main_big.fontsize, 0], left_str, '1 1 1', 1,  4, 1.35, '0 0 0', 1);
+	DrawTextShadow(font_main_big, [width*0.5 - TextWidth(font_main_big, left_str, false) - center_offset, height - font_main_big.fontsize, 0], left_str, '1 1 1', 1,  4, 1.35, '0 0 0', 1);
 
 	// armor
 	{
@@ -84,7 +85,7 @@ void Hud_Player(float width, float height)
 			armor_col = '1 1 0';
 		else if (playerent.armortype == ARMOR_RED_ABSORB)
 			armor_col = '1 0 0';
-		DrawTextShadow(font_main_big, [width * (0.5+0.10) - TextWidth(font_main_big, right_str, false), height - font_main_big.fontsize, 0], right_str, armor_col, 1,  4, 1.35, '0 0 0', 1);
+		DrawTextShadow(font_main_big, [width*0.5 + center_offset, height - font_main_big.fontsize, 0], right_str, armor_col, 1,  4, 1.35, '0 0 0', 1);
 	}
 
 	// ammo
@@ -96,7 +97,7 @@ void Hud_Scoreboard(float width, float height)
 {
 	int spacing = 12;
 	int row = 0;
-	float left = width*0.31;
+	float left = width*0.5 - 180;
 	float top = (height*0.16);
 
 	DrawText(font_main, [left, top + row*spacing, 0], "Connected players", '1 1 1', 1);
