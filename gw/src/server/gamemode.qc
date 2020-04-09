@@ -9,14 +9,20 @@ struct GameMode
 	// called when new player connects
 	void(entity player) onClientConnect;
 
+	// called when new player disconnects
+	void(entity player) onClientDisconnect;
+
 	// called when player uses 'kill' command
 	void(entity player) onClientKill;
 
 	// called when player wants to respawn, return true if player is allowed to respawn
 	bool(entity player) onPlayerRequestRespawn;
 
-	// called when player (re)spawns
+	// called when player needs to be spawned on world
 	void(entity player) onPlayerSpawn;
+
+	// called when player needs to be initialized, usually right after spawning
+	void(entity player) onPlayerInit;
 
 	// called when player takes damage, return final damage the player should receive
 	float(entity player, float damage, entity source) onPlayerTakeDamage;
@@ -31,6 +37,10 @@ int gamemodes_allocated_count;
 
 GameMode* gamemode;
 string last_gamemode;
+
+float gamemode_timeroffset;
+bool gamemode_initialized;
+int gamemode_players;
 
 // usage: GameMode_Register({name, fullname, init, tick, ...});
 #define GameMode_Register(X) GameMode_Register_internal((GameMode)X)
@@ -57,10 +67,8 @@ void GameMode_Register_internal(GameMode gm)
 	gamemodes_count++;
 }
 
-void GameMode_Init()
+void GameMode_SetMode(string mode)
 {
-	string mode = strtolower(cvar_string("gm_mode"));
-
 	if (gamemodes_count == 0)
 	{
 		// register dummy game mode
@@ -89,15 +97,61 @@ void GameMode_Init()
 
 	last_gamemode = gamemode->name;
 	cvar_set("gm_mode", gamemode->name);
+}
 
+void GameMode_Init()
+{
+	gamemode_timeroffset = time;
 	if (gamemode->init)
 		gamemode->init();
+
+	if (gamemode_initialized)
+	{
+		// reinitialize players
+		entity player = world;
+		while (true)
+		{
+			player = find(player, classname, CLASS_PLAYER);
+			if (player == world)
+				break;
+
+			entity oldself = self;
+			self = player;
+			Player_Init();
+			self = oldself;
+		}
+
+		// reset timer
+		writeByte(MSG_ALL, SVC_CGAMEPACKET);
+		writeByte(MSG_ALL, EVENT_GAMEMODE_TIMER);
+		writeFloat(MSG_ALL, gamemode_timeroffset);
+	}
+
+	gamemode_initialized = true;
 }
 
 void GameMode_OnClientConnect(entity player)
 {
 	if (gamemode->onClientConnect)
 		gamemode->onClientConnect(player);
+
+	gamemode_players++;
+
+	if (!gamemode_initialized)
+		GameMode_Init();
+
+	msg_entity = player;
+	writeByte(MSG_ONE, SVC_CGAMEPACKET);
+	writeByte(MSG_ONE, EVENT_GAMEMODE_TIMER);
+	writeFloat(MSG_ONE, gamemode_timeroffset);
+}
+
+void GameMode_OnClientDisconnect(entity player)
+{
+	if (gamemode->onClientDisconnect)
+		gamemode->onClientDisconnect(player);
+
+	gamemode_players--;
 }
 
 void GameMode_OnClientKill(entity player)
@@ -130,6 +184,17 @@ void GameMode_OnPlayerSpawn(entity player)
 	}
 }
 
+void GameMode_OnPlayerInit(entity player)
+{
+	if (gamemode->onPlayerInit)
+	{
+		entity oldself = self;
+		self = player;
+		gamemode->onPlayerInit(player);
+		self = oldself;
+	}
+}
+
 float GameMode_OnPlayerTakeDamage(entity player, float damage, entity source)
 {
 	if (gamemode->onPlayerDeath)
@@ -157,12 +222,15 @@ void GameMode_OnPlayerDeath(entity player, entity source)
 void GameMode_Tick()
 {
 	string mode = strtolower(cvar_string("gm_mode"));
-	if (mode != last_gamemode)
+	if (mode != last_gamemode) // gamemode changed
 	{
-		// gamemode changed
-		println("Game mode will be applied after map change");
-		last_gamemode = mode;
+		GameMode_SetMode(mode);
+		if (gamemode_initialized)
+			GameMode_Init();
 	}
+
+	if (!gamemode_initialized)
+		return;
 
 	if (gamemode->tick)
 		gamemode->tick();

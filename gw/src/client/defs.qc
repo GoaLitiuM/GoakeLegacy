@@ -48,6 +48,10 @@ vector attack_angle;
 
 .float server_time; // last known time the player was updated, used with extrapolation
 
+// gamemode values
+#define gamemode_time (time - gamemode_timeroffset)
+float gamemode_timeroffset;
+
 // not used by client
 .float SendFlags;
 

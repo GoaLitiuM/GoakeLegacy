@@ -1,5 +1,6 @@
 #ifdef SSQC
 void GameMode_OnPlayerSpawn(entity player);
+void GameMode_OnPlayerInit(entity player);
 bool GameMode_OnPlayerRequestRespawn(entity player);
 float GameMode_OnPlayerTakeDamage(entity player, float damage, entity source);
 void GameMode_OnPlayerDeath(entity player, entity source);
@@ -37,6 +38,10 @@ void Player_Init()
 	self.SendFlags |= SENDFLAGS_PLAYER_INIT;
 
 	self.death_time = 0;
+
+#ifdef SSQC
+	GameMode_OnPlayerInit(self);
+#endif
 }
 
 void Player_Remove()
@@ -52,11 +57,11 @@ void Player_Remove()
 
 void Player_Spawn()
 {
-	Player_Init();
-
 #ifdef SSQC
 	GameMode_OnPlayerSpawn(self);
 #endif
+
+	Player_Init();
 }
 
 void Player_RequestRespawn()

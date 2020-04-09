@@ -99,7 +99,7 @@ void CSQC_Ent_Remove()
 
 void CSQC_Parse_Event()
 {
-	float type = readByte();
+	int type = readByte();
 	if (type == EVENT_LIGHTNING)
 		WeaponLightning_CreateLightningBeam();
 	else if (type == EVENT_PLAYER_ATTACK)
@@ -107,6 +107,10 @@ void CSQC_Parse_Event()
 		entity player = readEntity();
 		player.is_attacking = true;
 	}
+	else if (type == EVENT_GAMEMODE_TIMER)
+		gamemode_timeroffset = readFloat();
+	else
+		error(strcat("Unknown CSQC_Parse_Event type: ", itos(type)));
 }
 
 float CSQC_Event_Sound(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags)

@@ -38,7 +38,10 @@ void FFA_OnPlayerSpawn(entity player)
 	entity spawn = FindRandomSpawn();
 	player.origin = spawn.origin;
 	player.angles = spawn.angles;
+}
 
+void FFA_OnPlayerInit(entity player)
+{
 	player.health = 100;
 	player.armorvalue = 0;
 	player.armortype = ARMOR_GREEN_ABSORB;
@@ -69,4 +72,4 @@ void FFA_OnPlayerDeath(entity player, entity source)
 		source_player.frags++;
 }
 
-#define GameMode_FFA { "ffa", "Free For All", FFA_Init, FFA_Tick, FFA_OnClientConnect, FFA_OnClientKill, FFA_OnPlayerRequestRespawn, FFA_OnPlayerSpawn, FFA_OnPlayerTakeDamage, FFA_OnPlayerDeath }
+#define GameMode_FFA { "ffa", "Free For All", FFA_Init, FFA_Tick, FFA_OnClientConnect, 0, FFA_OnClientKill, FFA_OnPlayerRequestRespawn, FFA_OnPlayerSpawn, FFA_OnPlayerInit, FFA_OnPlayerTakeDamage, FFA_OnPlayerDeath }

@@ -28,7 +28,10 @@ void Race_OnPlayerSpawn(entity player)
 	entity spawn = FindRandomSpawn();
 	player.origin = spawn.origin;
 	player.angles = spawn.angles;
+}
 
+void Race_OnPlayerInit(entity player)
+{
 	player.health = 100;
 }
 
@@ -41,4 +44,4 @@ void Race_OnPlayerDeath(entity player, entity source)
 {
 }
 
-#define GameMode_Race { "race", "Race", Race_Init, Race_Tick, Race_OnClientConnect, Race_OnClientKill, Race_OnPlayerRequestRespawn, Race_OnPlayerSpawn, Race_OnPlayerTakeDamage, Race_OnPlayerDeath }
+#define GameMode_Race { "race", "Race", Race_Init, Race_Tick, Race_OnClientConnect, 0, Race_OnClientKill, Race_OnPlayerRequestRespawn, Race_OnPlayerSpawn, Race_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerDeath }

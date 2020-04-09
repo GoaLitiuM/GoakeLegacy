@@ -8,7 +8,7 @@ void init(float prevprogs)
 
 	GameMode_Register(GameMode_FFA);
 	GameMode_Register(GameMode_Race);
-	GameMode_Init();
+	GameMode_SetMode(strtolower(cvar_string("gm_mode")));
 }
 
 void worldspawn()
@@ -41,6 +41,7 @@ void ClientConnect(float csqcactive)
 
 void ClientDisconnect()
 {
+	GameMode_OnClientDisconnect(self);
 	self.SendEntity = 0;
 	LagCompensate_RemovePlayer(self);
 	Player_Remove();
