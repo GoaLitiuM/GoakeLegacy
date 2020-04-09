@@ -24,6 +24,7 @@
 #include <client/hud.qc>
 #include <client/hud/chat.qc>
 #include <client/hud/crosshair.qc>
+#include <client/hud/timer.qc>
 #include <client/model.qc>
 #include <client/player_prediction.qc>
 #include <client/player_animation.qc>

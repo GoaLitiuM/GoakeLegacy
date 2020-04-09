@@ -20,6 +20,7 @@ void Hud_Init()
 
 void Hud_Keys(float width, float height);
 void Hud_Player(float width, float height);
+void Hud_Timer(float width, float height);
 void Hud_Scoreboard(float width, float height);
 void Hud_Chat(float width, float height);
 void Hud_Crosshair(float width, float height);
@@ -34,6 +35,7 @@ void Hud_Render(float width, float height, bool in_menu)
 	{
 		Hud_Keys(width, height);
 		Hud_Player(width, height);
+		Hud_Timer(width, height);
 		Hud_Chat(width, height);
 		Hud_Crosshair(width, height);
 	}
