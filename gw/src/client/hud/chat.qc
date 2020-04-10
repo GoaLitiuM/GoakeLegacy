@@ -60,13 +60,14 @@ void Chat_OnPrint(string printmsg)
 void Hud_Chat(float width, float height)
 {
 	int spacing = font_chat->fontsize;
-	int row = 0;
+	int linenum = 0;
 	float left = 8;
 	float top = (height*0.70);
 	int padding = 2;
 	int line_width = 230;
+	int maxlines = 8;
 
-	bool chat_open = false;
+	bool chat_open = getkeydest() == 1;
 
 	int lines_total = 0;
 	for (int i=0; i<chatlines_count; i++)
@@ -77,32 +78,47 @@ void Hud_Chat(float width, float height)
 		lines_total++;
 	}
 
+	if (chat_open)
+		lines_total++;
 	if (lines_total == 0)
 		return;
 
-	drawfill([left-padding, top-padding, 0], [line_width + 2*padding, (lines_total*spacing) + 2*padding, 0], [0, 0, 0], 0.66);
-
-	for (int i=0; i<chatlines_count; i++)
+	if (lines_total > 0)
 	{
-		ChatLine* line = &chatlines[i];
-		if (!chat_open && cltime > line->time+CHAT_SHOW_TIME)
-			continue;
+		drawfill([left-padding, top-padding, 0], [line_width + 2*padding, (lines_total*spacing) + 2*padding, 0], [0, 0, 0], 0.66);
 
-		string timestamp_str = strcat(line->timestamp, " ");
-		string source_str = line->source;
-		string msg_str = strcat(": ", line->msg);
+		for (int i=0; i<chatlines_count; i++)
+		{
+			ChatLine* line = &chatlines[i];
+			if (!chat_open && cltime > line->time+CHAT_SHOW_TIME)
+				continue;
 
-		float offset = 0.0f;
+			if (linenum >= maxlines)
+				break;
 
-		DrawText(font_chat, [left + offset, top, 0], timestamp_str, '1 1 1', 1);
-		offset += TextWidth(font_chat, timestamp_str, false);
+			string timestamp_str = strcat(line->timestamp, " ");
+			string source_str = line->source;
+			string msg_str = strcat(": ", line->msg);
 
-		DrawText(font_chat_bold, [left + offset, top, 0], source_str, '1 1 1', 1);
-		offset += TextWidth(font_chat_bold, source_str, false);
+			float offset = 0.0f;
 
-		DrawText(font_chat, [left + offset, top, 0], msg_str, '1 1 1', 1);
+			DrawText(font_chat, [left + offset, top, 0], timestamp_str, '1 1 1', 1);
+			offset += TextWidth(font_chat, timestamp_str, false);
 
-		row++;
-		top += spacing;
+			DrawText(font_chat_bold, [left + offset, top, 0], source_str, '1 1 1', 1);
+			offset += TextWidth(font_chat_bold, source_str, false);
+
+			DrawText(font_chat, [left + offset, top, 0], msg_str, '1 1 1', 1);
+
+			linenum++;
+			top += spacing;
+		}
+	}
+
+	if (chat_open)
+	{
+		string chat_buffer = getchatbuffer();
+		//int chat_bufferpos = getchatbufferpos();
+		DrawText(font_chat, [left, top, 0], strcat(chat_team ? "TEAM" : "", "> ", chat_buffer), '1 1 1', 1);
 	}
 }

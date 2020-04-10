@@ -48,7 +48,17 @@ float CSQC_ConsoleCommand(string cmd)
 		showscores = true;
 	else if (cmd == "-showscores")
 		showscores = false;
-	return 0;
+	else if (cmd == "messagemode")
+	{
+		chat_team = false;
+		return true;
+	}
+	else if (cmd == "messagemode2")
+	{
+		chat_team = true;
+		return true;
+	}
+	return false;
 }
 
 void CSQC_UpdateView(float width, float height, float notmenu)

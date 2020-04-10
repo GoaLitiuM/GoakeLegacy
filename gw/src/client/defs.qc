@@ -52,6 +52,9 @@ vector attack_angle;
 #define gamemode_time (time - gamemode_timeroffset)
 float gamemode_timeroffset;
 
+// hud
+bool chat_team;
+
 // not used by client
 .float SendFlags;
 
