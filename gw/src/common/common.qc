@@ -11,6 +11,7 @@
 #define SND_WEAPON_LIGHTNING "weapons/lhit.wav"
 #define SND_WEAPON_CROSSBOW "weapons/firebolt.wav"
 
+#define SND_ARMOR_PICKUP "items/armor1.wav"
 #define SND_WEAPON_PICKUP "weapons/pkup.wav"
 #define SND_ITEM_RESPAWN "items/itembk2.wav"
 

@@ -16,7 +16,7 @@ bool Armor_OnTouch()
 
 void item_armor_green()
 {
-	Item_InitSimple();
+	Item_InitArmor();
 	Item_SetTouch(Armor_OnTouch);
 	self.armorvalue_min = ARMOR_GREEN_MIN;
 	self.armorvalue_max = ARMOR_GREEN_MAX;
@@ -25,7 +25,7 @@ void item_armor_green()
 
 void item_armor_yellow()
 {
-	Item_InitSimple();
+	Item_InitArmor();
 	Item_SetTouch(Armor_OnTouch);
 	self.armorvalue_min = ARMOR_YELLOW_MIN;
 	self.armorvalue_max = ARMOR_YELLOW_MAX;
@@ -34,7 +34,7 @@ void item_armor_yellow()
 
 void item_armor_red()
 {
-	Item_InitSimple();
+	Item_InitArmor();
 	Item_SetTouch(Armor_OnTouch);
 	self.armorvalue_min = ARMOR_RED_MIN;
 	self.armorvalue_max = ARMOR_RED_MAX;

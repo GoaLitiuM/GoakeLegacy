@@ -1,4 +1,4 @@
 void weapon_rocketlauncher()
 {
-	Item_InitSimple();
+	Item_InitWeapon();
 }

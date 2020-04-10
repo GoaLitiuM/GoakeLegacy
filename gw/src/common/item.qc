@@ -43,10 +43,17 @@ void Item_Init(string texture, string sound)
 	Item_SetActive(true);
 }
 
-void Item_InitSimple()
+void Item_InitWeapon()
 {
 	string texture = strcat("textures/simple_items/", self.classname);
 	Item_Init(texture, SND_WEAPON_PICKUP);
+	setsize(self, '-16 -16 -16', '16 16 24'); // items should be slightly taller to make them easier to pickup
+}
+
+void Item_InitArmor()
+{
+	string texture = strcat("textures/simple_items/", self.classname);
+	Item_Init(texture, SND_ARMOR_PICKUP);
 	setsize(self, '-16 -16 -16', '16 16 24'); // items should be slightly taller to make them easier to pickup
 }
 

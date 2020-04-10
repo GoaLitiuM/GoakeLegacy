@@ -7,6 +7,7 @@ void precache_sounds()
 	precache_sound(SND_WEAPON_CROSSBOW);
 
 	precache_sound(SND_ITEM_RESPAWN);
+	precache_sound(SND_ARMOR_PICKUP);
 	precache_sound(SND_WEAPON_PICKUP);
 };
 
