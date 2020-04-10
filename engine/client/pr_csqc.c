@@ -5280,6 +5280,16 @@ static void QCBUILTIN PF_cs_setupreverb (pubprogfuncs_t *prinst, struct globalva
 	S_UpdateReverb(reverbslot, ptr, size);
 }
 
+static void QCBUILTIN PF_cs_getchatbuffer(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	RETURN_TSTRING(chat_buffer);
+}
+
+static void QCBUILTIN PF_cs_getchatbufferpos(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = chat_bufferpos;
+}
+
 #define RSES_NOLERP 1
 #define RSES_NOROTATE 2
 #define RSES_NOTRAILS 4
@@ -7037,6 +7047,8 @@ static struct {
 	{"physics_addtorque",		PF_physics_addtorque,		542},
 #endif
 
+	{"setkeydest",				PF_cl_setkeydest,			601},
+	{"getkeydest",				PF_cl_getkeydest,			602},
 	{"setmousetarget",			PF_cl_setmousetarget,		603},
 	{"getmousetarget",			PF_cl_getmousetarget,		604},
 
@@ -7098,6 +7110,10 @@ static struct {
 	{"fexists",					PF_fexists,					653},
 	{"rmtree",					PF_rmtree,					654},
 	
+//GOA_CSQC_MESSAGEMODE
+	{"getchatbuffer",			PF_cs_getchatbuffer,		0},
+	{"getchatbufferpos",		PF_cs_getchatbufferpos,		0},
+		
 	{NULL}
 };
 

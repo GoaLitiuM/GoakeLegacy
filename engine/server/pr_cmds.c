@@ -11466,6 +11466,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"crypto_getmyidstatus",PF_Fixme,		0,		0,		0,		641,	"float(float i)"	STUB},
 
 	//end dp extras
+	
+	{"getchatbuffer",	PF_Fixme,			0,		0,		0,		0,	"string()", "Returns the content of chat buffer."},
+	{"getchatbufferpos",PF_Fixme,			0,		0,		0,		0,	"float()", "Returns the cursor position in chat buffer."},
 
 	//wrath extras...
 	{"fcopy",			PF_fcopy,			0,		0,		0,		650,	D("float(string src, string dst)",	"Equivelent to fopen+fread+fwrite+fclose from QC (ie: reads from $gamedir/data/ or $gamedir, but always writes to $gamedir/data/ )")},

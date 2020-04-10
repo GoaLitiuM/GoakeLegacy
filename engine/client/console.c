@@ -58,7 +58,7 @@ qterm_t *activeqterm;
 //int			con_totallines;		// total lines in console scrollback
 
 static float		con_cursorspeed = 4;
-
+qboolean			con_notifychat;
 
 static cvar_t		con_numnotifylines = CVAR("con_notifylines","4");		//max lines to show
 static cvar_t		con_notifytime = CVAR("con_notifytime","3");		//seconds
@@ -764,6 +764,8 @@ void Con_MessageMode_f (void)
 	chat_team = false;
 	Key_Dest_Add(kdm_message);
 	Key_Dest_Remove(kdm_console);
+	
+	con_notifychat = !CSQC_ConsoleCommand(-1, "messagemode");
 }
 
 /*
@@ -776,6 +778,8 @@ void Con_MessageMode2_f (void)
 	chat_team = true;
 	Key_Dest_Add(kdm_message);
 	Key_Dest_Remove(kdm_console);
+	
+	con_notifychat = !CSQC_ConsoleCommand(-1, "messagemode2");
 }
 
 void Con_ForceActiveNow(void)
@@ -1796,7 +1800,7 @@ void Con_DrawNotify (void)
 		}
 	}
 
-	if (Key_Dest_Has(kdm_message))
+	if (Key_Dest_Has(kdm_message) && con_notifychat)
 	{
 		int x, y;
 		conchar_t *starts[8];

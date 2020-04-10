@@ -945,6 +945,51 @@ void QCBUILTIN PF_cl_SetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	G_FLOAT(OFS_RETURN) = 1;
 }
 
+extern menu_t menuqc;
+//void	setkeydest(float dest) 	= #601;
+void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//these arguments are stupid
+	switch((int)G_FLOAT(OFS_PARM0))
+	{
+	case 0:
+		// key_game
+		if (Key_Dest_Has(kdm_menu))
+		{
+			Menu_Unlink(&menuqc);
+			Key_Dest_Remove(kdm_menu);
+			Key_Dest_Remove(kdm_message);
+//			if (cls.state == ca_disconnected)
+//				Key_Dest_Add(kdm_console);
+		}
+		break;
+	case 2:
+		// key_menu
+		Key_Dest_Remove(kdm_message);
+		if (!Key_Dest_Has(kdm_menu))
+			Key_Dest_Remove(kdm_console);
+		Menu_Push(&menuqc, false);
+		break;
+	case 1:
+		// key_message
+		Key_Dest_Remove(kdm_menu);
+		Key_Dest_Add(kdm_message);
+		break;
+	default:
+		PR_BIError (prinst, "PF_setkeydest: wrong destination %i !\n",(int)G_FLOAT(OFS_PARM0));
+	}
+}
+//float	getkeydest(void)	= #602;
+void QCBUILTIN PF_cl_getkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (Key_Dest_Has(kdm_menu))
+		G_FLOAT(OFS_RETURN) = 2;
+	else if (Key_Dest_Has(kdm_message))
+		G_FLOAT(OFS_RETURN) = 1;
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+}
+
 //void	setmousetarget(float trg) = #603;
 void QCBUILTIN PF_cl_setmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

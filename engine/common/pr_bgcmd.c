@@ -7045,6 +7045,8 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_RAW_MAP",						7,	NULL, {"brush_get","brush_create","brush_delete","brush_selected","brush_getfacepoints","brush_calcfacepoints","brush_findinvolume"}, "This engine supports directly loading .map files, as well as realtime editing of the various brushes."},
 #endif
 
+	{"GOA_CSQC_MESSAGEMODE",			0,	NULL, {NULL}, "Provides csqc the ability to manipulate and read chat buffer when messagemode is active."},
+
 
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}, "SSQC's SV_ParseClientCommand function is able to handle client 'cmd' commands. The tokenizing parts also work in csqc."},	//very very similar to the mvdsv system.
 	{"NEH_CMD_PLAY2"},
