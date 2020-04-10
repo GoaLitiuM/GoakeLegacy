@@ -1,12 +1,12 @@
 bool Armor_OnTouch()
 {
-	// pick up the armor if it offers more protection
-	if (other.armorvalue * other.armortype >= self.armorvalue_min * self.armortype)
-		return false;
-
 	float new_armorvalue = self.armorvalue_min;
 	if (other.armorvalue >= self.armorvalue_min)
 		new_armorvalue = self.armorvalue_max;
+
+	// pick up the armor if it offers more protection
+	if (other.armorvalue * other.armortype >= new_armorvalue * self.armortype)
+		return false;
 
 	other.armorvalue = new_armorvalue;
 	other.armortype = self.armortype;
