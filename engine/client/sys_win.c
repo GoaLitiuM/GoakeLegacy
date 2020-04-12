@@ -2968,6 +2968,7 @@ void Sys_DoFileAssociations(int elevated)
 	#define ASSOC_VERSION 2
 #define ASSOCV "1"
 
+#if 0
 	//register the basic demo class
 	Q_snprintfz(command, sizeof(command), "Quake or QuakeWorld Demo");
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV, "", REG_SZ, command, strlen(command));
@@ -2983,9 +2984,9 @@ void Sys_DoFileAssociations(int elevated)
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
 	Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
-
+#endif
 	//register the basic protocol class
-	Q_snprintfz(command, sizeof(command), "QuakeWorld Server");
+	Q_snprintfz(command, sizeof(command), DISTRIBUTION);
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"", "", REG_SZ, command, strlen(command));
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"", "URL Protocol", REG_SZ, "", strlen(""));
 	Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
@@ -2993,12 +2994,13 @@ void Sys_DoFileAssociations(int elevated)
 	Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
 
+
 	//try to get ourselves listed in windows' 'default programs' ui.
 	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME);
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities", "ApplicationName", REG_SZ, command, strlen(command));
-	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME" is an awesome hybrid game engine able to run multiple Quake-compatible/derived games.");
+	Q_snprintfz(command, sizeof(command), "%s", APPDESCRIPTION);
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities", "ApplicationDescription", REG_SZ, command, strlen(command));
-
+#if 0
 	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_DemoFile.1");
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".qtv", REG_SZ, command, strlen(command));
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".mvd", REG_SZ, command, strlen(command));
@@ -3012,14 +3014,13 @@ void Sys_DoFileAssociations(int elevated)
 
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".fmf", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\MIMEAssociations", "application/x-ftemanifest", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
-
+#endif
 	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_Server.1");
-	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\UrlAssociations", "qw", REG_SZ, command, strlen(command));
-	
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\UrlAssociations", GAME_URISCHEME, REG_SZ, command, strlen(command));
+
 	Q_snprintfz(command, sizeof(command), "Software\\"FULLENGINENAME"\\Capabilities");
 	ok = ok & MyRegSetValue(root, "Software\\RegisteredApplications", FULLENGINENAME, REG_SZ, command, strlen(command));
-
-	SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+	//SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
 	if (!ok && elevated < 2)
 	{
@@ -3034,7 +3035,7 @@ void Sys_DoFileAssociations(int elevated)
 //		char buf[1];
 		//attempt to display the vista+ prompt (only way possible in win8, apparently)
 		qIApplicationAssociationRegistrationUI *aarui = NULL;
-
+#if 0
 		//needs to be done anyway to ensure that its listed, and so that we get the association if nothing else has it.
 		//however, the popup for when you start new programs is very annoying, so lets try to avoid that. our file associations are somewhat explicit anyway.
 		//note that you'll probably still get the clumsy prompt if you try to run fte as a different user. really depends if you gave it local machine write access.
@@ -3048,18 +3049,19 @@ void Sys_DoFileAssociations(int elevated)
 			MyRegSetValue(root, "Software\\Classes\\.dem", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
 //		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.bsp", "", buf, sizeof(buf)))
 			MyRegSetValue(root, "Software\\Classes\\.bsp", "", REG_SZ, DISTRIBUTION"_BSPFile."ASSOCV, strlen(DISTRIBUTION"_BSPFile.1"));
+#endif
 		//legacy url associations are a bit more explicit
-//		if (!aarui || elevated==2 || !MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\Classes\\qw", "", buf, sizeof(buf)))
+//		if (!aarui || elevated==2 || !MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\Classes\\"GAME_URISCHEME, "", buf, sizeof(buf)))
 		{
-			Q_snprintfz(command, sizeof(command), "QuakeWorld Server");
-			MyRegSetValue(root, "Software\\Classes\\qw", "", REG_SZ, command, strlen(command));
-			MyRegSetValue(root, "Software\\Classes\\qw", "URL Protocol", REG_SZ, "", strlen(""));
+			Q_snprintfz(command, sizeof(command), DISTRIBUTION);
+			MyRegSetValue(root, "Software\\Classes\\"GAME_URISCHEME, "", REG_SZ, command, strlen(command));
+			MyRegSetValue(root, "Software\\Classes\\"GAME_URISCHEME, "URL Protocol", REG_SZ, "", strlen(""));
 			Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
-			MyRegSetValue(root, "Software\\Classes\\qw\\DefaultIcon", "", REG_SZ, command, strlen(command));
+			MyRegSetValue(root, "Software\\Classes\\"GAME_URISCHEME"\\DefaultIcon", "", REG_SZ, command, strlen(command));
 			Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
-			MyRegSetValue(root, "Software\\Classes\\qw\\shell\\open\\command", "", REG_SZ, command, strlen(command));
+			MyRegSetValue(root, "Software\\Classes\\"GAME_URISCHEME"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
 		}
-
+#if 0
 		CoInitialize(NULL);
 		if (FAILED(CoCreateInstance(&qCLSID_ApplicationAssociationRegistrationUI, 0, CLSCTX_INPROC_SERVER, &qIID_IApplicationAssociationRegistrationUI, (LPVOID*)&aarui)))
 			aarui = NULL;
@@ -3086,6 +3088,7 @@ void Sys_DoFileAssociations(int elevated)
 			SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 */
 		}
+	#endif
 	}
 }
 

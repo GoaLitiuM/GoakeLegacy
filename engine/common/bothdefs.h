@@ -173,6 +173,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef GAME_CFGFILE
 	#define GAME_CFGFILE "fte"	//fte.cfg
 #endif
+#ifndef APPDESCRIPTION
+	#define APPDESCRIPTION FULLENGINENAME" is an awesome hybrid game engine able to run multiple Quake-compatible/derived games."
+#endif
+#ifndef GAME_URISCHEME
+	#define GAME_URISCHEME "qw" //qw://
+#endif
 
 #if !defined(_WIN32) || defined(WINRT)
 	#undef HAVE_SPEECHTOTEXT

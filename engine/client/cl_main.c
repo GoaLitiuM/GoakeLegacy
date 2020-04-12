@@ -5772,6 +5772,7 @@ done:
 //if file is specified, takes full ownership of said file, including destruction.
 qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 {
+	#define URI_LEN sizeof(GAME_URISCHEME)-1+3
 	hrf_t *f;
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 	//win32 file urls are basically fucked, so defer to the windows api.
@@ -5797,7 +5798,7 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	}
 	else
 #endif
-		if (nlen >= 5 && !strncmp(fname, "qw://", 5))
+		if (nlen >= URI_LEN && !strncmp(fname, GAME_URISCHEME"://", URI_LEN))
 	{	//this is also implemented by ezquake, so be careful here...
 		//"qw://[stream@]host[:port]/COMMAND" join, spectate, qtvplay
 		char *t, *cmd;
@@ -5806,9 +5807,9 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 		t = Z_Malloc(nlen+1);
 		memcpy(t, fname, nlen);
 		t[nlen] = 0;
-		url = t+5;
+		url = t+URI_LEN;
 
-		for (cmd = t+5; *cmd; cmd++)
+		for (cmd = t+URI_LEN; *cmd; cmd++)
 		{
 			if (*cmd == '/')
 			{

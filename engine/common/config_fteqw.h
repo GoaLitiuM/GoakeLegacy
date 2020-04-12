@@ -10,6 +10,7 @@
 //#define FULLENGINENAME		"FTE Quake"						//nominally user-visible name.
 //#define ENGINEWEBSITE			"http://fte.triptohell.info"	//for shameless self-promotion purposes.
 //#define BRANDING_ICON			"fte_eukara.ico"				//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
+//#define APPDESCRIPTION 		FULLENGINENAME" is an awesome hybrid game engine able to run multiple Quake-compatible/derived games."
 
 //filesystem rebranding
 //#define GAME_SHORTNAME		"quake"			//short alphanumeric description
@@ -21,6 +22,7 @@
 //#define GAME_DOWNLOADSURL		NULL			//url for the package manger to update from
 //#define GAME_DEFAULTCMDS		NULL			//a string containing the things you want to exec in order to override default.cfg 
 //#define GAME_CFGFILE			"fte"			//name of the configuration filename used for loading and saving
+//#define GAME_URISCHEME		"qw"			//lowercase scheme name used for registering URI handles (scheme://...)
 
 
 // Allowed renderers... There should ONLY be undefs here (other C files won't be pulled in automatically)

@@ -21,7 +21,7 @@
 #define FULLENGINENAME			"Goake"			//nominally user-visible name.
 #define ENGINEWEBSITE			""				//for shameless self-promotion purposes.
 #define BRANDING_ICON			"goake.ico"		//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
-#define GAME_CFGFILE			"config"		//name of the configuration filename used for loading and saving
+#define APPDESCRIPTION			""				//application description used to describe the game in OS application manager
 
 //filesystem rebranding
 #define GAME_SHORTNAME			"gw"			//short alphanumeric description
@@ -32,6 +32,8 @@
 //#define GAME_IDENTIFYINGFILES	NULL			//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL		NULL			//url for the package manger to update from
 //#define GAME_DEFAULTCMDS		NULL			//a string containing the things you want to exec in order to override default.cfg
+#define GAME_CFGFILE			"config"		//name of the configuration filename used for loading and saving
+#define GAME_URISCHEME			"goake"			//lowercase scheme name used for registering URI handles (scheme://...)
 
 //Misc Renderer stuff
 #define PSET_CLASSIC			//support the 'classic' particle system, for that classic quake feel.
