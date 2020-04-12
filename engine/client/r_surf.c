@@ -4229,7 +4229,7 @@ void Surf_NewMap (void)
 		COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));
 	else
 		*namebuf = '\0';
-	Cvar_Set(&host_mapname, namebuf);
+	Cvar_ForceSet(&host_mapname, namebuf);
 
 	Surf_DeInit();
 
