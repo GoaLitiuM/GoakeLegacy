@@ -143,7 +143,7 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 //
 // info mirrors
 //
-cvar_t	password	= CVARAF("password",	"",	"pq_password", CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy... added pq_password alias because baker seems to be using this for user accounts.
+cvar_t	password	= CVARAF("password",	"",	"pq_password", CVAR_USERINFO | CVAR_NOUNSAFEEXPAND | CVAR_NOSAVE); //this is parhaps slightly dodgy... added pq_password alias because baker seems to be using this for user accounts.
 cvar_t	spectator	= CVARF("spectator",	"",			CVAR_USERINFO);
 cvar_t	name		= CVARFC("name",		"Player",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
 cvar_t	team		= CVARF("team",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
@@ -1308,14 +1308,16 @@ void CL_Connect_f (void)
 {
 	char	*server;
 
-	if (Cmd_Argc() != 2)
+	if (Cmd_Argc() < 2)
 	{
-		Con_TPrintf ("usage: connect <server>\n");
+		Con_TPrintf ("usage: connect <server> [password]\n");
 		return;
 	}
 
 	server = Cmd_Argv (1);
 	server = strcpy(alloca(strlen(server)+1), server);
+	if (Cmd_Argc() >= 3)
+		Cvar_Set(&password, Cmd_Argv(2));
 
 #ifndef CLIENTONLY
 	if (sv.state == ss_clustermode)
@@ -5827,6 +5829,8 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 			Cbuf_AddText(va("qtvplay %s\n", url), RESTRICT_LOCAL);
 		else if (!*cmd || !Q_strcasecmp(cmd, "connect"))
 			Cbuf_AddText(va("connect %s\n", url), RESTRICT_LOCAL);
+		else if (!Q_strncasecmp(cmd, "connect/", 8))
+			Cbuf_AddText(va("connect %s %s\n", url, cmd+8), RESTRICT_LOCAL);
 		else
 			Con_Printf("Unknown url command: %s\n", cmd);
 
