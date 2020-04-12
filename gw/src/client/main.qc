@@ -15,23 +15,21 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 	Common_Init();
 	Hud_Init();
 	Item_InitClient();
-
-	registercommand("+showscores");
-	registercommand("-showscores");
+	Vote_Init();
 }
 
-float CSQC_ConsoleCommand(string cmd)
+float CSQC_ConsoleCommand(string line)
 {
-	cmd = strtolower(strtrim(cmd));
+	line = strtolower(strtrim(line));
 	string key = "";
 
 	// commands may have the triggering key appended at the end, parse it
-	if (str2chr(cmd, 0) == '+' || str2chr(cmd, 0) == '-')
+	if (str2chr(line, 0) == '+' || str2chr(line, 0) == '-')
 	{
 		int last_space = -1;
 		while (true)
 		{
-			int ind = strstrofs(cmd, " ", last_space+1);
+			int ind = strstrofs(line, " ", last_space+1);
 			if (ind == -1)
 				break;
 
@@ -39,24 +37,34 @@ float CSQC_ConsoleCommand(string cmd)
 		}
 		if (last_space >= 0)
 		{
-			key = substring(cmd, last_space+1, strlen(cmd)-last_space-1);
-			cmd = substring(cmd, 0, last_space);
+			key = substring(line, last_space+1, strlen(line)-last_space-1);
+			line = substring(line, 0, last_space);
 		}
 	}
 
-	if (cmd == "+showscores")
-		showscores = true;
-	else if (cmd == "-showscores")
-		showscores = false;
-	else if (cmd == "messagemode")
+	tokenize(line);
+	switch (argv(0))
 	{
-		chat_team = false;
-		return true;
-	}
-	else if (cmd == "messagemode2")
-	{
-		chat_team = true;
-		return true;
+		case "+showscores":
+			showscores = true;
+			break;
+		case "-showscores":
+			showscores = false;
+			break;
+
+		case "messagemode":
+			chat_team = false;
+			return true;
+		case "messagemode2":
+			chat_team = true;
+			return true;
+
+		case "callvote":
+			Vote_CallVote(strtrim(substring(line, 9, strlen(line)-9)));
+			return true;
+		case "vote":
+			Vote_Vote(strtrim(substring(line, 5, strlen(line)-5)));
+			return true;
 	}
 	return false;
 }
@@ -110,17 +118,33 @@ void CSQC_Ent_Remove()
 void CSQC_Parse_Event()
 {
 	int type = readByte();
-	if (type == EVENT_LIGHTNING)
-		WeaponLightning_CreateLightningBeam();
-	else if (type == EVENT_PLAYER_ATTACK)
+	switch (type)
 	{
-		entity player = readEntity();
-		player.is_attacking = true;
+		case EVENT_LIGHTNING:
+			WeaponLightning_CreateLightningBeam();
+			break;
+		case EVENT_PLAYER_ATTACK:
+		{
+			entity player = readEntity();
+			player.is_attacking = true;
+			break;
+		}
+		case EVENT_GAMEMODE_TIMER:
+			gamemode_timeroffset = readFloat();
+			break;
+		case EVENT_CALLVOTE:
+			Vote_OnCallVote();
+			break;
+		case EVENT_CALLVOTE_PLAYERVOTE:
+			Vote_OnPlayerVote();
+			break;
+		case EVENT_CALLVOTE_FINISHED:
+			Vote_OnFinish();
+			break;
+
+		default:
+			error(strcat("Unknown CSQC_Parse_Event type: ", itos(type)));
 	}
-	else if (type == EVENT_GAMEMODE_TIMER)
-		gamemode_timeroffset = readFloat();
-	else
-		error(strcat("Unknown CSQC_Parse_Event type: ", itos(type)));
 }
 
 float CSQC_Event_Sound(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags)

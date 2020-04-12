@@ -99,6 +99,16 @@ void GameMode_SetMode(string mode)
 	cvar_set("gm_mode", gamemode->name);
 }
 
+void GameMode_SetFragLimit(int fraglimit)
+{
+	cvar_setf("gm_fraglimit", itof(fraglimit));
+}
+
+void GameMode_SetTimeLimit(int timelimit)
+{
+	cvar_setf("gm_timelimit", itof(timelimit));
+}
+
 void GameMode_Init()
 {
 	gamemode_timeroffset = time;

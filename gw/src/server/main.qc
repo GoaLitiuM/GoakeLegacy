@@ -71,6 +71,8 @@ void EndFrame()
 		phys_timer -= ticktime;
 		LagCompensate_Snapshot();
 	}
+
+	Vote_Tick();
 }
 
 void SV_RunClientCommand()

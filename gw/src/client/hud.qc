@@ -16,6 +16,9 @@ void Hud_Init()
 
 	font_chat = LoadFont("fonts/Oxanium-Regular.ttf", 10);
 	font_chat_bold = LoadFont("fonts/Oxanium-Bold.ttf", 10);
+
+	registercommand("+showscores");
+	registercommand("-showscores");
 }
 
 void Hud_Keys(float width, float height);

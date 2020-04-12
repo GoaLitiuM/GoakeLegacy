@@ -1,10 +1,17 @@
 const float CHAT_SHOW_TIME = 10.0f;
 
+enum
+{
+	CHAT_TYPE_SYSTEM,
+	CHAT_TYPE_MESSAGE
+};
+
 struct ChatLine
 {
-	string timestamp;
-	int time;
+	string timestamp;	// FIXME: should be server timestamp
+	int time;			// received time
 	string source;
+	int type;
 	string msg;
 };
 
@@ -12,13 +19,13 @@ ChatLine* chatlines;
 int chatlines_allocated_count;
 int chatlines_count;
 
-void Chat_NewMessage(string timestamp, string source, string msg)
+ChatLine* Chat_NewLine()
 {
 	if (chatlines_count == chatlines_allocated_count)
 	{
 		int alloc_size = chatlines_allocated_count * 2;
 		if (alloc_size == 0)
-			alloc_size = 100;
+			alloc_size = 128;
 
 		ChatLine* ptr = memalloc(sizeof(ChatLine) * alloc_size);
 		chatlines_allocated_count = alloc_size;
@@ -34,13 +41,31 @@ void Chat_NewMessage(string timestamp, string source, string msg)
 
 	ChatLine* line = &chatlines[chatlines_count];
 	chatlines_count++;
+	return line;
+}
 
+void Chat_SystemMessage(string msg)
+{
+	ChatLine* line = Chat_NewLine();
+	line->timestamp = strftime(1, "%H:%M:%S");
+	line->time = cltime;
+	line->source = "";
+	line->type = CHAT_TYPE_SYSTEM;
+	line->msg = msg;
+
+	println(msg);
+}
+
+void Chat_Message(string timestamp, string source, string msg)
+{
+	ChatLine* line = Chat_NewLine();
 	line->timestamp = timestamp;
 	line->time = cltime;
 	line->source = source;
+	line->type = CHAT_TYPE_MESSAGE;
 	line->msg = msg;
 
-	println(timestamp, " ", source, ": ", msg);
+	println(source, ": ", msg);
 }
 
 void Chat_OnPrint(string printmsg)
@@ -54,7 +79,7 @@ void Chat_OnPrint(string printmsg)
 	// FIXME: we can't possibly know the real time this message was sent
 	string timestamp = strftime(1, "%H:%M:%S");
 
-	Chat_NewMessage(timestamp, source, msg);
+	Chat_Message(timestamp, source, msg);
 }
 
 void Hud_Chat(float width, float height)
@@ -105,10 +130,15 @@ void Hud_Chat(float width, float height)
 			DrawText(font_chat, [left + offset, top, 0], timestamp_str, '1 1 1', 1);
 			offset += TextWidth(font_chat, timestamp_str, false);
 
-			DrawText(font_chat_bold, [left + offset, top, 0], source_str, '1 1 1', 1);
-			offset += TextWidth(font_chat_bold, source_str, false);
+			if (line->type == CHAT_TYPE_MESSAGE)
+			{
+				DrawText(font_chat_bold, [left + offset, top, 0], source_str, '1 1 1', 1);
+				offset += TextWidth(font_chat_bold, source_str, false);
 
-			DrawText(font_chat, [left + offset, top, 0], msg_str, '1 1 1', 1);
+				DrawText(font_chat, [left + offset, top, 0], strcat(": ", line->msg), '1 1 1', 1);
+			}
+			else
+				DrawText(font_chat, [left + offset, top, 0], line->msg, '1 1 1', 1);
 
 			linenum++;
 			top += spacing;

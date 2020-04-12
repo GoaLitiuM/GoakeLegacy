@@ -119,6 +119,7 @@ float maxfps;
 .bool race_started;
 vector input_subframe_angles;
 .vector last_angles;
+.int voted;
 
 // projectiles
 .int projectile_id;
@@ -165,4 +166,7 @@ enum
 	EVENT_LIGHTNING = 1,
 	EVENT_PLAYER_ATTACK = 2,
 	EVENT_GAMEMODE_TIMER = 3,
+	EVENT_CALLVOTE = 4,
+	EVENT_CALLVOTE_PLAYERVOTE = 5,
+	EVENT_CALLVOTE_FINISHED = 6,
 };

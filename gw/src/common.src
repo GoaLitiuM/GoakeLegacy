@@ -6,6 +6,7 @@
 #include <common/stats.qc>
 #include <common/entity.qc>
 #include <common/item.qc>
+#include <common/vote.qc>
 
 #include <common/weapons/rocket.qc>
 #include <common/weapons/lightning.qc>
