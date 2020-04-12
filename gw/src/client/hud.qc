@@ -67,11 +67,11 @@ void Hud_Keys(float width, float height)
 // health, armor and ammo
 void Hud_Player(float width, float height)
 {
-	entity playerent = player_localentnum == player_localnum ? local_player : getEntity(player_localentnum);
-	string left_str = itos(playerent.health);//itos(getplayerstat(player_localentnum, STAT_HEALTH, EV_INTEGER));
-	string right_str = itos(playerent.armorvalue);//itos(getplayerstat(player_localentnum, STAT_ARMOR, EV_INTEGER));
-	int weapon = getplayerstat(player_localentnum, STAT_CURRENT_WEAPON, EV_INTEGER);
-	int weapon_ammo = playerent.ammo[WEAPON_AMMO_INDEX(weapon)];
+	entity playerent = player_localentnum == local_player.entnum ? local_player : getEntity(player_localentnum);
+	string left_str = itos(playerent.health);
+	string right_str = itos(playerent.armorvalue);
+	int current_weapon = playerent.weapon;
+	int weapon_ammo = playerent.ammo[WEAPON_AMMO_INDEX(current_weapon)];
 	string ammo_str = weapon == 0 ? "" : itos(weapon_ammo);
 
 	int center_offset = 5;
