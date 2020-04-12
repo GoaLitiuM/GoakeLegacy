@@ -45,7 +45,7 @@ void Player_Update(bool isnew)
 		Player_Init();
 		self.fixangle = 1;
 
-		UpdatePlayerStats(true);
+		UpdatePlayerStats(self, true);
 		UpdateGlobalStats(true);
 
 		if (isnew && self.entnum == player_localentnum)
@@ -103,7 +103,7 @@ float Player_PreDraw()
 		else
 		{
 			PlayerPrediction_ApplyServerState();
-			UpdatePlayerStats(true);
+			UpdatePlayerStats(self, true);
 			UpdateGlobalStats(true);
 		}
 

@@ -13,6 +13,7 @@
 
 #define SND_ARMOR_PICKUP "items/armor1.wav"
 #define SND_WEAPON_PICKUP "weapons/pkup.wav"
+#define SND_AMMO_PICKUP "weapons/lock4.wav"
 #define SND_ITEM_RESPAWN "items/itembk2.wav"
 
 #define SPR_EXPLOSION "progs/s_explod.spr"

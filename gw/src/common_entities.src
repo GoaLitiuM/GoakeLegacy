@@ -1,4 +1,5 @@
-#include <common/entities/item.qc>
+#include <common/entities/item_ammo.qc>
+#include <common/entities/item_armor.qc>
 #include <common/entities/misc.qc>
 #include <common/entities/race.qc>
 #include <common/entities/teleport.qc>

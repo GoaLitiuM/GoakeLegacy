@@ -18,17 +18,20 @@ const float ROCKET_DAMAGE = 100;
 const float ROCKET_SPEED = 1000;
 const float ROCKET_RADIUS = 120;
 const float ROCKET_FORCE = 490;
+const float ROCKET_MAX_AMMO = 20;
 
 const float LIGHTNING_RELOAD = 0.1;
 const float LIGHTNING_RANGE = 600;
 const float LIGHTNING_DAMAGE = 15; // 225 DPS
 const float LIGHTNING_TPS = 15;
 const float LIGHTNING_FORCE = 100;
+const float LIGHTNING_MAX_AMMO = 50;
 
 const float CROSSBOW_RELOAD = 0.4;
 const float CROSSBOW_DAMAGE = 100;
 const float CROSSBOW_SPEED = 3500;
 const float CROSSBOW_FORCE = 600;
 const float CROSSBOW_TIME = 30.0;
+const float CROSSBOW_MAX_AMMO = 15;
 
 const float TELEPORT_MAX_VELOCITY = 400;

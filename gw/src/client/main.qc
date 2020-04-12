@@ -245,6 +245,8 @@ void CSQC_WorldLoaded()
 				ent.model = value;
 			else if (field == "message")
 				ent.message = strzone(value);
+			else if (field == "count")
+				ent.count = stoi(value);
 		}
 
 		if (!valid)

@@ -202,7 +202,7 @@ void PlayerPrediction()
 	if (self.health <= 0)
 		skip_stat_prediction = true;
 
-	UpdatePlayerStats(skip_stat_prediction);
+	UpdatePlayerStats(self, skip_stat_prediction);
 	UpdateGlobalStats(true);
 
 	int currentframe = clientcommandframe;

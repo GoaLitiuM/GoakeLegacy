@@ -10,7 +10,7 @@ struct Stat
 #ifdef CSQC
 	.__variant fld;
 
-	// these should match the stat values of local client, and are used in detecting changes
+	// these should match the stat values of client, and are used in detecting changes
 	union
 	{
 		int value_int;
@@ -54,20 +54,20 @@ void RegisterStats()
 	//RegisterFieldStat(STAT_NEXT_WEAPON, EV_FLOAT, weapon_next);
 	RegisterFieldStat(STAT_WEAPONS, EV_INTEGER, weapons);
 	RegisterFieldStat(STAT_RELOAD_TIME, EV_FLOAT, reload_time);
-	RegisterFieldStat(STAT_PROJECTILE_ID, EV_FLOAT, projectile_id);
+	RegisterFieldStat(STAT_PROJECTILE_ID, EV_INTEGER, projectile_id);
 
-	for (int i=0; i<=STAT_AMMO_LAST-STAT_AMMO_NONE; i++)
-		RegisterFieldStat(STAT_AMMO_NONE+i, EV_INTEGER, ammo[i]);
+	for (int i=0; i<=STAT_AMMO_LAST-STAT_AMMO_FIRST; i++)
+		RegisterFieldStat(STAT_AMMO_FIRST+i, EV_INTEGER, ammo[i]);
 
 	// global stats are mapped to globals
 	RegisterGlobalStat(STAT_AUTOJUMP, EV_FLOAT, &sv_autojump, "sv_autojump");
 }
 
 #ifdef CSQC
-void UpdatePlayerStats(bool forced = false)
+void UpdatePlayerStats(entity player, bool forced = false)
 {
-	local int playernum;
-	if (self.entnum == local_player.entnum)
+	int playernum;
+	if (player.entnum == local_player.entnum)
 		playernum = player_localnum;
 	else
 	{
@@ -75,19 +75,19 @@ void UpdatePlayerStats(bool forced = false)
 		playernum = 0;
 	}
 
-	if (self.entnum == local_player.entnum)
+	if (playernum == player_localnum)
 	{
 		for (int i=0; i<stats_count; i++)
 		{
-			local Stat* stat = &stats[i];
+			Stat* stat = &stats[i];
 			if (stat->ptr != 0)
 				continue; // this is a global stat
 
 			field_t __fld = stat->fld;
-			local bool changed = forced;
-			local int val_int = 0;
-			local string val_str = 0;
-			local float val_flt = 0;
+			bool changed = forced;
+			int val_int = 0;
+			string val_str = 0;
+			float val_flt = 0;
 
 			if (stat->stattype == EV_FLOAT)
 			{
@@ -112,17 +112,17 @@ void UpdatePlayerStats(bool forced = false)
 
 			if (stat->stattype == EV_FLOAT)
 			{
-				self.__fld = val_flt;
+				player.__fld = val_flt;
 				stat->value_flt = val_flt;
 			}
 			else if (stat->stattype == EV_INTEGER)
 			{
-				self.__fld = val_int;
+				player.__fld = val_int;
 				stat->value_int = val_int;
 			}
 			else if (stat->stattype == EV_STRING)
 			{
-				self.__fld = val_str;
+				player.__fld = val_str;
 				stat->value_str = val_str;
 			}
 		}
@@ -132,17 +132,17 @@ void UpdatePlayerStats(bool forced = false)
 		// for other players, we forcefully update all the stats every frame
 		for (int i=0; i<stats_count; i++)
 		{
-			local Stat* stat = &stats[i];
+			Stat* stat = &stats[i];
 			if (stat->ptr != 0)
 				continue; // this is a global stat
 
 			field_t __fld = stat->fld;
 			if (stat->stattype == EV_FLOAT)
-				self.__fld = (float)getplayerstat(playernum, stat->statnum, stat->stattype);
+				player.__fld = (float)getplayerstat(playernum, stat->statnum, stat->stattype);
 			else if (stat->stattype == EV_INTEGER)
-				self.__fld = (int)getplayerstat(playernum, stat->statnum, stat->stattype);
+				player.__fld = (int)getplayerstat(playernum, stat->statnum, stat->stattype);
 			else if (stat->stattype == EV_STRING)
-				self.__fld = (string)getplayerstat(playernum, stat->statnum, stat->stattype);
+				player.__fld = (string)getplayerstat(playernum, stat->statnum, stat->stattype);
 			else
 				error("unsupported stattype");
 		}
@@ -155,16 +155,16 @@ void UpdateGlobalStats(bool forced = false)
 	// update global variables from cvar values or stats
 	for (int i=0; i<stats_count; i++)
 	{
-		local Stat* stat = &stats[i];
+		Stat* stat = &stats[i];
 		if (stat->ptr == 0)
 			continue; // this is a field stat
 
 		__variant* ptr = stat->ptr;
 #ifdef CSQC
-		local bool changed = forced;
-		local int val_int = 0;
-		local string val_str = 0;
-		local float val_flt = 0;
+		bool changed = forced;
+		int val_int = 0;
+		string val_str = 0;
+		float val_flt = 0;
 
 		if (stat->stattype == EV_FLOAT)
 		{

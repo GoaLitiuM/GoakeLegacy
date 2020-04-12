@@ -1,4 +1,3 @@
-#include <common/ruleset.qc>
 #include <common/math.qc>
 
 #include <common/weapons.qc>

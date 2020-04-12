@@ -43,18 +43,26 @@ void Item_Init(string texture, string sound)
 	Item_SetActive(true);
 }
 
-void Item_InitWeapon()
+void Item_InitSimple(string sound)
 {
 	string texture = strcat("textures/simple_items/", self.classname);
-	Item_Init(texture, SND_WEAPON_PICKUP);
+	Item_Init(texture, sound);
 	setsize(self, '-16 -16 -16', '16 16 24'); // items should be slightly taller to make them easier to pickup
+}
+
+void Item_InitWeapon()
+{
+	Item_InitSimple(SND_WEAPON_PICKUP);
+}
+
+void Item_InitAmmo()
+{
+	Item_InitSimple(SND_AMMO_PICKUP);
 }
 
 void Item_InitArmor()
 {
-	string texture = strcat("textures/simple_items/", self.classname);
-	Item_Init(texture, SND_ARMOR_PICKUP);
-	setsize(self, '-16 -16 -16', '16 16 24'); // items should be slightly taller to make them easier to pickup
+	Item_InitSimple(SND_ARMOR_PICKUP);
 }
 
 #ifdef CSQC

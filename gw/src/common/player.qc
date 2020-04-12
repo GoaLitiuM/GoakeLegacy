@@ -11,7 +11,7 @@ void Player_OnJump();
 
 void Player_Init()
 {
-	self.health = /*self.max_health =*/ 100;
+	self.health = 100;
 	self.armortype = ARMOR_GREEN_ABSORB;
 	self.armorvalue = 0;
 	self.fixangle = 1;
@@ -38,6 +38,9 @@ void Player_Init()
 	self.SendFlags |= SENDFLAGS_PLAYER_INIT;
 
 	self.death_time = 0;
+
+	for (int i=0; i<STAT_AMMO_LAST-STAT_AMMO_FIRST; i++)
+		self.ammo[i] = 0;
 
 #ifdef SSQC
 	GameMode_OnPlayerInit(self);

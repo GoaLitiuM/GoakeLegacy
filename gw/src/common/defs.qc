@@ -24,10 +24,10 @@ enum
 	STAT_ITEMS,             // EV_INTEGER
 	STAT_EFFECTS,           // EV_INTEGER
 	STAT_RELOAD_TIME,       // EV_FLOAT
-	STAT_PROJECTILE_ID,		// EV_FLOAT
+	STAT_PROJECTILE_ID,		// EV_INTEGER
 
 	// ammo stats
-	STAT_AMMO_NONE,
+	STAT_AMMO_NONE,			// or STAT_AMMO_FIRST
 	STAT_AMMO_SHELLS,   	// EV_INTEGER
 	STAT_AMMO_NAILS, 	  	// EV_INTEGER
 	STAT_AMMO_ROCKETS,   	// EV_INTEGER
@@ -38,6 +38,8 @@ enum
 	// global stats
 	STAT_AUTOJUMP = 128,    // EV_FLOAT
 };
+
+#define STAT_AMMO_FIRST STAT_AMMO_NONE
 
 enum
 {
@@ -73,19 +75,29 @@ int WEAPON_AMMO_STAT(int weapon)
 		return STAT_AMMO_SHELLS;
 	else if (weapon == WEAPON_NAILGUN)
 		return STAT_AMMO_NAILS;
-	else if (weapon == WEAPON_GRENADE || weapon == WEAPON_ROCKET)
+	else if (weapon == WEAPON_ROCKET)
 		return STAT_AMMO_ROCKETS;
 	else if (weapon == WEAPON_LIGHTNING)
 		return STAT_AMMO_CELLS;
 	else if (weapon == WEAPON_CROSSBOW)
 		return STAT_AMMO_BOLTS;
-	else
-		return STAT_AMMO_NONE;
+	return STAT_AMMO_NONE;
 }
 
 int WEAPON_AMMO_INDEX(int weapon)
 {
 	return WEAPON_AMMO_STAT(weapon) - STAT_AMMO_NONE;
+}
+
+int AMMO_MAX(int ammo_stat)
+{
+	if (ammo_stat == STAT_AMMO_ROCKETS)
+		return ROCKET_MAX_AMMO;
+	else if (ammo_stat == STAT_AMMO_CELLS)
+		return LIGHTNING_MAX_AMMO;
+	else if (ammo_stat == STAT_AMMO_BOLTS)
+		return CROSSBOW_MAX_AMMO;
+	return 9999;
 }
 
 #define WEAPON_BIT(x) (1 << x)
@@ -108,7 +120,7 @@ float maxfps;
 .float weapon;
 .float weapon_next;
 .int weapons;
-.int ammo[WEAPON_LAST-1];
+.int ammo[STAT_AMMO_LAST-STAT_AMMO_FIRST+1];
 .float weapon_sound_loop_time;
 .float death_time;
 .bool spawn_wish;
@@ -128,6 +140,8 @@ vector input_subframe_angles;
 .entity last_touched; // last entity who touched the item
 .string pickup_sound;
 .bool() touch2;
+.int count;
+.int ammo_stat;
 
 // item_armor*
 #define armorvalue_min armorvalue
