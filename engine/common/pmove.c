@@ -409,7 +409,7 @@ int PM_StepSlideMove (qboolean in_air)
 
 	if (in_air)
 	{
-		if (blocked && movevars.cliptime > 0)
+		if (movevars.cliptime > 0)
 		{
 			// wallclipping
 			if (pmove.jump_time > 0 && pmove.jump_time <= movevars.cliptime)
@@ -507,6 +507,12 @@ usedown:
 		//FIXME gravitydir
 		pmove.velocity[0] *= scale;
 		pmove.velocity[1] *= scale;
+	}
+	else if (movevars.airstep > 2 && !pmove.onground && pmove.waterlevel < 2 && (blocked & BLOCKED_STEP))
+	{
+		//makes stair jumping possible, first jump eats all vertical velocity when stepped up
+		if (pmove.jump_count == 1)
+			pmove.velocity[2] *= 0;
 	}
 
 	return blocked;
@@ -1217,9 +1223,6 @@ static void PM_CheckJump (void)
 	float jumpvelocity = movevars.jumpvelocity;
 	if (pmove.jump_count > 0 && pmove.jump_count <= movevars.maxjumps && pmove.jump_time < movevars.jumpboost_time)
 		jumpvelocity += movevars.jumpboost;
-
-	pmove.jump_time = frametime;
-	pmove.jump_count++;
 	
 	VectorCopy(pmove.velocity, oldvel);
 
@@ -1243,37 +1246,10 @@ static void PM_CheckJump (void)
 				+ jumpvelocity * movevars.ktjump;
 	}
 	
-	// allow stair jumping during first jump
-	if (movevars.maxjumps >= 1 && pmove.jump_count == 1 && -DotProduct(pmove.gravitydir, groundplane.normal) > 0.85)
-	{
-		vec3_t orig, vel;
-		int movedup;
-		VectorCopy(pmove.origin, orig);
-		VectorCopy(pmove.velocity, vel);
-
-		// look ahead stepheight units to see if we would step up at current ground velocity
-		VectorNormalize(oldvel);
-		for (int i=0; i<3; i++)
-			pmove.velocity[i] = oldvel[i] * (movevars.stepheight / frametime);
-		
-		pmove.velocity[2] = 0;
-		int blocked = PM_StepSlideMove(false);
-
-		movedup = pmove.origin[2] - orig[2];
-		
-		VectorCopy(orig, pmove.origin);
-		VectorCopy(vel, pmove.velocity);
-		
-		// let the step eat jump velocity when hit
-		if (movedup > 0 && blocked & BLOCKED_STEP)
-		{
-			pmove.velocity[2] = 0;
-			pmove.onground = true;
-		}
-	}
-
 	pmove.jumped = true;
 	pmove.jump_held = true;		// don't jump again until released
+	pmove.jump_time = frametime;
+	pmove.jump_count++;
 
 	//pmove.jump_msec = pmove.cmd.msec;
 }
