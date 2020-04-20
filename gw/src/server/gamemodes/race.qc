@@ -1,38 +1,7 @@
-void Race_Init()
-{
-}
-
-void Race_OnClientConnect(entity player)
-{
-	// TODO: restore old stats here in case the player disconnects from the server during the match
-	forceinfokey(player, "deaths", "0");
-}
-
 void Race_OnClientKill(entity player)
 {
-	Player_Kill(player);
+	BaseMod_OnClientKill(player);
 	Player_Spawn();
-}
-
-void Race_Tick()
-{
-}
-
-bool Race_OnPlayerRequestRespawn(entity player)
-{
-	return true;
-}
-
-void Race_OnPlayerSpawn(entity player)
-{
-	entity spawn = FindRandomSpawn();
-	player.origin = spawn.origin;
-	player.angles = spawn.angles;
-}
-
-void Race_OnPlayerInit(entity player)
-{
-	player.health = 100;
 }
 
 float Race_OnPlayerTakeDamage(entity player, float damage, entity source)
@@ -44,4 +13,4 @@ void Race_OnPlayerDeath(entity player, entity source)
 {
 }
 
-#define GameMode_Race { "race", "Race", Race_Init, Race_Tick, Race_OnClientConnect, 0, Race_OnClientKill, Race_OnPlayerRequestRespawn, Race_OnPlayerSpawn, Race_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerDeath }
+#define GameMode_Race { "race", "Race", BaseMod_Init, BaseMod_Tick, BaseMod_OnClientConnect, 0, Race_OnClientKill, BaseMod_OnPlayerRequestRespawn, BaseMod_OnPlayerSpawn, BaseMod_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerDeath }

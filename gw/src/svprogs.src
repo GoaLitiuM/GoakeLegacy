@@ -24,6 +24,7 @@
 #include <server/player.qc>
 
 #include <server/gamemode.qc>
+#include <server/gamemodes/base.qc>
 #include <server/gamemodes/ffa.qc>
 #include <server/gamemodes/race.qc>
 
