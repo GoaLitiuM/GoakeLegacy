@@ -88,19 +88,6 @@ void Player_PreTick()
 
 void Player_Physics()
 {
-	vector old_input_movevalues = input_movevalues;
-	float old_input_buttons = input_buttons;
-	float old_input_impulse = input_impulse;
-	bool restore_input = false;
-
-	if (self.health <= 0)
-	{
-		input_movevalues = '0 0 0';
-		input_buttons = 0;
-		input_impulse = 0;
-		restore_input = true;
-	}
-
 #ifdef SSQC
 	vector old_origin = self.origin;
 	vector old_velocity = self.velocity;
@@ -128,13 +115,6 @@ void Player_Physics()
 	if (self.jump_time != old_jump_time || self.jump_count != old_jump_count)
 		self.SendFlags |= SENDFLAGS_JUMP;
 #endif
-
-	if (restore_input)
-	{
-		input_movevalues = old_input_movevalues;
-		input_buttons = old_input_buttons;
-		input_impulse = old_input_impulse;
-	}
 }
 
 void Player_PostTick()

@@ -28,7 +28,20 @@ vector attack_angle;
 .string targetname;
 .string target;
 
-// latest predicted values in client, should match the real values
+// last handled commandframes for player prediction
+.int playerclientframe;
+.int playerserverframe;
+
+// latest predicted player fields, these are used to detect clientside changes to player state
+.vector current_origin;
+.vector current_velocity;
+.vector current_angles;
+.int current_flags;
+.int current_pmove_flags;
+.float current_jump_time;
+.float current_jump_count;
+
+// values from previous predicted frame
 .vector client_origin;
 .vector client_velocity;
 .vector client_angles;
@@ -37,7 +50,7 @@ vector attack_angle;
 .float client_jump_time;
 .float client_jump_count;
 
-// last received values from server, used with prediction
+// last received values from server
 .vector server_origin;
 .vector server_velocity;
 .vector server_angles;
@@ -45,6 +58,11 @@ vector attack_angle;
 .int server_pmove_flags;
 .float server_jump_time;
 .float server_jump_count;
+
+// next predicted server values, these values are used to detect prediction errors
+.vector server_pred_origin;
+.vector server_pred_velocity;
+.vector server_pred_angles;
 
 .float server_time; // last known time the player was updated, used with extrapolation
 

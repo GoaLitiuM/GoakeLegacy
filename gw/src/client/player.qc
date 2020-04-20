@@ -29,6 +29,13 @@ void Player_Update(bool isnew)
 
 	if (isnew)
 	{
+		self.server_pred_origin = self.origin;
+		self.server_pred_velocity = self.velocity;
+		self.server_pred_angles = self.angles;
+
+		self.playerclientframe = servercommandframe;
+		self.playerserverframe = servercommandframe;
+
 		send_flags |= SENDFLAGS_PLAYER_INIT; // just to make sure the player is reinitialized properly
 
 		self.predraw = Player_PreDraw;
@@ -74,7 +81,7 @@ void Player_UpdateCamera()
 	if (self.flags & FL_ONGROUND != 0 && step_delta > 0 && step_delta <= step_size * 2)
 	{
 		// smoothing needs to be faster on slopes, otherwise it would look like player slightly sinks into the slope
-		tracebox(self.client_origin, self.mins, self.maxs, self.client_origin + self.client_velocity * frametime, false, self);
+		tracebox(self.current_origin, self.mins, self.maxs, self.current_origin + self.current_velocity * frametime, false, self);
 		float d = -dotproduct(global_gravitydir, trace_plane_normal);
 
 		float smoothing = step_smooth_units;

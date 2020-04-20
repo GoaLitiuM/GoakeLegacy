@@ -8,7 +8,7 @@ vector vel_delta;
 vector angles_delta;
 vector view_angles_delta;
 
-void PlayerPrediction_RunPhysics(int startframe, int endframe)
+void PlayerPrediction_RunPhysics(int startframe, int endframe, bool apply_deltas)
 {
 	// run player physics simulation for all the frames
 	for (int i = startframe; i <= endframe; i++)
@@ -20,7 +20,7 @@ void PlayerPrediction_RunPhysics(int startframe, int endframe)
 			break;
 
 		// apply pending clientside changes here for the frame when it happened
-		if (i == deltaframe)
+		if (i == deltaframe && apply_deltas)
 		{
 			self.origin = origin_delta;
 			self.velocity = vel_delta;
@@ -127,13 +127,13 @@ void PlayerPrediction_Reset()
 	angles_delta = '0 0 0';
 	view_angles_delta = view_angles;
 
-	self.client_origin = self.origin;
-	self.client_velocity = self.velocity;
-	self.client_angles = self.angles;
-	self.client_flags = self.flags;
-	self.client_pmove_flags = self.pmove_flags;
-	self.client_jump_time = self.jump_time;
-	self.client_jump_count = self.jump_count;
+	self.current_origin = self.origin;
+	self.current_velocity = self.velocity;
+	self.current_angles = self.angles;
+	self.current_flags = self.flags;
+	self.current_pmove_flags = self.pmove_flags;
+	self.current_jump_time = self.jump_time;
+	self.current_jump_count = self.jump_count;
 
 	lastframe = 0;
 }
@@ -165,9 +165,9 @@ void PlayerPrediction_ApplyClientState()
 void PlayerPrediction()
 {
 	// detect client-changes to the player entity's state caused by other entities
-	vector origin_diff = self.origin - self.client_origin;
-	vector vel_diff = self.velocity - self.client_velocity;
-	vector angle_diff = self.angles - self.client_angles;
+	vector origin_diff = self.origin - self.current_origin;
+	vector vel_diff = self.velocity - self.current_velocity;
+	vector angle_diff = self.angles - self.current_angles;
 	if (vlen(origin_diff) > 0 || vlen(vel_diff) > 0 || vlen(angle_diff) > 0)
 	{
 		deltaframe = lastframe;
@@ -188,9 +188,6 @@ void PlayerPrediction()
 		else
 			view_angles = self.server_angles;
 	}
-
-	// rewind to the last known confirmed state
-	PlayerPrediction_ApplyServerState();
 
 	// reset prediction when we receive the correct frame
 	bool skip_stat_prediction = false;
@@ -217,19 +214,67 @@ void PlayerPrediction()
 		break;
 	}
 
-	// simulation starts after the last verified frame
-	PlayerPrediction_RunPhysics(servercommandframe + 1, currentframe - 1);
+	if (isdemo())
+	{
+		PlayerPrediction_ApplyServerState();
+		currentframe = servercommandframe + 1;
+	}
+	else
+	{
+		bool pred_error = false;
+		if (self.playerserverframe != servercommandframe)
+		{
+			// detect prediction errors by comparing against previously predicted server frame
+			if (vlen(self.server_origin - self.server_pred_origin) > 0 ||
+				vlen(self.server_velocity - self.server_pred_velocity) > 0 ||
+				vlen(self.server_angles - self.server_pred_angles) > 0)
+			{
+				pred_error = true;
+			}
+
+			// predict next server frame for error detection
+			PlayerPrediction_ApplyServerState();
+			PlayerPrediction_RunPhysics(servercommandframe + 1, servercommandframe + 1, false);
+			self.server_pred_origin = self.origin;
+			self.server_pred_velocity = self.velocity;
+			self.server_pred_angles = self.angles;
+
+			self.playerserverframe = servercommandframe;
+		}
+
+		if (self.playerclientframe != currentframe || pred_error)
+		{
+			if (pred_error)
+			{
+				// prediction errors were detected, we need to simulate all frames after latest server frame again
+				PlayerPrediction_ApplyServerState();
+				self.playerclientframe = servercommandframe + 1;
+				// TODO: apply catchup gradually to spread physics calculations along multiple frames to avoid hitchups and to teleporting around
+			}
+			else
+				PlayerPrediction_ApplyClientState();
+
+			PlayerPrediction_RunPhysics(self.playerclientframe, currentframe-1, !pred_error);
+			self.playerclientframe = currentframe;
+
+			self.client_origin = self.origin;
+			self.client_velocity = self.velocity;
+			self.client_angles = self.angles;
+			self.client_flags = self.flags;
+			self.client_pmove_flags = self.pmove_flags;
+			self.client_jump_time = self.jump_time;
+			self.client_jump_count = self.jump_count;
+		}
+		else if (self.playerclientframe == currentframe)
+			PlayerPrediction_ApplyClientState();
+	}
 
 	PlayerPrediction_RunPhysicsAndTick(currentframe);
 
 	// store these so we can detect clientside changes for later frames
-	self.client_origin = self.origin;
-	self.client_velocity = self.velocity;
-	self.client_angles = self.angles;
-	self.client_flags = self.flags;
-	self.client_pmove_flags = self.pmove_flags;
-	self.client_jump_time = self.jump_time;
-	self.client_jump_count = self.jump_count;
+	self.current_origin = self.origin;
+	self.current_velocity = self.velocity;
+	self.current_angles = self.angles;
 
 	lastframe = clientcommandframe;
 }
