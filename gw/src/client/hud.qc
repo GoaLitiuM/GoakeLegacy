@@ -30,8 +30,6 @@ void Hud_Crosshair(float width, float height);
 
 void Hud_Render(float width, float height, bool in_menu)
 {
-	getinputstate(clientcommandframe);
-
 	if (showscores)
 		Hud_Scoreboard(width, height);
 	else

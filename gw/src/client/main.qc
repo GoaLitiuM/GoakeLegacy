@@ -72,15 +72,18 @@ float CSQC_ConsoleCommand(string line)
 void CSQC_UpdateView(float width, float height, float notmenu)
 {
 
-	clearscene();
 
+	getinputstate(clientcommandframe);
+
+	clearscene();
 	setviewprop(VF_DRAWWORLD, 1);
 	setviewprop(VF_DRAWCROSSHAIR, 0);
 
+	setviewprop(VF_ORIGIN, camera_origin);
+	setviewprop(VF_ANGLES, input_angles);
+
 	addentities(MASK_ENGINE | MASK_VIEWMODEL);
 
-	setviewprop(VF_ORIGIN, camera_origin);
-	setviewprop(VF_ANGLES, view_angles);
 
 	renderscene();
 
