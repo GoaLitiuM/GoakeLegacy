@@ -36,6 +36,9 @@ qboolean SV_MayCheat(void)
 	return sv_allow_cheats!=0;
 }
 
+#ifdef SUBSERVERS
+cvar_t sv_autooffload = CVARD("sv_autooffload", "0", "Automatically start the server in a separate process, so that sporadic or persistent gamecode slowdowns do not affect visual framerates. Note: Offloaded servers have separate cvar states which may complicate usage.");
+#endif
 extern cvar_t cl_warncmd;
 cvar_t sv_cheats = CVARF("sv_cheats", "0", CVAR_LATCH);
 	extern		redirect_t	sv_redirected;
@@ -444,7 +447,9 @@ static int QDECL ShowMapListExt (const char *name, qofs_t flags, time_t mtime, v
 static void SV_MapList_f(void)
 {
 	COM_EnumerateFiles("maps/*.bsp", ShowMapList, NULL);
+	COM_EnumerateFiles("maps/*.bsp.gz", ShowMapListExt, NULL);
 	COM_EnumerateFiles("maps/*.map", ShowMapListExt, NULL);
+	COM_EnumerateFiles("maps/*.map.gz", ShowMapListExt, NULL);
 	COM_EnumerateFiles("maps/*.cm", ShowMapList, NULL);
 	COM_EnumerateFiles("maps/*.hmp", ShowMapList, NULL);
 }
@@ -474,7 +479,9 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 	if (argn == 1)
 	{
 		COM_EnumerateFiles(va("maps/%s*.bsp", partial), CompleteMapList, ctx);
+		COM_EnumerateFiles(va("maps/%s*.bsp.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.map", partial), CompleteMapListExt, ctx);
+		COM_EnumerateFiles(va("maps/%s*.map.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.cm", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*.hmp", partial), CompleteMapList, ctx);
 	}
@@ -551,6 +558,12 @@ void SV_Map_f (void)
 		Cbuf_AddText(va("wait;%s %s\n", Cmd_Argv(0), Cmd_Args()), Cmd_ExecLevel);
 		return;
 	}
+#endif
+
+#ifdef SUBSERVERS
+	//disconnect first if you want to stop your current server getting the command instead.
+	if (sv.state == ss_clustermode && MSV_ForwardToAutoServer())
+		return;
 #endif
 
 	if (!Q_strcasecmp(Cmd_Argv(0), "map_restart"))
@@ -718,7 +731,7 @@ void SV_Map_f (void)
 	else
 #endif
 	{
-		char *exts[] = {"maps/%s.bsp", "maps/%s", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
+		char *exts[] = {"maps/%s.bsp", "maps/%s", "maps/%s.bsp.gz", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
 		int i, j;
 
 		for (i = 0; exts[i]; i++)
@@ -750,12 +763,20 @@ void SV_Map_f (void)
 				SCR_SetLoadingStage(LS_NONE);
 #endif
 
-				if (SSV_IsSubServer())
+				if (SSV_IsSubServer() && !sv.state)	//subservers don't leave defunct servers with no maps lying around.
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				return;
 			}
 		}
 	}
+
+#ifdef SUBSERVERS
+	if (!isDedicated && sv_autooffload.ival && !sv.state && !SSV_IsSubServer() && !strcmp(Cmd_Argv(0), "map") && Cmd_Argc()==2)
+	{
+		Cmd_ExecuteString(va("mapcluster \"%s\"", Cmd_Argv(1)), Cmd_ExecLevel);
+		return;
+	}
+#endif
 
 #ifdef MVD_RECORDING
 	if (sv.mvdrecording)
@@ -910,7 +931,7 @@ void SV_Map_f (void)
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";
-		SV_SpawnServer (level, startspot, false, cinematic);
+		SV_SpawnServer (level, startspot, false, cinematic, 0);
 	}
 	SCR_SetLoadingFile("server spawned");
 
@@ -3176,6 +3197,9 @@ void SV_InitOperatorCommands (void)
 		Cmd_AddCommand ("download", SV_Download_f);
 	}
 
+#ifdef SUBSERVERS
+	Cvar_Register(&sv_autooffload, "server control variables");
+#endif
 	Cvar_Register(&sv_cheats, "Server Permissions");
 	if (COM_CheckParm ("-cheats"))
 	{

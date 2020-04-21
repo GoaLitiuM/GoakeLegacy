@@ -9,3 +9,4 @@ gw/menu.dat
 *.lno
 .vscode/
 distribute/
+engine/shaders/vulkanblobs/

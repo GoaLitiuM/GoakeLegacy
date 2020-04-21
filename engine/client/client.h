@@ -296,8 +296,9 @@ typedef struct
 //the light array works thusly:
 //dlights are allocated DL_LAST downwards to 0, static wlights are allocated DL_LAST+1 to MAX_RTLIGHTS.
 //thus to clear the dlights but not rtlights, set the first light to RTL_FIRST
-#define DL_LAST				(sizeof(unsigned int)*8-1)
-#define RTL_FIRST			(sizeof(unsigned int)*8)
+#define dlightbitmask_t		size_t
+#define DL_LAST				(sizeof(dlightbitmask_t)*8-1)
+#define RTL_FIRST			(sizeof(dlightbitmask_t)*8)
 
 #define LFLAG_NORMALMODE	(1<<0) /*ppl with r_shadow_realtime_dlight*/
 #define LFLAG_REALTIMEMODE	(1<<1) /*ppl with r_shadow_realtime_world*/
@@ -941,6 +942,7 @@ typedef struct
 	char		q2airaccel[16];
 	char		q2statusbar[1024];
 	char		q2layout[MAX_SPLITS][1024];
+	int			q2mapchecksum;
 	int parse_entities;
 	float lerpfrac;
 	float q2svnetrate; //number of frames we expect to receive per second (required to calculate the server time correctly).
@@ -1491,6 +1493,7 @@ qboolean CSQC_Accelerometer(float x, float y, float z);
 qboolean CSQC_Gyroscope(float x, float y, float z);
 int		 CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs, unsigned int flags);
 void	 CSQC_ParseEntities(void);
+const char *CSQC_GetExtraFieldInfo(void *went, char *out, size_t outsize);
 void	 CSQC_ResetTrails(void);
 
 qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state);
@@ -1549,27 +1552,27 @@ void Cam_AutoTrack_Update(const char *mode);	//reset autotrack setting (because 
 
 void		CL_Say (qboolean team, char *extra);
 int			TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);
-void		TP_CheckPickupSound(char *s, vec3_t org, int seat);
-qboolean	TP_CheckSoundTrigger (char *str);
-int			TP_CountPlayers (void);
-char*		TP_EnemyName (void);
-char*		TP_EnemyTeam (void);
-void		TP_ExecTrigger (char *s, qboolean indemos);
+void		TP_ExecTrigger (char *s, qboolean indemos);		//executes one of the user's f_foo aliases from some engine-defined event.
 qboolean	TP_FilterMessage (char *s);
 void		TP_Init(void);
 char*		TP_LocationName (const vec3_t location);
-char*		TP_MapName (void);
 void		TP_NewMap (void);
+qboolean	TP_CheckSoundTrigger (char *str);				//plays sound files when some substring exists in chat.
+void		TP_SearchForMsgTriggers (char *s, int level);	//msg_trigger: executes aliases when a chat message contains some user-defined string.
+qboolean	TP_SuppressMessage(char *buf);	//true when the message contains macro results that the local player isn't meant to see (teamplay messages that contain enemy player counts for instance)
+char		*TP_GenerateDemoName(void);		//makes something up.
+#ifdef QUAKESTATS
+//hack zone: this stuff makes assumptions about quake-only stats+items+rules and stuff.
+void		TP_CheckPickupSound(char *s, vec3_t org, int seat);
 void		TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info);
 qboolean	TP_IsPlayerVisible(vec3_t origin);
-char*		TP_PlayerName (void);
-char*		TP_PlayerTeam (void);
-void		TP_SearchForMsgTriggers (char *s, int level);
 qboolean	TP_SoundTrigger(char *message);
 void		TP_StatChanged (int stat, int value);
-qboolean	TP_SuppressMessage(char *buf);
-colourised_t *TP_FindColours(char *name);
 void		TP_UpdateAutoStatus(void);
+#endif
+#ifdef QWSKINS
+colourised_t *TP_FindColours(char *name);
+#endif
 
 //
 // skin.c

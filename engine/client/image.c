@@ -33,7 +33,7 @@ static void QDECL R_Image_BuggyCvar (struct cvar_s *var, char *oldvalue)
 	if (!*var->string)
 		var->ival = var->value = true;
 }
-cvar_t r_keepimages = CVARCD("r_keepimages", "", R_Image_BuggyCvar, "Retain unused images in memory for slightly faster map loading. FIXME: a setting of 0 may be crashy! (empty is treated as 1 for now)");
+cvar_t r_keepimages = CVARCD("r_keepimages", "", R_Image_BuggyCvar, "Retain unused images in memory for slightly faster map loading. FIXME: a setting of 0 may be crashy! (empty is treated as 1 for now).\n0: Redundant images will be purged after each map change.\n1: Images will be retained until vid_reload (potentially consuming a lot of ram).");
 cvar_t r_ignoremapprefixes = CVARCD("r_ignoremapprefixes", "", R_Image_BuggyCvar, "Ignores when textures were loaded from map-specific paths. FIXME: empty is currently interpretted as 1 because the alternative is too memory hungary with r_keepimages 1.");
 
 char *r_defaultimageextensions =
@@ -5484,6 +5484,7 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	memcpy(&fmtheader, filedata+4, sizeof(fmtheader));
 	if (fmtheader.dwSize != sizeof(fmtheader))
 		return NULL;	//corrupt/different version
+	fmtheader.dwSize += 4;
 	memset(&fmt10header, 0, sizeof(fmt10header));
 
 	fmt10header.arraysize = (fmtheader.ddsCaps[1] & 0x200)?6:1; //cubemaps need 6 faces...
@@ -5491,6 +5492,8 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	nummips = fmtheader.dwMipMapCount;
 	if (nummips < 1)
 		nummips = 1;
+	if (nummips > countof(mips->mip))
+		return NULL;
 
 	if (!(fmtheader.ddpfPixelFormat.dwFlags & 4))
 	{
@@ -5577,7 +5580,7 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('1'<<16)|('0'<<24)))
 	{
 		//this has some weird extra header with dxgi format types.
-		memcpy(&fmt10header, filedata+4+fmtheader.dwSize, sizeof(fmt10header));
+		memcpy(&fmt10header, filedata+fmtheader.dwSize, sizeof(fmt10header));
 		fmtheader.dwSize += sizeof(fmt10header);
 		switch(fmt10header.dxgiformat)
 		{
@@ -5788,11 +5791,11 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	mips->extrafree = filedata;
 	mips->encoding = encoding;
 
-	filedata += 4+fmtheader.dwSize;
+	filedata += fmtheader.dwSize;
 
-	w = fmtheader.dwWidth;
-	h = fmtheader.dwHeight;
-	d = fmtheader.dwDepth;
+	w = max(1, fmtheader.dwWidth);
+	h = max(1, fmtheader.dwHeight);
+	d = max(1, fmtheader.dwDepth);
 
 	if (layers == 1)
 	{	//can just use the data without copying.
@@ -5805,13 +5808,13 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 			mips->mip[mipnum].width = w;
 			mips->mip[mipnum].height = h;
 			mips->mip[mipnum].depth = d;
-			mips->mipcount++;
 			filedata += datasize;
 
 			w = max(1, w>>1);
 			h = max(1, h>>1);
 			d = max(1, d>>1);
 		}
+		mips->mipcount = mipnum;
 	}
 	else
 	{	//we need to copy stuff in order to pack it properly. :(
@@ -11043,10 +11046,10 @@ static qboolean Image_DecompressFormat(struct pendingtextureinfo *mips, const ch
 		rcoding = PTI_RGBX8;
 		break;
 #else
-	case PTI_BC4_R8_SNORM:
-	case PTI_BC4_R8:
-	case PTI_BC5_RG8_SNORM:
-	case PTI_BC5_RG8:
+	case PTI_BC4_R_SNORM:
+	case PTI_BC4_R:
+	case PTI_BC5_RG_SNORM:
+	case PTI_BC5_RG:
 		Con_ThrottlePrintf(&throttle, 0, "Fallback BC4/BC5 decompression is not supported in this build\n");
 		break;
 #endif

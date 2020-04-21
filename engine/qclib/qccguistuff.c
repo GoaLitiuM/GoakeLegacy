@@ -201,6 +201,40 @@ void GoToDefinition(const char *name)
 	}
 }
 
+pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
+{
+	QCC_def_t *def;
+	int prefixlen = strlen(prefix);
+	int usedbuffer = 0;
+	int l;
+	int fno;
+	for (fno = 0; fno < sourcefilesnumdefs; fno++)
+	{
+		for (def = sourcefilesdefs[fno]; def; def = def->next)
+		{
+			if (def->scope)
+				continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
+
+			//make sure it has the right prefix
+			if (!strncmp(def->name, prefix, prefixlen))
+			//but ignore it if its one of those special things that you're not meant to know about.
+			if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
+			{
+				l = strlen(def->name);
+				if (l && usedbuffer+2+l < buffersize)
+				{
+					if (usedbuffer)
+						buffer[usedbuffer++] = ' ';
+					memcpy(buffer+usedbuffer, def->name, l);
+					usedbuffer += l;
+				}
+			}
+		}
+	}
+	buffer[usedbuffer] = 0;
+	return usedbuffer>0;
+}
+
 static void GUI_WriteConfigLine(FILE *file, char *part1, char *part2, char *part3, char *desc)
 {
 	int align = 0;
@@ -1049,7 +1083,7 @@ vfile_t *QCC_AddVFile(const char *name, void *data, size_t size)
 void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
 {
 	va_list argptr;
-	char msg[8192];
+	char msg[65536];
 	size_t n;
 
 	va_start (argptr,fmt);
@@ -1069,7 +1103,7 @@ void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
 void QCC_InsertVFile(vfile_t *f, size_t pos, const char *fmt, ...)
 {
 	va_list argptr;
-	char msg[8192];
+	char msg[65536];
 	size_t n;
 	va_start (argptr,fmt);
 	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);

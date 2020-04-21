@@ -50,6 +50,7 @@ float r_blobshadows;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
+static qboolean cl_expandvisents;
 
 #ifdef CSQC_DAT
 extern world_t csqc_world;
@@ -3301,7 +3302,10 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 	for (i = 0; i < cl.num_statics; i++)
 	{
 		if (cl_numvisedicts == cl_maxvisedicts)
+		{
+			cl_expandvisents=true;
 			break;
+		}
 		stat = &cl_static_entities[i];
 
 		clmodel = stat->ent.model;
@@ -4080,7 +4084,7 @@ void CL_LinkPacketEntities (void)
 		}
 
 		// if set to invisible, skip
-		if (state->modelindex<1)
+		if (state->modelindex<1 || (state->effects & NQEF_NODRAW))
 		{
 			if (state->tagindex == 0xffff)
 			{
@@ -4732,10 +4736,9 @@ void CLQW_ParsePlayerinfo (void)
 
 		state->pm_type = PM_NORMAL;
 
+#ifdef QUAKESTATS
 		TP_ParsePlayerInfo(oldstate, state, info);
 
-
-#ifdef QUAKESTATS
 		//can't CL_SetStatInt as we don't know if its actually us or not
 		cl.players[num].stats[STAT_WEAPONFRAME] = state->weaponframe;
 		cl.players[num].statsf[STAT_WEAPONFRAME] = state->weaponframe;
@@ -4999,9 +5002,9 @@ guess_pm_type:
 			state->pm_type = PM_NORMAL;
 	}
 
+#ifdef QUAKESTATS
 	TP_ParsePlayerInfo(oldstate, state, info);
 
-#ifdef QUAKESTATS
 	//can't CL_SetStatInt as we don't know if its actually us or not
 	for (i = 0; i < cl.splitclients; i++)
 	{
@@ -5897,7 +5900,7 @@ Made up of: clients, packet_entities, nails, and tents
 void CL_ClearEntityLists(void)
 {
 	cl_framecount++;
-	if (cl_numvisedicts+128 >= cl_maxvisedicts)
+	if (cl_expandvisents || cl_numvisedicts+128 >= cl_maxvisedicts)
 	{
 		int newnum = cl_maxvisedicts + 256;
 		entity_t *n = BZ_Realloc(cl_visedicts, newnum * sizeof(*n));
@@ -5906,6 +5909,7 @@ void CL_ClearEntityLists(void)
 			cl_visedicts = n;
 			cl_maxvisedicts = newnum;
 		}
+		cl_expandvisents = false;
 	}
 	cl_numvisedicts = 0;
 	cl_numstrisidx = 0;

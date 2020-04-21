@@ -517,6 +517,7 @@ SET(FTE_COMMON_FILES
 	engine/common/q3common.c
 	engine/common/qvm.c
 	engine/common/sha1.c
+	engine/common/sha2.c
 	engine/common/translate.c
 	engine/common/zone.c
 	
@@ -528,6 +529,7 @@ SET(FTE_COMMON_FILES
 	#engine/common/config_nocompat.h
 	#engine/common/config_wastes.h
 	#engine/common/config_freecs.h
+	#engine/common/config_fteqw_noweb.h
 	engine/common/config_goake.h
 
 	#useless headers that I'll never search for
@@ -822,7 +824,7 @@ ELSE()
 		${FTE_CLIENT_FILES}
 	)
 	SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
-	TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS} )
+	TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS})
 	SET(INSTALLTARGS ${INSTALLTARGS} fteqw)
 
 	ADD_EXECUTABLE(fteqw-sv
@@ -1091,37 +1093,40 @@ INSTALL(TARGETS ${INSTALLTARGS}
 	LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
 )
 
-ADD_CUSTOM_TARGET(menusys ALL
-	VERBATIM
-	COMMAND fteqcc -srcfile "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"
-	BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno"
-	SOURCES
-		quakec/menusys/menu.src
-		quakec/menusys/menusys/mitems.qc
-		quakec/menusys/menusys/mitems_common.qc
-		quakec/menusys/menusys/mitem_desktop.qc
-		quakec/menusys/menusys/mitem_exmenu.qc
-		quakec/menusys/menusys/mitem_edittext.qc
-		quakec/menusys/menusys/mitem_tabs.qc
-		quakec/menusys/menusys/mitem_colours.qc
-		quakec/menusys/menusys/mitem_checkbox.qc
-		quakec/menusys/menusys/mitem_slider.qc
-		quakec/menusys/menusys/mitem_combo.qc
-		quakec/menusys/menusys/mitem_bind.qc
-		quakec/menusys/menusys/mitem_spinnymodel.qc
-		quakec/menusys/menu/loadsave.qc
-		quakec/menusys/menu/newgame.qc
-		quakec/menusys/menu/options_basic.qc
-		quakec/menusys/menu/options_effects.qc
-		quakec/menusys/menu/options_keys.qc
-		quakec/menusys/menu/options.qc
-		quakec/menusys/menu/presets.qc
-		quakec/menusys/menu/servers.qc
-		quakec/menusys/menu/main.qc
-		quakec/menusys/menu/options_audio.qc
-		quakec/menusys/menu/options_configs.qc
-		quakec/menusys/menu/options_hud.qc
-		quakec/menusys/menu/options_particles.qc
-		quakec/menusys/menu/options_video.qc
-		quakec/menusys/menu/quit.qc
-)
+# ADD_CUSTOM_TARGET(menusys ALL
+	# VERBATIM
+	# COMMAND fteqcc -srcfile "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"
+	# BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno"
+	# SOURCES
+		# quakec/menusys/menu.src
+		# quakec/menusys/menusys/mitems.qc
+		# quakec/menusys/menusys/mitems_common.qc
+		# quakec/menusys/menusys/mitem_desktop.qc
+		# quakec/menusys/menusys/mitem_exmenu.qc
+		# quakec/menusys/menusys/mitem_edittext.qc
+		# quakec/menusys/menusys/mitem_tabs.qc
+		# quakec/menusys/menusys/mitem_colours.qc
+		# quakec/menusys/menusys/mitem_checkbox.qc
+		# quakec/menusys/menusys/mitem_slider.qc
+		# quakec/menusys/menusys/mitem_combo.qc
+		# quakec/menusys/menusys/mitem_bind.qc
+		# quakec/menusys/menusys/mitem_spinnymodel.qc
+		# quakec/menusys/menu/loadsave.qc
+		# quakec/menusys/menu/newgame.qc
+		# quakec/menusys/menu/options_basic.qc
+		# quakec/menusys/menu/options_effects.qc
+		# quakec/menusys/menu/options_keys.qc
+		# quakec/menusys/menu/options.qc
+		# quakec/menusys/menu/presets.qc
+		# quakec/menusys/menu/servers.qc
+		# quakec/menusys/menu/main.qc
+		# quakec/menusys/menu/mods.qc
+		# quakec/menusys/menu/cvars.qc
+		# quakec/menusys/menu/updates.qc
+		# quakec/menusys/menu/options_audio.qc
+		# quakec/menusys/menu/options_configs.qc
+		# quakec/menusys/menu/options_hud.qc
+		# quakec/menusys/menu/options_particles.qc
+		# quakec/menusys/menu/options_video.qc
+		# quakec/menusys/menu/quit.qc
+# )

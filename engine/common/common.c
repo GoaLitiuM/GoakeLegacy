@@ -103,8 +103,6 @@ cvar_t	ezcompat_markup = CVARD("ezcompat_markup", "1", "Attempt compatibility wi
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
-cvar_t	pkg_downloads_url = CVARFD("pkg_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
-cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "-1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
 #ifdef HAVE_LEGACY
 cvar_t	pm_noround = CVARD("pm_noround", "0", "Disables player prediction snapping, in a way that cannot be reliably predicted but may be needed to avoid map bugs.");
 #endif
@@ -4302,6 +4300,12 @@ skipwhite:
 			len++;
 		}
 	}
+	if (c == '\\' && data[1] == '\"')
+	{
+		if (tokentype)
+			*tokentype = TTP_STRING;
+		return COM_ParseCString(data+1, token, tokenlen, NULL);
+	}
 
 // parse single characters
 	if (strchr(punctuation, c))
@@ -4964,7 +4968,7 @@ static void COM_Version_f (void)
 #endif
 
 	//print out which libraries are disabled
-	Con_Printf("^3Compression:^7\n");
+	Con_Printf("^3Compression:^7");
 #ifdef AVAIL_ZLIB
 	Con_Printf(" zlib^h("
 #ifdef ZLIB_STATIC
@@ -6054,6 +6058,99 @@ static int Base64_Decode(char inp)
 	//if (inp == '=') //padding char
 	return 0;	//invalid
 }
+
+size_t Base64_EncodeBlock(const qbyte *in, size_t length, char *out, size_t outsize)
+{
+	char *start = out;
+	char *end = out+outsize-1;
+	unsigned int v;
+	while(length > 0)
+	{
+		v = 0;
+		if (length > 0)
+			v |= in[0]<<16;
+		if (length > 1)
+			v |= in[1]<<8;
+		if (length > 2)
+			v |= in[2]<<0;
+
+		if (out < end) *out++ = (length>=1)?Base64_Encode((v>>18)&63):'=';
+		if (out < end) *out++ = (length>=1)?Base64_Encode((v>>12)&63):'=';
+		if (out < end) *out++ = (length>=2)?Base64_Encode((v>>6)&63):'=';
+		if (out < end) *out++ = (length>=3)?Base64_Encode((v>>0)&63):'=';
+
+		in+=3;
+		if (length <= 3)
+			break;
+		length -= 3;
+	}
+	end++;
+	if (out < end)
+		*out = 0;
+	return out-start;
+}
+size_t Base64_DecodeBlock(const char *in, const char *in_end, qbyte *out, size_t outsize)
+{
+	qbyte *start = out;
+	unsigned int v;
+	if (!in_end)
+		in_end = in + strlen(in);
+	if (!out)
+		return ((in_end-in+3)/4)*3 + 1;	//upper estimate, with null terminator for convienience.
+
+	for (; outsize > 1;)
+	{
+		while(*in > 0 && *in < ' ')
+			in++;
+		if (in >= in_end || !*in || outsize < 1)
+			break;	//end of message when EOF, otherwise error
+		v  = Base64_Decode(*in++)<<18;
+		while(*in > 0 && *in < ' ')
+			in++;
+		if (in >= in_end || !*in || outsize < 1)
+			break;	//some kind of error
+		v |= Base64_Decode(*in++)<<12;
+		*out++ = (v>>16)&0xff;
+		if (in >= in_end || *in == '=' || !*in || outsize < 2)
+			break;	//end of message when '=', otherwise error
+		v |= Base64_Decode(*in++)<<6;
+		*out++ = (v>>8)&0xff;
+		if (in >= in_end || *in == '=' || !*in || outsize < 3)
+			break;	//end of message when '=', otherwise error
+		v |= Base64_Decode(*in++)<<0;
+		*out++ = (v>>0)&0xff;
+		outsize -= 3;
+	}
+	return out-start;	//total written (no null, output is considered binary)
+}
+size_t Base16_DecodeBlock(const char *in, qbyte *out, size_t outsize)
+{
+	qbyte *start = out;
+	if (!out)
+		return ((strlen(in)+1)/2) + 1;
+
+	for (; ishexcode(in[0]) && ishexcode(in[1]) && outsize > 0; outsize--, in+=2)
+		*out++ = (dehex(in[0])<<4) | dehex(in[1]);
+	return out-start;
+}
+size_t Base16_EncodeBlock(const char *in, size_t length, qbyte *out, size_t outsize)
+{
+	const char tab[16] = "0123456789abcdef";
+	qbyte *start = out;
+	if (!out)
+		return (length*2) + 1;
+
+	if (outsize > length*2)
+		*out = 0;
+	while (length --> 0)
+	{
+		*out++ = tab[(*in>>4)&0xf];
+		*out++ = tab[(*in>>0)&0xf];
+		in++;
+	}
+	return out-start;
+}
+
 /*
   Info Buffers
 */

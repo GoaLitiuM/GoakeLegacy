@@ -609,9 +609,6 @@ static void CS_CheckVelocity(csqcedict_t *ent)
 
 
 
-
-
-
 static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t *fte_restrict out)
 {
 	//FTE_CSQC_HALFLIFE_MODELS
@@ -988,7 +985,9 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
 		out->pvscache = p->pvsinfo; //for the areas.
 		out->pvscache.num_leafs = -1;	//make visible globally
+#if defined(Q2BSPS) || defined(Q3BSPS) || defined(TERRAIN)
 		out->pvscache.headnode = 0;
+#endif
 #endif
 	}
 
@@ -1051,6 +1050,53 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 		out->keynum = -in->entnum;
 
 	return true;
+}
+
+const char *CSQC_GetExtraFieldInfo(void *went, char *out, size_t outsize)
+{
+	csqcedict_t *ent = went;
+	char *r = out;
+	char *e = out+outsize;
+	int i;
+	skinfile_t *sk = Mod_LookupSkin((ent->skinobject<0)?-ent->skinobject:ent->skinobject);
+	if (sk)
+	{
+		Q_snprintfz(out, e-out, "skin %s\nrefs %i\n", sk->skinname, sk->refcount);
+		out+=strlen(out);
+		for (i = 0; i < sk->nummappings; i++)
+		{
+			Q_snprintfz(out, e-out, "replace \"%s\" \"%s\"\n", sk->mappings[i].surface, sk->mappings[i].shader?sk->mappings[i].shader->name:"NULL SHADER");
+			out+=strlen(out);
+		}
+		for (i = 0; i < MAX_GEOMSETS; i++)
+		{
+			if (sk->geomset[i])
+			{
+				Q_snprintfz(out, e-out, "geomset %i %i\n", i, sk->geomset[i]);
+				out+=strlen(out);
+			}
+		}
+#ifdef QWSKINS
+		if (*sk->qwskinname)
+		{
+			Q_snprintfz(out, e-out, "qwskin %s\n", sk->qwskinname);
+			out+=strlen(out);
+		}
+		if (sk->q1upper != Q1UNSPECIFIED)
+		{
+			Q_snprintfz(out, e-out, "q1upper %#x\n", sk->q1upper);
+			out+=strlen(out);
+		}
+		if (sk->q1lower != Q1UNSPECIFIED)
+		{
+			Q_snprintfz(out, e-out, "q1lower %#x\n", sk->q1lower);
+			out+=strlen(out);
+		}
+#endif
+
+		return r;
+	}
+	return r==out?NULL:r;
 }
 
 static void QCBUILTIN PF_cs_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2133,6 +2179,66 @@ void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	r[1] = 0;
 	r[2] = 0;
 
+#ifdef HAVE_LEGACY
+	if (csqc_isdarkplaces && prinst == csqc_world.progs)
+	{
+		switch(parametertype)
+		{
+		case VF_VIEWPORT:
+			r[0] = r_refdef.grect.width * (float)vid.pixelwidth / vid.width;;
+			r[1] = r_refdef.grect.height * (float)vid.pixelheight / vid.height;
+			return;
+		case VF_SIZE_X:
+			*r = r_refdef.grect.width * (float)vid.pixelwidth / vid.width;
+			return;
+		case VF_SIZE_Y:
+			*r = r_refdef.grect.height * (float)vid.pixelheight / vid.height;
+			return;
+		case VF_SIZE:
+			r[0] = r_refdef.grect.width * (float)vid.pixelwidth / vid.width;;
+			r[1] = r_refdef.grect.height * (float)vid.pixelheight / vid.height;
+			r[2] = 0;
+			return;
+		case VF_DP_MAINVIEW:
+			r[0] = 1;
+			return;
+		case VF_DP_MINFPS_QUALITY:
+			r[0] = 1;
+			return;
+		case VF_DP_CLEARSCREEN:
+			r[0] = 0;
+			return;
+		case VF_DP_FOG_DENSITY:
+			r[0] = r_refdef.globalfog.density;
+			return;
+		case VF_DP_FOG_COLOR:
+			r[0] = r_refdef.globalfog.colour[0];
+			r[1] = r_refdef.globalfog.colour[1];
+			r[2] = r_refdef.globalfog.colour[2];
+			return;
+		case VF_DP_FOG_COLOR_R:
+			r[0] = r_refdef.globalfog.colour[0];
+			return;
+		case VF_DP_FOG_COLOR_G:
+			r[0] = r_refdef.globalfog.colour[1];
+			return;
+		case VF_DP_FOG_COLOR_B:
+			r[0] = r_refdef.globalfog.colour[2];
+			return;
+		case VF_DP_FOG_ALPHA:
+			r[0] = r_refdef.globalfog.alpha;
+			return;
+		case VF_DP_FOG_START:
+		case VF_DP_FOG_END:
+		case VF_DP_FOG_HEIGHT:
+		case VF_DP_FOG_FADEDEPTH:
+			return;
+		default:
+			break;
+		}
+	}
+#endif
+
 	switch(parametertype)
 	{
 nogameaccess:
@@ -2221,24 +2327,14 @@ nogameaccess:
 
 	case VF_SIZE_X:
 		*r = r_refdef.grect.width;
-		if (csqc_isdarkplaces && prinst == csqc_world.progs)
-			*r *= (float)vid.pixelwidth / vid.width;
 		break;
 	case VF_SIZE_Y:
 		*r = r_refdef.grect.height;
-		if (csqc_isdarkplaces && prinst == csqc_world.progs)
-			*r *= (float)vid.pixelheight / vid.height;
 		break;
 	case VF_SIZE:
 		r[0] = r_refdef.grect.width;
 		r[1] = r_refdef.grect.height;
 		r[2] = 0;
-
-		if (csqc_isdarkplaces && prinst == csqc_world.progs)
-		{
-			r[0] *= (float)vid.pixelwidth / vid.width;
-			r[1] *= (float)vid.pixelheight / vid.height;
-		}
 		break;
 
 	case VF_MIN_X:
@@ -2333,8 +2429,54 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		R2D_Flush();
 
 	csqc_rebuildmatricies = true;
-
 	G_FLOAT(OFS_RETURN) = 1;
+
+#ifdef HAVE_LEGACY
+	if (csqc_isdarkplaces && prinst == csqc_world.progs)
+	{
+		switch(parametertype)
+		{
+		case VF_VIEWPORT:
+			r_refdef.grect.x = p[0] * (float)vid.width / vid.pixelwidth;
+			r_refdef.grect.y = p[1] * (float)vid.height / vid.pixelheight;
+			p = G_VECTOR(OFS_PARM2);
+			r_refdef.grect.width = p[0] * (float)vid.width / vid.pixelwidth;
+			r_refdef.grect.height = p[1] * (float)vid.height / vid.pixelheight;
+			r_refdef.dirty |= RDFD_FOV;
+			return;
+		case VF_SIZE_X:
+			r_refdef.grect.width = *p * (float)vid.width / vid.pixelwidth;
+			r_refdef.dirty |= RDFD_FOV;
+			return;
+		case VF_SIZE_Y:
+			r_refdef.grect.height = *p * (float)vid.height / vid.pixelheight;
+			r_refdef.dirty |= RDFD_FOV;
+			return;
+		case VF_SIZE:
+			r_refdef.grect.width = p[0] * (float)vid.width / vid.pixelwidth;
+			r_refdef.grect.height = p[1] * (float)vid.height / vid.pixelheight;
+			r_refdef.dirty |= RDFD_FOV;
+			return;
+		case VF_DP_MAINVIEW:
+		case VF_DP_MINFPS_QUALITY:
+		case VF_DP_CLEARSCREEN:
+		case VF_DP_FOG_DENSITY:
+		case VF_DP_FOG_COLOR:
+		case VF_DP_FOG_COLOR_R:
+		case VF_DP_FOG_COLOR_G:
+		case VF_DP_FOG_COLOR_B:
+		case VF_DP_FOG_ALPHA:
+		case VF_DP_FOG_START:
+		case VF_DP_FOG_END:
+		case VF_DP_FOG_HEIGHT:
+		case VF_DP_FOG_FADEDEPTH:
+			return;
+		default:
+			break;
+		}
+	}
+#endif
+
 	switch(parametertype)
 	{
 	case VF_ACTIVESEAT:
@@ -2454,12 +2596,6 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r_refdef.grect.width = p[0];
 		r_refdef.grect.height = p[1];
 		r_refdef.dirty |= RDFD_FOV;
-
-		if (csqc_isdarkplaces)
-		{
-			r_refdef.grect.width *= (float)vid.width / vid.pixelwidth;
-			r_refdef.grect.height *= (float)vid.height / vid.pixelheight;
-		}
 		break;
 
 	case VF_MIN_X:
@@ -3707,6 +3843,38 @@ static void QCBUILTIN PF_cl_setpause (pubprogfuncs_t *prinst, struct globalvars_
 	cl.implicitpause = !!G_FLOAT(OFS_PARM0);
 }
 
+static void QCBUILTIN PF_cl_RotateMoves (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//changes the past...
+	float *angles = G_VECTOR(OFS_PARM0);
+	int frame;
+	vec3_t of,ou, nf,nu;
+	vec4_t mat[3];
+	vec3_t a;
+	int seat = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):csqc_playerseat);
+	if (seat < 0 || seat >= MAX_SPLITS)
+	{
+		G_FLOAT(OFS_RETURN) = false;
+		return;
+	}
+	AngleVectorsFLU(angles, mat[0], mat[1], mat[2]);
+	mat[0][3] = mat[1][3] = mat[2][3] = 0;
+	for (frame = 0; frame < countof(cl.outframes); frame++)
+	{
+		if (cl.outframes[frame].cmd_sequence > cl.ackedmovesequence)
+		{
+			a[0] = SHORT2ANGLE(cl.outframes[frame].cmd[seat].angles[0]);
+			a[1] = SHORT2ANGLE(cl.outframes[frame].cmd[seat].angles[1]);
+			a[2] = SHORT2ANGLE(cl.outframes[frame].cmd[seat].angles[2]);
+			AngleVectors(a, of, NULL, ou);
+			VectorTransform(of, mat, nf);
+			VectorTransform(ou, mat, nu);
+			VectorAngles(nf, nu, a, false);
+			cl.outframes[frame].cmd[seat].angles[0] = ANGLE2SHORT(a[0]);
+			cl.outframes[frame].cmd[seat].angles[1] = ANGLE2SHORT(a[1]);
+			cl.outframes[frame].cmd[seat].angles[2] = ANGLE2SHORT(a[2]);
+		}
+	}
+}
 //get the input commands, and stuff them into some globals.
 static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6086,6 +6254,12 @@ static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_
 	VectorCopy(savedvel, csqc_playerview->simvel);
 }
 
+static void QCBUILTIN PF_getlocationname(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *loc = G_VECTOR(OFS_PARM0);
+	RETURN_TSTRING(TP_LocationName(loc));
+}
+
 #if 1
 //static void QCBUILTIN PF_ReadServerEntityState(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 //{
@@ -6633,6 +6807,7 @@ static struct {
 	{"processmodelevents",		PF_processmodelevents,	0},
 	{"getnextmodelevent",		PF_getnextmodelevent,	0},
 	{"getmodeleventidx",		PF_getmodeleventidx,	0},
+	{"getlocationname",			PF_getlocationname,		0},
 
 	{"crossproduct",			PF_crossproduct,		0},
 	{"pushmove", 				PF_pushmove, 			0},
@@ -7079,6 +7254,9 @@ static struct {
 #endif
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
 	{"getgamedirinfo",			PF_cl_getgamedirinfo,		626},
+#ifdef PACKAGEMANAGER
+	{"getpackagemanagerinfo",	PF_cl_getpackagemanagerinfo,0},
+#endif
 	{"sprintf",					PF_sprintf,					627},
 	{"getsurfacenumtriangles",	PF_getsurfacenumtriangles,	628},
 	{"getsurfacetriangle",		PF_getsurfacetriangle,		629},
@@ -7092,7 +7270,7 @@ static struct {
 //	{NULL,						PF_Fixme,					645},
 //	{NULL,						PF_Fixme,					646},
 //	{NULL,						PF_Fixme,					647},
-//	{NULL,						PF_Fixme,					648},
+	{"CL_RotateMoves",			PF_cl_RotateMoves,			648},
 	{"digest_hex",				PF_digest_hex,				639},
 	{"digest_ptr",				PF_digest_ptr,				0},
 	{"V_CalcRefdef",			PF_V_CalcRefdef,			640},

@@ -136,6 +136,7 @@ common_src_files = [
   'engine/common/q3common.c',
   'engine/common/qvm.c',
   'engine/common/sha1.c',
+  'engine/common/sha2.c',
   'engine/common/translate.c',
   'engine/common/zone.c',
 

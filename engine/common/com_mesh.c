@@ -5466,6 +5466,16 @@ const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num)
 	galiasinfo_t *inf;
 	galiasskin_t *skin;
 
+	if (!model || model->loadstate != MLS_LOADED)
+	{
+		if (model && model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(model, MLV_SILENT);
+		if (model && model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (!model || model->loadstate != MLS_LOADED)
+			return NULL;
+	}
+
 	if (!model || model->type != mod_alias)
 	{
 		if (model->type == mod_brush && surfaceidx < model->numtextures && !num)
@@ -5515,8 +5525,20 @@ float Mod_GetFrameDuration(model_t *model, int surfaceidx, int frameno)
 	galiasinfo_t *inf;
 	galiasanimation_t *group;
 
+#ifdef HALFLIFEMODELS
+	if (model && model->type == mod_halflife) {
+		int unused;
+		float duration;
+		char *name;
+		qboolean loop;
+		HLMDL_FrameInfoForNum(model, surfaceidx, frameno, &name, &unused, &duration, &loop);
+		return duration;
+	}
+#endif
+	
 	if (!model || model->type != mod_alias)
 		return 0;
+
 	inf = Mod_Extradata(model);
 	
 	while(surfaceidx-->0 && inf)

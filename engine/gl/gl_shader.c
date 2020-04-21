@@ -43,6 +43,7 @@ sh_config_t sh_config;
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
 cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.\nBecause most shaders made for DP are by people who _clearly_ have no idea what the heck they're doing, you'll typically need the '2' setting.");
 cvar_t dpcompat_nopremulpics = CVARFD("dpcompat_nopremulpics", "0", CVAR_SHADERSYSTEM, "By default FTE uses premultiplied alpha for hud/2d images, while DP does not (which results in halos with low-res content). Unfortunately DDS files would need to be recompressed, resulting in visible issues.");
+
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_drawflat;
 extern cvar_t r_shaderblobs;
@@ -217,7 +218,7 @@ static float Com_FloatArgument(const char *shadername, char *arg, size_t arglen,
 #define HASH_SIZE	128
 
 #define SPF_DEFAULT		0u	/*quake3/fte internal*/
-#define SPF_PROGRAMIFY	(1u<<0)	/*quake3/fte internal*/
+#define SPF_PROGRAMIFY	(1u<<0)	/*automatically replace known glsl, pulling in additional textures+effects from a single primary pass*/
 #define SPF_DOOM3		(1u<<1)	/*any commands, args, etc, should be interpretted according to doom3's norms*/
 
 typedef struct shaderparsestate_s
@@ -4753,6 +4754,7 @@ static qboolean Shader_Parsetok(parsestate_t *ps, shaderkey_t *keys, char *token
 	else if (!Q_strncasecmp(token, "rscript", 7))	{prefix = token; token += 7; }
 	else if (!Q_strncasecmp(token, "qer_", 4))		{prefix = token; token += 3; toolchainprefix = true; }
 	else if (!Q_strncasecmp(token, "q3map_", 6))	{prefix = token; token += 5; toolchainprefix = true; }
+	else if (!Q_strncasecmp(token, "vmap_", 6))		{prefix = token; token += 4; toolchainprefix = true; }
 	else	prefix = NULL;
 	if (prefix && *token == '_')
 		token++;
@@ -6764,21 +6766,6 @@ void Shader_DefaultBSPQ1(parsestate_t *ps, const char *shortname, const void *ar
 					"}\n"
 				"}\n"
 			);
-	}
-
-	/*Hack: note that halflife would normally expect you to use rendermode/renderampt*/
-	if (!builtin && (!strncmp(shortname, "glass", 5)/* || !strncmp(shortname, "window", 6)*/))
-	{
-		/*alpha bended*/
-		builtin = (
-			"{\n"
-				"{\n"
-					"map $diffuse\n"
-					"tcgen base\n"
-					"blendfunc blend\n"
-				"}\n"
-			"}\n"
-		);
 	}
 
 	if (builtin)

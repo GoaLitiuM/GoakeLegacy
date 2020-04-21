@@ -642,6 +642,7 @@ void R2D_ImageAtlas(float x, float y, float w, float h, float s1, float t1, floa
 	R2D_Image(x, y, w, h, newsl, newtl, newsh, newth, pic->atlas);
 }
 
+#include "glquake.h"
 void R2D_ImageFlush(void)
 {
 	BE_DrawMesh_Single(draw_active_shader, &draw_mesh, NULL, draw_active_flags);

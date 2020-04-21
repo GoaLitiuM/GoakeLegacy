@@ -196,7 +196,7 @@ static void PF_fmem_unlink(progfuncs_t *progfuncs, qcmemfreeblock_t *p)
 	}
 }
 
-static void PR_memvalidate (progfuncs_t *progfuncs)
+void PR_memvalidate (progfuncs_t *progfuncs)
 {
 	qcmemfreeblock_t *p;
 	unsigned int b,l;
@@ -447,6 +447,8 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 {
 	prinst.addressableused = 0;
+	prinst.mfreelist = 0;
+
 	if (totalammount <= 0)	//flush
 	{
 		totalammount = prinst.addressablesize;

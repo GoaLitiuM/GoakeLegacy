@@ -169,6 +169,8 @@ static char media_loopingtrack[MAX_QPATH];	//name of track to loop afterwards
 qboolean media_fadeout;
 float media_fadeouttime;
 
+qboolean Media_CleanupTrackName(const char *track, int *out_track, char *result, size_t resultsize);
+
 //whatever music track was previously playing has terminated.
 //return value is the new sample to start playing.
 //*starttime says the time into the track that we should resume playing at
@@ -178,15 +180,7 @@ sfx_t *Media_NextTrack(int musicchannelnum, float *starttime)
 	sfx_t *s = NULL;
 	if (bgmvolume.value <= 0 || mastervolume.value <= 0)
 		return NULL;
-
-	if (media_fadeout)
-	{
-		if (S_Music_Playing(musicchannelnum))
-			return NULL;	//can't pick a new track until they've all stopped.
-
-		//okay, it has actually stopped everywhere.
-	}
-	media_fadeout = false;	//it has actually ended now
+	media_fadeout = false;	//it has actually ended now, at least on one device. don't fade the new track too...
 
 	Q_strncpyz(media_currenttrack, "", sizeof(media_currenttrack));
 #ifdef HAVE_JUKEBOX
@@ -254,9 +248,18 @@ sfx_t *Media_NextTrack(int musicchannelnum, float *starttime)
 			return NULL;
 		}
 #endif
-		if (*media_playtrack)
+		if (*media_playtrack || *media_loopingtrack)
 		{
-			Q_strncpyz(media_currenttrack, media_playtrack, sizeof(media_currenttrack));
+			if (*media_playtrack)
+			{
+				Q_strncpyz(media_currenttrack, media_playtrack, sizeof(media_currenttrack));
+				*media_playtrack = 0;
+			}
+			else
+			{
+				if (!Media_CleanupTrackName(media_loopingtrack, NULL, media_currenttrack, sizeof(media_currenttrack)))
+					Q_strncpyz(media_currenttrack, "", sizeof(media_currenttrack));
+			}
 #ifdef HAVE_JUKEBOX
 			Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
 			media_playlistcurrent = MEDIA_GAMEMUSIC;
@@ -290,7 +293,7 @@ static qboolean Media_Changed (unsigned int mediatype)
 	return true;
 }
 
-//returns the new volume the sample should be at, to support crossfading.
+//returns the new volume the sample should be at, to support fading.
 //if we return < 0, the mixer will know to kill whatever is currently playing, ready for a new track.
 //this is on the main thread with the mixer locked, its safe to do stuff, but try not to block
 float Media_CrossFade(int musicchanel, float vol, float time)
@@ -326,11 +329,8 @@ void Media_WriteCurrentTrack(sizebuf_t *buf)
 	MSG_WriteByte (buf, 0);
 }
 
-//controls which music track should be playing right now
-//track and looptrack will usually be the same thing, track is what to play NOW, looptrack is what to keep re-playing after, or "-" for stop.
-qboolean Media_NamedTrack(const char *track, const char *looptrack)
+qboolean Media_CleanupTrackName(const char *track, int *out_track, char *result, size_t resultsize)
 {
-	unsigned int tracknum;
 	//FIXME: for q2, gog uses ../music/Track%02i.ogg, with various remapping requirements for the mission packs.
 	static char *path[] =
 	{
@@ -354,26 +354,11 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 		".wav",
 		NULL
 	};
-	char trackname[MAX_QPATH];
-	char tryname[MAX_QPATH];
-	int bestdepth = 0x7fffffff, d;
-	int ie, ip;
+	unsigned int tracknum;
 	char *trackend;
-
-	if (!track && !looptrack)
-	{
-		*media_playtrack = *media_loopingtrack = 0;
-		Media_Changed(MEDIA_GAMEMUSIC);
-		return true;
-	}
-
-	if (!track || !*track)			//ignore calls if the primary track is invalid. whatever is already playing will continue to play.
-		return false;
-	if (!looptrack || !*looptrack)	//null or empty looptrack loops using the primary track, for compat with q3.
-		looptrack = track;
-
-	if (!strcmp(looptrack, "-"))	//- for the looptrack argument can be used to prevent looping.
-		looptrack = "";
+	unsigned int ip, ie;
+	int bestdepth = 0x7fffffff, d;
+	char tryname[MAX_QPATH];
 
 	//check if its a proper number (0123456789 without any other weird stuff. if so, we can use fake track paths or actual cd tracks)
 	tracknum = strtoul(track, &trackend, 10);
@@ -392,8 +377,8 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 #ifndef HAVE_LEGACY
 	if (!tracknum)	//might as well require exact file
 	{
-		Q_snprintfz(trackname, sizeof(trackname), "%s", track);
-		d = COM_FCheckExists(trackname);
+		Q_snprintfz(result, resultsize, "%s", track);
+		d = COM_FCheckExists(result);
 	}
 	else
 #endif
@@ -412,7 +397,7 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 						if (d < bestdepth)
 						{
 							bestdepth = d;
-							Q_strncpy(trackname, tryname, sizeof(trackname));
+							Q_strncpy(result, tryname, resultsize);
 						}
 					}
 				}
@@ -425,7 +410,7 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 						if (d < bestdepth)
 						{
 							bestdepth = d;
-							Q_strncpy(trackname, tryname, sizeof(trackname));
+							Q_strncpy(result, tryname, resultsize);
 						}
 					}
 				}
@@ -440,14 +425,43 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 				if (d < bestdepth)
 				{
 					bestdepth = d;
-					Q_strncpy(trackname, tryname, sizeof(trackname));
+					Q_strncpy(result, tryname, resultsize);
 				}
 			}
 		}
 	}
 
-	//okay, do that faketrack thing if we got one.
+	if (out_track)
+		*out_track = tracknum;
 	if (bestdepth < 0x7fffffff)
+		return true;
+	return false;
+}
+
+//controls which music track should be playing right now
+//track and looptrack will usually be the same thing, track is what to play NOW, looptrack is what to keep re-playing after, or "-" for stop.
+qboolean Media_NamedTrack(const char *track, const char *looptrack)
+{
+	unsigned int tracknum;
+	char trackname[MAX_QPATH];
+
+	if (!track && !looptrack)
+	{
+		*media_playtrack = *media_loopingtrack = 0;
+		Media_Changed(MEDIA_GAMEMUSIC);
+		return true;
+	}
+
+	if (!track || !*track)			//ignore calls if the primary track is invalid. whatever is already playing will continue to play.
+		return false;
+	if (!looptrack || !*looptrack)	//null or empty looptrack loops using the primary track, for compat with q3.
+		looptrack = track;
+
+	if (!strcmp(looptrack, "-"))	//- for the looptrack argument can be used to prevent looping.
+		looptrack = "";
+
+	//okay, do that faketrack thing if we got one.
+	if (Media_CleanupTrackName(track, &tracknum, trackname, sizeof(trackname)))
 	{
 #ifdef HAVE_CDPLAYER
 		cdplaytracknum = 0;

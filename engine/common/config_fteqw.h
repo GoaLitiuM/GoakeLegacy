@@ -141,7 +141,7 @@
 //#define HLSERVER 140			//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 #define SAVEDGAMES				//Can save the game.
 #define MVD_RECORDING			//server can record MVDs.
-//#define ENGINE_ROUTING		//Engine-provided routing logic (possibly threaded)
+#define ENGINE_ROUTING		//Engine-provided routing logic (possibly threaded)
 //#define USE_INTERNAL_BULLET	//Statically link against bullet physics plugin (instead of using an external plugin)
 //#define USE_INTERNAL_ODE		//Statically link against ode physics plugin (instead of using an external plugin)
 
@@ -185,7 +185,7 @@
 // Features required by vanilla quake/quakeworld...
 //#define QUAKETC
 #define QUAKESTATS				//defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself.
-#define QUAKEHUD				//support for drawing the vanilla hud.
+#define QUAKEHUD				//support for drawing the vanilla hud. disable this if you're always going to be using csqc (or equivelent)
 #define QWSKINS					//disabling this means no qw .pcx skins nor enemy/team skin/colour forcing
 //#define NOBUILTINMENUS
 //#define NOLEGACY				//just spike trying to kill off crappy crap...

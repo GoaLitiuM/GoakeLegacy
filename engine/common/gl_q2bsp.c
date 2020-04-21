@@ -38,6 +38,7 @@
 cvar_t q3bsp_surf_meshcollision_flag = CVARD("q3bsp_surf_meshcollision_flag", "0x80000000", "The surfaceparm flag(s) that enables q3bsp trisoup collision");
 cvar_t q3bsp_surf_meshcollision_force = CVARD("q3bsp_surf_meshcollision_force", "0", "Force mesh-based collisions on all q3bsp trisoup surfaces.");
 cvar_t q3bsp_mergeq3lightmaps = CVARD("q3bsp_mergelightmaps", "1", "Specifies whether to merge lightmaps into atlases in order to boost performance. Unfortunately this breaks tcgen on lightmap passes - if you care, set this to 0.");
+cvar_t q3bsp_ignorestyles = CVARD("q3bsp_ignorestyles", "0", "Ignores multiple lightstyles in Raven's q3bsp variant(and derivatives) for better batch/rendering performance.");
 cvar_t q3bsp_bihtraces = CVARFD("_q3bsp_bihtraces", "0", CVAR_RENDERERLATCH, "Uses runtime-generated bih collision culling for faster traces.");
 
 #if Q3SURF_NODRAW != TI_NODRAW
@@ -1322,9 +1323,11 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 		wal->width = 64;
 		wal->height = 64;
 	}
-
-	wal->width = LittleLong(wal->width);
-	wal->height = LittleLong(wal->height);
+	else
+	{
+		wal->width = LittleLong(wal->width);
+		wal->height = LittleLong(wal->height);
+	}
 	{
 		int i;
 
@@ -1338,8 +1341,8 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 
 	tex = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 
-	tex->vwidth = wal->width;
-	tex->vheight = wal->height;
+	tex->vwidth = tex->srcwidth = wal->width;
+	tex->vheight = tex->srcheight = wal->height;
 
 	if (!tex->vwidth || !tex->vheight || wal == &replacementwal)
 	{
@@ -1376,6 +1379,7 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 		(wal->width>>3)*(wal->height>>3);
 
 		tex->srcdata = out = BZ_Malloc(size);
+		tex->srcfmt = TF_MIP4_8PAL24_T255;
 		tex->palette = host_basepal;
 		memcpy(out, (qbyte *)wal + wal->offsets[0], (wal->width>>0)*(wal->height>>0));
 		out += (wal->width>>0)*(wal->height>>0);
@@ -1696,7 +1700,7 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 				out->styles[i] = style;
 			}
 		}
-		for ( ; i<MAXQ1LIGHTMAPS ; i++)
+		for ( ; i<MAXCPULIGHTMAPS ; i++)
 			out->styles[i] = INVALID_LIGHTSTYLE;
 		if (overrides.offsets)
 			i = overrides.offsets[surfnum];
@@ -2476,11 +2480,11 @@ static qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 		}
 		for ( j=0 ; j < 2 ; j++)
 		{
-			stout[i][j] = LittleFloat ( ((float *)in->texcoords)[j] );
-			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-				prv->vertlstmexcoords[sty][i][j] = LittleFloat ( ((float *)in->texcoords)[j+2*(sty+1)] );
+			stout[i][j] = LittleFloat (in->stcoords[j]);
+			for (sty = 0; sty < min(MAXRLIGHTMAPS, RBSP_STYLESPERSURF); sty++)
+				prv->vertlstmexcoords[sty][i][j] = LittleFloat(in->lmtexcoords[sty][j]);
 		}
-		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+		for (sty = 0; sty < min(MAXRLIGHTMAPS, RBSP_STYLESPERSURF); sty++)
 		{
 			prv->colors4f_array[sty][i][0] = lmgamma[in->color[sty][0]]/255.0f;
 			prv->colors4f_array[sty][i][1] = lmgamma[in->color[sty][1]]/255.0f;
@@ -3019,6 +3023,10 @@ static void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *b
 	{
 		GL_CreateMeshForPatch(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 	}
+	else if (LittleLong(in->facetype) == MST_PATCH_FIXED)
+	{
+		GL_CreateMeshForPatchFixed(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+	}
 	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 	{
 		unsigned int fv = LittleLong(in->firstvertex), i;
@@ -3199,17 +3207,17 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		else if (out->lightmaptexturenums[0] < 0 /*|| facetype == MST_TRIANGLE_SOUP*/ || r_vertexlight.value)
 			out->texinfo += mod->numtexinfo;	//various surfaces use a different version of the same shader (with all the lightmaps collapsed)
 
-		out->light_s[0] = LittleLong(in->lightmap_x);
-		out->light_t[0] = LittleLong(in->lightmap_y);
+		out->light_s[0] = LittleLong(in->lightmap_offs[0]);
+		out->light_t[0] = LittleLong(in->lightmap_offs[1]);
 		out->styles[0] = INVALID_LIGHTSTYLE;
-		out->vlstyles[0] = 255;
+		out->vlstyles[0] = INVALID_VLIGHTSTYLE;
 		for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
 		{
 			out->styles[sty] = INVALID_LIGHTSTYLE;
-			out->vlstyles[sty] = 255;
+			out->vlstyles[sty] = INVALID_VLIGHTSTYLE;
 			out->lightmaptexturenums[sty] = -1;
 		}
-		for (;  sty < MAXQ1LIGHTMAPS; sty++)
+		for (;  sty < MAXCPULIGHTMAPS; sty++)
 			out->styles[sty] = INVALID_LIGHTSTYLE;
 		out->lmshift = LMSHIFT_DEFAULT;
 		//fixme: determine texturemins from lightmap_origin
@@ -3296,6 +3304,8 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	mesh_t *mesh;
 
+	int maxstyle = q3bsp_ignorestyles.ival?1:min(MAXRLIGHTMAPS, RBSP_STYLESPERSURF);
+
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -3316,18 +3326,26 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		out->plane = pl;
 		facetype = LittleLong(in->facetype);
 		out->texinfo = mod->texinfo + LittleLong(in->shadernum);
-		for (j = 0; j < 4 && j < MAXRLIGHTMAPS; j++)
+		for (j = 0; j < maxstyle; j++)
 		{
 			out->lightmaptexturenums[j] = LittleLong(in->lightmapnum[j]);
 			out->light_s[j] = LittleLong(in->lightmap_offs[0][j]);
 			out->light_t[j] = LittleLong(in->lightmap_offs[1][j]);
 			out->styles[j] = (in->lm_styles[j]!=255)?in->lm_styles[j]:INVALID_LIGHTSTYLE;
-			out->vlstyles[j] = in->vt_styles[j];
+			out->vlstyles[j] = (in->vt_styles[j]!=255)?in->vt_styles[j]:INVALID_VLIGHTSTYLE;
 
 			if (mod->lightmaps.count < out->lightmaptexturenums[j]+1)
 				mod->lightmaps.count = out->lightmaptexturenums[j]+1;
 		}
-		for (;  j < MAXQ1LIGHTMAPS; j++)
+		for (; j < MAXRLIGHTMAPS; j++)
+		{
+			out->lightmaptexturenums[j] = -1;
+			out->light_s[j] = 0;
+			out->light_t[j] = 0;
+			out->styles[j] = INVALID_LIGHTSTYLE;
+			out->vlstyles[j] = INVALID_VLIGHTSTYLE;
+		}
+		for (;  j < MAXCPULIGHTMAPS; j++)
 			out->styles[j] = INVALID_LIGHTSTYLE;
 		if (facetype == MST_FLARE)
 			out->texinfo = mod->texinfo + mod->numtexinfo*2;
@@ -4213,7 +4231,7 @@ static qbyte *CM_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer, unsigne
 #define GLQ2BSP_LightPointValues GLQ1BSP_LightPointValues
 
 extern int	r_dlightframecount;
-static void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
+static void Q2BSP_MarkLights (dlight_t *light, dlightbitmask_t bit, mnode_t *node)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -4260,7 +4278,7 @@ static void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 	{
 		if (surf->dlightframe != r_dlightframecount)
 		{
-			surf->dlightbits = 0;
+			surf->dlightbits = 0u;
 			surf->dlightframe = r_dlightframecount;
 		}
 		surf->dlightbits |= bit;
@@ -4318,18 +4336,18 @@ CM_LoadMap
 Loads in the map and all submodels
 ==================
 */
-static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboolean clientload, unsigned *checksum)
+static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboolean clientload)
 {
 	unsigned		*buf;
 	int				i;
 	q2dheader_t		header;
 	int				length;
-	static unsigned	last_checksum;
 	qboolean noerrors = true;
 	model_t			*wmod = mod;
 	char			loadname[32];
 	qbyte			*mod_base = (qbyte *)filein;
 	bspx_header_t	*bspx = NULL;
+	unsigned int	checksum;
 #ifdef Q3BSPS
 	extern cvar_t	gl_overbright;
 #endif
@@ -4356,7 +4374,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		mod->leafs = ZG_Malloc(&mod->memgroup, 1 * sizeof(*mod->leafs));
 		prv->numcmodels = 1;
 		prv->numareas = 1;
-		*checksum = 0;
+		mod->checksum = mod->checksum2 = 0;
 		prv->cmodels[0].headnode = (mnode_t*)mod->leafs;	//directly start with the empty leaf
 		return &prv->cmodels[0];			// cinematic servers won't have anything at all
 	}
@@ -4372,8 +4390,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		return NULL;
 	}
 
-	last_checksum = LittleLong (Com_BlockChecksum (buf, length));
-	*checksum = last_checksum;
+	checksum = LittleLong (Com_BlockChecksum (buf, length));
 
 	header = *(q2dheader_t *)(buf);
 	header.ident = LittleLong(header.ident);
@@ -4771,7 +4788,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 #endif
 	FloodAreaConnections (prv);
 
-	mod->checksum = mod->checksum2 = *checksum;
+	mod->checksum = mod->checksum2 = checksum;
 
 	mod->nummodelsurfaces = mod->numsurfaces;
 	memset(&mod->batches, 0, sizeof(mod->batches));
@@ -7701,11 +7718,10 @@ unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_
 
 
 
-int map_checksum;
 qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize)
 {
 	mod->fromgame = fg_quake2;
-	return CM_LoadMap(mod, buffer, fsize, true, &map_checksum) != NULL;
+	return CM_LoadMap(mod, buffer, fsize, true) != NULL;
 }
 
 void CM_Init(void)	//register cvars.
@@ -7717,6 +7733,7 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&q3bsp_surf_meshcollision_flag, MAPOPTIONS);
 	Cvar_Register(&q3bsp_surf_meshcollision_force, MAPOPTIONS);
 	Cvar_Register(&q3bsp_mergeq3lightmaps, MAPOPTIONS);
+	Cvar_Register(&q3bsp_ignorestyles, MAPOPTIONS);
 	Cvar_Register(&q3bsp_bihtraces, MAPOPTIONS);
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 

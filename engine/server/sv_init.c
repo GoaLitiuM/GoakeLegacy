@@ -698,6 +698,10 @@ void SV_UpdateMaxPlayers(int newmax)
 		}
 		for (i = 0; i < min(newmax, svs.allocated_client_slots); i++)
 		{
+			if (svs.clients[i].name == old[i].namebuf)
+				svs.clients[i].name = svs.clients[i].namebuf;
+			if (svs.clients[i].team == old[i].teambuf)
+				svs.clients[i].team = svs.clients[i].teambuf;
 			if (svs.clients[i].netchan.message.data)
 				svs.clients[i].netchan.message.data = (qbyte*)&svs.clients[i] + (svs.clients[i].netchan.message.data - (qbyte*)&old[i]);
 			if (svs.clients[i].datagram.data)
@@ -827,7 +831,7 @@ clients along with it.
 This is only called from the SV_Map_f() function.
 ================
 */
-void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic)
+void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic, int playerslots)
 {
 	extern cvar_t allow_download_refpackages;
 	func_t f;
@@ -1006,7 +1010,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		//.map is commented out because quite frankly, they're a bit annoying when the engine loads the gpled start.map when really you wanted to just play the damn game intead of take it apart.
 		//if you want to load a .map, just use 'map foo.map' instead.
-		char *exts[] = {"maps/%s.bsp", "maps/%s", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
+		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ "maps/%s.bsp.gz", NULL};
 		int depth, bestdepth;
 		flocation_t loc;
 		time_t filetime;
@@ -1248,7 +1252,6 @@ MSV_OpenUserDatabase();
 	else if (svs.gametype == GT_QUAKE2)
 	{
 		int subs;
-		extern int map_checksum;
 		extern cvar_t sv_airaccelerate;
 
 		sv.stringsalloced = true;
@@ -1260,10 +1263,7 @@ MSV_OpenUserDatabase();
 			sv.strings.configstring[Q2CS_AIRACCEL] = Z_StrDup("0");
 
 		// init map checksum config string but only for Q2/Q3 maps
-		if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
-			sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDup(va("%i", map_checksum));
-		else
-			sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDup("0");
+		sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDup(va("%i", sv.world.worldmodel->checksum));
 
 		subs = sv.world.worldmodel->numsubmodels;
 		if (subs > MAX_PRECACHE_MODELS-1)
@@ -1341,6 +1341,8 @@ MSV_OpenUserDatabase();
 					i = QWMAX_CLIENTS;
 			}
 		}
+		if (playerslots)
+			i = playerslots;	//saved game? force it.
 		if (i > MAX_CLIENTS)
 			i = MAX_CLIENTS;
 		SV_UpdateMaxPlayers(i);
@@ -1386,7 +1388,7 @@ MSV_OpenUserDatabase();
 #endif
 #ifdef Q3SERVER
 	case GT_QUAKE3:
-		SV_UpdateMaxPlayers(max(8,maxclients.ival));
+		SV_UpdateMaxPlayers(playerslots?playerslots:max(8,maxclients.ival));
 		break;
 #endif
 #ifdef HLSERVER

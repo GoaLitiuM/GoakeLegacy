@@ -319,7 +319,7 @@ extern	vec3_t	r_origin;
 //
 extern	refdef_t	r_refdef;
 extern	unsigned int r_viewcontents;
-int r_viewarea;
+extern	int r_viewarea;
 extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	//q2
 extern	texture_t	*r_notexture_mip;
 
@@ -329,8 +329,6 @@ extern	shader_t *netgraphshader;
 extern	const char *gl_vendor;
 extern	const char *gl_renderer;
 extern	const char *gl_version;
-
-FTE_DEPRECATED void PPL_RevertToKnownState(void);
 
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
@@ -626,8 +624,6 @@ void R_NetGraph (void);
 #define qglBindBufferARB		glBindBuffer
 #define qglBufferDataARB		glBufferData
 #define qglBufferSubDataARB		glBufferSubData
-#define qglMapBufferARB			glMapBuffer
-#define qglUnmapBufferARB		glUnmapBuffer
 
 #else
 extern void (APIENTRY *qglBindTexture) (GLenum target, GLuint texture);
@@ -729,18 +725,26 @@ extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
 extern void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
 extern void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
 extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
-extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
-extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
+#endif
 
 #define GLintptr qintptr_t
 #define GLsizeiptr quintptr_t
 #ifndef GL_MAP_READ_BIT
-#define GL_MAP_READ_BIT 1
+#define GL_MAP_READ_BIT 0x0001
 #endif
-extern void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
-
+#ifndef GL_MAP_WRITE_BIT
+#define GL_MAP_WRITE_BIT 0x0002
 #endif
-extern void (APIENTRY *qglBufferStorage)(GLenum target, GLsizeiptr size, const GLvoid *data, GLbitfield flags);
+#ifndef GL_MAP_PERSISTENT_BIT
+#define GL_MAP_PERSISTENT_BIT 0x0040
+#endif
+#ifndef GL_MAP_COHERENT_BIT
+#define GL_MAP_COHERENT_BIT 0x0080
+#endif
+extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
+extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
+extern void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);	//gl3.0
+extern void (APIENTRY *qglBufferStorage)(GLenum target, GLsizeiptr size, const GLvoid *data, GLbitfield flags);		//gl4.4
 
 extern void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
 extern void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);

@@ -1520,6 +1520,7 @@ void CL_Rcon_f (void)
 		const unsigned char **tokens = alloca(sizeof(*tokens)*(4+Cmd_Argc()*2));
 		size_t *tokensizes = alloca(sizeof(*tokensizes)*(4+Cmd_Argc()*2));
 		int j, k;
+		void *ctx = alloca(hash_sha1.contextsize);
 
 		for (j = 0; j < sizeof(time_t); j++)
 		{	//little-endian byte order, but big-endian nibble order. just screwed. for compat with ezquake.
@@ -1537,9 +1538,11 @@ void CL_Rcon_f (void)
 			tokens[4+j*2+0] = Cmd_Argv(i+j);
 			tokens[4+j*2+1] = " ";
 		}
+		hash_sha1.init(ctx);
 		for (k = 0; k < 4+j*2; k++)
-			tokensizes[k] = strlen(tokens[k]);
-		digestsize = SHA1_m(digest, sizeof(digest), k, tokens, tokensizes);
+			hash_sha1.process(ctx, tokens[k], strlen(tokens[k]));
+		hash_sha1.terminate(digest, ctx);
+		digestsize = hash_sha1.digestsize;
 
 		for (j = 0; j < digestsize; j++)
 		{
@@ -1620,7 +1623,7 @@ void CL_ResetFog(int ftype)
 
 static void CL_ReconfigureCommands(int newgame)
 {
-	static int oldgame;
+	static int oldgame = ~0;
 	extern void SCR_SizeUp_f (void);	//cl_screen
 	extern void SCR_SizeDown_f (void);	//cl_screen
 #ifdef QUAKESTATS
@@ -2998,6 +3001,25 @@ void CL_Reconnect_f (void)
 		return;
 	}
 
+#if defined(HAVE_SERVER) && defined(SUBSERVERS)
+	if (sv.state == ss_clustermode)
+	{	//reconnecting while we're a cluster... o.O
+		char oldguid[sizeof(connectinfo.guid)];
+		Q_strncpyz(oldguid, connectinfo.guid, sizeof(oldguid));
+		memset(&connectinfo, 0, sizeof(connectinfo));
+		connectinfo.istransfer = false;
+		Q_strncpyz(connectinfo.guid, oldguid, sizeof(oldguid));	//retain the same guid on transfers
+
+		Cvar_Set(&cl_disconnectreason, "Transferring....");
+		connectinfo.trying = true;
+		connectinfo.defaultport = cl_defaultport.value;
+		connectinfo.protocol = CP_UNKNOWN;
+		SCR_SetLoadingStage(LS_CONNECTION);
+		CL_CheckForResend();
+		return;
+	}
+#endif
+
 	CL_Disconnect(NULL);
 	connectinfo.tries = 0;	//re-ensure routes.
 	CL_BeginServerReconnect();
@@ -3599,7 +3621,7 @@ client_connect:	//fixme: make function
 			Con_TPrintf ("connection\n");
 
 #ifndef CLIENTONLY
-			if (sv.state)
+			if (sv.state && sv.state != ss_clustermode)
 				SV_UnspawnServer();
 #endif
 		}
@@ -4865,9 +4887,9 @@ void CL_Init (void)
 	Cmd_AddCommandAD ("timedemo", CL_TimeDemo_f, CL_DemoList_c, NULL);
 #ifdef _DEBUG
 	Cmd_AddCommand ("freespace", CL_FreeSpace_f);
-#endif
 	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
 	Cmd_AddCommand ("crashme_error", CL_CrashMeError_f);
+#endif
 
 	Cmd_AddCommandD ("showpic", SCR_ShowPic_Script_f, 	"showpic <imagename> <placename> <x> <y> <zone> [width] [height] [touchcommand]\nDisplays an image onscreen, that potentially has a key binding attached to it when clicked/touched.\nzone should be one of: TL, TR, BL, BR, MM, TM, BM, ML, MR. This serves as an extra offset to move the image around the screen without any foreknowledge of the screen resolution.");
 	Cmd_AddCommandD ("showpic_removeall", SCR_ShowPic_Remove_f, 	"removes any pictures inserted with the showpic command.");
@@ -5395,15 +5417,15 @@ qboolean Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 	}
 	return result;
 }
-void Host_RunFilePrompted(void *ctx, int button)
+void Host_RunFilePrompted(void *ctx, promptbutton_t button)
 {
 	hrf_t *f = ctx;
 	switch(button)
 	{
-	case 0:
+	case PROMPT_YES:
 		f->flags |= HRF_OVERWRITE;
 		break;
-	case 1:
+	case PROMPT_NO:
 		f->flags |= HRF_NOOVERWRITE;
 		break;
 	default:
@@ -5569,7 +5591,7 @@ done:
 				else
 				{
 					host_parms.manifest = Z_StrDup(fdata);
-					man = FS_Manifest_Parse(NULL, fdata);
+					man = FS_Manifest_ReadMem(NULL, NULL, fdata);
 					if (man)
 					{
 						if (!man->updateurl)
@@ -5577,9 +5599,6 @@ done:
 //						if (f->flags & HRF_DOWNLOADED)
 						man->blockupdate = true;
 						BZ_Free(fdata);
-#ifdef PACKAGEMANAGER
-						PM_Shutdown();
-#endif
 						FS_ChangeGame(man, true, true);
 					}
 					else
@@ -5991,6 +6010,8 @@ double Host_Frame (double time)
 				SV_Frame();
 				RSpeedEnd(RSPEED_SERVER);
 			}
+			else
+				MSV_PollSlaves();
 #endif
 			COM_MainThreadFlush();
 			return idlesec - deltatime;
@@ -6108,6 +6129,8 @@ double Host_Frame (double time)
 			RSpeedEnd(RSPEED_SERVER);
 			host_frametime = ohft;
 		}
+		else
+			MSV_PollSlaves();
 		return 0;
 	}
 #endif
@@ -6179,6 +6202,8 @@ double Host_Frame (double time)
 //		if (cls.protocol != CP_QUAKE3 && cls.protocol != CP_QUAKE2)
 //			CL_ReadPackets ();	//q3's cgame cannot cope with input commands with the same time as the most recent snapshot value
 	}
+	else
+		MSV_PollSlaves();
 #endif
 	CL_CalcClientTime();
 
@@ -6262,7 +6287,9 @@ double Host_Frame (double time)
 
 	CL_QTVPoll();
 
+#ifdef QUAKESTATS
 	TP_UpdateAutoStatus();
+#endif
 
 	host_framecount++;
 	cl.lasttime = cl.time;
@@ -6709,10 +6736,6 @@ void Host_Init (quakeparms_t *parms)
 	V_Init ();
 	NET_Init ();
 
-#ifdef PLUGINS
-	Plug_Initialise(false);
-#endif
-
 #if defined(Q2BSPS) || defined(Q3BSPS)
 	CM_Init();
 #endif
@@ -6741,6 +6764,10 @@ void Host_Init (quakeparms_t *parms)
 	CDAudio_Init ();
 	Sbar_Init ();
 	CL_Init ();
+
+#ifdef PLUGINS
+	Plug_Initialise(false);
+#endif
 
 #ifdef TEXTEDITOR
 	Editor_Init();
@@ -6850,7 +6877,7 @@ void Host_Shutdown(void)
 
 	Cmd_Shutdown();
 #ifdef PACKAGEMANAGER
-	PM_Shutdown();
+	PM_Shutdown(false);
 #endif
 	Key_Unbindall_f();
 

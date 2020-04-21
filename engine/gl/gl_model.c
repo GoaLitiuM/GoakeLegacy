@@ -1159,7 +1159,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 			char altname[MAX_QPATH];
 			Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
 			TRACE(("Mod_LoadModel: Trying to load (replacement) model \"%s\"\n", altname));
-			buf = (unsigned *)FS_LoadMallocFile (altname, &filesize);
+			buf = (unsigned *)FS_LoadMallocGroupFile(NULL, altname, &filesize, true);
 
 			if (buf)
 				Q_strncpyz(mod->name, altname, sizeof(mod->name));
@@ -1167,7 +1167,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		else
 		{
 			TRACE(("Mod_LoadModel: Trying to load model \"%s\"\n", mod->publicname));
-			buf = (unsigned *)FS_LoadMallocFile (mod->publicname, &filesize);
+			buf = (unsigned *)FS_LoadMallocGroupFile(NULL, mod->publicname, &filesize, true);
 			if (buf)
 				Q_strncpyz(mod->name, mod->publicname, sizeof(mod->name));
 			else if (!buf)
@@ -1682,7 +1682,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 				Q_snprintfz(litname, sizeof(litname), litnames[best].pattern, litbase);
 			else
 				Q_snprintfz(litname, sizeof(litname), litnames[best].pattern, litbasep);
-			litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
+			litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize, false);
 		}
 		else
 		{
@@ -1832,7 +1832,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			Q_strncpyz(luxname, loadmodel->name, sizeof(luxname));
 			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
 			COM_DefaultExtension(luxname, ".lux", sizeof(luxname));
-			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz, false);
 			luxtmp = false;
 		}
 		if (!luxdata)
@@ -1841,14 +1841,14 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
 			Q_strncatz(luxname, ".lux", sizeof(luxname));
 
-			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz, false);
 			luxtmp = false;
 		}
 		if (!luxdata) //dp...
 		{
 			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
 			COM_DefaultExtension(luxname, ".dlit", sizeof(luxname));
-			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz, false);
 			luxtmp = false;
 		}
 		//make sure the .lux has the correct size
@@ -1974,8 +1974,8 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			overrides->stylesperface = size / (sizeof(*overrides->styles16)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles16)*overrides->stylesperface)
 				overrides->styles16 = NULL;
-			else if (overrides->stylesperface > MAXQ1LIGHTMAPS)
-				Con_Printf(CON_WARNING "LMSTYLE16 lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXQ1LIGHTMAPS);
+			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
+				Con_Printf(CON_WARNING "LMSTYLE16 lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXCPULIGHTMAPS);
 		}
 		if (!overrides->styles8 && !overrides->styles16)
 		{	//16bit per-face lightmap styles index
@@ -1984,8 +1984,8 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			overrides->stylesperface = size / (sizeof(*overrides->styles8)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles8)*overrides->stylesperface)
 				overrides->styles8 = NULL;
-			else if (overrides->stylesperface > MAXQ1LIGHTMAPS)
-				Con_Printf(CON_WARNING "LMSTYLE lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXQ1LIGHTMAPS);
+			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
+				Con_Printf(CON_WARNING "LMSTYLE lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXCPULIGHTMAPS);
 		}
 	}
 
@@ -3413,7 +3413,9 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 			else if (!strncmp(extfmt, "RGBA", 4))	newfmt = PTI_RGBA8;				//32bpp, we don't normally need this alpha precision (padding can be handy though, for the lazy).
 			else if (!strncmp(extfmt, "RGB", 4))	newfmt = PTI_RGB8;				//24bpp
 			else if (!strncmp(extfmt, "565", 4))	newfmt = PTI_RGB565;			//16bpp
+			else if (!strncmp(extfmt, "4444", 4))	newfmt = PTI_RGBA4444;			//16bpp
 			else if (!strncmp(extfmt, "5551", 4))	newfmt = PTI_RGBA5551;			//16bpp
+			else if (!strncmp(extfmt, "LUM8", 4))	newfmt = PTI_L8;			//8bpp
 			else if (!strncmp(extfmt, "EXP5", 4))	newfmt = PTI_E5BGR9;			//32bpp, we don't normally need this alpha precision...
 			else if (!strncmp(extfmt, "BC1", 4))	newfmt = PTI_BC1_RGBA;			//4bpp
 			else if (!strncmp(extfmt, "BC2", 4))	newfmt = PTI_BC2_RGBA;			//8bpp, we don't normally need this alpha precision...
@@ -4145,11 +4147,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->flags |= (SURF_DRAWALPHA);
 			continue;
 		}
-		if (!Q_strncmp(out->texinfo->texture->name,"glass",5))		// alpha
-		{
-			out->flags |= (SURF_DRAWALPHA);
-			continue;
-		}
+
 		if (out->flags & SURF_DRAWALPHA)
 			out->flags &= ~SURF_DRAWALPHA;
 	}
@@ -5151,7 +5149,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 //					maps |= SHADER_HASNORMALMAP;
 				if (gl_specular.ival)
 					maps |= SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, IF_WORLDTEX, TF_MIP4_8PAL24_T255, mod->textures[a]->srcwidth, mod->textures[a]->srcheight, mod->textures[a]->srcdata, mod->textures[a]->palette);
+				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, IF_WORLDTEX, mod->textures[a]->srcfmt, mod->textures[a]->srcwidth, mod->textures[a]->srcheight, mod->textures[a]->srcdata, mod->textures[a]->palette);
 				BZ_Free(mod->textures[a]->srcdata);
 				mod->textures[a]->srcdata = NULL;
 			}
@@ -5486,6 +5484,10 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 //
 // set up the submodels (FIXME: this is confusing)
 //
+
+	for (j=0 ; j<2 ; j++)
+		Q1BSP_CheckHullNodes(&mod->hulls[j]);
+
 	for (i=0, submod = mod; i<mod->numsubmodels ; i++)
 	{
 		bm = &mod->submodels[i];
@@ -5493,7 +5495,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		submod->rootnode = submod->nodes + bm->headnode[0];
 		submod->hulls[0].firstclipnode = bm->headnode[0];
 		submod->hulls[0].available = true;
-		Q1BSP_CheckHullNodes(&submod->hulls[0]);
+//		Q1BSP_CheckHullNodes(&submod->hulls[0]);
 
 TRACE(("LoadBrushModel %i\n", __LINE__));
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
@@ -5505,8 +5507,8 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 			if (submod->hulls[j].firstclipnode > submod->hulls[j].lastclipnode)
 				submod->hulls[j].available = false;
 
-			if (submod->hulls[j].available)
-				Q1BSP_CheckHullNodes(&submod->hulls[j]);
+//			if (submod->hulls[j].available)
+//				Q1BSP_CheckHullNodes(&submod->hulls[j]);
 		}
 
 		if (mod->fromgame == fg_halflife && i)
