@@ -2146,11 +2146,13 @@ static int M_Main_AddExtraOptions(emenu_t *mainm, int y)
 		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Packages      ", "menu_download\n");	y += 20;
 #endif
 	}
+#ifndef GOAKE
 	if (Cmd_Exists("menu_mods"))
 	{
 		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Mods          ", "menu_mods\n");	y += 20;
 		y += 20;
 	}
+#endif
 
 	return y;
 }

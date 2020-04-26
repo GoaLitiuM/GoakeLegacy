@@ -1642,6 +1642,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	if (!ent)
 		return;
 
+#ifndef NOLEGACY2
 	// send a damage message if the player got hit this frame
 	if (ent->v->dmg_take || ent->v->dmg_save)
 	{
@@ -1662,6 +1663,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 		ent->v->dmg_take = 0;
 		ent->v->dmg_save = 0;
 	}
+#endif
 
 	// a fixangle might get lost in a dropped packet.  Oh well.
 	if (client->spectator && ISNQCLIENT(client) && client->spec_track > 0)
@@ -3099,6 +3101,7 @@ void SV_UpdateToReliableMessages (void)
 
 		if (host_client->state != cs_spawned)
 		{
+#ifndef NOLEGACY2
 			if (!host_client->state && host_client->name && host_client->name[0])	//if this is a writebyte bot
 			{
 				if (host_client->old_frags != (int)host_client->edict->v->frags)
@@ -3130,13 +3133,16 @@ void SV_UpdateToReliableMessages (void)
 					host_client->old_frags = host_client->edict->v->frags;
 				}
 			}
+#endif
 			continue;
 		}
 		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 		{
 			ent = host_client->edict;
 
+#ifndef NOLEGACY2
 			curfrags = host_client->edict->v->frags;
+#endif
 			curgrav = ent->xv->gravity*sv_gravity.value;
 			curspeed = ent->xv->maxspeed;
 			if (progstype != PROG_QW)
@@ -3169,6 +3175,7 @@ void SV_UpdateToReliableMessages (void)
 				host_client->sendinfo = false;
 				SV_FullClientUpdate (host_client, NULL);
 			}
+#ifndef NOLEGACY2
 			if (host_client->old_frags != curfrags)
 			{
 				for (j=0, client = svs.clients ; j<sv.allocated_client_slots ; j++, client++)
@@ -3208,6 +3215,7 @@ void SV_UpdateToReliableMessages (void)
 
 				host_client->old_frags = curfrags;
 			}
+#endif
 
 			{
 				if (host_client->entgravity != curgrav)

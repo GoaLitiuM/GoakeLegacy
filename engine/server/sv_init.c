@@ -915,7 +915,9 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		svs.clients[i].csqcactive = false;
 	}
 
+#ifndef NOLEGACY2
 	VoteFlushAll();
+#endif
 #ifndef SERVERONLY
 	cl.worldmodel = NULL;
 	r_worldentity.model = NULL;
@@ -1450,7 +1452,9 @@ MSV_OpenUserDatabase();
 				svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->netname, version_string(), false);
 			}
 			ent->v->impulse = 0;//QWE_VERNUM;
+#ifndef NOLEGACY2
 			ent->v->items = 103;
+#endif
 		}
 
 

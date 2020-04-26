@@ -115,11 +115,14 @@ float sv_autojump;
 float maxfps;
 
 // player
+.float health;
+.float armortype;
+.float armorvalue;
 .float last_velocity_z;
 .float last_pmove_flags;
 .float reload_time;
-.float weapon;
-.float weapon_next;
+.int weapon;
+.int weapon_next;
 .int weapons;
 .int ammo[STAT_AMMO_LAST-STAT_AMMO_FIRST+1];
 .float weapon_sound_loop_time;

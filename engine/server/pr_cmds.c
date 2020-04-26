@@ -357,7 +357,9 @@ pbool PDECL ED_CanFree (edict_t *ed)
 	World_UnlinkEdict ((wedict_t*)ed);		// unlink from world bsp
 
 	ed->v->model = 0;
+#ifndef NOLEGACY2
 	ed->v->takedamage = 0;
+#endif
 	ed->v->modelindex = 0;
 	ed->v->colormap = 0;
 	ed->v->skin = 0;
@@ -372,7 +374,9 @@ pbool PDECL ED_CanFree (edict_t *ed)
 		ed->v->nextthink = 0;
 		ed->v->think = 0;
 		ed->v->classname = 0;
+#ifndef NOLEGACY2
 		ed->v->health = 0;
+#endif
 #else
 	//yay compat
 		ed->v->nextthink = -1;
@@ -3913,8 +3917,10 @@ void PF_newcheckclient (pubprogfuncs_t *prinst, world_t *w)
 
 		if (ED_ISFREE(ent))
 			continue;
+#ifndef NOLEGACY2
 		if (ent->v->health <= 0)
 			continue;
+#endif
 		if ((int)ent->v->flags & FL_NOTARGET)
 			continue;
 
@@ -3968,7 +3974,11 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 
 // return check if it might be visible
 	ent = EDICT_NUM_PB(prinst, w->lastcheck);
-	if (ED_ISFREE(ent) || ent->v->health <= 0)
+	if (ED_ISFREE(ent)
+#ifndef NOLEGACY2
+	|| ent->v->health <= 0
+#endif
+	)
 	{
 		return 0;
 	}
@@ -4956,15 +4966,14 @@ void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy (P_VEC(v_forward), dir);
 	VectorMA (start, 2048, dir, end);
 	tr = World_Move (&sv.world, start, vec3_origin, vec3_origin, end, false, (wedict_t*)ent);
-	if (tr.ent && ((edict_t *)tr.ent)->v->takedamage == DAMAGE_AIM
 #ifndef NOLEGACY2
-	&& (!teamplay.value || ent->v->team <=0 || ent->v->team != ((edict_t *)tr.ent)->v->team)
-#endif
+	if (tr.ent && ((edict_t *)tr.ent)->v->takedamage == DAMAGE_AIM && (!teamplay.value || ent->v->team <=0 || ent->v->team != ((edict_t *)tr.ent)->v->team)
 	   )
 	{
 		VectorCopy (P_VEC(v_forward), G_VECTOR(OFS_RETURN));
 		return;
 	}
+#endif
 
 
 // try all possible entities
@@ -4975,8 +4984,10 @@ void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	for (i=1 ; i<sv.world.num_edicts ; i++ )
 	{
 		check = EDICT_NUM_PB(prinst, i);
+#ifndef NOLEGACY2
 		if (check->v->takedamage != DAMAGE_AIM)
 			continue;
+#endif
 		if (check == ent)
 			continue;
 		#ifndef NOLEGACY2
@@ -6099,6 +6110,7 @@ logfrag (killer, killee)
 */
 void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifndef NOLEGACY2
 	extern cvar_t fraglog_details;
 	edict_t	*ent1, *ent2;
 	int		e1, e2;
@@ -6179,6 +6191,7 @@ void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 		VFS_WRITE(sv_fraglogfile, s, strlen(s));
 		VFS_FLUSH (sv_fraglogfile);
 	}
+#endif
 }
 
 
@@ -10183,7 +10196,9 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 	//
 	// angles
 	// show 1/3 the pitch angle and all the roll angle
+#ifndef NOLEGACY2
 		if (sv_player->v->health > 0)
+#endif
 		{
 			if (!sv_player->v->fixangle)
 			{
@@ -12102,6 +12117,7 @@ void PR_DumpPlatform_f(void)
 		{"nextthink",			".float", QW|NQ|CS,		D("The time at which the entity is next scheduled to fire its think event. For MOVETYPE_PUSH entities, this is relative to that entity's ltime field, for all other entities it is relative to the time gloal.")},
 
 		{"groundentity",		".entity", QW|NQ},
+#ifndef NOLEGACY2
 		{"health",				".float", QW|NQ},
 		{"frags",				".float", QW|NQ},
 		{"weapon",				".float", QW|NQ},
@@ -12114,6 +12130,7 @@ void PR_DumpPlatform_f(void)
 		{"ammo_cells",			".float", QW|NQ},
 		{"items",				".float", QW|NQ},
 		{"takedamage",			".float", QW|NQ},
+#endif
 
 		{"chain",				".entity", QW|NQ|CS},
 		{"deadflag",			".float", QW|NQ},
@@ -12130,10 +12147,14 @@ void PR_DumpPlatform_f(void)
 		{"flags",				".float", QW|NQ|CS},
 		{"colormap",			".float", QW|NQ|CS},
 		{"team",				".float", QW|NQ},
+#ifndef NOLEGACY2
 		{"max_health",			".float", QW|NQ},
+#endif
 		{"teleport_time",		".float", QW|NQ,	D("While active, prevents the player from using the +back command, also blocks waterjumping.")},
+#ifndef NOLEGACY2
 		{"armortype",			".float", QW|NQ},
 		{"armorvalue",			".float", QW|NQ},
+#endif
 		{"waterlevel",			".float", QW|NQ},
 		{"watertype",			".float", QW|NQ},
 		{"ideal_yaw",			".float", QW|NQ},
@@ -12143,17 +12164,21 @@ void PR_DumpPlatform_f(void)
 		{"spawnflags",			".float", QW|NQ},
 		{"target",				".string", QW|NQ},
 		{"targetname",			".string", QW|NQ},
+#ifndef NOLEGACY2
 		{"dmg_take",			".float", QW|NQ},
 		{"dmg_save",			".float", QW|NQ},
 		{"dmg_inflictor",		".entity", QW|NQ},
+#endif
 		{"owner",				".entity", QW|NQ|CS},
 		{"movedir",				".vector", QW|NQ},
 		{"message",				".string", QW|NQ},
+#ifndef NOLEGACY2
 		{"sounds",				".float", QW|NQ},
 		{"noise",				".string", QW|NQ},
 		{"noise1",				".string", QW|NQ},
 		{"noise2",				".string", QW|NQ},
 		{"noise3",				".string", QW|NQ},
+#endif
 		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
 		{"time",				"float",	MENU,	D("The current local time. Increases while paused.")},
@@ -12948,7 +12973,11 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma warning %s Q101 /*too many parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n", (targ & ID1)?"enable":"error");
 	VFS_PRINTF(f, "#pragma warning %s Q105 /*too few parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n", (targ & ID1)?"enable":"error");
 	VFS_PRINTF(f, "#pragma warning %s Q106 /*assignment to constant/lvalue. Define them as var if you want to initialise something.*/\n", (targ & ID1)?"enable":"error");
+#ifdef NOLEGACY2
+	VFS_PRINTF(f, "#pragma warning disable Q208 /*system crc unknown. Compatibility goes out of the window if you disable this.*/\n");
+#else
 	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown. Compatibility goes out of the window if you disable this.*/\n");
+#endif
 #ifndef HAVE_LEGACY
 	VFS_PRINTF(f, "#pragma warning error F211 /*system crc outdated (eg: dp's csqc). Such mods will not run properly in FTE.*/\n");
 #else

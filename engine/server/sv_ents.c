@@ -2458,12 +2458,14 @@ void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *m
 		dcl->info.angles[0] *= -3;
 		dcl->info.angles[2] = 0; // no roll angle
 
+#ifndef NOLEGACY2
 		if (ent->v->health <= 0)
 		{	// don't show the corpse looking around...
 			dcl->info.angles[0] = 0;
 			dcl->info.angles[1] = vent->v->angles[1];
 			dcl->info.angles[2] = 0;
 		}
+#endif
 
 		if (ent != vent)
 		{
@@ -2474,7 +2476,9 @@ void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *m
 		{
 			dcl->info.skinnum = ent->v->skin;
 			dcl->info.effects = ent->v->effects;
+#ifndef NOLEGACY2
 			dcl->info.weaponframe = ent->v->weaponframe;
+#endif
 			dcl->info.model = ent->v->modelindex;
 		}
 		dcl->sec = sv.time - cl->localtime;
@@ -2484,8 +2488,10 @@ void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *m
 		dcl->fixangle = demo.fixangle[j];
 		demo.fixangle[j] = 0;
 
+#ifndef NOLEGACY2
 		if (ent->v->health <= 0)
 			dcl->flags |= DF_DEAD;
+#endif
 		if (ent->v->mins[2] != -24)
 			dcl->flags |= DF_GIB;
 	}
@@ -2721,7 +2727,9 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 			clst.lastcmd = &cl->lastcmd;
 			clst.modelindex = vent->v->modelindex;
 			clst.frame = vent->v->frame;
+#ifndef NOLEGACY2
 			clst.weaponframe = ent->v->weaponframe;
+#endif
 			clst.angles = ent->v->angles;
 			clst.origin = vent->v->origin;
 			clst.velocity = vent->v->velocity;
@@ -2755,7 +2763,9 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 
 			clst.fatness = vent->xv->fatness;
 			clst.localtime = cl->localtime;
+#ifndef NOLEGACY2
 			clst.health = ent->v->health;
+#endif
 			clst.spectator = 0;
 			clst.fteext = client->fteprotocolextensions;
 			clst.zext = client->zquake_extensions;
@@ -2783,8 +2793,10 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 						clst.spectator = 2;
 						clst.mins = s->v->mins;
 						clst.maxs = s->v->maxs;
+#ifndef NOLEGACY2
 						clst.health = s->v->health;
 						clst.weaponframe = s->v->weaponframe;
+#endif
 					}
 					else
 					{
@@ -3206,9 +3218,11 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	VectorCopy (ent->v->angles, state->angles);
 
 	state->u.q1.weaponframe = 0;
+#ifndef NOLEGACY2
 	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && (client == &svs.clients[state->number-1] || client == svs.clients[state->number-1].controller || (client && (!client->edict || client->spec_track == state->number))))
 		if (!client || !(client->fteprotocolextensions2 & PEXT2_PREDINFO))
 			state->u.q1.weaponframe = ent->v->weaponframe;
+#endif
 	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && ent->v->movetype && client)
 	{
 		client_t *cl = &svs.clients[state->number-1];

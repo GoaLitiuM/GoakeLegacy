@@ -4244,11 +4244,13 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 		ret = buffer;
 		sprintf(ret, "%i", cl.players[pnum].ping);
 	}
+#ifndef NOLEGACY2
 	else if (!strcmp(keyname, "frags"))
 	{
 		ret = buffer;
 		sprintf(ret, "%i", cl.players[pnum].frags);
 	}
+#endif
 	else if (!strcmp(keyname, "userid"))
 	{
 		ret = buffer;
@@ -7763,6 +7765,7 @@ void ASMCALL CSQC_CStateOp(pubprogfuncs_t *progs, float first, float last, func_
 }
 static void ASMCALL CSQC_CWStateOp (pubprogfuncs_t *prinst, float first, float last, func_t currentfunc)
 {
+#if defined(HEXEN2) && !defined(NOLEGACY2)
 	float min, max;
 	float step;
 	world_t *w = prinst->parms->user;
@@ -7803,6 +7806,7 @@ static void ASMCALL CSQC_CWStateOp (pubprogfuncs_t *prinst, float first, float l
 		}
 	}
 	e->v->weaponframe = frame;
+#endif
 }
 void ASMCALL CSQC_ThinkTimeOp(pubprogfuncs_t *progs, edict_t *ed, float var)
 {

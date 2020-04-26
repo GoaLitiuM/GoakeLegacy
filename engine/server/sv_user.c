@@ -64,9 +64,9 @@ cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "", CVAR_SERVERINFO);
 cvar_t	sv_cheatpc				= CVARD("sv_cheatpc", "125", "If the client tried to claim more than this percentage of time within any speed-cheat period, the client will be deemed to have cheated.");
 cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The interval between each speed-cheat check.");
 #endif
-cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
-cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "", "Specifies the default protocol to use for new NQ clients. This is only relevent for clients that do not report their supported protocols. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
+cvar_t	sv_playermodelchecks	= CVARF("sv_playermodelchecks", "0", CVAR_HIDDEN_LEGACY);
+cvar_t	sv_protocol_nq		= CVARFD("sv_protocol_nq", "", CVAR_HIDDEN_LEGACY, "Specifies the default protocol to use for new NQ clients. This is only relevent for clients that do not report their supported protocols. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
 
 cvar_t	sv_minpitch		 = CVARAFD("minpitch", "-90",	"sv_minpitch", CVAR_SERVERINFO, "Assumed to be -70");
 cvar_t	sv_maxpitch		 = CVARAFD("maxpitch", "90",	"sv_maxpitch", CVAR_SERVERINFO, "Assumed to be 80");
@@ -76,7 +76,11 @@ cvar_t cmd_allowaccess	= CVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd t
 cvar_t cmd_gamecodelevel	= CVARF("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL), CVAR_NOTFROMSERVER);	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
+#ifdef NOLEGACY2
+cvar_t	sv_nqplayerphysics	= CVARF("sv_nqplayerphysics", "0", CVAR_HIDDEN_LEGACY);
+#else
 cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "auto", "sv_nomsec", 0, SV_NQPhysicsUpdate, "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
+#endif
 
 #ifdef HAVE_LEGACY
 static cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
@@ -93,11 +97,12 @@ cvar_t  sv_floodprotect_silencetime	= CVAR("sv_floodprotect_silencetime", "10");
 cvar_t	sv_floodprotect_suicide		= CVAR("sv_floodprotect_suicide", "1");
 cvar_t	sv_floodprotect_sendmessage	= CVARAF("sv_floodprotect_sendmessage", "",
 											 "floodprotmsg", 0);
-
+#ifndef NOLEGACY2
 cvar_t	votelevel	= CVARD("votelevel", "0", "This is the restriction level of commands that players may vote for. You can reconfigure commands, cvars, or aliases individually. Additionally, aliases can be configured via aliaslevel to be executed at a different level from their restriction level. This can be used to indirectly allow voting for 'map dm4' for instance, without allowing people to vote for every map.");
 cvar_t	voteminimum	= CVARD("voteminimum", "4", "At least this many players must vote the same way for the vote to pass.");
 cvar_t	votepercent	= CVARD("votepercent", "-1", "At least this percentage of players must vote the same way for the vote to pass.");
 cvar_t	votetime	= CVARD("votetime", "10", "Votes will be discarded after this many minutes");
+#endif
 
 cvar_t	pr_allowbutton1 = CVARFD("pr_allowbutton1", "1", CVAR_LATCH, "The button1 field is believed to have been intended to work with the +use command, but it was never hooked up. In NetQuake, this field was often repurposed for other things as it was not otherwise used (and cannot be removed without breaking the crc), while third-party QuakeWorld engines did decide to implement it as believed was intended. As a result, this cvar only applies to QuakeWorld mods and a value of 1 is only likely to cause issues with NQ mods that were ported to QW.");
 extern cvar_t sv_minping;
@@ -1088,11 +1093,13 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					track = sv.h2cdtrack;	//hexen2 has a special hack
 				} else
 #endif
+#ifndef NOLEGACY2
 				if (svprogfuncs)
 				{
 					track = ((edict_t*)sv.world.edicts)->v->sounds;
 					noise = PR_GetString(svprogfuncs, ((edict_t*)sv.world.edicts)->v->noise);
 				}
+#endif
 
 				if (track == -1 && *noise)
 					SV_StuffcmdToClient(client, va("cd loop \"%s\"\n", noise));
@@ -2035,8 +2042,10 @@ void SV_DespawnClient(client_t *cl)
 				ED_Clear(svprogfuncs, cl->edict);
 		}
 
+#ifndef NOLEGACY2
 		if (svprogfuncs && cl->edict && cl->edict->v)
 			cl->edict->v->frags = 0;
+#endif
 	}
 }
 
@@ -2203,7 +2212,9 @@ void SV_Begin_Core(client_t *split)
 							PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->PutClientInServer);
 						else
 						{
+#ifndef NOLEGACY2
 							split->edict->v->health = 100;
+#endif
 							split->edict->v->mins[0] = -16;
 							split->edict->v->mins[1] = -16;
 							split->edict->v->mins[2] = -24;
@@ -4196,11 +4207,13 @@ void SV_Kill_f (void)
 		return;	//should have its own parsing.
 	}
 
+#ifndef NOLEGACY2
 	if (sv_player->v->health <= 0)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "Can't suicide -- Already dead\n");
 		return;
 	}
+#endif
 
 	if (sv_floodprotect_suicide.value)
 	{
@@ -4674,6 +4687,8 @@ void SV_NoSnap_f(void)
 	}
 }
 
+#ifndef NOLEGACY2
+
 //3 votes per player.
 typedef struct voteinfo_s {
 	struct voteinfo_s *next;
@@ -4863,6 +4878,7 @@ void SV_Vote_f (void)
 		VoteAdd(command, id);
 	}
 }
+#endif
 
 void Cmd_Notarget_f (void)
 {
@@ -5001,10 +5017,12 @@ void Cmd_Spiderpig_f(void)
 	else
 	{
 		sv_player->v->movetype = MOVETYPE_WALK;
+#ifndef NOLEGACY2
 		if (sv_player->v->health > 0)
 			sv_player->v->solid = SOLID_SLIDEBOX;
 		else
 			sv_player->v->solid = SOLID_NOT;
+#endif
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "Spider-Pig, Spider-Pig!\n");
 	}
 }
@@ -5037,10 +5055,12 @@ void Cmd_Noclip_f (void)
 	else
 	{
 		sv_player->v->movetype = MOVETYPE_WALK;
+#ifndef NOLEGACY2
 		if (sv_player->v->health > 0)
 			sv_player->v->solid = SOLID_SLIDEBOX;
 		else
 			sv_player->v->solid = SOLID_NOT;
+#endif
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "noclip OFF\n");
 	}
 }
@@ -5065,10 +5085,12 @@ void Cmd_6dof_f (void)
 	else
 	{
 		sv_player->v->movetype = MOVETYPE_WALK;
+#ifndef NOLEGACY2
 		if (sv_player->v->health > 0)
 			sv_player->v->solid = SOLID_SLIDEBOX;
 		else
 			sv_player->v->solid = SOLID_NOT;
+#endif
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "6dof mode OFF\n");
 	}
 }
@@ -5093,10 +5115,12 @@ void Cmd_Fly_f (void)
 	else
 	{
 		sv_player->v->movetype = MOVETYPE_WALK;
+#ifndef NOLEGACY2
 		if (sv_player->v->health > 0)
 			sv_player->v->solid = SOLID_SLIDEBOX;
 		else
 			sv_player->v->solid = SOLID_NOT;
+#endif
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "flymode OFF\n");
 	}
 }
@@ -5254,7 +5278,9 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	ent->xv->maxspeed = cl->maxspeed = sv_maxspeed.value;
 	ent->v->movetype = MOVETYPE_NOCLIP;
 
+#ifndef NOLEGACY2
 	ent->v->frags = 0;
+#endif
 	cl->connection_started = realtime;
 }
 
@@ -5457,7 +5483,9 @@ void Cmd_Join_f (void)
 		sv.spawned_client_slots++;
 
 		// send notification to all clients
+#ifndef NOLEGACY2
 		host_client->old_frags = host_client->edict->v->frags;
+#endif
 		host_client->sendinfo = true;
 
 		SV_LogPlayer(host_client, "joined");
@@ -5587,7 +5615,9 @@ void Cmd_Observe_f (void)
 		sv.spawned_observer_slots++;
 
 		// send notification to all clients
+#ifndef NOLEGACY2
 		host_client->old_frags = host_client->edict->v->frags;
+#endif
 		host_client->sendinfo = true;
 
 		SV_LogPlayer(host_client, "observing");
@@ -6186,7 +6216,9 @@ ucmd_t ucmds[] =
 	{"pause",		SV_Pause_f},
 	{"msg",			SV_Msg_f},
 	{"efpslist",	Cmd_FPSList_f},	//don't conflict with the ktpro one
+#ifndef NOLEGACY2
 	{"vote",		SV_Vote_f},
+#endif
 
 	//{"ban",		Cmd_Ban_f},		//for admins
 	//{"banip",		Cmd_BanIP_f},	//for admins
@@ -7256,7 +7288,11 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 //
 // angles
 // show 1/3 the pitch angle and all the roll angle
-	if (sv_player->v->health > 0 && sv_player->v->movetype)
+	if (sv_player->v->movetype
+#ifndef NOLEGACY2
+	&& sv_player->v->health > 0
+#endif
+	)
 	{
 		if (sv_player->v->movetype == MOVETYPE_6DOF)
 		{
@@ -8763,10 +8799,12 @@ void SV_UserInit (void)
 	Cvar_Register(&cmd_gamecodelevel, "Access controls");
 	Cvar_Register(&cmd_allowaccess, "Access controls");
 
+#ifndef NOLEGACY2
 	Cvar_Register (&votelevel, sv_votinggroup);
 	Cvar_Register (&voteminimum, sv_votinggroup);
 	Cvar_Register (&votepercent, sv_votinggroup);
 	Cvar_Register (&votetime, sv_votinggroup);
+#endif
 
 #ifdef HAVE_LEGACY
 	Cvar_Register (&sv_brokenmovetypes, "Backwards compatability");
@@ -9212,8 +9250,10 @@ void SV_ClientThink (void)
 //
 // if dead, behave differently
 //
+#ifndef NOLEGACY2
 	if (sv_player->v->health <= 0 && !host_client->spectator)
 		return;
+#endif
 
 //
 // angles

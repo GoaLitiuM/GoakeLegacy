@@ -136,6 +136,7 @@ This list isn't shared with the menu.
 so the base fields are a fixed size
 and the extension fields are added on the end and can have extra vm-specific stuff added on the end
 */
+#ifndef NOLEGACY2
 /*DO NOT ADD TO THIS STRUCTURE (base-qw-compat for q1qvm)*/
 #define comqcfields	\
 	comfieldfloat(modelindex,"This is the model precache index for the model that was set on the entity, instead of having to look up the model according to the .model field. Use setmodel to change it.")\
@@ -215,6 +216,61 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldstring(noise2,NULL)\
 	comfieldstring(noise3,NULL)
 /*DO NOT ADD TO THE ABOVE STRUCTURE (unless you want to break qvms)*/
+#else
+#define comqcfields	\
+	comfieldfloat(modelindex,"This is the model precache index for the model that was set on the entity, instead of having to look up the model according to the .model field. Use setmodel to change it.")\
+	comfieldvector(absmin,"Set by the engine when the entity is relinked (by setorigin, setsize, or setmodel). This is in world coordinates.")\
+	comfieldvector(absmax,"Set by the engine when the entity is relinked (by setorigin, setsize, or setmodel). This is in world coordinates.")\
+	comfieldfloat(ltime,"On MOVETYPE_PUSH entities, this is used as an alternative to the 'time' global, and .nextthink is synced to this instead of time. This allows time to effectively freeze if the entity is blocked, ensuring the think happens when the entity reaches the target point instead of randomly.")\
+	comfieldfloat(lastruntime,"This field used to be used to avoid running an entity multiple times in a single frame due to quakeworld's out-of-order thinks. It is no longer used by FTE due to precision issues, but may still be updated for compatibility reasons.")	/*type doesn't match the qc, we use a hidden double instead. this is dead.*/ 	\
+	comfieldfloat(movetype,"Describes how the entity moves. One of the MOVETYPE_ constants.")\
+	comfieldfloat(solid,"Describes whether the entity is solid or not, and any special properties infered by that. Must be one of the SOLID_ constants")\
+	comfieldvector(origin,"The current location of the entity in world space. Inline bsp entities (ie: ones placed by a mapper) will typically have a value of '0 0 0' in their neutral pose, as the geometry is offset from that. It is the reference point of the entity rather than the center of its geometry, for non-bsp models, this is often not a significant distinction.")\
+	comfieldvector(oldorigin,"This is often used on players to reset the player back to where they were last frame if they somehow got stuck inside something due to fpu precision. Never change a player's oldorigin field to inside a solid, because that might cause them to become pemanently stuck.")\
+	comfieldvector(velocity,"The direction and speed that the entity is moving in world space.")\
+	comfieldvector(angles,"The eular angles the entity is facing in, in pitch, yaw, roll order. Due to a legacy bug, mdl/iqm/etc formats use +x=UP, bsp/spr/etc formats use +x=DOWN.")\
+	comfieldvector(avelocity,"The amount the entity's angles change by each frame. Note that this is direct eular angles, and thus the angular change is non-linear and often just looks buggy.")\
+	comfieldstring(classname,"Identifies the class/type of the entity. Useful for debugging, also used for loading, but its value is not otherwise significant to the engine, this leaves the mod free to set it to whatever it wants and randomly test strings for values in whatever inefficient way it chooses fit.")\
+	comfieldstring(model,"The model name that was set via setmodel, in theory. Often, this is cleared to null to prevent the engine from being seen by clients while not changing modelindex. This behaviour allows inline models to remain solid yet be invisible.")\
+	comfieldfloat(frame,"The current frame the entity is meant to be displayed in. In CSQC, note the lerpfrac and frame2 fields as well. if it specifies a framegroup, the framegroup will autoanimate in ssqc, but not in csqc.")\
+	comfieldfloat(skin,"The skin index to use. on a bsp entity, setting this to 1 will switch to the 'activated' texture instead. A negative value will be understood as a replacement contents value, so setting it to CONTENTS_WATER will make a movable pool of water.")\
+	comfieldfloat(effects,"Lots of random flags that change random effects.")\
+	comfieldvector(mins,"The minimum extent of the model (ie: the bottom-left coordinate relative to the entity's origin). Change via setsize. May also be changed by setmodel.")\
+	comfieldvector(maxs,"like mins, but in the other direction.")\
+	comfieldvector(size,"maxs-mins. Updated when the entity is relinked (by setorigin, setsize, setmodel)")\
+	comfieldfunction(touch, ".void()",NULL)\
+	comfieldfunction(use, ".void()",NULL)\
+	comfieldfunction(think, ".void()",NULL)\
+	comfieldfunction(blocked, ".void()",NULL)\
+	comfieldfloat(nextthink,"The time at which the entity is next scheduled to fire its think event. For MOVETYPE_PUSH entities, this is relative to that entity's ltime field, for all other entities it is relative to the time gloal.")\
+	comfieldentity(groundentity,NULL)\
+	comfieldentity(chain,NULL)\
+	comfieldvector(view_ofs,NULL)\
+	comfieldfloat(button0,NULL)\
+	comfieldfloat(button1,NULL)	/*dead field in nq mode*/	\
+	comfieldfloat(button2,NULL)\
+	comfieldfloat(impulse,NULL)\
+	comfieldfloat(fixangle,NULL)\
+	comfieldvector(v_angle,"The angles a player is viewing. +x is DOWN (pitch, yaw, roll)")\
+	comfieldstring(netname,NULL)\
+	comfieldentity(enemy,NULL)\
+	comfieldfloat(flags,NULL)\
+	comfieldfloat(colormap,NULL)\
+	comfieldfloat(team,NULL)\
+	comfieldfloat(teleport_time,NULL)\
+	comfieldfloat(waterlevel,NULL)\
+	comfieldfloat(watertype,NULL)\
+	comfieldfloat(ideal_yaw,NULL)\
+	comfieldfloat(yaw_speed,NULL)\
+	comfieldentity(aiment,NULL)\
+	comfieldentity(goalentity,NULL)\
+	comfieldfloat(spawnflags,NULL)\
+	comfieldstring(target,NULL)\
+	comfieldstring(targetname,NULL)\
+	comfieldentity(owner,NULL)\
+	comfieldvector(movedir,NULL)\
+	comfieldstring(message,NULL)	/*don't use directly, hexen2 uses floats, so we go via qclib for message*/
+#endif
 
 #ifdef HEXEN2
 #define comextqcfieldshexen2	\
