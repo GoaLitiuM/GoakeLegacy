@@ -12,9 +12,6 @@ void trigger_teleport()
 void info_teleport_destination()
 {
 }
-void misc_teleporter_dest() // Q3 compatibility
-{
-}
 
 void Teleport_OnTouch()
 {

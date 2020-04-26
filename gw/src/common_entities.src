@@ -4,3 +4,6 @@
 #include <common/entities/race.qc>
 #include <common/entities/teleport.qc>
 #include <common/entities/weapon.qc>
+
+// always include last
+#include <common/entities/compatibility.qc>
