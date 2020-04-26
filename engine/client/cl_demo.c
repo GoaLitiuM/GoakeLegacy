@@ -1801,7 +1801,14 @@ void CL_Record_f (void)
 #ifdef MVD_RECORDING
 	if (*sv_demoDir.string && !strncmp(p, sv_demoDir.string, strlen(sv_demoDir.string)) && p[strlen(sv_demoDir.string)] == '/')
 		p += strlen(sv_demoDir.string)+1;	//allow a demos/ prefix (primarily because of autodemos)
+	else
 #endif
+	if (*sv_demoDir.string)
+	{
+		fname = va("%s/%s", sv_demoDir.string, fname);
+		p = fname + strlen(sv_demoDir.string)+1;
+	}
+	
 	for ( ; *p ; p++)
 	{
 		char c;
@@ -2131,6 +2138,18 @@ void CL_DemoList_c(int argn, const char *partial, struct xcommandargcompletioncb
 #endif
 		COM_EnumerateFiles(va("%s*.mvd", partial), CompleteDemoList, ctx);
 		COM_EnumerateFiles(va("%s*.mvd.gz", partial), CompleteDemoList, ctx);
+		
+		if (*sv_demoDir.string)
+		{
+			COM_EnumerateFiles(va("%s/%s*.qwd", sv_demoDir.string, partial), CompleteDemoList, ctx);
+			COM_EnumerateFiles(va("%s/%s*.qwd.gz", sv_demoDir.string, partial), CompleteDemoList, ctx);
+#ifdef NQPROT
+			COM_EnumerateFiles(va("%s/%s*.dem", sv_demoDir.string, partial), CompleteDemoList, ctx);
+			COM_EnumerateFiles(va("%s/%s*.dem.gz", sv_demoDir.string, partial), CompleteDemoList, ctx);
+#endif
+			COM_EnumerateFiles(va("%s/%s*.mvd", sv_demoDir.string, partial), CompleteDemoList, ctx);
+			COM_EnumerateFiles(va("%s/%s*.mvd.gz", sv_demoDir.string, partial), CompleteDemoList, ctx);
+		}
 
 		//fixme: show files in both .zip and .dz
 //		COM_EnumerateFiles(va("%s*.dz", partial), CompleteDemoList, ctx);
