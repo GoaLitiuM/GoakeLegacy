@@ -103,6 +103,7 @@ int AMMO_MAX(int ammo_stat)
 #define WEAPON_BIT(x) (1 << x)
 #define STAT_WEAPON(x) (STAT_AMMO_FIRST + x)
 #define ALL_WEAPONS (-1)
+#define AMMO_INFINITE (-1)
 
 // FIXME
 int WeaponRocket_Fire(vector forward);

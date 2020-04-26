@@ -3,10 +3,12 @@ bool Weapon_OnTouch()
 	if (self.ammo_stat < STAT_AMMO_FIRST || self.ammo_stat >= STAT_AMMO_LAST)
 		error(strcat("invalid ammo_stat number ", itos(self.ammo_stat)));
 
-	if (other.ammo[self.ammo_stat-STAT_AMMO_FIRST] >= self.count)
+	// ammo component of the weapon
+	int ammo_index = self.ammo_stat-STAT_AMMO_FIRST;
+	if (!Ammo_OnTouch() && other.ammo[ammo_index] != AMMO_INFINITE)
 		return false;
 
-	other.ammo[self.ammo_stat-STAT_AMMO_FIRST] = self.count;
+	// add the weapon
 	return true;
 }
 

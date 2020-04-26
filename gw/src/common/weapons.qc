@@ -2,7 +2,7 @@ struct Weapon
 {
 	string name;
 	float reload_time;
-	bool uses_ammo;
+	int ammo_consumption; // how much ammo is used when fired
 
 	// called when player intents to fire the weapon, returns: ammo consumed, or 0 when firing failed
 	int(vector) attack;
@@ -21,9 +21,9 @@ void Weapon_Init()
 	weapons_allocated_count = WEAPON_LAST;
 	weapon_defs = memalloc(sizeof(Weapon) * weapons_allocated_count);
 
-	weapon_defs[WEAPON_ROCKET] = (Weapon){ "Rocket Launcher", ROCKET_RELOAD, true, WeaponRocket_Fire, 0, 0 };
-	weapon_defs[WEAPON_LIGHTNING] = (Weapon){ "Lightning Gun", LIGHTNING_RELOAD, true, WeaponLightning_Fire, 0, 0 };
-	weapon_defs[WEAPON_CROSSBOW] = (Weapon){ "Crossbow", CROSSBOW_RELOAD, true, WeaponCrossbow_Fire, 0, 0 };
+	weapon_defs[WEAPON_ROCKET] = (Weapon){ "Rocket Launcher", ROCKET_RELOAD, 1, WeaponRocket_Fire, 0, 0 };
+	weapon_defs[WEAPON_LIGHTNING] = (Weapon){ "Lightning Gun", LIGHTNING_RELOAD, 1, WeaponLightning_Fire, 0, 0 };
+	weapon_defs[WEAPON_CROSSBOW] = (Weapon){ "Crossbow", CROSSBOW_RELOAD, 1, WeaponCrossbow_Fire, 0, 0 };
 }
 
 void Player_WeaponAttack(vector angle);
@@ -56,8 +56,9 @@ void Player_WeaponAttack(vector angle)
 	Weapon* weapon_def = &weapon_defs[self.weapon];
 	int* weapon_ammo = &self.ammo[WEAPON_AMMO_INDEX(self.weapon)];
 
-	// negative ammo means infinite ammo
-	if (weapon_def->uses_ammo && *weapon_ammo == 0)
+	if (*weapon_ammo == AMMO_INFINITE || *weapon_ammo >= weapon_def->ammo_consumption)
+	{}	// enough ammo to fire
+	else
 		return;
 
 	int ammo_consumed = 0;
@@ -66,7 +67,7 @@ void Player_WeaponAttack(vector angle)
 
 	if (ammo_consumed != 0)
 	{
-		if (weapon_def->uses_ammo && *weapon_ammo > 0)
+		if (weapon_def->ammo_consumption > 0 && *weapon_ammo > 0)
 		{
 			*weapon_ammo -= ammo_consumed;
 			if (*weapon_ammo < 0)

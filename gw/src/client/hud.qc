@@ -73,7 +73,7 @@ void Hud_Player(float width, float height)
 	string right_str = itos(playerent.armorvalue);
 	int current_weapon = playerent.weapon;
 	int weapon_ammo = playerent.ammo[WEAPON_AMMO_INDEX(current_weapon)];
-	string ammo_str = weapon == 0 ? "" : itos(weapon_ammo);
+	string ammo_str = (weapon_defs[current_weapon].ammo_consumption > 0 && weapon_ammo != AMMO_INFINITE) ? itos(weapon_ammo) : "-";
 
 	int center_offset = 5;
 
