@@ -198,7 +198,7 @@ extern cvar_t			scr_allowsnap;
 extern cvar_t			scr_sshot_type;
 extern cvar_t			scr_sshot_prefix;
 extern cvar_t			scr_consize;
-#ifndef NOLEGACY2
+#ifdef QUAKEHUD
 extern cvar_t			scr_turtlefps;
 extern cvar_t			scr_showturtle;
 extern cvar_t			scr_showpause;
@@ -226,6 +226,7 @@ cvar_t	con_stayhidden = CVARFD("con_stayhidden", "1", CVAR_NOTFROMSERVER, "0: al
 cvar_t	show_fps	= CVARFD("show_fps", "0", CVAR_ARCHIVE, "Displays the current framerate on-screen.\n1: framerate average over a second.\n2: Slowest frame over the last second (the game will play like shit if this is significantly lower than the average).\n3: Shows the rate of the fastest frame (not very useful).\n4: Shows the current frame's timings (this depends upon timer precision).\n5: Display a graph of how long it took to render each frame, large spikes are BAD BAD BAD.\n6: Displays the standard deviation of the frame times, if its greater than 3 then something is probably badly made, or you've a virus scanner running...\n7: Framegraph, for use with slower frames.");
 cvar_t	show_fps_x	= CVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= CVAR("show_fps_y", "-1");
+#ifdef QUAKEHUD
 cvar_t	show_clock	= CVAR("cl_clock", "0");
 cvar_t	show_clock_x	= CVAR("cl_clock_x", "0");
 cvar_t	show_clock_y	= CVAR("cl_clock_y", "-1");
@@ -239,6 +240,7 @@ cvar_t	scr_showdisk	= CVAR("scr_showdisk", "0");
 cvar_t	scr_showdisk_x	= CVAR("scr_showdisk_x", "-24");
 cvar_t	scr_showdisk_y	= CVAR("scr_showdisk_y", "0");
 cvar_t	scr_showobituaries = CVAR("scr_showobituaries", "0");
+#endif
 
 cvar_t	scr_loadingrefresh = CVARD("scr_loadingrefresh", "0", "Force redrawing of the loading screen, in order to display EVERY resource that is loaded");
 cvar_t	scr_showloading	= CVAR("scr_showloading", "1");
@@ -276,6 +278,7 @@ void CLSCR_Init(void)
 	Cvar_Register(&show_fps, cl_screengroup);
 	Cvar_Register(&show_fps_x, cl_screengroup);
 	Cvar_Register(&show_fps_y, cl_screengroup);
+#ifdef QUAKEHUD
 	Cvar_Register(&show_clock, cl_screengroup);
 	Cvar_Register(&show_clock_x, cl_screengroup);
 	Cvar_Register(&show_clock_y, cl_screengroup);
@@ -285,12 +288,13 @@ void CLSCR_Init(void)
 	Cvar_Register(&show_speed, cl_screengroup);
 	Cvar_Register(&show_speed_x, cl_screengroup);
 	Cvar_Register(&show_speed_y, cl_screengroup);
-	Cvar_Register(&scr_neticontimeout, cl_screengroup);
 	Cvar_Register(&scr_showdisk, cl_screengroup);
 	Cvar_Register(&scr_showdisk_x, cl_screengroup);
 	Cvar_Register(&scr_showdisk_y, cl_screengroup);
-	Cvar_Register(&scr_diskicontimeout, cl_screengroup);
 	Cvar_Register(&scr_showobituaries, cl_screengroup);
+#endif
+	Cvar_Register(&scr_neticontimeout, cl_screengroup);
+	Cvar_Register(&scr_diskicontimeout, cl_screengroup);
 
 
 	memset(&key_customcursor, 0, sizeof(key_customcursor));
@@ -569,6 +573,7 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 
 void VARGS Stats_Message(char *msg, ...)
 {
+#ifdef QUAKEHUD
 	va_list		argptr;
 	char str[2048];
 	cprint_t *p = &scr_centerprint[0];
@@ -600,6 +605,7 @@ void VARGS Stats_Message(char *msg, ...)
 
 	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
+#endif
 }
 
 static char *SCR_CopyCenterPrint(cprint_t *p)	//reads the link under the mouse cursor. non-links are ignored.
@@ -1662,7 +1668,7 @@ void SCR_StringXY(const char *str, float x, float y)
 	Font_EndString(font);
 }
 
-#ifndef NOLEGACY2
+#ifdef QUAKEHUD
 /*
 ==============
 SCR_DrawTurtle
@@ -1702,7 +1708,6 @@ void SCR_DrawNet (void)
 
 	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
 }
-#endif
 
 void SCR_DrawDisk (void)
 {
@@ -1717,6 +1722,7 @@ void SCR_DrawDisk (void)
 	else
 		R2D_ScalePic (scr_showdisk_x.value + (scr_showdisk_x.value<0?vid.width:0), scr_showdisk_y.value + (scr_showdisk_y.value<0?vid.height:0), 24, 24, draw_disc);
 }
+#endif
 
 void SCR_DrawFPS (void)
 {
@@ -1827,7 +1833,7 @@ void SCR_DrawFPS (void)
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 }
 
-#if !defined(NOLEGACY2) || defined(QUAKEHUD)
+#ifdef QUAKEHUD
 void SCR_DrawClock(void)
 {
 	struct tm *newtime;
@@ -1885,7 +1891,7 @@ void SCR_DrawGameClock(void)
 }
 #endif
 
-#ifndef NOLEGACY2
+#ifdef QUAKEHUD
 
 /*
 ==============
@@ -3338,11 +3344,13 @@ void SCR_DrawTwoDimensional(qboolean nohud)
 	}
 	else if (nohud)
 	{
+#ifdef QUAKEHUD
 		SCR_DrawDisk();
+#endif
 		SCR_DrawFPS ();
 		SCR_CheckDrawCenterString ();
 	}
-#ifndef NOLEGACY2
+#ifdef QUAKEHUD
 	else if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
 	{
 		SCR_CheckDrawCenterString ();

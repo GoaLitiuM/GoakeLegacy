@@ -37,7 +37,9 @@ extern	cvar_t	r_rocketlight;
 extern	cvar_t	r_lightflicker;
 extern	cvar_t	r_dimlight_colour;
 extern	cvar_t	r_brightlight_colour;
+#ifndef NOLEGACY2
 extern	cvar_t	cl_r2g;
+#endif
 extern	cvar_t	r_powerupglow;
 extern	cvar_t	v_powerupshell;
 extern	cvar_t	cl_nolerp;
@@ -4194,8 +4196,10 @@ void CL_LinkPacketEntities (void)
 
 		ent->keynum = state->number;
 
+#ifndef NOLEGACY2
 		if (cl_r2g.value && state->modelindex == cl_rocketindex && cl_rocketindex != -1 && cl_grenadeindex != -1)
 			model = cl.model_precache[cl_grenadeindex];
+#endif
 		ent->model = model;
 
 		ent->flags = 0;

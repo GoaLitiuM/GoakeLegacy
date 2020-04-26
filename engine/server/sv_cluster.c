@@ -159,10 +159,14 @@ static void MSV_SendCvars(pubsubserver_t *s)
 	extern cvar_t skill, sv_nqplayerphysics, sv_pure, sv_minpitch, sv_maxpitch;
 	cvar_t *cvars[] = {
 		&developer,
+#ifndef NOLEGACY2
 		&deathmatch, &coop, &skill, &teamplay,
+#endif
+#ifdef SAVEDGAMES
 		&nomonsters, &gamecfg, &noexit, &temp1,
 		&scratch1, &scratch2, &scratch3, &scratch4,
 		&saved1, &saved2, &saved3, &saved4, &savedgamecfg,
+#endif
 		&sv_nqplayerphysics, &sv_pure, &sv_mintic, &sv_maxtic,
 		&sv_minpitch, &sv_maxpitch};
 

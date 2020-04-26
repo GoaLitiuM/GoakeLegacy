@@ -3301,11 +3301,13 @@ int FS_GetManifestArgv(char **argv, int maxargs)
 	argv[c++] = "-basedir";
 	argv[c++] = com_gamepath;
 
+#ifndef NOLEGACY2
 	argv[c++] = "+deathmatch";
 	argv[c++] = *deathmatch.string?deathmatch.string:"0";
 
 	argv[c++] = "+coop";
 	argv[c++] = *coop.string?coop.string:"0";
+#endif
 	return c;
 }
 #endif

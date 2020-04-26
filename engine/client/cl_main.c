@@ -170,7 +170,9 @@ cvar_t	cl_teamchatsound	= CVAR("cl_teamchatsound", "misc/talk.wav");
 cvar_t	r_torch					= CVARF("r_torch",	"0",	CVAR_CHEAT);
 cvar_t	r_rocketlight			= CVARFC("r_rocketlight",	"1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	r_lightflicker			= CVAR("r_lightflicker",	"1");
+#ifndef NOLEGACY2
 cvar_t	cl_r2g					= CVARFD("cl_r2g",	"0", CVAR_ARCHIVE, "Uses progs/grenade.mdl instead of progs/missile.mdl when 1.");
+#endif
 cvar_t	r_powerupglow			= CVAR("r_powerupglow", "1");
 cvar_t	v_powerupshell			= CVARF("v_powerupshell", "0", CVAR_ARCHIVE);
 cvar_t	cl_gibfilter			= CVARF("cl_gibfilter", "0", CVAR_ARCHIVE);
@@ -4768,7 +4770,9 @@ void CL_Init (void)
 	Cvar_Register (&r_torch, "Item effects");
 	Cvar_Register (&r_rocketlight, "Item effects");
 	Cvar_Register (&r_lightflicker, "Item effects");
+#ifndef NOLEGACY2
 	Cvar_Register (&cl_r2g, "Item effects");
+#endif
 	Cvar_Register (&r_powerupglow, "Item effects");
 	Cvar_Register (&v_powerupshell, "Item effects");
 

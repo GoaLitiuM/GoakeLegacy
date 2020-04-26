@@ -1332,7 +1332,10 @@ void M_Menu_FPS_f (void)
 	emenu_t *menu;
 	fpsmenuinfo_t *info;
 
-	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp, cl_maxfps, cl_yieldcpu;
+	extern cvar_t v_contentblend, show_fps, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp, cl_maxfps, cl_yieldcpu;
+#ifndef NOLEGACY2
+	extern cvar_t cl_r2g;
+#endif
 	static menuresel_t resel;
 	int y;
 	menu = M_Options_Title(&y, sizeof(fpsmenuinfo_t));
@@ -1357,7 +1360,9 @@ void M_Menu_FPS_f (void)
 			MB_CHECKBOXCVAR("Gib Filter", cl_gibfilter, 0),
 			MB_COMBOCVAR("Dead Body Filter", cl_deadbodyfilter, bodyopts, values_0_1_2, "Selects which dead player frames to filter out in rendering. Ground frames are those of the player lying on the ground, and all frames include all used in the player dying animation."),
 			MB_CHECKBOXCVAR("Explosion Sprite", cl_expsprite, 0),
+#ifndef NOLEGACY2
 			MB_CHECKBOXCVAR("Rockets to Grenades", cl_r2g, 0),
+#endif
 			MB_EDITCVAR("Skybox", "r_skybox"),
 			MB_END()
 		};
