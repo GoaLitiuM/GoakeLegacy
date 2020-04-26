@@ -226,6 +226,7 @@ cvar_t	con_stayhidden = CVARFD("con_stayhidden", "1", CVAR_NOTFROMSERVER, "0: al
 cvar_t	show_fps	= CVARFD("show_fps", "0", CVAR_ARCHIVE, "Displays the current framerate on-screen.\n1: framerate average over a second.\n2: Slowest frame over the last second (the game will play like shit if this is significantly lower than the average).\n3: Shows the rate of the fastest frame (not very useful).\n4: Shows the current frame's timings (this depends upon timer precision).\n5: Display a graph of how long it took to render each frame, large spikes are BAD BAD BAD.\n6: Displays the standard deviation of the frame times, if its greater than 3 then something is probably badly made, or you've a virus scanner running...\n7: Framegraph, for use with slower frames.");
 cvar_t	show_fps_x	= CVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= CVAR("show_fps_y", "-1");
+cvar_t	show_fps_interval	= CVARD("show_fps_interval", "1.0", "Update interval of framerate counter.");
 #ifdef QUAKEHUD
 cvar_t	show_clock	= CVAR("cl_clock", "0");
 cvar_t	show_clock_x	= CVAR("cl_clock_x", "0");
@@ -278,6 +279,7 @@ void CLSCR_Init(void)
 	Cvar_Register(&show_fps, cl_screengroup);
 	Cvar_Register(&show_fps_x, cl_screengroup);
 	Cvar_Register(&show_fps_y, cl_screengroup);
+	Cvar_Register(&show_fps_interval, cl_screengroup);
 #ifdef QUAKEHUD
 	Cvar_Register(&show_clock, cl_screengroup);
 	Cvar_Register(&show_clock_x, cl_screengroup);
@@ -1745,7 +1747,7 @@ void SCR_DrawFPS (void)
 		return;
 
 	t = Sys_DoubleTime();
-	if ((t - lastupdatetime) >= 1.0)
+	if ((t - lastupdatetime) >= show_fps_interval.value)
 	{
 		curfps = fps_count/(t - lastupdatetime);
 		fps_count = 0;
@@ -1825,7 +1827,7 @@ void SCR_DrawFPS (void)
 	if (curfps != lastfps)
 	{
 		if (usemsecs)
-			sprintf(str, "%4.1f MS", 1000.0/curfps);
+			sprintf(str, "%4.3f ms", 1000.0/curfps);
 		else
 			sprintf(str, "%3.1f FPS", curfps);
 		lastfps = curfps;
