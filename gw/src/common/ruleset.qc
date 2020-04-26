@@ -1,4 +1,4 @@
-const float WEAPON_RESPAWN_TIME = 0;
+const float WEAPON_RESPAWN_TIME = 1;
 const float ITEM_RESPAWN_TIME = 20;
 const float DAMAGE_MULTIPLIER_SELF = 0.5;
 

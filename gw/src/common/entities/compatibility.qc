@@ -25,3 +25,51 @@ void item_armorInv()
 {
 	REMAP_TO_ENTITY(item_armor_red);
 }
+void item_rockets()
+{
+	REMAP_TO_ENTITY(item_ammo_rockets);
+}
+
+void item_cells()
+{
+	REMAP_TO_ENTITY(item_ammo_lightning);
+}
+
+// remap Q3 items
+
+void item_armor_body()
+{
+	REMAP_TO_ENTITY(item_armor_red);
+}
+
+void item_armor_combat()
+{
+	REMAP_TO_ENTITY(item_armor_yellow);
+}
+
+void item_armor_jacket()
+{
+	REMAP_TO_ENTITY(item_armor_green);
+}
+
+void ammo_slugs() // railgun ammo
+{
+	REMAP_TO_ENTITY(item_ammo_stakes);
+}
+
+// ammo_cells = nails
+
+void ammo_lightning()
+{
+	REMAP_TO_ENTITY(item_ammo_lightning);
+}
+
+void ammo_rockets()
+{
+	REMAP_TO_ENTITY(item_ammo_rockets);
+}
+
+void weapon_railgun()
+{
+	REMAP_TO_ENTITY(weapon_crossbow);
+}

@@ -7,24 +7,30 @@ entity FindRandomSpawn()
 	int num_spawns = 0;
 	while (true)
 	{
-		ent = find(ent, classname, "info_player_deathmatch");
+		ent = find(ent, classname, "info_player_start");
 		if (ent == world)
 			break;
 		num_spawns++;
+	}
+
+	if (num_spawns == 0)
+	{
+		println("Map does not have any spawn entities.");
+		return world;
 	}
 
 	ent = world;
 	int spawn = randomInt(1, num_spawns);
 	while (spawn > 0)
 	{
-		ent = find(ent, classname, "info_player_deathmatch");
+		ent = find(ent, classname, "info_player_start");
 		if (ent == world)
 			break;
 		spawn--;
 	}
 
 	if (ent == world)
-		println("no spawn found for player.");
+		println("No spawn found for player.");
 
 	return ent;
 }

@@ -25,3 +25,23 @@ void item_ammo_rockets()
 	if (self.count == 0)
 		self.count = 5;
 }
+
+void item_ammo_lightning()
+{
+	Item_InitAmmo();
+	Item_SetTouch(Ammo_OnTouch);
+
+	self.ammo_stat = STAT_AMMO_CELLS;
+	if (self.count == 0)
+		self.count = 10;
+}
+
+void item_ammo_stakes()
+{
+	Item_InitAmmo();
+	Item_SetTouch(Ammo_OnTouch);
+
+	self.ammo_stat = STAT_AMMO_BOLTS;
+	if (self.count == 0)
+		self.count = 5;
+}
