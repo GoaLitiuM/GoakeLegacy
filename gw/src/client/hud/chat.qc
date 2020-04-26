@@ -2,8 +2,9 @@ const float CHAT_SHOW_TIME = 10.0f;
 
 enum
 {
-	CHAT_TYPE_SYSTEM,
-	CHAT_TYPE_MESSAGE
+	CHAT_TYPE_SYSTEM = 0,
+	CHAT_TYPE_MESSAGE,
+	CHAT_TYPE_DEATH,
 };
 
 struct ChatLine
@@ -44,7 +45,7 @@ ChatLine* Chat_NewLine()
 	return line;
 }
 
-void Chat_SystemMessage(string msg)
+void Chat_SystemMessage(string msg, int type = CHAT_TYPE_SYSTEM)
 {
 	ChatLine* line = Chat_NewLine();
 	line->timestamp = strftime(1, "%H:%M:%S");

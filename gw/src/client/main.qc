@@ -132,6 +132,33 @@ void CSQC_Parse_Event()
 			player.is_attacking = true;
 			break;
 		}
+		case EVENT_PLAYER_DEATH:
+		{
+			entity killed = readEntity();
+			entity killer = readEntity();
+			entity source = readEntity();
+
+			if (killed.entnum == player_localentnum)
+			{
+				entity oldself = self;
+				self = killed;
+				Player_OnDeath(source, killer);
+				self = oldself;
+
+				localcmd("-attack; -jump"); // unrelease these actions to prevent player respawning accidentally
+			}
+
+			string killed_name = infokey(killed, "name");
+			string killer_name = infokey(killer, "name");
+
+			if (killer.entnum == killed.entnum)
+				Chat_SystemMessage(strcat(killed_name, " suicided"), CHAT_TYPE_DEATH);
+			else if (source.classname != CLASS_PLAYER)
+				Chat_SystemMessage(strcat(killer_name, " fragged ", killed_name, " with ", source.classname), CHAT_TYPE_DEATH);
+			else
+				Chat_SystemMessage(strcat(killer_name, " fragged ", killed_name), CHAT_TYPE_DEATH);
+			break;
+		}
 		case EVENT_GAMEMODE_TIMER:
 			gamemode_timeroffset = readFloat();
 			break;

@@ -72,4 +72,11 @@ void BaseMod_OnPlayerDeath(entity player, entity source)
 
 	if (source_player != world && source_player != player)
 		source_player.frags++;
+
+	writeByte(MSG_MULTICAST, SVC_CGAMEPACKET);
+	writeByte(MSG_MULTICAST, EVENT_PLAYER_DEATH);
+	WriteEntity(MSG_MULTICAST, player);
+	WriteEntity(MSG_MULTICAST, source_player);
+	WriteEntity(MSG_MULTICAST, source);
+	multicast(self.origin, MULTICAST_ALL_R);
 }

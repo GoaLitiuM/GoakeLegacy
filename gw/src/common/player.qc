@@ -30,9 +30,10 @@ void Player_Init()
 	self.weapon_next = self.weapon;
 	self.spawn_wish = false;
 
-	Player_WeaponReload(0.3); // FIXME: this is to prevent firing accidentally right after respawning
-
-	setorigin(self, self.origin);
+#ifdef CSQC
+	// prevent player from shooting and jumping accidentally after using these buttons to spawn
+	localcmd("-attack; -jump");
+#endif
 
 	self.SendFlags |= SENDFLAGS_ALL;
 	self.SendFlags |= SENDFLAGS_PLAYER_INIT;
@@ -195,11 +196,6 @@ void Player_OnDeath(entity source, entity sourcePlayer)
 	self.spawn_wish = false;
 
 	self.SendFlags |= SENDFLAGS_ALL;
-
-#ifdef CSQC
-	if (self.entnum == player_localentnum)
-		localcmd("-attack; -jump"); // unrelease these actions to prevent player firing as soon as they spawn
-#endif
 
 #ifdef SSQC
 	GameMode_OnPlayerDeath(self, source);

@@ -113,7 +113,7 @@ void Vote_Vote(string votecmd)
 		println("Usage: vote yes|no|pick|ban <mapname>");
 }
 
-void Chat_SystemMessage(string msg);
+void Chat_SystemMessage(string msg, int type = 0);
 void Vote_OnCallVote()
 {
 	string player_name = readString();
