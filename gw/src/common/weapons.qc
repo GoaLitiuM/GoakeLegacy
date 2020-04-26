@@ -56,6 +56,9 @@ void Player_WeaponAttack(vector angle)
 	Weapon* weapon_def = &weapon_defs[self.weapon];
 	int* weapon_ammo = &self.ammo[WEAPON_AMMO_INDEX(self.weapon)];
 
+	if (!(self.weapons & WEAPON_BIT(self.weapon)))
+		return; // player does not have this weapon
+
 	if (*weapon_ammo == AMMO_INFINITE || *weapon_ammo >= weapon_def->ammo_consumption)
 	{}	// enough ammo to fire
 	else

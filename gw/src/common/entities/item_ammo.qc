@@ -4,12 +4,15 @@ bool Ammo_OnTouch()
 		error(strcat("invalid ammo_stat number ", itos(self.ammo_stat)));
 
 	int ammo_index = self.ammo_stat-STAT_AMMO_FIRST;
-	if (other.ammo[ammo_index] >= self.count)
+	int max_ammo = AMMO_MAX(self.ammo_stat);
+	if (other.ammo[ammo_index] >= max_ammo)
 		return false;
 	else if (other.ammo[ammo_index] == AMMO_INFINITE)
 		return false;
 
-	other.ammo[ammo_index] = self.count;
+	other.ammo[ammo_index] += self.count;
+	if (other.ammo[ammo_index] > max_ammo)
+		other.ammo[ammo_index] = max_ammo;
 	return true;
 }
 

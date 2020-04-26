@@ -18,7 +18,7 @@ void Player_Init()
 	self.velocity = '0 0 0';
 
 	self.weapon = WEAPON_ROCKET;
-	self.weapons = ALL_WEAPONS;
+	self.weapons = 0;
 
 	self.classname = CLASS_PLAYER;
 	self.solid = SOLID_SLIDEBOX;
