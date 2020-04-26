@@ -30,6 +30,9 @@ void Hud_Crosshair(float width, float height);
 
 void Hud_Render(float width, float height, bool in_menu)
 {
+	if (cvar("cl_showhud") == 0)
+		return;
+
 	if (showscores)
 		Hud_Scoreboard(width, height);
 	else
