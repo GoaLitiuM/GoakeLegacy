@@ -143,6 +143,7 @@ vector input_subframe_angles;
 .bool() touch2;
 .int count;
 .int ammo_stat;
+.float respawn_time;
 
 // item_armor*
 #define armorvalue_min armorvalue

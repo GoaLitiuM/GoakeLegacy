@@ -53,16 +53,19 @@ void Item_InitSimple(string sound)
 void Item_InitWeapon()
 {
 	Item_InitSimple(SND_WEAPON_PICKUP);
+	self.respawn_time = WEAPON_RESPAWN_TIME;
 }
 
 void Item_InitAmmo()
 {
 	Item_InitSimple(SND_AMMO_PICKUP);
+	self.respawn_time = ITEM_RESPAWN_TIME;
 }
 
 void Item_InitArmor()
 {
 	Item_InitSimple(SND_ARMOR_PICKUP);
+	self.respawn_time = ITEM_RESPAWN_TIME;
 }
 
 #ifdef CSQC
@@ -97,12 +100,9 @@ float Item_SendEntity(entity player, float flags)
 
 void Item_Respawn()
 {
-	bool is_weapon = strstrofs(strtolower(self.classname), "weapon_") == 0;
-	float respawn_time = is_weapon ? WEAPON_RESPAWN_TIME : ITEM_RESPAWN_TIME;
-
 	Item_SetActive(true);
 
-	if (respawn_time > 1)
+	if (self.respawn_time > 1)
 		clientsound(self, CHAN_ITEM, SND_ITEM_RESPAWN, 1, ATTN_NORM, 0, 0, 0, self.last_touched);
 }
 
@@ -111,14 +111,9 @@ void Item_Touched(entity source)
 	if (self.touch2 && !self.touch2())
 		return;
 
-	bool is_weapon = strstrofs(strtolower(self.classname), "weapon_") == 0;
-	float respawn_time = is_weapon ? WEAPON_RESPAWN_TIME : ITEM_RESPAWN_TIME;
-	if (respawn_time <= 0)
-		respawn_time = 1;
-
 	self.last_touched = source;
 	self.think = Item_Respawn;
-	self.nextthink = time + respawn_time;
+	self.nextthink = time + self.respawn_time;
 
 	Item_SetActive(false);
 
