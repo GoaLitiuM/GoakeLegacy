@@ -75,6 +75,7 @@ void CL_StopPlayback (void)
 		VFS_CLOSE (cls.demoinfile);
 	cls.demoinfile = NULL;
 	cls.state = ca_disconnected;
+	cls.protocol = CP_UNKNOWN;
 	cls.demoplayback = DPB_NONE;
 	cls.demoseeking = false;	//just in case
 

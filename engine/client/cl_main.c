@@ -928,7 +928,6 @@ void CL_CheckForResend (void)
 
 #ifdef NETPREPARSE
 			if (dpcompat_nopreparse.ival)
-#endif
 			{
 				//disabling preparsing with hexen2 is unsupported.
 				if (progstype == PROG_H2)
@@ -947,6 +946,7 @@ void CL_CheckForResend (void)
 					connectinfo.subprotocol = CPNQ_DP7;	//dpcompat_nopreparse is only really needed for DP mods that send unknowable svc_tempentity messages to the client.
 				}
 			}
+#endif
 
 			//make sure the protocol within demos is actually correct/sane
 			if (cls.demorecording == DPB_QUAKEWORLD && cls.protocol != CP_QUAKEWORLD)
