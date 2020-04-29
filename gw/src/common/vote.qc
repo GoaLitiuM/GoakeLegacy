@@ -80,8 +80,13 @@ void Vote_CallVote(string votecmd)
 				println("Usage: callvote timelimit <timelimit in minutes>");
 			break;
 		}
+		case "restart":
+		{
+			sendevent("callvote", "ei", local_player, CALLVOTE_RESTART);
+			break;
+		}
 		default:
-			println("Supported callvote parameters: mode, map, fraglimit, timelimit");
+			println("Supported callvote parameters: mode, map, restart, fraglimit, timelimit");
 			break;
 	}
 }
@@ -416,6 +421,8 @@ void Vote_OnCallVote(entity player, int vote, variant value)
 			return;
 		println("Player '", player_name, "' initiated callvote timelimit ", itos((int)value));
 	}
+	else if (vote == CALLVOTE_RESTART)
+		println("Player '", player_name, "' initiated callvote restart");
 	else
 	{
 		println("Player '", player_name, "' tried to initiate unknown callvote ", itos(vote));
@@ -440,6 +447,10 @@ void Vote_OnCallVote(entity player, int vote, variant value)
 void CSEv_callvote_eis(entity player, int vote, string value)
 {
 	Vote_OnCallVote(player, vote, value);
+}
+void CSEv_callvote_ei(entity player, int vote)
+{
+	Vote_OnCallVote(player, vote, (int)0);
 }
 void CSEv_callvote_eii(entity player, int vote, int value)
 {
