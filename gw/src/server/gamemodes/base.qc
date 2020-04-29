@@ -55,6 +55,11 @@ float BaseMod_OnPlayerTakeDamage(entity player, float damage, entity source)
 	return damage;
 }
 
+vector BaseMod_OnPlayerApplyForce(entity player, vector force, entity source)
+{
+	return force;
+}
+
 void BaseMod_OnPlayerDeath(entity player, entity source)
 {
 	entity source_player = world;

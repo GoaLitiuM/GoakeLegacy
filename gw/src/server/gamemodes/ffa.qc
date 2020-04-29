@@ -1,1 +1,1 @@
-#define GameMode_FFA { "ffa", "Free For All", BaseMod_Init, BaseMod_Tick, BaseMod_OnClientConnect, 0, BaseMod_OnClientKill, BaseMod_OnPlayerRequestRespawn, BaseMod_OnPlayerSpawn, BaseMod_OnPlayerInit, BaseMod_OnPlayerTakeDamage, BaseMod_OnPlayerDeath }
+#define GameMode_FFA { "ffa", "Free For All", BaseMod_Init, BaseMod_Tick, BaseMod_OnClientConnect, 0, BaseMod_OnClientKill, BaseMod_OnPlayerRequestRespawn, BaseMod_OnPlayerSpawn, BaseMod_OnPlayerInit, BaseMod_OnPlayerTakeDamage, BaseMod_OnPlayerApplyForce, BaseMod_OnPlayerDeath }

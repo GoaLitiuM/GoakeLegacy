@@ -3,6 +3,7 @@ void GameMode_OnPlayerSpawn(entity player);
 void GameMode_OnPlayerInit(entity player);
 bool GameMode_OnPlayerRequestRespawn(entity player);
 float GameMode_OnPlayerTakeDamage(entity player, float damage, entity source);
+vector GameMode_OnPlayerApplyForce(entity player, vector force, entity source);
 void GameMode_OnPlayerDeath(entity player, entity source);
 #endif
 
@@ -238,6 +239,18 @@ void Player_TakeDamage(float damage, entity source)
 
 	if (self.health <= 0)
 		Player_OnDeath(source, sourcePlayer);
+}
+
+void Player_ApplyForce(vector force, entity source)
+{
+#ifdef SSQC
+	force = GameMode_OnPlayerApplyForce(self, force, source);
+#endif
+	if (vlen(force) == 0.0f)
+		return;
+
+	self.velocity += force;
+	self.SendFlags |= SENDFLAGS_VELOCITY;
 }
 
 void Player_Kill(entity source)

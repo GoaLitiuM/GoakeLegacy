@@ -27,6 +27,9 @@ struct GameMode
 	// called when player takes damage, return final damage the player should receive
 	float(entity player, float damage, entity source) onPlayerTakeDamage;
 
+	// called when player is pushed by a force, return final force the player should receive
+	vector(entity player, vector force, entity source) onPlayerApplyForce;
+
 	// called when player dies
 	void(entity player, entity source) onPlayerDeath;
 };
@@ -207,7 +210,7 @@ void GameMode_OnPlayerInit(entity player)
 
 float GameMode_OnPlayerTakeDamage(entity player, float damage, entity source)
 {
-	if (gamemode->onPlayerDeath)
+	if (gamemode->onPlayerTakeDamage)
 	{
 		entity oldself = self;
 		self = player;
@@ -216,6 +219,19 @@ float GameMode_OnPlayerTakeDamage(entity player, float damage, entity source)
 	}
 
 	return damage;
+}
+
+vector GameMode_OnPlayerApplyForce(entity player, vector force, entity source)
+{
+	if (gamemode->onPlayerApplyForce)
+	{
+		entity oldself = self;
+		self = player;
+		force = gamemode->onPlayerApplyForce(player, force, source);
+		self = oldself;
+	}
+
+	return force;
 }
 
 void GameMode_OnPlayerDeath(entity player, entity source)
