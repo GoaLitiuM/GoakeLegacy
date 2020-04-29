@@ -2,6 +2,9 @@ void Race_OnPlayerInit(entity player)
 {
 	BaseMod_OnPlayerInit(player);
 	player.solid = SOLID_CORPSE;
+
+	for (int i=0; i<WEAPON_LAST; i++)
+		self.ammo[WEAPON_AMMO_INDEX(i)] = AMMO_INFINITE;
 }
 
 void Race_OnClientKill(entity player)
