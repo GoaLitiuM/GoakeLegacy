@@ -9,7 +9,7 @@ float WeaponRocket_SendEntity(entity ent, float flags);
 void WeaponRocket_Init(entity missile)
 {
 	missile.movetype = MOVETYPE_FLYMISSILE;
-	missile.solid = SOLID_BBOX;
+	missile.solid = SOLID_SLIDEBOX;
 	missile.classname = CLASS_ROCKET;
 	missile.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
 	missile.touch = WeaponRocket_OnTouch;
@@ -27,8 +27,7 @@ void WeaponRocket_Init(entity missile)
 
 int WeaponRocket_Fire(vector forward)
 {
-	//local vector forward = getForwardVector(getViewAngles());
-	local vector offset = self.view_ofs;
+	vector offset = self.view_ofs;
 
 	WeaponRocket_SpawnRocket((self.origin + (forward * 16)) + offset, forward, self);
 
@@ -39,7 +38,7 @@ int WeaponRocket_Fire(vector forward)
 
 void WeaponRocket_SpawnRocket(vector pos, vector dir, entity player)
 {
-	local entity missile = spawn();
+	entity missile = spawn();
 	missile.owner = player;
 	missile.velocity = dir * ROCKET_SPEED;
 	missile.angles = vectoangles(dir);
@@ -57,7 +56,7 @@ void WeaponRocket_Update(float isnew)
 	self.angles = readVector();
 	self.velocity = readVector();
 	self.owner = readEntity();
-	local int pid = readFloat();
+	int pid = readFloat();
 
 
 	self.projectile_id = pid;
@@ -82,6 +81,8 @@ void WeaponRocket_OnTouch()
 	//TODO: remove after 30 seconds or so
 	if (other == self.owner)
 		return;
+	else if (other.solid == SOLID_CORPSE)
+		return;
 
 	if (pointcontents(self.origin) == CONTENT_SKY)
 	{
@@ -103,12 +104,7 @@ void WeaponRocket_Explode(vector position, vector forward, entity ignored, entit
 	if (target != world)
 	{
 		// direct hit with other entity, apply force and damage directly
-		if (target.solid != SOLID_CORPSE)
-		{
-			local vector dir = normalize(target.origin - position);
-			target.velocity += dir * ROCKET_FORCE;
-		}
-
+		applyEntityForce(other, normalize(target.origin - position) * ROCKET_FORCE, self);
 		applyEntityDamage(other, ROCKET_DAMAGE, self);
 	}
 

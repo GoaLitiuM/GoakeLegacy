@@ -41,9 +41,6 @@ void addRadialDamageEntity(vector location, float damage, float radius, entity t
 
 void addRadialForceEntity(vector location, float force, float radius, entity target, entity source, float power = 1.0f)
 {
-	if (target.solid == SOLID_CORPSE)
-		return;
-
 	vector center = target.origin + ('0 0 1' * (target.maxs_z - target.mins_z) * 0.5);
 	float distance = vlen(center - location);
 	if (distance > radius)
