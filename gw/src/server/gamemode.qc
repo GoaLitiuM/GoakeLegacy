@@ -112,6 +112,21 @@ void GameMode_SetTimeLimit(int timelimit)
 	cvar_setf("gm_timelimit", itof(timelimit));
 }
 
+string GameMode_GetMode()
+{
+	return cvar_string("gm_mode");
+}
+
+int GameMode_GetFragLimit()
+{
+	return (int)cvar("gm_fraglimit");
+}
+
+int GameMode_GetTimeLimit()
+{
+	return (int)cvar("gm_timelimit");
+}
+
 void GameMode_Init()
 {
 	gamemode_timeroffset = time;

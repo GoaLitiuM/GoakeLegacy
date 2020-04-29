@@ -21,6 +21,9 @@ void Vote_Init()
 }
 
 #ifdef CSQC
+void Chat_SystemMessage(string msg, int type = 0);
+string callvote_player; // who initiated the vote
+
 void Vote_CallVote(string votecmd)
 {
 	int numargs = tokenize(votecmd);
@@ -113,7 +116,6 @@ void Vote_Vote(string votecmd)
 		println("Usage: vote yes|no|pick|ban <mapname>");
 }
 
-void Chat_SystemMessage(string msg, int type = 0);
 void Vote_OnCallVote()
 {
 	string player_name = readString();
@@ -144,6 +146,7 @@ void Vote_OnCallVote()
 	}
 
 	Chat_SystemMessage(strcat(player_name, " called a vote: ", callvote_str, " ", value_str));
+	callvote_player = player_name;
 }
 
 void Vote_OnPlayerVote()
@@ -151,12 +154,15 @@ void Vote_OnPlayerVote()
 	string player_name = readString();
 	int vote = readByte();
 
-	string vote_str = "?";
-	if (vote == VOTE_YES)
-		vote_str = "yes";
-	else if (vote == VOTE_NO)
-		vote_str = "no";
-	Chat_SystemMessage(strcat(player_name, " voted: ", vote_str));
+	if (player_name != callvote_player)
+	{
+		string vote_str = "?";
+		if (vote == VOTE_YES)
+			vote_str = "yes";
+		else if (vote == VOTE_NO)
+			vote_str = "no";
+		Chat_SystemMessage(strcat(player_name, " voted: ", vote_str));
+	}
 }
 
 void Vote_OnFinish()
@@ -171,7 +177,7 @@ void Vote_OnFinish()
 
 #ifdef SSQC
 int callvote;
-int callvote_timeout = 5;
+int callvote_timeout = 30;
 float callvote_endtime;
 bool callvote_instant;
 variant callvote_value;
@@ -180,6 +186,9 @@ void Vote_ApplyChanges();
 void GameMode_SetMode(string mode);
 void GameMode_SetFragLimit(int fraglimit);
 void GameMode_SetTimeLimit(int timelimit);
+string GameMode_GetMode();
+int GameMode_GetFragLimit();
+int GameMode_GetTimeLimit();
 
 void Vote_Restart()
 {
@@ -380,23 +389,32 @@ void Vote_OnCallVote(entity player, int vote, variant value)
 	string value_str = "";
 	if (vote == CALLVOTE_MODE)
 	{
-		println("Player '", player_name, "' initiated callvote mode ", (string)value);
 		value_str = (string)value;
+		if (GameMode_GetMode() == value_str)
+			return;
+
+		println("Player '", player_name, "' initiated callvote mode ", (string)value);
 	}
 	else if (vote == CALLVOTE_MAP)
 	{
-		println("Player '", player_name, "' initiated callvote map ", (string)value);
 		value_str = (string)value;
+		if (mapname == value_str)
+			return;
+		println("Player '", player_name, "' initiated callvote map ", (string)value);
 	}
 	else if (vote == CALLVOTE_FRAGLIMIT)
 	{
-		println("Player '", player_name, "' initiated callvote fraglimit ", itos((int)value));
 		value_str = itos((int)value);
+		if (GameMode_GetFragLimit() == (int)value)
+			return;
+		println("Player '", player_name, "' initiated callvote fraglimit ", itos((int)value));
 	}
 	else if (vote == CALLVOTE_TIMELIMIT)
 	{
-		println("Player '", player_name, "' initiated callvote timelimit ", itos((int)value));
 		value_str = itos((int)value);
+		if (GameMode_GetTimeLimit() == (int)value)
+			return;
+		println("Player '", player_name, "' initiated callvote timelimit ", itos((int)value));
 	}
 	else
 	{
