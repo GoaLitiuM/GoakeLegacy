@@ -94,6 +94,8 @@ void Hud_Chat(float width, float height)
 	int maxlines = 8;
 
 	bool chat_open = getkeydest() == 1;
+	bool chat_timestamps = cvar("hud_chat_timestamps") > 0;
+	bool misc_timestamps = cvar("hud_chat_timestamps") == 1;
 
 	int lines_total = 0;
 	for (int i=0; i<chatlines_count; i++)
@@ -122,21 +124,25 @@ void Hud_Chat(float width, float height)
 			if (linenum >= maxlines)
 				break;
 
-			string timestamp_str = strcat(line->timestamp, " ");
-			string source_str = line->source;
-			string msg_str = strcat(": ", line->msg);
-
 			float offset = 0.0f;
 
-			DrawText(font_chat, [left + offset, top, 0], timestamp_str, '1 1 1', 1);
-			offset += TextWidth(font_chat, timestamp_str, false);
+			if ((line->type == CHAT_TYPE_MESSAGE && chat_timestamps) ||
+				(line->type != CHAT_TYPE_MESSAGE && misc_timestamps))
+			{
+				string timestamp_str = strcat(line->timestamp, " ");
+				DrawText(font_chat, [left + offset, top, 0], timestamp_str, '1 1 1', 1);
+				offset += TextWidth(font_chat, timestamp_str, false);
+			}
 
 			if (line->type == CHAT_TYPE_MESSAGE)
 			{
+				string source_str = line->source;
+				string msg_str = strcat(": ", line->msg);
+
 				DrawText(font_chat_bold, [left + offset, top, 0], source_str, '1 1 1', 1);
 				offset += TextWidth(font_chat_bold, source_str, false);
 
-				DrawText(font_chat, [left + offset, top, 0], strcat(": ", line->msg), '1 1 1', 1);
+				DrawText(font_chat, [left + offset, top, 0], msg_str, '1 1 1', 1);
 			}
 			else
 				DrawText(font_chat, [left + offset, top, 0], line->msg, '1 1 1', 1);
