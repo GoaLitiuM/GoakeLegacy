@@ -177,6 +177,10 @@ const int SENDFLAGS_ALL =		(SENDFLAGS_ORIGIN | SENDFLAGS_ANGLES | SENDFLAGS_VELO
 // player specific SendFlags
 #define SENDFLAGS_PLAYER_INIT	0x0100
 
+// item specific SendFlags
+#define SENDFLAGS_ITEM_INIT		0x0100
+#define SENDFLAGS_ITEM_ACTIVE	0x0200
+
 // CSQC events
 enum
 {

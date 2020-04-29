@@ -20,8 +20,13 @@ void Item_SetActive(bool active)
 	}
 
 #ifdef SSQC
-	self.SendFlags = 1 + (active ? 1 : 0);
+	self.SendFlags |= SENDFLAGS_ITEM_ACTIVE;
 #endif
+}
+
+bool Item_IsActive()
+{
+	return self.solid != SOLID_NOT;
 }
 
 void Item_Init(string texture, string sound)
@@ -33,7 +38,8 @@ void Item_Init(string texture, string sound)
 #endif
 #ifdef SSQC
 	self.SendEntity = Item_SendEntity;
-	self.SendFlags = 0;
+	self.pvsflags = PVSF_USEPHS; // players can hear items respawn
+	self.SendFlags |= SENDFLAGS_ORIGIN | SENDFLAGS_ITEM_INIT;
 #endif
 
 	self.touch = Item_OnTouch;
@@ -71,9 +77,14 @@ void Item_InitArmor()
 #ifdef CSQC
 void Item_Update(float isnew)
 {
-	self.origin = readVector();
-	float active = readFloat();
-	self.classname = readString();
+	int active = 0;
+	int flags = readInt();
+	if (flags & SENDFLAGS_ORIGIN)
+		self.origin = readVector();
+	if (flags & SENDFLAGS_ITEM_INIT)
+		self.classname = readString();
+	if (flags & SENDFLAGS_ITEM_ACTIVE)
+		active = readByte();
 
 	if (isnew)
 	{
@@ -82,18 +93,21 @@ void Item_Update(float isnew)
 			class_func();
 	}
 
-	Item_SetActive(active != 0);
+	if (flags & SENDFLAGS_ITEM_ACTIVE)
+		Item_SetActive(active != 0);
 }
 #else
 float Item_SendEntity(entity player, float flags)
 {
-	float active = (flags-1) != 0;
-
 	writeByte(MSG_ENTITY, SENDENTITY_ITEM);
+	writeInt(MSG_ENTITY, (int)flags);
 
-	writeVector(MSG_ENTITY, self.origin);
-	writeFloat(MSG_ENTITY, active);
-	writeString(MSG_ENTITY, self.classname);
+	if (flags & SENDFLAGS_ORIGIN)
+		writeVector(MSG_ENTITY, self.origin);
+	if (flags & SENDFLAGS_ITEM_INIT)
+		writeString(MSG_ENTITY, self.classname);
+	if (flags & SENDFLAGS_ITEM_ACTIVE)
+		writeByte(MSG_ENTITY, Item_IsActive());
 	return 1;
 }
 #endif
