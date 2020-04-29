@@ -115,6 +115,12 @@ void Player_Physics()
 		self.SendFlags |= SENDFLAGS_FLAGS;
 	if (self.jump_time != old_jump_time || self.jump_count != old_jump_count)
 		self.SendFlags |= SENDFLAGS_JUMP;
+	if (self.solid != self.last_solid || self.movetype != self.last_movetype)
+	{
+		self.SendFlags |= SENDFLAGS_PHYSICS;
+		self.last_solid = self.solid;
+		self.last_movetype = self.movetype;
+	}
 #endif
 }
 

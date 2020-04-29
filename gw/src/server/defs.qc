@@ -1,3 +1,7 @@
+.vector last_angles;
+.float last_solid;
+.float last_movetype;
+
 #define writeFloat WriteFloat
 #define writeByte WriteByte
 #define writeShort WriteShort

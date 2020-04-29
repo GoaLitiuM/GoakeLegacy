@@ -55,6 +55,11 @@ float Player_SendEntity(entity ent, float send_flags)
 		writeFloat(MSG_ENTITY, self.jump_time);
 		writeFloat(MSG_ENTITY, self.jump_count);
 	}
+	if (send_flags & SENDFLAGS_PHYSICS)
+	{
+		writeFloat(MSG_ENTITY, self.solid);
+		writeFloat(MSG_ENTITY, self.movetype);
+	}
 
 	return 1;
 }

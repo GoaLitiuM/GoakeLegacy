@@ -7,7 +7,8 @@ void PlayerPrediction_Reset();
 
 void Player_Update(bool isnew)
 {
-	self.server_time = time; // cltime?
+	float server_solid = self.solid;
+	float server_movetype = self.movetype;
 
 	int send_flags = readInt();
 	if (send_flags & SENDFLAGS_ORIGIN)
@@ -27,6 +28,11 @@ void Player_Update(bool isnew)
 		self.server_jump_count = readFloat();
 	}
 
+	if (send_flags & SENDFLAGS_PHYSICS)
+	{
+		server_solid = readFloat();
+		server_movetype = readFloat();
+	}
 	if (isnew)
 	{
 		self.server_pred_origin = self.origin;
@@ -47,9 +53,10 @@ void Player_Update(bool isnew)
 
 	if (send_flags & SENDFLAGS_PLAYER_INIT)
 	{
-		PlayerPrediction_ApplyServerState();
-		PlayerPrediction_Reset();
 		Player_Init();
+
+		PlayerPrediction_Reset();
+		PlayerPrediction_ApplyServerState();
 		self.fixangle = 1;
 
 		UpdatePlayerStats(self, true);
@@ -66,6 +73,13 @@ void Player_Update(bool isnew)
 			camera_origin = self.origin + self.view_ofs;
 		}
 	}
+	if (send_flags & SENDFLAGS_PHYSICS)
+	{
+		self.solid = server_solid;
+		self.movetype = server_movetype;
+	}
+
+	self.server_time = time; // cltime?
 }
 
 void Player_UpdateCamera()
