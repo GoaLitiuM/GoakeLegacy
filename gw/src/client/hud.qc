@@ -99,19 +99,18 @@ void Hud_Player(float width, float height)
 
 void Hud_Scoreboard(float width, float height)
 {
-	int spacing = 12;
-	int row = 0;
+	int offset_y = 0;
 	float left = width*0.5 - 180;
 	float top = (height*0.16);
 
-	DrawText(font_main, [left, top + row*spacing, 0], "Connected players", '1 1 1', 1);
-	DrawText(font_main, [left+230, top + row*spacing, 0], "Frags", '1 1 1', 1);
-	DrawText(font_main, [left+270, top + row*spacing, 0], "Deaths", '1 1 1', 1);
-	DrawText(font_main, [left+320, top + row*spacing, 0], "Ping PL", '1 1 1', 1);
-	row++;
+	DrawText(font_main, [left, top + offset_y, 0], "Connected players", '1 1 1', 1);
+	DrawText(font_main, [left+230, top + offset_y, 0], "Frags", '1 1 1', 1);
+	DrawText(font_main, [left+270, top + offset_y, 0], "Deaths", '1 1 1', 1);
+	DrawText(font_main, [left+320, top + offset_y, 0], "Ping PL", '1 1 1', 1);
+	offset_y += 12;
 
-	DrawText(font_main, [left, top + row*spacing, 0], "-------------------------------------------------------------------------", '1 1 1', 1);
-	row++;
+	DrawText(font_main, [left, top + offset_y, 0], "-------------------------------------------------------------------------", '1 1 1', 1);
+	offset_y += 12;
 
 	for (int i=0; i<32; i++)
 	{
@@ -127,11 +126,11 @@ void Hud_Scoreboard(float width, float height)
 		if (player_pl == "0")
 			player_pl = "";
 
-		DrawText(font_main, [left,		top + row*spacing, 0], player_name, '1 1 1', 1);
-		DrawText(font_main, [left+230,	top + row*spacing, 0], player_frags, '1 1 1', 1);
-		DrawText(font_main, [left+270,	top + row*spacing, 0], player_deaths, '1 1 1', 1);
-		DrawText(font_main, [left+320,	top + row*spacing, 0], player_ping, '1 1 1', 1);
-		DrawText(font_main, [left+350,	top + row*spacing, 0], player_pl, '1 1 1', 1);
-		row++;
+		DrawText(font_main, [left,		top + offset_y, 0], player_name, '1 1 1', 1);
+		DrawText(font_main, [left+230,	top + offset_y, 0], player_frags, '1 1 1', 1);
+		DrawText(font_main, [left+270,	top + offset_y, 0], player_deaths, '1 1 1', 1);
+		DrawText(font_main, [left+320,	top + offset_y, 0], player_ping, '1 1 1', 1);
+		DrawText(font_main, [left+350,	top + offset_y, 0], player_pl, '1 1 1', 1);
+		offset_y += font_main.fontsize;
 	}
 }
