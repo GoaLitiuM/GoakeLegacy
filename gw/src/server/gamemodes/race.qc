@@ -1,3 +1,9 @@
+void Race_OnPlayerInit(entity player)
+{
+	BaseMod_OnPlayerInit(player);
+	player.solid = SOLID_CORPSE;
+}
+
 void Race_OnClientKill(entity player)
 {
 	BaseMod_OnClientKill(player);
@@ -20,4 +26,4 @@ void Race_OnPlayerDeath(entity player, entity source)
 {
 }
 
-#define GameMode_Race { "race", "Race", BaseMod_Init, BaseMod_Tick, BaseMod_OnClientConnect, 0, Race_OnClientKill, BaseMod_OnPlayerRequestRespawn, BaseMod_OnPlayerSpawn, BaseMod_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerApplyForce, Race_OnPlayerDeath }
+#define GameMode_Race { "race", "Race", BaseMod_Init, BaseMod_Tick, BaseMod_OnClientConnect, 0, Race_OnClientKill, BaseMod_OnPlayerRequestRespawn, BaseMod_OnPlayerSpawn, Race_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerApplyForce, Race_OnPlayerDeath }
