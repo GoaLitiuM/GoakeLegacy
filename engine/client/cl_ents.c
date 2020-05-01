@@ -2879,7 +2879,7 @@ void CLQ1_AddVisibleBBoxes(void)
 		}
 		else
 		{
-			if (e->v->solid == SOLID_BSP)
+			if (e->v->solid == SOLID_BSP || e->v->solid == SOLID_BSPTRIGGER)
 			{
 				VectorCopy(e->v->absmin, min);
 				VectorCopy(e->v->absmax, max);
@@ -2890,17 +2890,7 @@ void CLQ1_AddVisibleBBoxes(void)
 				VectorAdd(e->v->origin, e->v->maxs, max);
 			}
 		}
-		if (e->xv->geomtype == GEOMTYPE_CAPSULE)
-		{
-			float rad = ((e->v->maxs[0]-e->v->mins[0]) + (e->v->maxs[1]-e->v->mins[1]))/4.0;
-			float height = (e->v->maxs[2]-e->v->mins[2])/2;
-			float matrix[12] = {1,0,0,0,0,1,0,0,0,0,1,0};
-			matrix[3] = e->v->origin[0];
-			matrix[7] = e->v->origin[1];
-			matrix[11] = e->v->origin[2] + (e->v->maxs[2]-height);
-			CLQ1_AddOrientedCylinder(s, rad*2, height*2, true, matrix, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
-		}
-		else
+		if (e->xv->geomtype == GEOMTYPE_SOLID)
 		{
 			if (!e->v->solid && !e->v->movetype)
 			{
@@ -2912,6 +2902,27 @@ void CLQ1_AddVisibleBBoxes(void)
 			else
 				CLQ1_AddOrientedCube(s, min, max, NULL, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
 		}
+		else if (e->xv->geomtype == GEOMTYPE_CAPSULE)
+		{
+			float rad = ((e->v->maxs[0]-e->v->mins[0]) + (e->v->maxs[1]-e->v->mins[1]))/4.0;
+			float height = (e->v->maxs[2]-e->v->mins[2])/2;
+			float matrix[12] = {1,0,0,0,0,1,0,0,0,0,1,0};
+			matrix[3] = e->v->origin[0];
+			matrix[7] = e->v->origin[1];
+			matrix[11] = e->v->origin[2] + (e->v->maxs[2]-height);
+			CLQ1_AddOrientedCylinder(s, rad*2, height*2, true, matrix, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
+		}
+		else if (e->xv->geomtype == GEOMTYPE_SPHERE)
+		{
+			float rad = (e->v->maxs[0]-e->v->mins[0])/2;
+			float matrix[12] = {1,0,0,0,0,1,0,0,0,0,1,0};
+			matrix[3] = e->v->origin[0];
+			matrix[7] = e->v->origin[1];
+			matrix[11] = e->v->origin[2];
+			CLQ1_AddOrientedSphere(s, rad, matrix, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
+		}
+		else
+			CLQ1_AddOrientedCube(s, min, max, NULL, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
 	}
 }
 
