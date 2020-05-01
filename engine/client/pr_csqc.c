@@ -1016,7 +1016,9 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 	else
 	{
 		out->flags |= RF_FORCECOLOURMOD;
-		VectorCopy(in->xv->colormod, out->shaderRGBAf);
+		out->shaderRGBAf[0] = SRGBf(in->xv->colormod[0]);
+		out->shaderRGBAf[1] = SRGBf(in->xv->colormod[1]);
+		out->shaderRGBAf[2] = SRGBf(in->xv->colormod[2]);
 	}
 	if (!in->xv->alpha || in->xv->alpha == 1)
 		out->shaderRGBAf[3] = 1.0f;
@@ -1029,7 +1031,12 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 	if (!in->xv->glowmod[0] && !in->xv->glowmod[1] && !in->xv->glowmod[2])
 		VectorSet(out->glowmod, 1, 1, 1);
 	else
+	{
+		out->glowmod[0] = SRGBf(in->xv->glowmod[0]);
+		out->glowmod[1] = SRGBf(in->xv->glowmod[1]);
+		out->glowmod[2] = SRGBf(in->xv->glowmod[2]);
 		VectorCopy(in->xv->glowmod, out->glowmod);
+	}
 
 #ifdef HEXEN2
 	out->drawflags = in->xv->drawflags;
