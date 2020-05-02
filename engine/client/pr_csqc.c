@@ -4004,6 +4004,12 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	case MOVETYPE_FLY:
 		pmove.pm_type = PM_FLY;
 		break;
+	case MOVETYPE_TOSS:
+		pmove.pm_type = PM_DEAD;
+		break;
+	case MOVETYPE_NONE:
+		pmove.pm_type = PM_NONE;
+		break;
 	}
 	pmove.jump_held = (int)ent->xv->pmove_flags & PMF_JUMP_HELD;
 	pmove.waterjumptime = 0;
