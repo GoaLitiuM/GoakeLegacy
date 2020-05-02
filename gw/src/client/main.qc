@@ -274,29 +274,45 @@ void CSQC_WorldLoaded()
 			if (!value)
 				break;
 
-			if (field == "classname")
+			switch (field)
 			{
-				func = externvalue(-2, strtolower(value));
-				ent.classname = strzone(value);
+				case "classname":
+					func = externvalue(-2, strtolower(value));
+					ent.classname = strzone(value);
+					break;
+				case "targetname":
+					ent.targetname = strzone(value);
+					break;
+				case "target":
+					ent.target = strzone(value);
+					break;
+				case "origin":
+					ent.origin = stov(value);
+					break;
+				case "angles":
+					ent.angles = stov(value);
+					break;
+				case "angle":
+					ent.angles = [0, stof(value), 0];
+					break;
+				case "mangle":
+					ent.angles = stov(value);
+					break;
+				case "model":
+					ent.model = value;
+					break;
+				case "message":
+					ent.message = strzone(value);
+					break;
+				case "count":
+					ent.count = stoi(value);
+					break;
+				case "spawnflags":
+					ent.spawnflags = stof(value);
+					break;
+				default:
+					break;
 			}
-			else if (field == "targetname")
-				ent.targetname = strzone(value);
-			else if (field == "target")
-				ent.target = strzone(value);
-			else if (field == "origin")
-				ent.origin = stov(value);
-			else if (field == "angles")
-				ent.angles = stov(value);
-			else if (field == "angle")
-				ent.angles = [0, stof(value), 0];
-			else if (field == "mangle")
-				ent.angles = stov(value);
-			else if (field == "model")
-				ent.model = value;
-			else if (field == "message")
-				ent.message = strzone(value);
-			else if (field == "count")
-				ent.count = stoi(value);
 		}
 
 		if (!valid)

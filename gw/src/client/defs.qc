@@ -11,6 +11,7 @@ vector camera_velocity;
 
 // items
 .string simple_texture;
+.float spawnflags; // needed for compatibility
 
 // player entity
 .float health;

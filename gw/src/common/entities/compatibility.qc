@@ -25,6 +25,26 @@ void item_armorInv()
 {
 	REMAP_TO_ENTITY(item_armor_red);
 }
+
+void item_health()
+{
+	if (self.spawnflags & 2) // 100hp
+		REMAP_TO_ENTITY(item_health_mega);
+	else if (self.spawnflags & 1) // 10hp, but close enough
+		REMAP_TO_ENTITY(item_health_5);
+	else
+		REMAP_TO_ENTITY(item_health_25); // also Q3
+}
+
+void item_health_small() // Q3
+{
+	REMAP_TO_ENTITY(item_health_5);
+}
+
+void item_health_large() // Q3
+{
+	REMAP_TO_ENTITY(item_health_50);
+}
 void item_rockets()
 {
 	REMAP_TO_ENTITY(item_ammo_rockets);
