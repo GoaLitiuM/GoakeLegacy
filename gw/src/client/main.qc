@@ -2,7 +2,7 @@
 
 void CSQC_Parse_Print(string printmsg, float printlvl)
 {
-	if (printlvl == 3) // PRINT_CHAT
+	if (printlvl == PRINT_CHAT)
 		Chat_OnPrint(printmsg);
 	else
 		print(printmsg);

@@ -228,7 +228,7 @@ int GetModel(string modelname)
 	// load model
 	model->name = modelname;
 
-	float cfgfile = fopen(strcat(modelname, "/animation.cfg"), FILE_READ);
+	filestream cfgfile = fopen(strcat(modelname, "/animation.cfg"), FILE_READ);
 	if (cfgfile < 0)
 		error(strcat("failed to load ", modelname, "/animation.cfg"));
 

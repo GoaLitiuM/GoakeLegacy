@@ -12493,10 +12493,10 @@ void PR_DumpPlatform_f(void)
 		{"MULTICAST_ONE_R",		"const float", QW|NQ, D("The multicast message is reliably sent to the player (AND ALL TRACKING SPECTATORS) specified in the msg_entity global. The specified origin is ignored"), MULTICAST_ONE_R_SPECS},
 		{"MULTICAST_ONE_R_NOSPECS","const float", QW|NQ, D("The multicast message is reliably sent to the player specified in the msg_entity global. The specified origin is ignored"), MULTICAST_ONE_R_NOSPECS},
 
-		{"PRINT_LOW",			"const float", QW, NULL, PRINT_LOW},
-		{"PRINT_MEDIUM",		"const float", QW, NULL, PRINT_MEDIUM},
-		{"PRINT_HIGH",			"const float", QW, NULL, PRINT_HIGH},
-		{"PRINT_CHAT",			"const float", QW, NULL, PRINT_CHAT},
+		{"PRINT_LOW",			"const float", CS|QW, NULL, PRINT_LOW},
+		{"PRINT_MEDIUM",		"const float", CS|QW, NULL, PRINT_MEDIUM},
+		{"PRINT_HIGH",			"const float", CS|QW, NULL, PRINT_HIGH},
+		{"PRINT_CHAT",			"const float", CS|QW, NULL, PRINT_CHAT},
 
 		{"PVSF_NORMALPVS",		"const float", QW|NQ, D("Filter first by PVS, then filter this entity using tracelines if sv_cullentities is enabled."), PVSF_NORMALPVS},
 		{"PVSF_NOTRACECHECK",	"const float", QW|NQ, D("Filter strictly by PVS."), PVSF_NOTRACECHECK},
