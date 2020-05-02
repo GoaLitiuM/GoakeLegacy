@@ -5,6 +5,7 @@ enum
 	CHAT_TYPE_SYSTEM = 0,
 	CHAT_TYPE_MESSAGE,
 	CHAT_TYPE_DEATH,
+	CHAT_TYPE_SPAM,
 };
 
 struct ChatLine

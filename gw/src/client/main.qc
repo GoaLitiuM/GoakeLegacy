@@ -3,9 +3,29 @@
 void CSQC_Parse_Print(string printmsg, float printlvl)
 {
 	if (printlvl == PRINT_CHAT)
-		Chat_OnPrint(printmsg);
-	else
-		print(printmsg);
+	{
+		int chat_type = CHAT_TYPE_SYSTEM;
+		if (strstrofs(printmsg, "You can't talk for ") == 0)
+			chat_type = CHAT_TYPE_SPAM;
+		else if (strstrofs(printmsg, ":") >= 0)
+			chat_type = CHAT_TYPE_MESSAGE;
+
+		if (chat_type == CHAT_TYPE_MESSAGE)
+			Chat_OnPrint(printmsg);
+		else
+			Chat_SystemMessage(strdecolorize(strtrim(printmsg)), chat_type);
+		return;
+	}
+	else if (printlvl == PRINT_HIGH)
+	{
+		if (strstrofs(printmsg, "You can't suicide for ") == 0)
+		{
+			Chat_SystemMessage(strdecolorize(strtrim(printmsg)), CHAT_TYPE_SPAM);
+			return;
+		}
+	}
+
+	print(printmsg);
 }
 
 void CSQC_Init(float apilevel, string enginename, float engineversion)
