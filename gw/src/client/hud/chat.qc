@@ -82,6 +82,15 @@ void Chat_OnPrint(string printmsg)
 	string timestamp = strftime(1, "%H:%M:%S");
 
 	Chat_Message(timestamp, source, msg);
+
+	if (cvar("cl_chatsound") != 0)
+	{
+		// TODO: detect enemy and teammates
+		string chatsound = cvar_string("cl_enemychatsound");
+		if (!chatsound)
+			chatsound = cvar_string("cl_teamchatsound");
+		clientsound(self, CHAN_AUTO, chatsound, 1, 0);
+	}
 }
 
 void Hud_Chat(float width, float height)

@@ -5846,6 +5846,7 @@ static char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 	}
 #endif
 
+#ifndef GOAKE // handled in CSQC
 	suppress_talksound = false;
 
 	if (flags == 2 || (!cl.teamplay && flags))
@@ -5864,6 +5865,7 @@ static char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 		else
 			S_LocalSound (cl_enemychatsound.string);
 	}
+#endif
 
 	if (flags)
 	{
