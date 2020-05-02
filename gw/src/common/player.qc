@@ -19,8 +19,6 @@ void Player_Init()
 	self.health_softcap = 100;
 	self.armortype = ARMOR_GREEN_ABSORB;
 	self.armorvalue = 0;
-	self.fixangle = 1;
-	self.velocity = '0 0 0';
 
 	self.weapon = WEAPON_ROCKET;
 	self.weapons = 0;
@@ -70,6 +68,8 @@ void Player_Remove()
 
 void Player_Spawn()
 {
+	self.fixangle = 1;
+	self.velocity = '0 0 0';
 	Player_Init();
 }
 

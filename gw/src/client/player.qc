@@ -55,9 +55,8 @@ void Player_Update(bool isnew)
 	{
 		Player_Init();
 
-		PlayerPrediction_Reset();
 		PlayerPrediction_ApplyServerState();
-		self.fixangle = 1;
+		PlayerPrediction_Reset();
 
 		UpdatePlayerStats(self, true);
 		UpdateGlobalStats(true);

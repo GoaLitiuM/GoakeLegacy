@@ -121,7 +121,6 @@ void PlayerPrediction_RunPhysicsAndTick(int frame)
 void PlayerPrediction_Reset()
 {
 	deltaframe = 0;
-	self.fixangle = 0;
 	origin_delta = '0 0 0';
 	vel_delta = '0 0 0';
 	angles_delta = '0 0 0';
