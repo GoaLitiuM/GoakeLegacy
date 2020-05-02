@@ -7,8 +7,8 @@ void BaseMod_Init()
 void BaseMod_OnClientConnect(entity player)
 {
 	// TODO: restore old stats here in case the player disconnects from the server during the match
-	forceinfokey(player, "frags", "0");
-	forceinfokey(player, "deaths", "0");
+	forceinfokey(player, "*frags", "0");
+	forceinfokey(player, "*deaths", "0");
 }
 
 void BaseMod_OnClientKill(entity player)
@@ -77,15 +77,15 @@ void BaseMod_OnPlayerDeath(entity player, entity source)
 	}
 
 	// TODO: turn these into fields
-	int deaths = stoi(infokey(player, "deaths"));
+	int deaths = stoi(infokey(player, "*deaths"));
 	deaths++;
-	forceinfokey(player, "deaths", itos(deaths));
+	forceinfokey(player, "*deaths", itos(deaths));
 
 	if (source_player != world && source_player != player)
 	{
-		int source_frags = stoi(infokey(source_player, "frags"));
+		int source_frags = stoi(infokey(source_player, "*frags"));
 		source_frags++;
-		forceinfokey(source_player, "frags", itos(source_frags));
+		forceinfokey(source_player, "*frags", itos(source_frags));
 	}
 
 	writeByte(MSG_MULTICAST, SVC_CGAMEPACKET);

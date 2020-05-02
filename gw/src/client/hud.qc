@@ -115,8 +115,8 @@ void Hud_Scoreboard(float width, float height)
 	for (int i=0; i<32; i++)
 	{
 		string player_name = getplayerkeyvalue(i, "name");
-		string player_frags = getplayerkeyvalue(i, "frags");
-		string player_deaths = getplayerkeyvalue(i, "deaths");
+		string player_frags = getplayerkeyvalue(i, "*frags");
+		string player_deaths = getplayerkeyvalue(i, "*deaths");
 		string player_ping = getplayerkeyvalue(i, "ping");
 		string player_pl = getplayerkeyvalue(i, "pl");
 
