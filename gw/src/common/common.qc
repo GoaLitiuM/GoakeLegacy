@@ -7,14 +7,14 @@
 #define SND_JUMPLAND_LAND_HARD_VOLUME 0.9
 #define SND_JUMPLAND_LAND_HARD_THRESHOLD -300
 
-#define SND_WEAPON_ROCKET "weapons/sgun1.wav"
-#define SND_WEAPON_LIGHTNING "weapons/lhit.wav"
-#define SND_WEAPON_CROSSBOW "weapons/firebolt.wav"
+#define SND_WEAPON_ROCKET "weapon/rocketlauncher_fire.wav"
+#define SND_WEAPON_LIGHTNING "weapon/lightning_fire.wav"
+#define SND_WEAPON_CROSSBOW "weapon/crossbow_fire.wav"
 
-#define SND_ARMOR_PICKUP "items/armor1.wav"
-#define SND_WEAPON_PICKUP "weapons/pkup.wav"
-#define SND_AMMO_PICKUP "weapons/lock4.wav"
-#define SND_ITEM_RESPAWN "items/itembk2.wav"
+#define SND_ARMOR_PICKUP "item/armor_pickup.wav"
+#define SND_WEAPON_PICKUP "item/weapon_pickup.wav"
+#define SND_AMMO_PICKUP "item/ammo_pickup.wav"
+#define SND_ITEM_RESPAWN "item/item_respawn.wav"
 
 #define SPR_EXPLOSION "progs/s_explod.spr"
 
