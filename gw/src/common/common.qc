@@ -15,6 +15,8 @@
 #define SND_WEAPON_PICKUP "item/weapon_pickup.wav"
 #define SND_AMMO_PICKUP "item/ammo_pickup.wav"
 #define SND_ITEM_RESPAWN "item/item_respawn.wav"
+#define SND_HEALTH_PICKUP "item/health_pickup.wav"
+#define SND_MEGA_EXPIRE "item/mega_expire.wav"
 
 #define SPR_EXPLOSION "progs/s_explod.spr"
 

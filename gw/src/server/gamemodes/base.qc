@@ -27,7 +27,7 @@ void BaseMod_Tick()
 
 		// revive dead players after a while
 		if (player.health <= 0 && time - player.death_time > 4.0)
-			GameMode_OnPlayerRequestRespawn(player);
+			GameMode_OnPlayerSpawn(player);
 	}
 }
 
@@ -41,6 +41,11 @@ void BaseMod_OnPlayerSpawn(entity player)
 	entity spawn = FindRandomSpawn();
 	player.origin = spawn.origin;
 	player.angles = spawn.angles;
+
+	entity oldself = self;
+	self = player;
+	Player_Spawn();
+	self = oldself;
 }
 
 void BaseMod_OnPlayerInit(entity player)

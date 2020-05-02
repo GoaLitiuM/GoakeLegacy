@@ -145,6 +145,7 @@ void GameMode_Init()
 
 			entity oldself = self;
 			self = player;
+			Player_Remove();
 			Player_Init();
 			self = oldself;
 		}

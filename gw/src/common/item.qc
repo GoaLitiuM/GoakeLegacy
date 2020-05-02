@@ -71,7 +71,7 @@ void Item_InitAmmo()
 void Item_InitArmor()
 {
 	Item_InitSimple(SND_ARMOR_PICKUP);
-	self.respawn_time = ITEM_RESPAWN_TIME;
+	self.respawn_time = ARMOR_RESPAWN_TIME;
 }
 
 #ifdef CSQC
@@ -112,12 +112,28 @@ float Item_SendEntity(entity player, float flags)
 }
 #endif
 
-void Item_Respawn()
+void Item_OnRespawn()
 {
 	Item_SetActive(true);
 
-	if (self.respawn_time > 1)
+	if (self.respawn_time > 1) // instantly spawning items should not make any noise
 		clientsound(self, CHAN_ITEM, SND_ITEM_RESPAWN, 1, ATTN_NORM, 0, 0, 0, self.last_touched);
+}
+
+void Item_StartRespawn()
+{
+	self.think = Item_OnRespawn;
+	self.nextthink = time + self.respawn_time;
+}
+
+void Item_OnPickup(entity source)
+{
+	self.last_touched = source;
+
+	Item_StartRespawn();
+	Item_SetActive(false);
+
+	clientsound(source, CHAN_ITEM, self.pickup_sound, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW, 0, source);
 }
 
 void Item_Touched(entity source)
@@ -125,13 +141,7 @@ void Item_Touched(entity source)
 	if (self.touch2 && !self.touch2())
 		return;
 
-	self.last_touched = source;
-	self.think = Item_Respawn;
-	self.nextthink = time + self.respawn_time;
-
-	Item_SetActive(false);
-
-	clientsound(source, CHAN_ITEM, self.pickup_sound, 1, ATTN_NORM, 0, SOUNDFLAG_FOLLOW, 0, source);
+	Item_OnPickup(source);
 }
 
 void Item_OnTouch()

@@ -50,7 +50,7 @@ void ClientDisconnect()
 // client wants to (re)spawn
 void PutClientInServer()
 {
-	Player_Spawn();
+	GameMode_OnPlayerSpawn(self);
 }
 
 void StartFrame()

@@ -7,12 +7,16 @@ vector GameMode_OnPlayerApplyForce(entity player, vector force, entity source);
 void GameMode_OnPlayerDeath(entity player, entity source);
 #endif
 
+void Mega_OnExpire(entity item);
+
 void Player_OnLand(float velocity);
 void Player_OnJump();
 
 void Player_Init()
 {
 	self.health = 100;
+	self.health_max = 200;
+	self.health_softcap = 100;
 	self.armortype = ARMOR_GREEN_ABSORB;
 	self.armorvalue = 0;
 	self.fixangle = 1;
@@ -58,14 +62,14 @@ void Player_Remove()
 
 	setorigin(self, self.origin);
 	setmodel(self, 0);
+
+	// force last picked up mega to spawn
+	if (self.health_mega_ent)
+		Mega_OnExpire(self.health_mega_ent);
 }
 
 void Player_Spawn()
 {
-#ifdef SSQC
-	GameMode_OnPlayerSpawn(self);
-#endif
-
 	Player_Init();
 }
 
@@ -74,13 +78,11 @@ void Player_RequestRespawn()
 	if (svtime - self.death_time < 1.0)
 		return; // we do not want the player to respawn by their pre-death input
 
-	Player_Spawn();
-
 	self.spawn_wish = true;
 
 #ifdef SSQC
 	if (GameMode_OnPlayerRequestRespawn(self))
-		Player_Spawn();
+		GameMode_OnPlayerSpawn(self);
 #endif
 }
 
@@ -142,13 +144,32 @@ void Player_PostTick()
 
 	self.death_time = svtime; // in case the client doesn't predict their death
 
+	// health ticks down towards the softcap
+	if (self.health > self.health_softcap || self.health_mega_ent != world)
+	{
+		while (time-self.health_time >= 0)
+		{
+			if (self.health > self.health_softcap)
+				self.health = (int)(self.health-1);
+			if (self.health_mega_left > 0)
+				self.health_mega_left -= 1;
+
+			if (self.health <= self.health_softcap && self.health_mega_left <= 0)
+				break;
+
+			self.health_time += HEALTH_DECAY_RATE;
+		}
+
+		// track mega health, and respawn it if the picked up health runs out
+		if (self.health_mega_ent && self.health_mega_left <= 0)
+			Mega_OnExpire(self.health_mega_ent);
+	}
+
 	// handle the intent of switching weapons, may not happen until reload is finished
 	if (input_impulse > 0 && input_impulse < WEAPON_LAST && self.weapon_next != input_impulse)
 	{
 		if (self.weapons & WEAPON_BIT(input_impulse))
 			self.weapon_next = input_impulse;
-		else
-			print("player does not have that weapon\n");
 	}
 
 	// player landing sound
@@ -197,6 +218,9 @@ void Player_OnJump()
 
 void Player_OnDeath(entity source, entity sourcePlayer)
 {
+	if (self.health_mega_ent)
+		Mega_OnExpire(self.health_mega_ent);
+
 	self.solid = SOLID_NOT;
 	self.movetype = MOVETYPE_TOSS;
 	self.death_time = svtime;
@@ -227,6 +251,9 @@ void Player_TakeDamage(float damage, entity source)
 
 	if (sourcePlayer == self)
 		damage *= DAMAGE_MULTIPLIER_SELF;
+
+	if (self.health_mega_ent != world)
+		self.health_mega_left -= (int)damage;
 
 	float armor_damage = min(self.armorvalue, damage * self.armortype);
 	damage = damage - armor_damage;

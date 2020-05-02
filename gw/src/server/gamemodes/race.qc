@@ -10,7 +10,7 @@ void Race_OnPlayerInit(entity player)
 void Race_OnClientKill(entity player)
 {
 	BaseMod_OnClientKill(player);
-	Player_Spawn();
+	GameMode_OnPlayerSpawn(player);
 }
 
 float Race_OnPlayerTakeDamage(entity player, float damage, entity source)

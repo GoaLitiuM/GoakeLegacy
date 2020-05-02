@@ -116,6 +116,11 @@ float maxfps;
 
 // player
 .float health;
+.float health_max;			// maximum allowed health
+.float health_softcap;		// softcap for regular health pickups
+.float health_time;			// last health tick time
+.int health_mega_left;	// how much picked up mega is left before it starts respawning
+.entity health_mega_ent;	// last picked up mega
 .float armortype;
 .float armorvalue;
 .float last_velocity_z;
