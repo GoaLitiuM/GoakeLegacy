@@ -6,6 +6,8 @@ Font font_main_med;
 Font font_main_big;
 Font font_chat;
 Font font_chat_bold;
+Font font_info_title;
+Font font_info_sub;
 
 void Hud_Init()
 {
@@ -13,6 +15,9 @@ void Hud_Init()
 	font_main = LoadFont("fonts/SairaCondensed-SemiBold.ttf", 16);
 	font_main_med = LoadFont("fonts/SairaCondensed-SemiBold.ttf", 28);
 	font_main_big = LoadFont("fonts/SairaCondensed-Black.ttf", 48);
+
+	font_info_title = LoadFont("fonts/SairaCondensed-Bold.ttf", 28);
+	font_info_sub = LoadFont("fonts/SairaCondensed-Regular.ttf", 14);
 
 	font_chat = LoadFont("fonts/Oxanium-Regular.ttf", 10);
 	font_chat_bold = LoadFont("fonts/Oxanium-Bold.ttf", 10);
@@ -27,22 +32,26 @@ void Hud_Timer(float width, float height);
 void Hud_Scoreboard(float width, float height);
 void Hud_Chat(float width, float height);
 void Hud_Crosshair(float width, float height);
+void Hud_State(float width, float height);
 
 void Hud_Render(float width, float height, bool in_menu)
 {
 	if (cvar("cl_showhud") == 0)
 		return;
 
-	if (showscores)
+	if (showscores || gamemode_state == GameModeState::EndScreen)
 		Hud_Scoreboard(width, height);
 	else
 	{
+		Hud_State(width, height);
 		Hud_Keys(width, height);
 		Hud_Player(width, height);
 		Hud_Timer(width, height);
-		Hud_Chat(width, height);
 		Hud_Crosshair(width, height);
 	}
+
+	if (!showscores)
+		Hud_Chat(width, height);
 }
 
 // movement indicators
@@ -132,5 +141,43 @@ void Hud_Scoreboard(float width, float height)
 		DrawText(font_main, [left+320,	top + offset_y, 0], player_ping, '1 1 1', 1);
 		DrawText(font_main, [left+350,	top + offset_y, 0], player_pl, '1 1 1', 1);
 		offset_y += font_main.fontsize;
+	}
+}
+
+void Hud_State(float width, float height)
+{
+	bool warmup = gamemode_state == GameModeState::Warmup || gamemode_state == GameModeState::Countdown;
+	float top = height*0.125;
+
+	if (!warmup && gamemode_time >= 5.0)
+		return;
+
+	string gamemode_str = gamemode_fullname;
+	float gamemode_width = TextWidth(font_info_title, gamemode_str, false);
+	DrawTextShadow(font_info_title, [width*0.5 - gamemode_width*0.5, top, 0], gamemode_str, '1 1 1', 1,  2, 2, '0 0 0', 1);
+
+	float offset_y = font_info_title.fontsize;
+
+	if (warmup)
+	{
+		string warmup_str = strcat("Warmup, ", itos(Game_CountPlayersReady()), "/", itos(max(gamemode_minimum_players, Game_CountPlayers())), " players ready");
+		float warmup_width = TextWidth(font_info_sub, warmup_str, false);
+		DrawTextShadow(font_info_sub, [width*0.5 - warmup_width*0.5, top + offset_y, 0], warmup_str, '1 1 1', 1,  2, 2, '0 0 0', 1);
+
+		offset_y += font_info_sub.fontsize;
+
+		if (infokeyf(local_player, "ready") == 0)
+		{
+			string ready_key;
+			tokenize(findkeysforcommand("toggleready"));
+			if (argv(0) == "-1")
+				ready_key = "(UNBOUND)";
+			else
+				ready_key = keynumtostring(stof(argv(0)));
+
+			string ready_str = strcat("Press ", ready_key, " to ready up");
+			float ready_width = TextWidth(font_info_sub, ready_str, false);
+			DrawTextShadow(font_info_sub, [width*0.5 - ready_width*0.5, top + offset_y, 0], ready_str, '1 0.1 0.1', 1,  2, 2, '0 0 0', 1);
+		}
 	}
 }
