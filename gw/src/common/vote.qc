@@ -33,7 +33,7 @@ void Vote_CallVote(string votecmd)
 		case "mode":
 		{
 			if (strlen(arg1) > 0)
-				sendevent("callvote", "eis", local_player, CALLVOTE_MODE, arg1);
+				sendevent("callvote", "is", CALLVOTE_MODE, arg1);
 			else
 			{
 				string supported_modes = "ffa, race"; // TODO: request supported modes from server
@@ -44,7 +44,7 @@ void Vote_CallVote(string votecmd)
 		case "map":
 		{
 			if (strlen(arg1) > 0)
-				sendevent("callvote", "eis", local_player, CALLVOTE_MAP, arg1);
+				sendevent("callvote", "is", CALLVOTE_MAP, arg1);
 			else
 			{
 				// TODO: request available maps from server
@@ -59,7 +59,7 @@ void Vote_CallVote(string votecmd)
 				int fraglimit = stoi(arg1);
 				if (fraglimit < 0)
 					fraglimit = 0;
-				sendevent("callvote", "eii", local_player, CALLVOTE_FRAGLIMIT, fraglimit);
+				sendevent("callvote", "ii", CALLVOTE_FRAGLIMIT, fraglimit);
 			}
 			else
 				println("Usage: callvote fraglimit <fraglimit>");
@@ -74,7 +74,7 @@ void Vote_CallVote(string votecmd)
 					timelimit = 0;
 
 				timelimit *= 60;
-				sendevent("callvote", "eii", local_player, CALLVOTE_TIMELIMIT, (int)timelimit);
+				sendevent("callvote", "ii", CALLVOTE_TIMELIMIT, (int)timelimit);
 			}
 			else
 				println("Usage: callvote timelimit <timelimit in minutes>");
@@ -82,7 +82,7 @@ void Vote_CallVote(string votecmd)
 		}
 		case "restart":
 		{
-			sendevent("callvote", "ei", local_player, CALLVOTE_RESTART);
+			sendevent("callvote", "i", CALLVOTE_RESTART);
 			break;
 		}
 		default:
@@ -110,13 +110,13 @@ void Vote_Vote(string votecmd)
 		map = argv(1);
 
 	if (vote == "yes")
-		sendevent("vote", "ei", local_player, VOTE_YES);
+		sendevent("vote", "i", VOTE_YES);
 	else if (vote == "no")
-		sendevent("vote", "ei", local_player, VOTE_NO);
+		sendevent("vote", "i", VOTE_NO);
 	else if (vote == "pick" && strlen(map) > 0)
-		sendevent("vote", "eis", local_player, VOTE_PICK, map);
+		sendevent("vote", "is", VOTE_PICK, map);
 	else if ((vote == "ban" || vote == "drop") && strlen(map) > 0)
-		sendevent("vote", "eis", local_player, VOTE_BAN, map);
+		sendevent("vote", "is", VOTE_BAN, map);
 	else
 		println("Usage: vote yes|no|pick|ban <mapname>");
 }
@@ -444,24 +444,24 @@ void Vote_OnCallVote(entity player, int vote, variant value)
 	Vote_OnPlayerVote(player, VOTE_YES, 0);
 }
 
-void CSEv_callvote_eis(entity player, int vote, string value)
+void CSEv_callvote_is(int vote, string value)
 {
-	Vote_OnCallVote(player, vote, value);
+	Vote_OnCallVote(self, vote, value);
 }
-void CSEv_callvote_ei(entity player, int vote)
+void CSEv_callvote_i(int vote)
 {
-	Vote_OnCallVote(player, vote, (int)0);
+	Vote_OnCallVote(self, vote, (int)0);
 }
-void CSEv_callvote_eii(entity player, int vote, int value)
+void CSEv_callvote_ii(int vote, int value)
 {
-	Vote_OnCallVote(player, vote, value);
+	Vote_OnCallVote(self, vote, value);
 }
-void CSEv_vote_ei(entity player, int vote)
+void CSEv_vote_i(int vote)
 {
-	Vote_OnPlayerVote(player, vote, 0);
+	Vote_OnPlayerVote(self, vote, 0);
 }
-void CSEv_vote_eis(entity player, int vote, string map)
+void CSEv_vote_is(int vote, string map)
 {
-	Vote_OnPlayerVote(player, vote, map);
+	Vote_OnPlayerVote(self, vote, map);
 }
 #endif
