@@ -75,6 +75,10 @@ void Model_SetPlayerModel(entity ent, string model)
 	loadcustomskin(head_skin);
 	setcustomskin(ent.model_head, head_skin);
 
+	setsize(ent.model_legs, '0 0 0', '0 0 0');
+	setsize(ent.model_torso, '0 0 0', '0 0 0');
+	setsize(ent.model_head, '0 0 0', '0 0 0');
+
 	ent.model_torso.tag_index = gettagindex(ent.model_legs, "tag_torso");
 	ent.model_head.tag_index = gettagindex(ent.model_torso, "tag_head");
 }
@@ -82,6 +86,20 @@ void Model_SetPlayerModel(entity ent, string model)
 void Player_InitModel()
 {
 	Model_SetPlayerModel(self, MDL_PLAYER);
+
+	// ignore lighting
+	self.model_legs.effects = EF_FULLBRIGHT;
+	self.model_torso.effects = EF_FULLBRIGHT;
+	self.model_head.effects = EF_FULLBRIGHT;
+
+	// TODO: team colors
+	vector forced_color = '1 1 1';
+	if (self != local_player && cvar_string("cl_enemycolor") != "")
+		forced_color = stov(cvar_string("cl_enemycolor"));
+
+	self.model_legs.colormod = forced_color;
+	self.model_torso.colormod = forced_color;
+	self.model_head.colormod = forced_color;
 }
 
 void Player_Animate()
