@@ -293,3 +293,12 @@ void Player_Kill(entity source)
 	self.armorvalue = 0;
 	Player_OnDeath(source, sourcePlayer);
 }
+
+bool Player_IsPlaying(entity player)
+{
+	if (strlen(infokey(player, "name")) == 0)
+		return false;
+	if (infokeyf(player, "*spectator") != 0)
+		return false;
+	return true;
+}
