@@ -980,6 +980,9 @@ string(string str) precache_file2 = #77;
 string(entity e, string key) infokey = #80; /* Part of FTE_QC_INFOKEY, QW_ENGINE
 		If e is world, returns the field 'key' from either the serverinfo or the localinfo. If e is a player, returns the value of 'key' from the player's userinfo string. There are a few special exceptions, like 'ip' which is not technically part of the userinfo. */
 
+float(entity e, string key) infokeyf = #0:infokeyf; /*
+		Identical to regular infokey, except returns a float. */
+
 float(string) stof = #81; /* Part of FRIK_FILE, FTE_QC_INFOKEY, FTE_STRINGS, QW_ENGINE, ZQ_QC_STRINGS*/
 string(float style, optional __out vector rgb) getlightstyle = #0:getlightstyle; /*
 		Obtains the light style string for the given style. */

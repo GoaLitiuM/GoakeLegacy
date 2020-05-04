@@ -4519,6 +4519,35 @@ static void QCBUILTIN PF_cs_infokey (pubprogfuncs_t *prinst, struct globalvars_s
 		G_INT(OFS_RETURN) = 0;
 }
 
+static void QCBUILTIN PF_cs_infokey_f (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *ret;
+	if (!ent->entnum)
+		ret = PF_cs_serverkey_internal(keyname);
+	else
+	{
+		int pnum = ent->xv->entnum-1;	//figure out which ssqc entity this is meant to be
+		if (pnum < 0)
+		{
+			csqc_deprecated("infokey: entity does not correlate to an ssqc entity\n");
+			ret = "";
+		}
+		else if (pnum >= cl.allocated_client_slots)
+		{
+			csqc_deprecated("infokey: entity does not correlate to an ssqc player entity\n");
+			ret = "";
+		}
+		else
+			ret = PF_cs_getplayerkey_internal(pnum, keyname);
+	}
+	if (*ret)
+		G_FLOAT(OFS_RETURN) = atof(ret);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+
 static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *extname = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -6675,6 +6704,7 @@ static struct {
 
 //80
 	{"infokey",					PF_cs_infokey,	80},			// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
+	{"infokeyf",				PF_cs_infokey_f,0},
 	{"stof",					PF_stof,	81},				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
 	{"multicast",				PF_NoCSQC,	82},				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
 
