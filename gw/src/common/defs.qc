@@ -145,6 +145,7 @@ vector input_subframe_angles;
 .int projectile_id;
 
 // items
+.bool itemclass;
 .entity last_touched; // last entity who touched the item
 .string pickup_sound;
 .bool() touch2;

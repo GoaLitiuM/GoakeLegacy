@@ -46,6 +46,8 @@ void Item_Init(string texture, string sound)
 	self.touch2 = 0;
 	self.pickup_sound = sound;
 
+	self.itemclass = true;
+
 	Item_SetActive(true);
 }
 
