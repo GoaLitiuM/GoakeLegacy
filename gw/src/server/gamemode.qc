@@ -3,8 +3,26 @@ struct GameMode
 	string name;
 	string fullname;
 
+	// called when gamemode is first initialized
 	void() init;
+
+	// called every tick
 	void() tick;
+
+	// returns minimum number of players required for playing this gamemode, return 0 to skip warmup
+	int() getMinimumPlayers;
+
+	// returns frag limit for the game mode, can be overridden by cvar
+	int() getFragLimit;
+
+	// returns time limit for the game mode, can be overridden by cvar
+	int() getTimeLimit;
+
+	// called when gamemode is about start after all players were ready
+	void() onStart;
+
+	// called when win conditions were met (fraglimit, timelimit...)
+	void() onEnd;
 
 	// called when new player connects
 	void(entity player) onClientConnect;
@@ -38,15 +56,65 @@ GameMode* gamemodes;
 int gamemodes_count;
 int gamemodes_allocated_count;
 
-GameMode* gamemode;
-string last_gamemode;
+GameMode* gamemode;			// currently active gamemode
+GameMode* gamemode_warmup;	// mode during warmup period
+GameMode* gamemode_pending;	// the real gamemode which will be activated after warmup
+string last_gamemode; 		// for latching the cvar
+float gamemode_time;
+float gamemode_transition_time;
+int gamemode_players;		// number of connected players
 
-float gamemode_timeroffset;
-bool gamemode_initialized;
-int gamemode_players;
+const float gamemode_warmup_transition = 5;
+const float gamemode_endscreen_transition = 10;
 
 // usage: GameMode_Register({name, fullname, init, tick, ...});
 #define GameMode_Register(X) GameMode_Register_internal((GameMode)X)
+
+void GameMode_Register_internal(GameMode gm);
+string GameMode_GetModeName();
+string GameMode_GetWarmupModeName();
+GameMode* GameMode_FindMode(string mode);
+void GameMode_SetState(GameModeState newstate);
+void GameMode_OverrideMode(GameMode* new_gamemode);
+void GameMode_OnPlayerSpawn(entity player);
+int GameMode_GetMinimumPlayers();
+void GameMode_ResetTimer();
+GameMode* GameMode_GetMode();
+bool Player_IsPlaying(entity player);
+
+int Game_CountPlayersReady();
+int Game_CountPlayers();
+entity Game_GetPlayerWithMostFrags();
+
+void GameMode_Init()
+{
+	GameMode_ResetTimer();
+
+	if (gamemodes_count == 0)
+	{
+		// register dummy game mode
+		#define GameMode_NULL { "null", "" }
+        GameMode_Register(GameMode_NULL);
+	}
+
+	gamemode_warmup = GameMode_FindMode(GameMode_GetWarmupModeName());
+	if (!gamemode_warmup)
+	{
+		println("Invalid warmup game mode: ", GameMode_GetWarmupModeName());
+		cvar_set("gm_warmupmode", cvar_defstring("gm_warmupmode"));
+		gamemode_warmup = GameMode_FindMode(GameMode_GetWarmupModeName());
+	}
+	gamemode_pending = GameMode_FindMode(GameMode_GetModeName());
+	if (!gamemode_pending)
+	{
+		println("Invalid game mode: ", GameMode_GetModeName());
+		cvar_set("gm_mode", cvar_defstring("gm_mode"));
+		gamemode_pending = GameMode_FindMode(GameMode_GetModeName());
+	}
+
+	GameMode_OverrideMode(gamemode_pending);
+	GameMode_SetState(GameModeState::Inactive);
+}
 
 void GameMode_Register_internal(GameMode gm)
 {
@@ -70,36 +138,75 @@ void GameMode_Register_internal(GameMode gm)
 	gamemodes_count++;
 }
 
-void GameMode_SetMode(string mode)
+GameMode* GameMode_FindMode(string mode)
 {
-	if (gamemodes_count == 0)
-	{
-		// register dummy game mode
-		#define GameMode_NULL { "null", "" }
-		GameMode_Register(GameMode_NULL);
-		mode = "";
-	}
-
-	gamemode = 0;
 	for (int i=0; i<gamemodes_count; i++)
 	{
 		if (gamemodes[i].name == mode)
-		{
-			gamemode = &gamemodes[i];
-			break;
-		}
+			return &gamemodes[i];
 	}
+	return 0;
+}
 
-	if (gamemode)
-		println("Current game mode: ", gamemode.fullname);
-	else
+void GameMode_BroadcastGameMode(entity target)
+{
+	float msg_type = MSG_ALL;
+	if (target != world)
 	{
-		println("Failed to change game mode, unknown mode: ", mode);
-		gamemode = &gamemodes[0];
+		msg_entity = target;
+		msg_type = MSG_ONE;
 	}
+	else if (gamemode_players <= 0)
+		return;
 
-	last_gamemode = gamemode->name;
-	cvar_set("gm_mode", gamemode->name);
+	GameMode* current_mode = GameMode_GetMode();
+	writeByte(msg_type, SVC_CGAMEPACKET);
+	writeByte(msg_type, EVENT_GAMEMODE_CHANGED);
+	writeString(msg_type, current_mode->name);
+	writeString(msg_type, current_mode->fullname);
+	writeByte(msg_type, GameMode_GetMinimumPlayers());
+}
+
+void GameMode_BroadcastGameState(entity target)
+{
+	float msg_type = MSG_ALL;
+	if (target != world)
+	{
+		msg_entity = target;
+		msg_type = MSG_ONE;
+	}
+	else if (gamemode_players <= 0)
+		return;
+
+	writeByte(msg_type, SVC_CGAMEPACKET);
+	writeByte(msg_type, EVENT_GAMEMODE_STATE);
+	writeByte(msg_type, (int)(__variant)gamemode_state);
+}
+
+void GameMode_BroadcastGameTime(entity target)
+{
+	float msg_type = MSG_ALL;
+	if (target != world)
+	{
+		msg_entity = target;
+		msg_type = MSG_ONE;
+	}
+	else if (gamemode_players <= 0)
+		return;
+
+	writeByte(msg_type, SVC_CGAMEPACKET);
+	writeByte(msg_type, EVENT_GAMEMODE_TIMER);
+	writeFloat(msg_type, gamemode_timeroffset);
+}
+
+int GameMode_GetFragLimit()
+{
+	int fraglimit = (int)cvar("gm_fraglimit");
+	if (!fraglimit && gamemode->getFragLimit)
+		fraglimit = gamemode->getFragLimit();
+	if (fraglimit < 0)
+		fraglimit = 0;
+	return fraglimit;
 }
 
 void GameMode_SetFragLimit(int fraglimit)
@@ -107,72 +214,202 @@ void GameMode_SetFragLimit(int fraglimit)
 	cvar_setf("gm_fraglimit", itof(fraglimit));
 }
 
+int GameMode_GetTimeLimit()
+{
+	int timelimit = (int)cvar("gm_timelimit");
+	if (!timelimit && gamemode->getTimeLimit)
+		timelimit = gamemode->getTimeLimit();
+	if (timelimit < 0)
+		timelimit = 0;
+	return timelimit;
+}
+
 void GameMode_SetTimeLimit(int timelimit)
 {
 	cvar_setf("gm_timelimit", itof(timelimit));
 }
 
-string GameMode_GetMode()
+string GameMode_GetWarmupModeName()
 {
-	return cvar_string("gm_mode");
+	return strtolower(cvar_string("gm_warmupmode"));
 }
 
-int GameMode_GetFragLimit()
+string GameMode_GetModeName()
 {
-	return (int)cvar("gm_fraglimit");
+	return strtolower(cvar_string("gm_mode"));
 }
 
-int GameMode_GetTimeLimit()
+GameMode* GameMode_GetMode()
 {
-	return (int)cvar("gm_timelimit");
+	if (gamemode_state == GameModeState::Warmup || gamemode_state == GameModeState::Countdown)
+		return gamemode_pending;
+	else
+		return gamemode;
 }
 
-void GameMode_Init()
+void GameMode_SetMode(GameMode* new_gamemode)
 {
-	gamemode_timeroffset = time;
-	if (gamemode->init)
-		gamemode->init();
+	GameMode* old_gamemode = GameMode_GetMode();
+	GameMode_OverrideMode(new_gamemode);
+	gamemode_pending = gamemode;
 
-	if (gamemode_initialized)
+	if (gamemode)
 	{
-		// reinitialize players
-		entity player = world;
-		while (true)
-		{
-			player = find(player, classname, CLASS_PLAYER);
-			if (player == world)
-				break;
-
-			entity oldself = self;
-			self = player;
-			Player_Remove();
-			Player_Init();
-			self = oldself;
-		}
-
-		// reset timer
-		writeByte(MSG_ALL, SVC_CGAMEPACKET);
-		writeByte(MSG_ALL, EVENT_GAMEMODE_TIMER);
-		writeFloat(MSG_ALL, gamemode_timeroffset);
+		cvar_set("gm_mode", strtolower(gamemode->name));
+		last_gamemode = strtolower(gamemode->name);
 	}
 
-	gamemode_initialized = true;
+	GameMode_BroadcastGameMode(world);
+
+	if (GameMode_GetMinimumPlayers() == 0)
+		GameMode_SetState(GameModeState::Playing);
+	else
+		GameMode_SetState(GameModeState::Warmup);
+}
+
+void GameMode_SetNextMode(GameMode* new_gamemode)
+{
+	GameMode* old_gamemode = gamemode_pending;
+	gamemode_pending = new_gamemode;
+
+	if (GameMode_GetMinimumPlayers() == 0 && gamemode_state != GameModeState::Playing)
+		GameMode_SetMode(gamemode_pending);
+	else
+		GameMode_BroadcastGameMode(world);
+}
+
+void GameMode_OnInit()
+{
+	GameMode_ResetTimer();
+
+	if (gamemode->init)
+		gamemode->init();
+}
+
+int GameMode_GetMinimumPlayers()
+{
+	int minimum_players = 2;
+	GameMode* mode = GameMode_GetMode();
+	if (mode->getMinimumPlayers)
+		minimum_players = mode->getMinimumPlayers();
+
+	if (minimum_players < 0)
+		return 0;
+	return minimum_players;
+}
+
+void GameMode_OnStart()
+{
+	if (gamemode->onStart)
+		gamemode->onStart();
+}
+
+void GameMode_OnEnd()
+{
+	if (gamemode->onEnd)
+		gamemode->onEnd();
+
+	GameMode_OverrideMode(gamemode_warmup);
+}
+
+void GameMode_ResetTimer()
+{
+	gamemode_timeroffset = time;
+	gamemode_time = 0;
+
+	GameMode_BroadcastGameTime(world);
+}
+
+void GameMode_OverrideMode(GameMode* new_gamemode)
+{
+	gamemode = new_gamemode;
+	GameMode_OnInit();
+}
+
+void GameMode_ForceRespawnPlayers()
+{
+	entity player = world;
+	while (true)
+	{
+		player = find(player, classname, CLASS_PLAYER);
+		if (player == world)
+			break;
+
+		if (strlen(infokey(player, "name")) == 0)
+			continue;
+		if (infokeyf(player, "*spectator") != 0)
+			continue;
+		GameMode_OnPlayerSpawn(player);
+	}
+}
+
+void GameMode_SetState(GameModeState newstate)
+{
+	GameModeState oldstate = gamemode_state;
+	gamemode_state = newstate;
+	switch (newstate)
+	{
+		case GameModeState::Inactive:
+		{
+			if (gamemode_players)
+			{
+				GameMode_SetState(GameModeState::Warmup);
+				return;
+			}
+			break;
+		}
+		case GameModeState::Warmup:
+		{
+			if (oldstate != GameModeState::Countdown)
+				GameMode_ForceRespawnPlayers();
+
+			GameMode_OverrideMode(gamemode_warmup);
+			break;
+		}
+		case GameModeState::Countdown:
+		{
+			GameMode_ResetTimer();
+			gamemode_transition_time = time + gamemode_warmup_transition;
+			break;
+		}
+		case GameModeState::Playing:
+		{
+			GameMode_OverrideMode(gamemode_pending);
+			GameMode_OnStart();
+			break;
+		}
+		case GameModeState::EndScreen:
+		{
+			gamemode_transition_time = time + gamemode_endscreen_transition;
+			GameMode_OnEnd();
+			break;
+		}
+	}
+
+	if (gamemode_state != oldstate)
+		GameMode_BroadcastGameState(world);
+}
+
+void GameMode_Finish(entity player_winner)
+{
+	GameMode_SetState(GameModeState::EndScreen);
 }
 
 void GameMode_OnClientConnect(entity player)
 {
+	gamemode_players++;
+
+	if (gamemode_state == GameModeState::Inactive)
+		GameMode_SetState(GameModeState::Warmup);
+
 	if (gamemode->onClientConnect)
 		gamemode->onClientConnect(player);
 
-	gamemode_players++;
+	forceinfokey(player, "ready", "0");
 
-	if (!gamemode_initialized)
-		GameMode_Init();
-
-	msg_entity = player;
-	writeByte(MSG_ONE, SVC_CGAMEPACKET);
-	writeByte(MSG_ONE, EVENT_GAMEMODE_TIMER);
-	writeFloat(MSG_ONE, gamemode_timeroffset);
+	GameMode_BroadcastGameTime(player);
+	GameMode_BroadcastGameState(player);
+	GameMode_BroadcastGameMode(player);
 }
 
 void GameMode_OnClientDisconnect(entity player)
@@ -259,21 +496,157 @@ void GameMode_OnPlayerDeath(entity player, entity source)
 		gamemode->onPlayerDeath(player, source);
 		self = oldself;
 	}
+
+	if (gamemode_state == GameModeState::Playing)
+	{
+		int fraglimit = GameMode_GetFragLimit();
+		if (fraglimit > 0)
+		{
+			entity killer = world;
+			if (source.classname == CLASS_PLAYER)
+				killer = source;
+			else
+			{
+				if (source.owner.classname == CLASS_PLAYER)
+					killer = source.owner;
+			}
+
+			if (killer != world)
+			{
+				int killer_frags = infokeyf(killer, "*frags");
+				if (killer_frags >= fraglimit)
+				{
+					GameMode_Finish(killer);
+					return;
+				}
+			}
+		}
+	}
+}
+
+void GameMode_OnTick()
+{
+	if (gamemode->tick)
+		gamemode->tick();
+}
+
+bool GameMode_AllPlayersReady()
+{
+	int minimum_players = GameMode_GetMinimumPlayers();
+	if (minimum_players == 0)
+		return true;
+
+	int ready_players = Game_CountPlayersReady();
+	int total_players = Game_CountPlayers();
+	if (total_players < minimum_players)
+		return false;
+	if (ready_players < total_players)
+		return false;
+	return true;
+}
+
+void GameMode_ResetReadyPlayers()
+{
+	entity player = world;
+	while (true)
+	{
+		player = find(player, classname, CLASS_PLAYER);
+		if (player == world)
+			break;
+
+		if (!Player_IsPlaying(player))
+			continue;
+
+		forceinfokey(player, "ready", "0");
+	}
+}
+
+void GameMode_TickWarmup()
+{
+	if (GameMode_AllPlayersReady())
+		GameMode_SetState(GameModeState::Countdown);
+}
+
+void GameMode_TickCountdown()
+{
+	if (!GameMode_AllPlayersReady())
+	{
+		GameMode_SetState(GameModeState::Warmup);
+		return;
+	}
+
+	if (time >= gamemode_transition_time)
+		GameMode_SetState(GameModeState::Playing);
+}
+
+void GameMode_TickPlaying()
+{
+	int timelimit = GameMode_GetTimeLimit();
+	if (timelimit > 0 && gamemode_time >= timelimit)
+	{
+		//TODO: overtime
+		entity winner = Game_GetPlayerWithMostFrags();
+		GameMode_Finish(winner);
+		return;
+	}
+}
+
+void GameMode_TickEndScreen()
+{
+	if (time >= gamemode_transition_time)
+	{
+		GameMode_ResetReadyPlayers();
+		GameMode_SetState(GameModeState::Warmup);
+	}
 }
 
 void GameMode_Tick()
 {
-	string mode = strtolower(cvar_string("gm_mode"));
-	if (mode != last_gamemode) // gamemode changed
+	string mode = GameMode_GetModeName();
+	if (mode != last_gamemode)
 	{
-		GameMode_SetMode(mode);
-		if (gamemode_initialized)
-			GameMode_Init();
+		GameMode* new_gamemode = GameMode_FindMode(mode);
+		if (new_gamemode)
+		{
+			if (gamemode_state != GameModeState::Playing)
+				GameMode_SetMode(new_gamemode);
+			else
+			{
+				GameMode_SetNextMode(new_gamemode);
+				println("Game mode will be changed for next round or map");
+			}
+
+			last_gamemode = mode;
+		}
+		else
+		{
+			println("Invalid game mode: ", mode);
+			cvar_set("gm_mode", last_gamemode);
+		}
 	}
 
-	if (!gamemode_initialized)
+	gamemode_time = time - gamemode_timeroffset;
+
+	if (gamemode_state == GameModeState::Inactive)
 		return;
 
-	if (gamemode->tick)
-		gamemode->tick();
+	GameMode_OnTick();
+
+	switch (gamemode_state)
+	{
+		case GameModeState::Inactive:
+			break; // wait players to connect
+		case GameModeState::Playing:
+			GameMode_TickPlaying();
+			break;
+		case GameModeState::Warmup:
+			GameMode_TickWarmup();
+			break;
+		case GameModeState::Countdown:
+			GameMode_TickCountdown();
+			break;
+		case GameModeState::EndScreen:
+			GameMode_TickEndScreen();
+			break;
+	}
 }

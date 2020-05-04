@@ -12,6 +12,30 @@ enum // entity types used in SendEntity and CSQC_Ent_Update
 	SENDENTITY_ITEM,
 };
 
+// CSQC events
+enum
+{
+	EVENT_LIGHTNING = 1,
+	EVENT_PLAYER_ATTACK,
+	EVENT_PLAYER_DEATH,
+	EVENT_GAMEMODE_TIMER,
+	EVENT_GAMEMODE_STATE,
+	EVENT_GAMEMODE_CHANGED,
+	EVENT_CALLVOTE,
+	EVENT_CALLVOTE_PLAYERVOTE,
+	EVENT_CALLVOTE_FINISHED,
+};
+
+// GameMode states
+enum class GameModeState : int
+{
+	Inactive = 1,	// server is empty, gamemode does not tick
+	Warmup,			// waiting for players to ready
+	Countdown,		// everyone is ready, do a final countdown
+	Playing,		// game is live
+	EndScreen,		// game has ended, countdown and reset back to warmup
+};
+
 enum
 {
 	// player stats
@@ -157,6 +181,10 @@ vector input_subframe_angles;
 #define armorvalue_min armorvalue
 .float armorvalue_max;
 
+// gamemode
+float gamemode_timeroffset;
+GameModeState gamemode_state = GameModeState::Inactive;
+
 // sound flags
 const float SOUNDFLAG_PREDICT = 128;
 
@@ -182,19 +210,8 @@ const int SENDFLAGS_ALL =		(SENDFLAGS_ORIGIN | SENDFLAGS_ANGLES | SENDFLAGS_VELO
 
 // player specific SendFlags
 #define SENDFLAGS_PLAYER_INIT	0x0100
+#define SENDFLAGS_PLAYER_RELOAD	0x0200
 
 // item specific SendFlags
 #define SENDFLAGS_ITEM_INIT		0x0100
 #define SENDFLAGS_ITEM_ACTIVE	0x0200
-
-// CSQC events
-enum
-{
-	EVENT_LIGHTNING = 1,
-	EVENT_PLAYER_ATTACK,
-	EVENT_PLAYER_DEATH,
-	EVENT_GAMEMODE_TIMER,
-	EVENT_CALLVOTE,
-	EVENT_CALLVOTE_PLAYERVOTE,
-	EVENT_CALLVOTE_FINISHED,
-};

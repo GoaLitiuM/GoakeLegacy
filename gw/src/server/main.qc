@@ -8,7 +8,9 @@ void init(float prevprogs)
 
 	GameMode_Register(GameMode_FFA);
 	GameMode_Register(GameMode_Race);
-	GameMode_SetMode(strtolower(cvar_string("gm_mode")));
+	GameMode_Register(GameMode_Warmup);
+
+	GameMode_Init();
 }
 
 void worldspawn()

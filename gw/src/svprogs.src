@@ -15,18 +15,19 @@
 #include <qcdefs.qc>
 
 #include <common/ruleset.qc>
-#include <server/defs.qc>
 #include <common/defs.qc>
+#include <server/defs.qc>
 #include <common/common.qc>
 #include <server/lagcompensation.qc>
+#include <server/gamemode.qc>
 #include <common.src>
 
 #include <server/player.qc>
 
-#include <server/gamemode.qc>
 #include <server/gamemodes/base.qc>
 #include <server/gamemodes/ffa.qc>
 #include <server/gamemodes/race.qc>
+#include <server/gamemodes/warmup.qc>
 
 // include last
 #include <common_entities.src>

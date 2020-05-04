@@ -1,5 +1,6 @@
 #include <common/math.qc>
 
+#include <common/game.qc>
 #include <common/weapons.qc>
 #include <common/player.qc>
 #include <common/stats.qc>

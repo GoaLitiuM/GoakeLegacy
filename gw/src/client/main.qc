@@ -36,6 +36,8 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 	Hud_Init();
 	Item_InitClient();
 	Vote_Init();
+
+	setlocaluserinfo(0, "ready", "0");
 }
 
 float CSQC_ConsoleCommand(string line)
@@ -84,6 +86,21 @@ float CSQC_ConsoleCommand(string line)
 			return true;
 		case "vote":
 			Vote_Vote(strtrim(substring(line, 5, strlen(line)-5)));
+			return true;
+
+		case "ready":
+			setlocaluserinfo(0, "ready", "");
+			setlocaluserinfo(0, "ready", "1");
+			return true;
+		case "notready":
+		case "unready":
+			setlocaluserinfo(0, "ready", "");
+			setlocaluserinfo(0, "ready", "0");
+			return true;
+		case "toggleready":
+			int ready = !(stof(getplayerkeyvalue(player_localnum, "ready")) != 0);
+			setlocaluserinfo(0, "ready", "");	// server forced values does not get back to client unfortunately, just force the new value
+			setlocaluserinfo(0, "ready", itos(ready));
 			return true;
 	}
 	return false;
@@ -179,9 +196,26 @@ void CSQC_Parse_Event()
 				Chat_SystemMessage(strcat(killer_name, " fragged ", killed_name), CHAT_TYPE_DEATH);
 			break;
 		}
+
 		case EVENT_GAMEMODE_TIMER:
 			gamemode_timeroffset = readFloat();
 			break;
+		case EVENT_GAMEMODE_CHANGED:
+		{
+			string old_mode = gamemode_name;
+			gamemode_name = readString();
+			gamemode_fullname = readString();
+			gamemode_minimum_players = readByte();
+			if (gamemode_name != old_mode)
+				println("Game mode changed to: ", gamemode_fullname);
+			break;
+		}
+		case EVENT_GAMEMODE_STATE:
+			gamemode_state = (GameModeState)((__variant)((int)readByte()));
+			if (gamemode_state == GameModeState::Countdown)
+				Chat_SystemMessage("Game is starting in 5 seconds...");
+			break;
+
 		case EVENT_CALLVOTE:
 			Vote_OnCallVote();
 			break;
@@ -229,7 +263,7 @@ void CSQC_WorldLoaded()
 			break;
 		else if (token != "{")
 		{
-			println("bad entity data");
+			println("Failed to parse entities: unexpected token '", token, "'");
 			return;
 		}
 
@@ -245,7 +279,10 @@ void CSQC_WorldLoaded()
 			if (field == "}")
 			{
 				if (!ent.classname)
+				{
+					dprintln("Failed to parse entity: missing classname");
 					break;
+				}
 				if (func)
 				{
 					// items and weapons should not exist in CSQC world
@@ -316,11 +353,7 @@ void CSQC_WorldLoaded()
 		}
 
 		if (!valid)
-		{
 			remove(ent);
-			println("bad entity data");
-			return;
-		}
 	}
 }
 

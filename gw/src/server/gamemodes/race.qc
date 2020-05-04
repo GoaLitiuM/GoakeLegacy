@@ -1,6 +1,11 @@
+int Race_GetMinimumPlayers()
+{
+	return 0; // skips warmup
+}
+
 void Race_OnPlayerInit(entity player)
 {
-	BaseMod_OnPlayerInit(player);
+	BaseMode_OnPlayerInit(player);
 	player.solid = SOLID_CORPSE;
 
 	for (int i=0; i<WEAPON_LAST; i++)
@@ -9,7 +14,7 @@ void Race_OnPlayerInit(entity player)
 
 void Race_OnClientKill(entity player)
 {
-	BaseMod_OnClientKill(player);
+	BaseMode_OnClientKill(player);
 	GameMode_OnPlayerSpawn(player);
 }
 
@@ -29,4 +34,4 @@ void Race_OnPlayerDeath(entity player, entity source)
 {
 }
 
-#define GameMode_Race { "race", "Race", BaseMod_Init, BaseMod_Tick, BaseMod_OnClientConnect, 0, Race_OnClientKill, BaseMod_OnPlayerRequestRespawn, BaseMod_OnPlayerSpawn, Race_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerApplyForce, Race_OnPlayerDeath }
+#define GameMode_Race { "race", "Race", BaseMode_Init, BaseMode_Tick, Race_GetMinimumPlayers, 0, 0, BaseMode_OnStart, BaseMode_OnEnd, BaseMode_OnClientConnect, 0, Race_OnClientKill, BaseMode_OnPlayerRequestRespawn, BaseMode_OnPlayerSpawn, Race_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerApplyForce, Race_OnPlayerDeath }

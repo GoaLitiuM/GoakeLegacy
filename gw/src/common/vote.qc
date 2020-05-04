@@ -188,12 +188,14 @@ bool callvote_instant;
 variant callvote_value;
 
 void Vote_ApplyChanges();
-void GameMode_SetMode(string mode);
+GameMode* GameMode_FindMode(string mode);
+void GameMode_SetMode(GameMode* mode);
 void GameMode_SetFragLimit(int fraglimit);
 void GameMode_SetTimeLimit(int timelimit);
-string GameMode_GetMode();
+string GameMode_GetModeName();
 int GameMode_GetFragLimit();
 int GameMode_GetTimeLimit();
+void GameMode_ResetReadyPlayers();
 
 void Vote_Restart()
 {
@@ -208,6 +210,7 @@ void Vote_Reset()
 {
 	callvote = CALLVOTE_INACTIVE;
 	callvote_value = "";
+	GameMode_ResetReadyPlayers();
 }
 
 void Vote_ApplyChanges()
@@ -224,7 +227,11 @@ void Vote_ApplyChanges()
 		Vote_Restart();
 	else if (callvote == CALLVOTE_MODE)
 	{
-		GameMode_SetMode((string)callvote_value);
+		GameMode* mode = GameMode_FindMode((string)callvote_value);
+		if (mode)
+			GameMode_SetMode(mode);
+		else
+			println("Invalid game mode: ", (string)callvote_value);
 		Vote_Reset();
 	}
 	else if (callvote == CALLVOTE_FRAGLIMIT)
@@ -394,8 +401,8 @@ void Vote_OnCallVote(entity player, int vote, variant value)
 	string value_str = "";
 	if (vote == CALLVOTE_MODE)
 	{
-		value_str = (string)value;
-		if (GameMode_GetMode() == value_str)
+		value_str = strtolower((string)value);
+		if (GameMode_GetModeName() == value_str)
 			return;
 
 		println("Player '", player_name, "' initiated callvote mode ", (string)value);

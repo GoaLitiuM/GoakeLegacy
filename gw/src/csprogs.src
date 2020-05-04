@@ -15,8 +15,8 @@
 #include <qcdefs.qc>
 
 #include <common/ruleset.qc>
-#include <client/defs.qc>
 #include <common/defs.qc>
+#include <client/defs.qc>
 #include <common/common.qc>
 #include <client/graphics2d.qc>
 #include <common.src>

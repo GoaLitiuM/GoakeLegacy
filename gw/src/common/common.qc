@@ -59,6 +59,13 @@ void println(... argc)
 	print("\n");
 }
 
+void dprintln(... argc)
+{
+	for (float i=0; i<argc; i++)
+		dprint(va_arg(i, string));
+	print("\n");
+}
+
 #if 1
 #define assert(EXPR) do { if (!(EXPR)) error("assertion falure\n"); } while(0)
 #else

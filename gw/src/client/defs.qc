@@ -69,7 +69,9 @@ vector attack_angle;
 
 // gamemode values
 #define gamemode_time (time - gamemode_timeroffset)
-float gamemode_timeroffset;
+string gamemode_name;
+string gamemode_fullname;
+int gamemode_minimum_players;
 
 // hud
 bool chat_team;
