@@ -12,6 +12,20 @@ void Mega_OnExpire(entity item);
 void Player_OnLand(float velocity);
 void Player_OnJump();
 
+bool Player_IsDead(entity player)
+{
+	return self.health <= 0;
+}
+
+bool Player_IsPlaying(entity player)
+{
+	if (strlen(infokey(player, "name")) == 0)
+		return false;
+	if (infokeyf(player, "*spectator") != 0)
+		return false;
+	return true;
+}
+
 void Player_Init()
 {
 	self.health = 100;
@@ -132,7 +146,7 @@ void Player_PostTick()
 	bool onground = (self.flags & FL_ONGROUND) != 0;
 	bool jumped = (self.pmove_flags & PMF_JUMPED) != 0 && (self.last_pmove_flags & PMF_JUMPED) == 0;
 
-	if (self.health <= 0)
+	if (Player_IsDead(self))
 	{
 		if (input_impulse == IMPULSE_RESPAWN || input_impulse == IMPULSE_RESPAWN_FORCED)
 			Player_RequestRespawn();
@@ -233,9 +247,21 @@ void Player_OnDeath(entity source, entity sourcePlayer)
 #endif
 }
 
+void Player_AddHealth(entity player, int hp, int max_hp)
+{
+	player.health += hp;
+	if (player.health > max_hp)
+		player.health = max_hp;
+	if (player.health > player.health_max)
+		player.health = player.health_max;
+
+	player.health_time = time + HEALTH_DECAY_RATE;
+	player.health = (int)ceil(player.health);
+}
+
 void Player_TakeDamage(float damage, entity source)
 {
-	if (self.health <= 0)
+	if (Player_IsDead(self))
 		return;
 
 	entity sourcePlayer = source.owner;
@@ -264,7 +290,7 @@ void Player_TakeDamage(float damage, entity source)
 	if (self.armorvalue <= 0)
 		self.armortype = ARMOR_GREEN_ABSORB;
 
-	if (self.health <= 0)
+	if (Player_IsDead(self))
 		Player_OnDeath(source, sourcePlayer);
 }
 
@@ -282,7 +308,7 @@ void Player_ApplyForce(vector force, entity source)
 
 void Player_Kill(entity source)
 {
-	if (self.health <= 0)
+	if (Player_IsDead(self))
 		return;
 
 	entity sourcePlayer = source.owner;
@@ -292,13 +318,4 @@ void Player_Kill(entity source)
 	self.health = 0;
 	self.armorvalue = 0;
 	Player_OnDeath(source, sourcePlayer);
-}
-
-bool Player_IsPlaying(entity player)
-{
-	if (strlen(infokey(player, "name")) == 0)
-		return false;
-	if (infokeyf(player, "*spectator") != 0)
-		return false;
-	return true;
 }

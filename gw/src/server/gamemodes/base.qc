@@ -78,7 +78,7 @@ void BaseMode_Tick()
 			break;
 
 		// revive dead players after a while
-		if (player.health <= 0 && time - player.death_time > 4.0)
+		if (Player_IsDead(player) && time - player.death_time > 4.0)
 			GameMode_OnPlayerSpawn(player);
 	}
 }

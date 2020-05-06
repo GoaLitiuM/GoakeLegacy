@@ -3,13 +3,7 @@ bool Health_OnTouch()
 	if (other.health >= self.health_max || other.health >= other.health_max)
 		return false;
 
-	other.health += self.health;
-	if (other.health > self.health_max)
-		other.health = self.health_max;
-	if (other.health > other.health_max)
-		other.health = other.health_max;
-
-	other.health_time = time + HEALTH_DECAY_RATE;
+	Player_AddHealth(other, self.health, self.health_max);
 	return true;
 }
 

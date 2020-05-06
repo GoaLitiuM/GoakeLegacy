@@ -78,8 +78,8 @@ void Hud_Keys(float width, float height)
 void Hud_Player(float width, float height)
 {
 	entity playerent = player_localentnum == local_player.entnum ? local_player : getEntity(player_localentnum);
-	string left_str = itos(playerent.health);
-	string right_str = itos(playerent.armorvalue);
+	string left_str = itos((int)ceil(playerent.health));
+	string right_str = itos((int)ceil(playerent.armorvalue));
 	int current_weapon = playerent.weapon;
 	int weapon_ammo = playerent.ammo[WEAPON_AMMO_INDEX(current_weapon)];
 	string ammo_str = (weapon_defs[current_weapon].ammo_consumption > 0 && weapon_ammo != AMMO_INFINITE) ? itos(weapon_ammo) : "-";
