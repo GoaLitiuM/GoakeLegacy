@@ -15,7 +15,7 @@ const int CALLVOTE_TIMELIMIT = 6;
 void Vote_Init()
 {
 #ifdef CSQC
-	registercommand("callvote");
+	registercommand("callvote", "Calls a vote on server, use the 'vote' command to vote");
 	registercommand("vote");
 #endif
 }

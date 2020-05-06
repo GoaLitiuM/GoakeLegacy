@@ -37,6 +37,11 @@ void CSQC_Init(float apilevel, string enginename, float engineversion)
 	Item_InitClient();
 	Vote_Init();
 
+	registercommand("ready", "Informs the server that the player is ready.");
+	registercommand("unready", "Informs the server that the player is no longer ready.");
+	registercommand("notready", "Informs the server that the player is no longer ready.");
+	registercommand("toggleready", "Informs the server that the player is ready, toggling between the ready and not-ready state.");
+
 	setlocaluserinfo(0, "ready", "0");
 }
 
