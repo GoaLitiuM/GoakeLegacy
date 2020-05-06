@@ -74,22 +74,17 @@ int randomInt(int first, int last)
 	if (first == last)
 		return first;
 
-	const float biasfix = 0.5f/0x8000; // random() does not return 0 anymore
-	return first + floor(((random() - biasfix) * 0x8000 / 0x7FFF) * (last-first+1));
+	return first + floor(random() * (last-first+1));
 };
 
-// returns random value between 0 and 1 (inclusive)
-inline float random2()
-{
-	return (random() * 0x8000) / 0x7FFF;
-}
 
+// returns random value from given (inclusive)
 float randomFloat(float first, float last)
 {
 	if (first == last)
 		return first;
 
-	return first + random2() * (last-first);
+	return first + random() * (last-first);
 }
 
 float lerp(float a, float b, float t)
