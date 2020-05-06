@@ -36,6 +36,7 @@ void Player_Init()
 
 	self.weapon = WEAPON_ROCKET;
 	self.weapons = 0;
+	self.weapon_next = -1;
 
 	self.classname = CLASS_PLAYER;
 	self.solid = SOLID_SLIDEBOX;
@@ -194,7 +195,7 @@ void Player_PostTick()
 	}
 
 	// player wants to switch the weapon
-	if (self.weapon_next != self.weapon)
+	if (self.weapon_next >= 0 && self.weapon_next != self.weapon)
 	{
 		if (!Player_IsReloading())
 			self.weapon = self.weapon_next;
