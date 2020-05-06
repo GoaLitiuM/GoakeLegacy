@@ -2186,8 +2186,17 @@ static void MP_ConsoleCommand_f(void)
 }
 static void QCBUILTIN PF_menu_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char *str = PF_VarString(prinst, 0, pr_globals);
-	if (!Cmd_Exists(str))
+	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *desc = NULL;
+	if (Cmd_Exists(str))
+		return;
+	
+	if (prinst->callargc >= 2)
+	{
+		desc = PR_GetStringOfs(prinst, OFS_PARM1);
+		Cmd_AddCommandD(str, MP_ConsoleCommand_f, desc);
+	}
+	else
 		Cmd_AddCommand(str, MP_ConsoleCommand_f);
 }
 
