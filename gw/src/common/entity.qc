@@ -27,7 +27,7 @@ void applyEntityForce(entity target, vector force, entity source)
 	}
 }
 
-void addRadialDamageEntity(vector location, float damage, float radius, entity target, entity source, float power = 1.0f)
+void addRadialDamageEntity(vector location, float damage, float radius, entity target, entity source, float power = 1.0f, float damage_min = 0.0f)
 {
 	vector center = target.origin + ('0 0 1' * (target.maxs_z - target.mins_z) * 0.5);
 	float distance = vlen(center - location);
@@ -43,7 +43,11 @@ void addRadialDamageEntity(vector location, float damage, float radius, entity t
 	if (power != 1.0f)
 		multiplier = pow(multiplier, power);
 
-	applyEntityDamage(target, damage * multiplier, source);
+	float final_damage = damage * multiplier;
+	if (final_damage < damage_min)
+		final_damage = damage_min;
+
+	applyEntityDamage(target, final_damage, source);
 }
 
 void addRadialForceEntity(vector location, float force, float radius, entity target, entity source, float power = 1.0f)
@@ -68,14 +72,14 @@ void addRadialForceEntity(vector location, float force, float radius, entity tar
 	applyEntityForce(target, direction * force * multiplier, source);
 }
 
-void addRadialDamage(vector location, float damage, float radius, entity source = 0, entity ignored = 0, float power = 1.0f)
+void addRadialDamage(vector location, float damage, float radius, entity source = 0, entity ignored = 0, float power = 1.0f, float damage_min = 0.0f)
 {
 	entity ent;
 	ent = findradius(location, radius);
 	while (ent != world)
 	{
 		if (ent != ignored && ent != source && ent.movetype != MOVETYPE_NONE)
-			addRadialDamageEntity(location, damage, radius, ent, source, power);
+			addRadialDamageEntity(location, damage, radius, ent, source, power, damage_min);
 		ent = ent.chain;
 	}
 }

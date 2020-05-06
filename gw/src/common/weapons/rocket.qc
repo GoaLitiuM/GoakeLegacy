@@ -99,7 +99,7 @@ void WeaponRocket_OnTouch()
 void WeaponRocket_Explode(vector position, vector forward, entity ignored, entity target)
 {
 	addRadialForce(position, ROCKET_FORCE, ROCKET_RADIUS, ignored, target, ROCKET_FORCE_DISTANCE_POWER);
-	addRadialDamage(position, ROCKET_DAMAGE, ROCKET_RADIUS, ignored, target, ROCKET_DAMAGE_DISTANCE_POWER);
+	addRadialDamage(position, ROCKET_DAMAGE, ROCKET_RADIUS, ignored, target, ROCKET_DAMAGE_DISTANCE_POWER, ROCKET_DAMAGE_MIN);
 
 	if (target != world)
 	{

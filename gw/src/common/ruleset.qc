@@ -19,6 +19,7 @@ const float ARMOR_GREEN_MIN = 50;
 
 const float ROCKET_RELOAD = 0.8;
 const float ROCKET_DAMAGE = 100;
+const float ROCKET_DAMAGE_MIN = 15;
 const float ROCKET_DAMAGE_DISTANCE_POWER = 0.9;
 const float ROCKET_SPEED = 1000;
 const float ROCKET_RADIUS = 140;
