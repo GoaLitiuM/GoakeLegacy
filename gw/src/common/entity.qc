@@ -16,6 +16,13 @@ void applyEntityForce(entity target, vector force, entity source)
 		entity oldself = self;
 		self = target;
 		Player_ApplyForce(force, source);
+
+		// HACK: player does not get lifted off from the ground due to weird QW ramp physics,
+		// so we need to slightly adjust the origin of the player to ignore these checks
+		float rampvelocity = serverkeyfloat("pm_rampvelocity", stof(cvar_defstring("pm_rampvelocity")));
+		if (target.flags & FL_ONGROUND && force.z > 0 && target.velocity.z < rampvelocity)
+			target.origin.z += 1.0f;
+
 		self = oldself;
 	}
 }
