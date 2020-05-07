@@ -39,6 +39,9 @@ void Hud_Render(float width, float height, bool in_menu)
 	if (cvar("cl_showhud") == 0)
 		return;
 
+	entity oldself = self;
+	self = player_localentnum == local_player.entnum ? local_player : getEntity(player_localentnum);
+
 	if (showscores || gamemode_state == GameModeState::EndScreen)
 		Hud_Scoreboard(width, height);
 	else
@@ -52,6 +55,8 @@ void Hud_Render(float width, float height, bool in_menu)
 
 	if (!showscores)
 		Hud_Chat(width, height);
+
+	self = oldself;
 }
 
 // movement indicators
@@ -77,11 +82,10 @@ void Hud_Keys(float width, float height)
 // health, armor and ammo
 void Hud_Player(float width, float height)
 {
-	entity playerent = player_localentnum == local_player.entnum ? local_player : getEntity(player_localentnum);
-	string left_str = itos((int)ceil(playerent.health));
-	string right_str = itos((int)ceil(playerent.armorvalue));
-	int current_weapon = playerent.weapon;
-	int weapon_ammo = playerent.ammo[WEAPON_AMMO_INDEX(current_weapon)];
+	string left_str = itos((int)ceil(self.health));
+	string right_str = itos((int)ceil(self.armorvalue));
+	int current_weapon = self.weapon;
+	int weapon_ammo = self.ammo[WEAPON_AMMO_INDEX(current_weapon)];
 	string ammo_str = (weapon_defs[current_weapon].ammo_consumption > 0 && weapon_ammo != AMMO_INFINITE) ? itos(weapon_ammo) : "-";
 
 	int center_offset = 5;
@@ -92,11 +96,11 @@ void Hud_Player(float width, float height)
 	// armor
 	{
 		vector armor_col = '1 1 1';
-		if (playerent.armortype == ARMOR_GREEN_ABSORB)
+		if (self.armortype == ARMOR_GREEN_ABSORB)
 			armor_col = '0 1 0';
-		else if (playerent.armortype == ARMOR_YELLOW_ABSORB)
+		else if (self.armortype == ARMOR_YELLOW_ABSORB)
 			armor_col = '1 1 0';
-		else if (playerent.armortype == ARMOR_RED_ABSORB)
+		else if (self.armortype == ARMOR_RED_ABSORB)
 			armor_col = '1 0 0';
 		DrawTextShadow(font_main_big, [width*0.5 + center_offset, height - font_main_big.fontsize, 0], right_str, armor_col, 1,  4, 1.35, '0 0 0', 1);
 	}
