@@ -33,6 +33,7 @@ void Hud_Scoreboard(float width, float height);
 void Hud_Chat(float width, float height);
 void Hud_Crosshair(float width, float height);
 void Hud_State(float width, float height);
+void Hud_WeaponRack(float width, float height);
 
 void Hud_Render(float width, float height, bool in_menu)
 {
@@ -51,6 +52,7 @@ void Hud_Render(float width, float height, bool in_menu)
 		Hud_Player(width, height);
 		Hud_Timer(width, height);
 		Hud_Crosshair(width, height);
+		Hud_WeaponRack(width, height);
 	}
 
 	if (!showscores)
@@ -90,8 +92,10 @@ void Hud_Player(float width, float height)
 
 	int center_offset = 5;
 
+	float ha_y = height - font_main_big.fontsize - 15;
+
 	// health
-	DrawTextShadow(font_main_big, [width*0.5 - TextWidth(font_main_big, left_str, false) - center_offset, height - font_main_big.fontsize, 0], left_str, '1 1 1', 1,  4, 1.35, '0 0 0', 1);
+	DrawTextShadow(font_main_big, [width*0.5 - TextWidth(font_main_big, left_str, false) - center_offset, ha_y, 0], left_str, '1 1 1', 1,  4, 1.35, '0 0 0', 1);
 
 	// armor
 	{
@@ -102,7 +106,7 @@ void Hud_Player(float width, float height)
 			armor_col = '1 1 0';
 		else if (self.armortype == ARMOR_RED_ABSORB)
 			armor_col = '1 0 0';
-		DrawTextShadow(font_main_big, [width*0.5 + center_offset, height - font_main_big.fontsize, 0], right_str, armor_col, 1,  4, 1.35, '0 0 0', 1);
+		DrawTextShadow(font_main_big, [width*0.5 + center_offset, ha_y, 0], right_str, armor_col, 1,  4, 1.35, '0 0 0', 1);
 	}
 
 	// ammo

@@ -1,6 +1,7 @@
 struct Weapon
 {
 	string name;
+	string entname;
 	float reload_time;
 	int ammo_consumption; // how much ammo is used when fired
 
@@ -21,9 +22,9 @@ void Weapon_Init()
 	weapons_allocated_count = WEAPON_LAST;
 	weapon_defs = memalloc(sizeof(Weapon) * weapons_allocated_count);
 
-	weapon_defs[WEAPON_ROCKET] = (Weapon){ "Rocket Launcher", ROCKET_RELOAD, 1, WeaponRocket_Fire, 0, 0 };
-	weapon_defs[WEAPON_LIGHTNING] = (Weapon){ "Lightning Gun", LIGHTNING_RELOAD, 1, WeaponLightning_Fire, 0, 0 };
-	weapon_defs[WEAPON_CROSSBOW] = (Weapon){ "Crossbow", CROSSBOW_RELOAD, 1, WeaponCrossbow_Fire, 0, 0 };
+	weapon_defs[WEAPON_ROCKET] = (Weapon){ "Rocket Launcher", "weapon_rocketlauncher", ROCKET_RELOAD, 1, WeaponRocket_Fire, 0, 0 };
+	weapon_defs[WEAPON_LIGHTNING] = (Weapon){ "Lightning Gun", "weapon_lightning", LIGHTNING_RELOAD, 1, WeaponLightning_Fire, 0, 0 };
+	weapon_defs[WEAPON_CROSSBOW] = (Weapon){ "Crossbow", "weapon_crossbow", CROSSBOW_RELOAD, 1, WeaponCrossbow_Fire, 0, 0 };
 }
 
 void Player_WeaponAttack(vector angle);
