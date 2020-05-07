@@ -101,6 +101,39 @@ void Player_RequestRespawn()
 #endif
 }
 
+#ifdef SSQC
+float Player_SendEntity(entity ent, float send_flags)
+{
+	writeByte(MSG_ENTITY, SENDENTITY_PLAYER);
+	writeInt(MSG_ENTITY, send_flags);
+	if (send_flags & SENDFLAGS_ORIGIN)
+		writeVector(MSG_ENTITY, self.origin);
+	if (send_flags & SENDFLAGS_ANGLES)
+		writeVector(MSG_ENTITY, self.angles);
+	if (send_flags & SENDFLAGS_VELOCITY)
+		writeVector(MSG_ENTITY, self.velocity);
+	if (send_flags & SENDFLAGS_FLAGS)
+	{
+		writeInt(MSG_ENTITY, self.flags);
+		writeByte(MSG_ENTITY, self.pmove_flags);
+	}
+	if (send_flags & SENDFLAGS_JUMP)
+	{
+		writeFloat(MSG_ENTITY, self.jump_time);
+		writeFloat(MSG_ENTITY, self.jump_count);
+	}
+	if (send_flags & SENDFLAGS_PHYSICS)
+	{
+		writeFloat(MSG_ENTITY, self.solid);
+		writeFloat(MSG_ENTITY, self.movetype);
+	}
+	if (send_flags & SENDFLAGS_PLAYER_RELOAD)
+		writeFloat(MSG_ENTITY, self.reload_time);
+
+	return 1;
+}
+#endif
+
 void Player_PreTick()
 {
 }
