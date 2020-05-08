@@ -120,7 +120,7 @@ void Hud_Scoreboard(float width, float height)
 	float left = width*0.5 - 180;
 	float top = (height*0.16);
 
-	DrawText(font_main, [left, top + offset_y, 0], "Connected players", '1 1 1', 1);
+	DrawText(font_main, [left, top + offset_y, 0], "Players", '1 1 1', 1);
 	DrawText(font_main, [left+230, top + offset_y, 0], "Frags", '1 1 1', 1);
 	DrawText(font_main, [left+270, top + offset_y, 0], "Deaths", '1 1 1', 1);
 	DrawText(font_main, [left+320, top + offset_y, 0], "Ping PL", '1 1 1', 1);
@@ -131,6 +131,9 @@ void Hud_Scoreboard(float width, float height)
 
 	for (int i=0; i<32; i++)
 	{
+		if (getplayerkeyvalue(i, "*spectator"))
+			continue;
+
 		string player_name = getplayerkeyvalue(i, "name");
 		string player_frags = getplayerkeyvalue(i, "*frags");
 		string player_deaths = getplayerkeyvalue(i, "*deaths");
@@ -149,6 +152,27 @@ void Hud_Scoreboard(float width, float height)
 		DrawText(font_main, [left+320,	top + offset_y, 0], player_ping, '1 1 1', 1);
 		DrawText(font_main, [left+350,	top + offset_y, 0], player_pl, '1 1 1', 1);
 		offset_y += font_main.fontsize;
+	}
+
+	string spectator_names = "";
+
+	for (int i=0; i<32; i++)
+	{
+		if (!getplayerkeyvalue(i, "*spectator"))
+			continue;
+
+		string player_name = getplayerkeyvalue(i, "name");
+
+		if (strlen(spectator_names) == 0)
+			spectator_names = player_name;
+		else
+			spectator_names = strcat(spectator_names, ", ", player_name);
+	}
+
+	if (strlen(spectator_names) > 0)
+	{
+		offset_y += 12;
+		DrawText(font_main, [left, top + offset_y, 0], strcat("Spectators: ", spectator_names), '1 1 1', 1);
 	}
 }
 
