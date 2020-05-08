@@ -26,6 +26,10 @@ void item_armorInv()
 	REMAP_TO_ENTITY(item_armor_red);
 }
 
+#ifdef CSQC
+static .float spawnflags; // QW
+#endif
+
 void item_health()
 {
 	if (self.spawnflags & 2) // 100hp

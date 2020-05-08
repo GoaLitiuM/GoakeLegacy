@@ -63,7 +63,7 @@ void dprintln(... argc)
 {
 	for (float i=0; i<argc; i++)
 		dprint(va_arg(i, string));
-	print("\n");
+	dprint("\n");
 }
 
 #if 1

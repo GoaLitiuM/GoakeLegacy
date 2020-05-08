@@ -191,10 +191,12 @@ void CSQC_Parse_Event()
 			}
 
 			string killed_name = infokey(killed, "name");
-			string killer_name = infokey(killer, "name");
+			string killer_name = killer ? infokey(killer, "name") : "";
 
-			if (killer.entnum == killed.entnum)
+			if (killer.entnum == killed.entnum || (!killer && !source))
 				Chat_SystemMessage(strcat(killed_name, " suicided"), CHAT_TYPE_DEATH);
+			else if (!killer && source)
+				Chat_SystemMessage(strcat(killed_name, " got killed by ", source.classname), CHAT_TYPE_DEATH);
 			else if (source.classname != CLASS_PLAYER)
 				Chat_SystemMessage(strcat(killer_name, " fragged ", killed_name, " with ", source.classname), CHAT_TYPE_DEATH);
 			else
@@ -322,12 +324,6 @@ void CSQC_WorldLoaded()
 					func = externvalue(-2, strtolower(value));
 					ent.classname = strzone(value);
 					break;
-				case "targetname":
-					ent.targetname = strzone(value);
-					break;
-				case "target":
-					ent.target = strzone(value);
-					break;
 				case "origin":
 					ent.origin = stov(value);
 					break;
@@ -343,17 +339,37 @@ void CSQC_WorldLoaded()
 				case "model":
 					ent.model = value;
 					break;
-				case "message":
-					ent.message = strzone(value);
-					break;
-				case "count":
-					ent.count = stoi(value);
-					break;
-				case "spawnflags":
-					ent.spawnflags = stof(value);
-					break;
 				default:
+				{
+					float fldid = findentityfield(field);
+					if (fldid)
+					{
+						float fldtype = entityfieldtype(fldid);
+						field_t fld = entityfieldref(fldid);
+
+						switch (fldtype)
+						{
+							case EV_STRING:
+								ent.fld = strzone(value);
+								break;
+							case EV_FLOAT:
+								ent.fld = stof(value);
+								break;
+							case EV_VECTOR:
+								ent.fld = stov(value);
+								break;
+							case EV_INTEGER:
+								ent.fld = stoi(value);
+								break;
+							default:
+								println("Invalid field type ", ftos(fldtype), " for field '", field, "'");
+								break;
+						}
+					}
+					else
+						dprintln("Warning: Unsupported entity field '", field, "'");
 					break;
+				}
 			}
 		}
 

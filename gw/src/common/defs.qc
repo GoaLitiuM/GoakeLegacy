@@ -181,6 +181,10 @@ vector input_subframe_angles;
 #define armorvalue_min armorvalue
 .float armorvalue_max;
 
+// trigger_*
+.int dmg;
+.float pushforce; // .float speed
+
 // gamemode
 float gamemode_timeroffset;
 GameModeState gamemode_state = GameModeState::Inactive;
