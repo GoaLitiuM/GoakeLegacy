@@ -28,6 +28,8 @@
 #define MDL_ARROW "progs/arrow.mdl"
 
 #define CLASS_PLAYER "player"
+#define CLASS_PLAYER_SPECTATOR "player_spectator"
+#define CLASS_PLAYER_DISCONNECTED "player_disconnected"
 #define CLASS_NAIL "nail"
 #define CLASS_ROCKET "rocket"
 #define CLASS_LIGHTNING "lightning"

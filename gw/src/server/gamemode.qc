@@ -24,14 +24,20 @@ struct GameMode
 	// called when win conditions were met (fraglimit, timelimit...)
 	void() onEnd;
 
-	// called when new player connects
+	// called when new player connects to the server
 	void(entity player) onClientConnect;
 
-	// called when new player disconnects
+	// called when new player disconnects from the server
 	void(entity player) onClientDisconnect;
 
 	// called when player uses 'kill' command
 	void(entity player) onClientKill;
+
+	// called when player joins the game, return if player is allowed to join
+	bool(entity player) onJoin;
+
+	// called when player starts spectating
+	void(entity player) onSpectate;
 
 	// called when player wants to respawn, return true if player is allowed to respawn
 	bool(entity player) onPlayerRequestRespawn;
@@ -80,10 +86,14 @@ void GameMode_OnPlayerSpawn(entity player);
 int GameMode_GetMinimumPlayers();
 void GameMode_ResetTimer();
 GameMode* GameMode_GetMode();
+void GameMode_OnJoin(entity player);
+void GameMode_OnSpectate(entity player);
+
 bool Player_IsPlaying(entity player);
 
 int Game_CountPlayersReady();
 int Game_CountPlayers();
+int Game_CountClients();
 entity Game_GetPlayerWithMostFrags();
 
 void GameMode_Init()
@@ -397,13 +407,15 @@ void GameMode_Finish(entity player_winner)
 
 void GameMode_OnClientConnect(entity player)
 {
-	gamemode_players++;
+	gamemode_players = Game_CountClients();
 
 	if (gamemode_state == GameModeState::Inactive)
 		GameMode_SetState(GameModeState::Warmup);
 
 	if (gamemode->onClientConnect)
 		gamemode->onClientConnect(player);
+
+	GameMode_OnJoin(player);
 
 	forceinfokey(player, "ready", "0");
 
@@ -417,13 +429,51 @@ void GameMode_OnClientDisconnect(entity player)
 	if (gamemode->onClientDisconnect)
 		gamemode->onClientDisconnect(player);
 
-	gamemode_players--;
+	gamemode_players = Game_CountClients();
+
+	// HACK: player entities are not completely removed from the server,
+	// separate disconnected players from other players.
+	self.classname = CLASS_PLAYER_DISCONNECTED;
 }
 
 void GameMode_OnClientKill(entity player)
 {
 	if (gamemode->onClientKill)
 		gamemode->onClientKill(player);
+}
+
+void GameMode_OnSpectatorConnect(entity player)
+{
+	gamemode_players = Game_CountClients();
+	GameMode_OnSpectate(player);
+}
+
+void GameMode_OnSpectatorDisconnect(entity player)
+{
+	gamemode_players = Game_CountClients();
+}
+
+void GameMode_OnJoin(entity player)
+{
+	bool joined = true;
+	if (gamemode->onJoin)
+		joined = gamemode->onJoin(player);
+
+	if (!joined)
+	{
+		//TODO: prevent player from joining, assign to spectator instead
+	}
+}
+
+void GameMode_OnSpectate(entity player)
+{
+	self.classname = CLASS_PLAYER_SPECTATOR;
+	self.movetype = MOVETYPE_NOCLIP;
+	self.SendFlags |= SENDFLAGS_ALL;
+	self.dimension_seen = 0; // this player is not networked
+
+	if (gamemode->onSpectate)
+		gamemode->onSpectate(player);
 }
 
 bool GameMode_OnPlayerRequestRespawn(entity player)

@@ -16,6 +16,10 @@ void BaseMode_OnClientConnect(entity player)
 	forceinfokey(player, "*deaths", "0");
 }
 
+void BaseMode_OnClientDisconnect(entity player)
+{
+}
+
 void BaseMode_OnClientKill(entity player)
 {
 	Player_Kill(player);

@@ -37,4 +37,4 @@ void Race_OnPlayerDeath(entity player, entity source)
 {
 }
 
-#define GameMode_Race { "race", "Race", BaseMode_Init, BaseMode_Tick, Race_GetMinimumPlayers, 0, 0, BaseMode_OnStart, BaseMode_OnEnd, BaseMode_OnClientConnect, 0, Race_OnClientKill, BaseMode_OnPlayerRequestRespawn, BaseMode_OnPlayerSpawn, Race_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerApplyForce, Race_OnPlayerDeath }
+#define GameMode_Race { "race", "Race", BaseMode_Init, BaseMode_Tick, Race_GetMinimumPlayers, 0, 0, BaseMode_OnStart, BaseMode_OnEnd, BaseMode_OnClientConnect, 0, Race_OnClientKill, 0, 0, BaseMode_OnPlayerRequestRespawn, BaseMode_OnPlayerSpawn, Race_OnPlayerInit, Race_OnPlayerTakeDamage, Race_OnPlayerApplyForce, Race_OnPlayerDeath }

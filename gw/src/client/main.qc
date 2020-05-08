@@ -496,7 +496,7 @@ void CSQC_Input_Frame()
 		weapon_impulse = 0;
 	}
 
-	if (self.health <= 0)
+	if (Player_IsDead(self))
 	{
 		if (input_buttons & BUTTON_ATTACK != 0 || input_buttons & BUTTON_JUMP != 0)
 			input_impulse = IMPULSE_RESPAWN;

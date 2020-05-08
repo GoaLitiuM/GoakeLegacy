@@ -1,5 +1,21 @@
 bool Player_IsPlaying(entity player);
 
+int Game_CountClients()
+{
+	int total_clients = 0;
+	entity player = world;
+	while (true)
+	{
+		player = find(player, classname, CLASS_PLAYER);
+		if (player == world)
+			break;
+
+		total_clients++;
+	}
+
+	return total_clients;
+}
+
 int Game_CountPlayers()
 {
 	int total_players = 0;

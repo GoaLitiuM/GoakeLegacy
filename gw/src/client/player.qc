@@ -83,18 +83,19 @@ void Player_Update(bool isnew)
 
 void Player_UpdateCamera()
 {
-	camera_origin_old = camera_origin - self.view_ofs;
+	entity target = self;
+	camera_origin_old = camera_origin - target.view_ofs;
 
 	// smooth out movement after stepping up
 	const float step_size = serverkeyfloat("pm_stepheight", 18);
 	const float step_smooth_units = 160;
-	const float step_delta = self.origin_z - camera_origin_old_z;
+	const float step_delta = target.origin_z - camera_origin_old_z;
 	float step_z = camera_origin_old_z;
 
-	if (self.flags & FL_ONGROUND != 0 && step_delta > 0 && step_delta <= step_size * 2)
+	if (target.flags & FL_ONGROUND != 0 && step_delta > 0 && step_delta <= step_size * 2)
 	{
 		// smoothing needs to be faster on slopes, otherwise it would look like player slightly sinks into the slope
-		tracebox(self.current_origin, self.mins, self.maxs, self.current_origin + self.current_velocity * frametime, false, self);
+		tracebox(target.current_origin, target.mins, target.maxs, target.current_origin + target.current_velocity * frametime, false, target);
 		float d = -dotproduct(global_gravitydir, trace_plane_normal);
 
 		float smoothing = step_smooth_units;
@@ -102,13 +103,13 @@ void Player_UpdateCamera()
 			smoothing = step_smooth_units * 3;
 
 		step_z += frametime * smoothing;
-		step_z = min(step_z, self.origin_z);
+		step_z = min(step_z, target.origin_z);
 	}
 	else
-		step_z = self.origin_z;
+		step_z = target.origin_z;
 
-	camera_origin = [self.origin_x, self.origin_y, step_z] + self.view_ofs;
-	camera_velocity = self.velocity;
+	camera_origin = [target.origin_x, target.origin_y, step_z] + target.view_ofs;
+	camera_velocity = target.velocity;
 
 	setviewprop(VF_CL_VIEWANGLES, view_angles);
 }
@@ -117,6 +118,13 @@ float Player_PreDraw()
 {
 	if (self.entnum == player_localentnum)
 	{
+		if (Player_IsSpectator(self))
+		{
+			PlayerPrediction_ApplyServerState();
+			Player_UpdateCamera();
+			return PREDRAW_NEXT;
+		}
+
 		bool prediction = cvar("cl_nopred") == 0;
 		if (prediction)
 			PlayerPrediction();
@@ -144,7 +152,6 @@ float Player_PreDraw()
 	}
 	else
 	{
-		self.movetype = MOVETYPE_NONE;
 		PlayerPrediction_ApplyServerState();
 
 		// extrapolate

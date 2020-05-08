@@ -17,11 +17,16 @@ bool Player_IsDead(entity player)
 	return self.health <= 0;
 }
 
+bool Player_IsSpectator(entity player)
+{
+	return infokeyf(self, "*spectator") != 0;
+}
+
 bool Player_IsPlaying(entity player)
 {
 	if (strlen(infokey(player, "name")) == 0)
 		return false;
-	if (infokeyf(player, "*spectator") != 0)
+	if (!Player_IsSpectator(player))
 		return false;
 	return true;
 }
@@ -176,6 +181,15 @@ void Player_Physics()
 
 void Player_PostTick()
 {
+	if (Player_IsSpectator(self))
+	{
+#ifdef CSQC
+		if (self == local_player)
+			return;
+#endif
+		return;
+	}
+
 	bool onground = (self.flags & FL_ONGROUND) != 0;
 	bool jumped = (self.pmove_flags & PMF_JUMPED) != 0 && (self.last_pmove_flags & PMF_JUMPED) == 0;
 

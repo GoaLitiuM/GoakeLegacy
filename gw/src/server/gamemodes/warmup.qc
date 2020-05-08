@@ -16,4 +16,4 @@ float Warmup_OnPlayerTakeDamage(entity player, float damage, entity source)
 	return damage;
 }
 
-#define GameMode_Warmup { "warmup", "Warmup", BaseMode_Init, BaseMode_Tick, BaseMode_GetMinimumPlayers, 0, 0, BaseMode_OnStart, BaseMode_OnEnd, BaseMode_OnClientConnect, 0, BaseMode_OnClientKill, BaseMode_OnPlayerRequestRespawn, BaseMode_OnPlayerSpawn, Warmup_OnPlayerInit, Warmup_OnPlayerTakeDamage, BaseMode_OnPlayerApplyForce, BaseMode_OnPlayerDeath }
+#define GameMode_Warmup { "warmup", "Warmup", BaseMode_Init, BaseMode_Tick, BaseMode_GetMinimumPlayers, 0, 0, BaseMode_OnStart, BaseMode_OnEnd, BaseMode_OnClientConnect, 0, BaseMode_OnClientKill, 0, 0, BaseMode_OnPlayerRequestRespawn, BaseMode_OnPlayerSpawn, Warmup_OnPlayerInit, Warmup_OnPlayerTakeDamage, BaseMode_OnPlayerApplyForce, BaseMode_OnPlayerDeath }

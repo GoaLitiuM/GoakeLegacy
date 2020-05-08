@@ -55,6 +55,24 @@ void PutClientInServer()
 	GameMode_OnPlayerSpawn(self);
 }
 
+void SpectatorConnect()
+{
+	self.SendEntity = Player_SendEntity;
+	GameMode_OnSpectatorConnect(self);
+	println("spectator connect");
+}
+
+void SpectatorDisconnect()
+{
+	GameMode_OnSpectatorDisconnect(self);
+	println("spectator disconnect ", self.classname);
+
+}
+
+void SpectatorThink()
+{
+}
+
 void StartFrame()
 {
 	GameMode_Tick();
