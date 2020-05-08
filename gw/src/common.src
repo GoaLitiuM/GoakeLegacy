@@ -11,3 +11,4 @@
 #include <common/weapons/rocket.qc>
 #include <common/weapons/lightning.qc>
 #include <common/weapons/crossbow.qc>
+#include <common/weapons/nailgun.qc>

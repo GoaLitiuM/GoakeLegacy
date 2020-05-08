@@ -2,6 +2,7 @@ void precache_sounds()
 {
 	precache_sound(SND_JUMPLAND);
 
+	precache_sound(SND_WEAPON_NAILGUN);
 	precache_sound(SND_WEAPON_ROCKET);
 	precache_sound(SND_WEAPON_LIGHTNING);
 	precache_sound(SND_WEAPON_CROSSBOW);
@@ -17,6 +18,7 @@ void precache_sounds()
 void precache_models()
 {
 	precache_model(SPR_EXPLOSION);
+	precache_model(MDL_NAIL);
 	precache_model(MDL_ROCKET);
 	precache_model(MDL_BEAM);
 	precache_model(MDL_ARROW);

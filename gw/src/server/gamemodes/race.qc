@@ -5,7 +5,10 @@ int Race_GetMinimumPlayers()
 
 void Race_OnPlayerInit(entity player)
 {
-	BaseMode_OnPlayerInit(player);
+	player.health = 100;
+	player.armorvalue = 0;
+	player.armortype = ARMOR_GREEN_ABSORB;
+
 	player.solid = SOLID_CORPSE;
 
 	for (int i=0; i<WEAPON_LAST; i++)

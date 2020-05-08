@@ -4,9 +4,9 @@ bool Weapon_OnTouch()
 		error(strcat("invalid ammo_stat number ", itos(self.ammo_stat)));
 
 	bool picked = false;
-	if (!(other.weapons & WEAPON_BIT(self.weapons)))
+	if (!(other.weapons & self.weapons))
 	{
-		other.weapons |= WEAPON_BIT(self.weapons);
+		other.weapons |= self.weapons;
 		picked = true;
 	}
 
@@ -24,12 +24,23 @@ bool Weapon_OnTouch()
 	return picked;
 }
 
+void weapon_nailgun()
+{
+	Item_InitWeapon();
+	Item_SetTouch(Weapon_OnTouch);
+
+	self.weapons = WEAPON_BIT(WEAPON_NAILGUN);
+	self.ammo_stat = STAT_AMMO_ROCKETS;
+	if (self.count == 0)
+		self.count = 50;
+}
+
 void weapon_rocketlauncher()
 {
 	Item_InitWeapon();
 	Item_SetTouch(Weapon_OnTouch);
 
-	self.weapons = WEAPON_ROCKET;
+	self.weapons = WEAPON_BIT(WEAPON_ROCKET);
 	self.ammo_stat = STAT_AMMO_ROCKETS;
 	if (self.count == 0)
 		self.count = 5;
@@ -40,7 +51,7 @@ void weapon_crossbow()
 	Item_InitWeapon();
 	Item_SetTouch(Weapon_OnTouch);
 
-	self.weapons = WEAPON_CROSSBOW;
+	self.weapons = WEAPON_BIT(WEAPON_CROSSBOW);
 	self.ammo_stat = STAT_AMMO_BOLTS;
 	if (self.count == 0)
 		self.count = 5;
@@ -51,7 +62,7 @@ void weapon_lightning()
 	Item_InitWeapon();
 	Item_SetTouch(Weapon_OnTouch);
 
-	self.weapons = WEAPON_LIGHTNING;
+	self.weapons = WEAPON_BIT(WEAPON_LIGHTNING);
 	self.ammo_stat = STAT_AMMO_CELLS;
 	if (self.count == 0)
 		self.count = 20;

@@ -7,6 +7,7 @@
 #define SND_JUMPLAND_LAND_HARD_VOLUME 0.9
 #define SND_JUMPLAND_LAND_HARD_THRESHOLD -300
 
+#define SND_WEAPON_NAILGUN "weapon/nailgun_fire.wav"
 #define SND_WEAPON_ROCKET "weapon/rocketlauncher_fire.wav"
 #define SND_WEAPON_LIGHTNING "weapon/lightning_fire.wav"
 #define SND_WEAPON_CROSSBOW "weapon/crossbow_fire.wav"
@@ -21,11 +22,13 @@
 #define SPR_EXPLOSION "progs/s_explod.spr"
 
 #define MDL_PLAYER "models/players/crash"
+#define MDL_NAIL "progs/spike.mdl"
 #define MDL_ROCKET "progs/missile.mdl"
 #define MDL_BEAM "progs/bolt2.mdl"
 #define MDL_ARROW "progs/arrow.mdl"
 
 #define CLASS_PLAYER "player"
+#define CLASS_NAIL "nail"
 #define CLASS_ROCKET "rocket"
 #define CLASS_LIGHTNING "lightning"
 #define CLASS_ARROW "arrow"

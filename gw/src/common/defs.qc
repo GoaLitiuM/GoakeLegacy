@@ -70,9 +70,9 @@ enum
 	WEAPON_NONE = 0,
 
 	WEAPON_MELEE,
-	WEAPON_2,
-	WEAPON_SHOTGUN,
 	WEAPON_NAILGUN,
+	WEAPON_SHOTGUN,
+	WEAPON_4,
 	WEAPON_GRENADE,
 	WEAPON_ROCKET,
 	WEAPON_LIGHTNING,
@@ -115,7 +115,9 @@ int WEAPON_AMMO_INDEX(int weapon)
 
 int AMMO_MAX(int ammo_stat)
 {
-	if (ammo_stat == STAT_AMMO_ROCKETS)
+	if (ammo_stat == STAT_AMMO_NAILS)
+		return NAILGUN_MAX_AMMO;
+	else if (ammo_stat == STAT_AMMO_ROCKETS)
 		return ROCKET_MAX_AMMO;
 	else if (ammo_stat == STAT_AMMO_CELLS)
 		return LIGHTNING_MAX_AMMO;
@@ -126,13 +128,14 @@ int AMMO_MAX(int ammo_stat)
 
 #define WEAPON_BIT(x) (1 << x)
 #define STAT_WEAPON(x) (STAT_AMMO_FIRST + x)
-#define ALL_WEAPONS (-1)
+const int ALL_WEAPONS = WEAPON_BIT(WEAPON_NAILGUN) | WEAPON_BIT(WEAPON_ROCKET) | WEAPON_BIT(WEAPON_LIGHTNING) | WEAPON_BIT(WEAPON_CROSSBOW);
 #define AMMO_INFINITE (-1)
 
 // FIXME
 int WeaponRocket_Fire(vector forward);
 int WeaponLightning_Fire(vector forward);
 int WeaponCrossbow_Fire(vector forward);
+int WeaponNailgun_Fire(vector forward);
 
 // globals for global stats
 float sv_autojump;

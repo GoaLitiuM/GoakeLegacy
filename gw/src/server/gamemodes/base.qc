@@ -105,6 +105,10 @@ void BaseMode_OnPlayerInit(entity player)
 	player.health = 100;
 	player.armorvalue = 0;
 	player.armortype = ARMOR_GREEN_ABSORB;
+
+	player.weapons = WEAPON_BIT(WEAPON_NAILGUN);
+	player.weapon = WEAPON_NAILGUN;
+	player.ammo[WEAPON_AMMO_INDEX(WEAPON_NAILGUN)] = 50;
 }
 
 float BaseMode_OnPlayerTakeDamage(entity player, float damage, entity source)

@@ -17,6 +17,15 @@ const float ARMOR_GREEN_ABSORB = 0.5;
 const float ARMOR_GREEN_MAX = 100;
 const float ARMOR_GREEN_MIN = 50;
 
+const float NAILGUN_RELOAD = 0.1;
+const float NAILGUN_DAMAGE = 10;
+const float NAILGUN_DAMAGE_DISTANCE_POWER = 0;
+const float NAILGUN_RADIUS = 70;
+const float NAILGUN_SPEED = 2000;
+const float NAILGUN_FORCE = 100;
+const float NAILGUN_FORCE_DISTANCE_POWER = 0.4;
+const float NAILGUN_MAX_AMMO = 100;
+
 const float ROCKET_RELOAD = 0.8;
 const float ROCKET_DAMAGE = 100;
 const float ROCKET_DAMAGE_MIN = 15;

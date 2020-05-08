@@ -34,7 +34,7 @@ void Player_Init()
 	self.armortype = ARMOR_GREEN_ABSORB;
 	self.armorvalue = 0;
 
-	self.weapon = WEAPON_ROCKET;
+	self.weapon = 0;
 	self.weapons = 0;
 	self.weapon_next = -1;
 
@@ -45,7 +45,6 @@ void Player_Init()
 
 	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
 
-	self.weapon_next = self.weapon;
 	self.spawn_wish = false;
 
 #ifdef CSQC
