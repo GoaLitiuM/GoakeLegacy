@@ -160,53 +160,53 @@ GameMode* GameMode_FindMode(string mode)
 
 void GameMode_BroadcastGameMode(entity target)
 {
-	float msg_type = MSG_ALL;
+	float msg_type = MULTICAST_ALL_R;
 	if (target != world)
 	{
 		msg_entity = target;
-		msg_type = MSG_ONE;
+		msg_type = MULTICAST_ONE_R_NOSPECS;
 	}
 	else if (gamemode_players <= 0)
 		return;
 
 	GameMode* current_mode = GameMode_GetMode();
-	writeByte(msg_type, SVC_CGAMEPACKET);
-	writeByte(msg_type, EVENT_GAMEMODE_CHANGED);
-	writeString(msg_type, current_mode->name);
-	writeString(msg_type, current_mode->fullname);
-	writeByte(msg_type, GameMode_GetMinimumPlayers());
+	writeEvent(MSG_MULTICAST, EVENT_GAMEMODE_CHANGED);
+	writeString(MSG_MULTICAST, current_mode->name);
+	writeString(MSG_MULTICAST, current_mode->fullname);
+	writeByte(MSG_MULTICAST, GameMode_GetMinimumPlayers());
+	multicast('0 0 0', msg_type);
 }
 
 void GameMode_BroadcastGameState(entity target)
 {
-	float msg_type = MSG_ALL;
+	float msg_type = MULTICAST_ALL_R;
 	if (target != world)
 	{
 		msg_entity = target;
-		msg_type = MSG_ONE;
+		msg_type = MULTICAST_ONE_R_NOSPECS;
 	}
 	else if (gamemode_players <= 0)
 		return;
 
-	writeByte(msg_type, SVC_CGAMEPACKET);
-	writeByte(msg_type, EVENT_GAMEMODE_STATE);
-	writeByte(msg_type, (int)(__variant)gamemode_state);
+	writeEvent(MSG_MULTICAST, EVENT_GAMEMODE_STATE);
+	writeByte(MSG_MULTICAST, (int)(__variant)gamemode_state);
+	multicast('0 0 0', msg_type);
 }
 
 void GameMode_BroadcastGameTime(entity target)
 {
-	float msg_type = MSG_ALL;
+	float msg_type = MULTICAST_ALL_R;
 	if (target != world)
 	{
 		msg_entity = target;
-		msg_type = MSG_ONE;
+		msg_type = MULTICAST_ONE_R_NOSPECS;
 	}
 	else if (gamemode_players <= 0)
 		return;
 
-	writeByte(msg_type, SVC_CGAMEPACKET);
-	writeByte(msg_type, EVENT_GAMEMODE_TIMER);
-	writeFloat(msg_type, gamemode_timeroffset);
+	writeEvent(MSG_MULTICAST, EVENT_GAMEMODE_TIMER);
+	writeFloat(MSG_MULTICAST, gamemode_timeroffset);
+	multicast('0 0 0', msg_type);
 }
 
 int GameMode_GetFragLimit()

@@ -151,8 +151,7 @@ void BaseMode_OnPlayerDeath(entity player, entity source)
 		}
 	}
 
-	writeByte(MSG_MULTICAST, SVC_CGAMEPACKET);
-	writeByte(MSG_MULTICAST, EVENT_PLAYER_DEATH);
+	writeEvent(MSG_MULTICAST, EVENT_PLAYER_DEATH);
 	WriteEntity(MSG_MULTICAST, player);
 	WriteEntity(MSG_MULTICAST, source_player);
 	WriteEntity(MSG_MULTICAST, source);

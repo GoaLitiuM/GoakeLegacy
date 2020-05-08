@@ -163,8 +163,7 @@ void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player)
 	}
 
 #ifdef SSQC
-	writeByte(MSG_MULTICAST, SVC_CGAMEPACKET);
-	writeByte(MSG_MULTICAST, EVENT_LIGHTNING);
+	writeEvent(MSG_MULTICAST, EVENT_LIGHTNING);
 	WriteEntity(MSG_MULTICAST, player);
 	writeVector(MSG_MULTICAST, pos);
 	writeVector(MSG_MULTICAST, hit_pos);

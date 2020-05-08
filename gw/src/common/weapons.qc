@@ -88,8 +88,7 @@ void Player_WeaponAttack(vector angle)
 	}
 
 #ifdef SSQC
-	writeByte(MSG_MULTICAST, SVC_CGAMEPACKET);
-	writeByte(MSG_MULTICAST, EVENT_PLAYER_ATTACK);
+	writeEvent(MSG_MULTICAST, EVENT_PLAYER_ATTACK);
 	WriteEntity(MSG_MULTICAST, self);
 	multicast(self.origin, MULTICAST_PVS);
 #endif

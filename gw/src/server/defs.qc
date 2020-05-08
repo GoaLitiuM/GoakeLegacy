@@ -22,4 +22,10 @@ void writeVectorFloat(float to, vector vec)
 	writeFloat(to, vec_z);
 }
 
+void writeEvent(float to, int event)
+{
+	writeByte(to, SVC_CGAMEPACKET);
+	writeByte(to, event);
+}
+
 void precache_player_model(string modelname) {}

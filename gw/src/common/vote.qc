@@ -250,18 +250,18 @@ void Vote_Passed()
 {
 	Vote_ApplyChanges();
 
-	writeByte(MSG_ALL, SVC_CGAMEPACKET);
-	writeByte(MSG_ALL, EVENT_CALLVOTE_FINISHED);
-	writeByte(MSG_ALL, true);
+	writeEvent(MSG_MULTICAST, EVENT_CALLVOTE_FINISHED);
+	writeByte(MSG_MULTICAST, true);
+	multicast('0 0 0', MULTICAST_ALL_R);
 }
 
 void Vote_Failed()
 {
 	callvote = CALLVOTE_INACTIVE;
 
-	writeByte(MSG_ALL, SVC_CGAMEPACKET);
-	writeByte(MSG_ALL, EVENT_CALLVOTE_FINISHED);
-	writeByte(MSG_ALL, false);
+	writeEvent(MSG_MULTICAST, EVENT_CALLVOTE_FINISHED);
+	writeByte(MSG_MULTICAST, false);
+	multicast('0 0 0', MULTICAST_ALL_R);
 }
 
 void Vote_Finish()
@@ -356,10 +356,10 @@ void Vote_OnPlayerVote(entity player, int vote, variant value)
 	if (player.voted != VOTE_IGNORED)
 	{
 		// this player initiated the vote, and their vote can be inferred from the callvote announcement
-		writeByte(MSG_ALL, SVC_CGAMEPACKET);
-		writeByte(MSG_ALL, EVENT_CALLVOTE_PLAYERVOTE);
-		writeString(MSG_ALL, player_name);
-		writeByte(MSG_ALL, vote);
+		writeEvent(MSG_MULTICAST, EVENT_CALLVOTE_PLAYERVOTE);
+		writeString(MSG_MULTICAST, player_name);
+		writeByte(MSG_MULTICAST, vote);
+		multicast('0 0 0', MULTICAST_ALL_R);
 	}
 
 	player.voted = vote;
@@ -441,11 +441,11 @@ void Vote_OnCallVote(entity player, int vote, variant value)
 	callvote_value = value;
 	callvote_endtime = time + callvote_timeout;
 
-	writeByte(MSG_ALL, SVC_CGAMEPACKET);
-	writeByte(MSG_ALL, EVENT_CALLVOTE);
-	writeString(MSG_ALL, player_name);
-	writeByte(MSG_ALL, callvote);
-	writeString(MSG_ALL, value_str);
+	writeEvent(MSG_MULTICAST, EVENT_CALLVOTE);
+	writeString(MSG_MULTICAST, player_name);
+	writeByte(MSG_MULTICAST, callvote);
+	writeString(MSG_MULTICAST, value_str);
+	multicast('0 0 0', MULTICAST_ALL_R);
 
 	// caller always votes yes
 	Vote_OnPlayerVote(player, VOTE_YES, 0);
