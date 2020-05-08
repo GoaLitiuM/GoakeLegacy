@@ -82,6 +82,9 @@ float noop_predraw() { return PREDRAW_NEXT; }
 
 entity getEntity(float entitynum)
 {
+	if (entitynum == 0)
+		return world;
+
 	entity ent = nextent(world);
 	while (ent != world)
 	{
