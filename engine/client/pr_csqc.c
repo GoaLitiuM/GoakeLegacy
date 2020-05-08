@@ -4024,6 +4024,37 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 
 	CL_SetSolidEntities();
 	
+#ifdef GOAKE
+	// HACK: CSQC players are not visible in physents,
+	// let's just read the latest values directly from entity fields for now...
+	for (int e = 1; e < maxcsqcentities; e++)
+	{
+		csqcedict_t *ed = csqcent[e];
+		if (ed == NULL || ED_ISFREE(ed))
+			continue;
+		
+		if (ed->xv->entnum == pmove.skipent)
+			continue;
+
+		const char* classname = PR_GetString(prinst, ed->xv->classname);
+		if (strcmp(classname, "player"))
+			continue;
+			
+		if (ed->xv->solid == SOLID_NOT)
+			continue;
+		
+		physent_t* pent = &pmove.physents[pmove.numphysent];
+		memset(pent, 0, sizeof(physent_t));
+		
+		VectorCopy(ed->v->origin, pent->origin);
+		VectorCopy(ed->v->mins, pent->mins);
+		VectorCopy(ed->v->maxs, pent->maxs);
+		pent->info = ed->xv->entnum;
+		
+		pmove.numphysent++;
+	}
+#endif
+	
 	float min_msec = movevars.msec_min;
 	float max_msec = max(movevars.msec_max, 1.0f);
 	int pmove_flags = 0;
