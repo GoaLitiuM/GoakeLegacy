@@ -2799,5 +2799,10 @@ void SV_SetMoveVars(void)
 	movevars.cliptime			= pm_cliptime.value;
 	movevars.msec_min			= pm_msec_min.value;
 	movevars.msec_max			= pm_msec_max.value;
+	movevars.ktjump				= pm_ktjump.value;
+	movevars.pground			= pm_pground.value;
+	movevars.bunnyspeedcap		= pm_bunnyspeedcap.value;
+	movevars.walljump			= pm_walljump.value;
+	movevars.stepdown			= pm_stepdown.value;
 }
 #endif
