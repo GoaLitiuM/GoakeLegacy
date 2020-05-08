@@ -139,7 +139,6 @@ typedef struct {
 	float autojump;
 	int maxjumps;
 	float jumpboost_time;
-	qboolean rampfix;
 	float rampvelocity;
 	float cliptime;
 	float msec_min;
