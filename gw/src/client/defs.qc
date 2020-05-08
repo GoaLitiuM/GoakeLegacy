@@ -31,6 +31,7 @@ vector attack_angle;
 // last handled commandframes for player prediction
 .int playerclientframe;
 .int playerserverframe;
+.float last_error_time;
 
 // latest predicted player fields, these are used to detect clientside changes to player state
 .vector current_origin;

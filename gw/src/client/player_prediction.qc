@@ -220,15 +220,30 @@ void PlayerPrediction()
 	}
 	else
 	{
-		bool pred_error = false;
+		bool reset_prediction = false;
 		if (self.playerserverframe != servercommandframe)
 		{
+			#define ORIGIN_ERROR_THRESHOLD 69
+			#define VELOCITY_ERROR_THRESHOLD 40
+			#define ANGLE_ERROR_THRESHOLD 6
+
+			// origin error threshold should be relative to current velocity
+			float origin_error_threshold = max(ORIGIN_ERROR_THRESHOLD, ORIGIN_ERROR_THRESHOLD * (vlen(self.server_velocity) / 320.0f));
+
+			float origin_error = vlen(self.server_origin - self.server_pred_origin);
+			float velocity_error = vlen(self.server_velocity - self.server_pred_velocity);
+			//float angle_error = vlen(self.server_angles - self.server_pred_angles);
+
 			// detect prediction errors by comparing against previously predicted server frame
-			if (vlen(self.server_origin - self.server_pred_origin) > 0 ||
-				vlen(self.server_velocity - self.server_pred_velocity) > 0 ||
-				vlen(self.server_angles - self.server_pred_angles) > 0)
+			if (origin_error > origin_error_threshold || velocity_error > VELOCITY_ERROR_THRESHOLD /*|| angle_error > ANGLE_ERROR_THRESHOLD*/)
 			{
-				pred_error = true;
+				if (origin_error > origin_error_threshold)
+					dprintln("orig error: ", ftos(origin_error), ", threshold: ", ftos(origin_error_threshold));
+				if (velocity_error > VELOCITY_ERROR_THRESHOLD)
+					dprintln("velo error: ", ftos(velocity_error));
+				//if (angle_error > ANGLE_ERROR_THRESHOLD)
+				//	dprintln("angl error: ", ftos(angle_error));
+				reset_prediction = true;
 			}
 
 			// predict next server frame for error detection
@@ -241,19 +256,26 @@ void PlayerPrediction()
 			self.playerserverframe = servercommandframe;
 		}
 
-		if (self.playerclientframe != currentframe || pred_error)
+		if (self.playerclientframe != currentframe || reset_prediction)
 		{
-			if (pred_error)
+			// we need to reset prediction once in a while to make sure the client stays up to date
+			// FIXME: when clientside collisions against other players during prediction is fixed
+			if (cltime-self.last_error_time > 0.5)
+				reset_prediction = true;
+
+			if (reset_prediction)
 			{
 				// prediction errors were detected, we need to simulate all frames after latest server frame again
+				PlayerPrediction_Reset();
 				PlayerPrediction_ApplyServerState();
 				self.playerclientframe = servercommandframe + 1;
-				// TODO: apply catchup gradually to spread physics calculations along multiple frames to avoid hitchups and to teleporting around
+				self.last_error_time = cltime;
+				// TODO: apply catchup gradually to spread physics calculations along multiple frames to avoid hitchups and teleporting around
 			}
 			else
 				PlayerPrediction_ApplyClientState();
 
-			PlayerPrediction_RunPhysics(self.playerclientframe, currentframe-1, !pred_error);
+			PlayerPrediction_RunPhysics(self.playerclientframe, currentframe-1, !reset_prediction);
 			self.playerclientframe = currentframe;
 
 			self.client_origin = self.origin;
