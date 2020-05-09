@@ -33,7 +33,7 @@ void weapon_nailgun()
 	Item_SetTouch(Weapon_OnTouch);
 
 	self.weapons = WEAPON_BIT(WEAPON_NAILGUN);
-	self.ammo_stat = STAT_AMMO_ROCKETS;
+	self.ammo_stat = STAT_AMMO_NAILS;
 	if (self.count == 0)
 		self.count = 50;
 }

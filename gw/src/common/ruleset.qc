@@ -25,7 +25,7 @@ const float NAILGUN_RADIUS = 70;
 const float NAILGUN_SPEED = 2000;
 const float NAILGUN_FORCE = 100;
 const float NAILGUN_FORCE_DISTANCE_POWER = 0.4;
-const float NAILGUN_MAX_AMMO = 100;
+const float NAILGUN_MAX_AMMO = 150;
 
 const float ROCKET_RELOAD = 0.8;
 const float ROCKET_DAMAGE = 100;
