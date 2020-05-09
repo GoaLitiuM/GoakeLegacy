@@ -5998,7 +5998,14 @@ double Host_Frame (double time)
 
 	if (idle && cl_idlefps.value > 0)
 	{
-		double idlesec = 1.0 / cl_idlefps.value;
+		double idlefps = cl_idlefps.value;
+		if (sv.state && sv.spawned_client_slots + sv.spawned_observer_slots > 1)
+		{
+			// idling listen servers should not cause other players to lag
+			idlefps = cls.maxfps;
+		}
+		
+		double idlesec = 1.0 / idlefps;
 		if (idlesec > 0.1)
 			idlesec = 0.1; // limit to at least 10 fps
 #ifdef HAVE_MEDIA_ENCODER
@@ -6054,8 +6061,7 @@ double Host_Frame (double time)
 		double newspare = CL_FilterTime((spare/1000 + deltatime)*1000, maxfps, 1.5, maxfpsignoreserver);
 		if (!newspare)
 		{
-			while(COM_DoWork(0, false))
-				;
+			COM_MainThreadFlush();
 			return (cl_yieldcpu.ival || vid.isminimized || idle)? (1.0 / maxfps - deltatime) : 0;
 		}
 		if (spare < 0 || cls.state < ca_onserver)
