@@ -117,3 +117,55 @@ entity Game_GetRandomSpawn()
 
 	return ent;
 }
+
+void Game_DropPlayerWeapon(entity player)
+{
+	Weapon* weapon_def = &weapon_defs[player.weapon];
+	void() weapon_func = externvalue(-2, strtolower(weapon_def.entname));
+
+	if (!weapon_func)
+	{
+		println("Player tried dropping unknown weapon: '", weapon_def.entname, "'");
+		return;
+	}
+
+	int ammo_index = WEAPON_AMMO_INDEX(player.weapon);
+	int player_ammo = player.ammo[ammo_index];
+
+	if (player_ammo <= 0)
+		return;
+
+	entity dropped_weapon = spawn();
+	dropped_weapon.classname = weapon_def.entname;
+	dropped_weapon.origin = player.origin;
+	setorigin(dropped_weapon, dropped_weapon.origin);
+
+	{
+		entity oldself = self;
+		self = dropped_weapon;
+
+		if (weapon_func)
+			weapon_func();
+
+		dropped_weapon.respawn_time = -WEAPON_DESPAWN_TIME;
+		Item_SetActive(true);
+
+		self = oldself;
+	}
+
+	int drop_count = dropped_weapon.count;
+	if (player_ammo < drop_count)
+		drop_count = player_ammo; // prevent abuse
+
+	dropped_weapon.movetype = MOVETYPE_TOSS;
+	dropped_weapon.count = -drop_count; // always adds ammo
+	dropped_weapon.pickup_time = time + 1;
+
+	if (!Player_IsDead(player))
+	{
+		int weapon_bit = WEAPON_BIT(player.weapon);
+
+		player.weapons &= ~weapon_bit;
+		player.ammo[ammo_index] = 0;
+	}
+}

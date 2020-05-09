@@ -5,6 +5,7 @@ const float HEALTH_DECAY_RATE = 1.0;
 const float MEGA_RESPAWN_TIME = 20;
 const float ARMOR_RESPAWN_TIME = 20;
 const float HEALTH_RESPAWN_TIME = 20;
+const float WEAPON_DESPAWN_TIME = 30;
 
 // armor mitigation/protection ratio, maximum armor value from armor pickups, minimum armor value
 const float ARMOR_RED_ABSORB = 0.8;

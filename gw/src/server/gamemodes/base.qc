@@ -151,6 +151,8 @@ void BaseMode_OnPlayerDeath(entity player, entity source)
 		}
 	}
 
+	Game_DropPlayerWeapon(player);
+
 	writeEvent(MSG_MULTICAST, EVENT_PLAYER_DEATH);
 	WriteEntity(MSG_MULTICAST, player);
 	WriteEntity(MSG_MULTICAST, source_player);

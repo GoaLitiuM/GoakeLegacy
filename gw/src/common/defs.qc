@@ -176,9 +176,10 @@ vector input_subframe_angles;
 .entity last_touched; // last entity who touched the item
 .string pickup_sound;
 .bool() touch2;
-.int count;
+.int count;			  // negative values are used by weapons dropped by player, bypassing the minimum pickup count
 .int ammo_stat;
-.float respawn_time;
+.float pickup_time;   // absolute time, after the item can be picked up
+.float respawn_time;  // relative time, negative value is despawn time, which removes the item permanently
 
 // item_armor*
 #define armorvalue_min armorvalue

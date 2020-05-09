@@ -1,12 +1,12 @@
 #include <common/math.qc>
 
-#include <common/game.qc>
 #include <common/weapons.qc>
 #include <common/player.qc>
 #include <common/stats.qc>
 #include <common/entity.qc>
 #include <common/item.qc>
 #include <common/vote.qc>
+#include <common/game.qc>
 
 #include <common/weapons/rocket.qc>
 #include <common/weapons/lightning.qc>

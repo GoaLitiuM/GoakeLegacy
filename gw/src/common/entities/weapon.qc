@@ -4,6 +4,7 @@ bool Weapon_OnTouch()
 		error(strcat("invalid ammo_stat number ", itos(self.ammo_stat)));
 
 	bool picked = false;
+	bool player_drop = self.count < 0;
 	if (!(other.weapons & self.weapons))
 	{
 		other.weapons |= self.weapons;
@@ -11,13 +12,15 @@ bool Weapon_OnTouch()
 	}
 
 	// ammo component of the weapon
+	int ammo_count = abs(self.count);
 	int ammo_index = self.ammo_stat-STAT_AMMO_FIRST;
 	int prev_ammo = other.ammo[ammo_index];
-	if (other.ammo[ammo_index] < self.count)
+	if (player_drop || other.ammo[ammo_index] < self.count)
 	{
-		// weapons only replenish ammo up to the initial ammo count
 		picked |= Ammo_OnTouch();
-		if (other.ammo[ammo_index] > self.count)
+
+		// weapons only replenish ammo up to the initial ammo count, unless dropped by a player
+		if (!player_drop && other.ammo[ammo_index] > self.count)
 			other.ammo[ammo_index] = self.count;
 	}
 
