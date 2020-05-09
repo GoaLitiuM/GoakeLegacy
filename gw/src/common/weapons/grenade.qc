@@ -63,6 +63,9 @@ void WeaponGrenade_Update(float isnew)
 	self.owner = readEntity();
 	int pid = readFloat();
 
+	if (isnew)
+		WeaponGrenade_Init(self);
+	setorigin(self, self.origin);
 	self.projectile_id = pid;
 }
 #endif
@@ -70,7 +73,7 @@ void WeaponGrenade_Update(float isnew)
 #ifdef SSQC
 float WeaponGrenade_SendEntity(entity ent, float flags)
 {
-	writeByte(MSG_ENTITY, SENDENTITY_ROCKET);
+	writeByte(MSG_ENTITY, SENDENTITY_GRENADE);
 	writeVector(MSG_ENTITY, self.origin);
 	writeVector(MSG_ENTITY, self.angles);
 	writeVector(MSG_ENTITY, self.velocity);

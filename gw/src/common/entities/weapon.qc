@@ -60,12 +60,12 @@ void weapon_grenadelauncher()
 		self.count = 5;
 }
 
-void weapon_crossbow()
+void weapon_stake()
 {
 	Item_InitWeapon();
 	Item_SetTouch(Weapon_OnTouch);
 
-	self.weapons = WEAPON_BIT(WEAPON_CROSSBOW);
+	self.weapons = WEAPON_BIT(WEAPON_STAKE);
 	self.ammo_stat = STAT_AMMO_BOLTS;
 	if (self.count == 0)
 		self.count = 5;

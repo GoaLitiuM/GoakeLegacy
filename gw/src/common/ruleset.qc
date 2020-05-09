@@ -47,12 +47,12 @@ const float LIGHTNING_TPS = 15;
 const float LIGHTNING_FORCE = 100;
 const float LIGHTNING_MAX_AMMO = 50;
 
-const float CROSSBOW_RELOAD = 0.4;
-const float CROSSBOW_DAMAGE = 100;
-const float CROSSBOW_SPEED = 3500;
-const float CROSSBOW_FORCE = 600;
-const float CROSSBOW_TIME = 30.0;
-const float CROSSBOW_MAX_AMMO = 15;
+const float STAKE_RELOAD = 1.3;
+const float STAKE_DAMAGE = 100;
+const float STAKE_SPEED = 3500;
+const float STAKE_FORCE = 400;
+const float STAKE_STAY_TIME = 5.0;
+const float STAKE_MAX_AMMO = 15;
 
 const float GRENADE_RELOAD = 0.8;
 const float GRENADE_DAMAGE = 50;

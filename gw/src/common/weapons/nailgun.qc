@@ -40,7 +40,7 @@ void WeaponNailgun_SpawnNail(vector pos, vector dir, entity player)
 {
 	entity missile = spawn();
 	missile.owner = player;
-	missile.velocity = dir * ROCKET_SPEED;
+	missile.velocity = dir * NAILGUN_SPEED;
 	missile.angles = vectoangles(dir);
 	missile.projectile_id = player.projectile_id;
 	missile.origin = pos;
@@ -58,33 +58,10 @@ void WeaponNailgun_Update(float isnew)
 	self.owner = readEntity();
 	int pid = readFloat();
 
-	/*if (isnew)
-	{
-		RocketInit(self);
+	if (isnew)
+		WeaponNailgun_Init(self);
 
-		entity client_missile = world;
-		while (1)
-		{
-			client_missile = find(client_missile, classname, CLASS_ROCKET);
-			if (client_missile == world)
-				break;
-
-			if (client_missile.projectile_id == pid)
-			{
-				// replace the client-side rocket with the server one
-				self.origin = client_missile.origin;
-				remove(client_missile);
-				break;
-			}
-		}
-		if (client_missile == world)
-		{
-			//println("no projectile found");
-			remove(self);
-			return;
-		}
-	}*/
-
+	setorigin(self, self.origin);
 	self.projectile_id = pid;
 }
 #endif
@@ -92,7 +69,7 @@ void WeaponNailgun_Update(float isnew)
 #ifdef SSQC
 float WeaponNailgun_SendEntity(entity ent, float flags)
 {
-	writeByte(MSG_ENTITY, SENDENTITY_ROCKET);
+	writeByte(MSG_ENTITY, SENDENTITY_NAIL);
 	writeVector(MSG_ENTITY, self.origin);
 	writeVector(MSG_ENTITY, self.angles);
 	writeVector(MSG_ENTITY, self.velocity);

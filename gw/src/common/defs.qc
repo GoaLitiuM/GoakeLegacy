@@ -8,8 +8,10 @@
 enum // entity types used in SendEntity and CSQC_Ent_Update
 {
 	SENDENTITY_PLAYER = 1,
-	SENDENTITY_ROCKET,
 	SENDENTITY_ITEM,
+	SENDENTITY_ROCKET,
+	SENDENTITY_NAIL,
+	SENDENTITY_GRENADE,
 };
 
 // CSQC events
@@ -77,7 +79,7 @@ enum
 	WEAPON_GRENADE,
 	WEAPON_ROCKET,
 	WEAPON_LIGHTNING,
-	WEAPON_CROSSBOW,
+	WEAPON_STAKE,
 	WEAPON_9,
 	WEAPON_10,
 	WEAPON_11,
@@ -104,7 +106,7 @@ int WEAPON_AMMO_STAT(int weapon)
 		return STAT_AMMO_ROCKETS;
 	else if (weapon == WEAPON_LIGHTNING)
 		return STAT_AMMO_CELLS;
-	else if (weapon == WEAPON_CROSSBOW)
+	else if (weapon == WEAPON_STAKE)
 		return STAT_AMMO_BOLTS;
 	else if (weapon == WEAPON_GRENADE)
 		return STAT_AMMO_GRENADES;
@@ -125,7 +127,7 @@ int AMMO_MAX(int ammo_stat)
 	else if (ammo_stat == STAT_AMMO_CELLS)
 		return LIGHTNING_MAX_AMMO;
 	else if (ammo_stat == STAT_AMMO_BOLTS)
-		return CROSSBOW_MAX_AMMO;
+		return STAKE_MAX_AMMO;
 	else if (ammo_stat == STAT_AMMO_GRENADES)
 		return GRENADE_MAX_AMMO;
 	return 9999;
@@ -133,13 +135,15 @@ int AMMO_MAX(int ammo_stat)
 
 #define WEAPON_BIT(x) (1 << x)
 #define STAT_WEAPON(x) (STAT_AMMO_FIRST + x)
-const int ALL_WEAPONS = WEAPON_BIT(WEAPON_NAILGUN) | WEAPON_BIT(WEAPON_GRENADE) | WEAPON_BIT(WEAPON_ROCKET) | WEAPON_BIT(WEAPON_LIGHTNING) | WEAPON_BIT(WEAPON_CROSSBOW);
+const int ALL_WEAPONS = WEAPON_BIT(WEAPON_NAILGUN) | WEAPON_BIT(WEAPON_GRENADE) | WEAPON_BIT(WEAPON_ROCKET) | WEAPON_BIT(WEAPON_LIGHTNING) | WEAPON_BIT(WEAPON_STAKE);
 #define AMMO_INFINITE (-1)
+
+#define COLOR(r, g, b) [r/255, g/255, b/255]
 
 // FIXME
 int WeaponRocket_Fire(vector forward);
 int WeaponLightning_Fire(vector forward);
-int WeaponCrossbow_Fire(vector forward);
+int WeaponStake_Fire(vector forward);
 int WeaponGrenade_Fire(vector forward);
 int WeaponNailgun_Fire(vector forward);
 

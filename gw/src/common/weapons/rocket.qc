@@ -58,7 +58,10 @@ void WeaponRocket_Update(float isnew)
 	self.owner = readEntity();
 	int pid = readFloat();
 
+	if (isnew)
+		WeaponRocket_Init(self);
 
+	setorigin(self, self.origin);
 	self.projectile_id = pid;
 }
 #endif

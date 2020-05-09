@@ -2,8 +2,8 @@ void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player);
 
 int WeaponLightning_Fire(vector forward)
 {
-	//local vector forward = getForwardVector(getViewAngles());
-	local vector offset = self.view_ofs;
+	//vector forward = getForwardVector(getViewAngles());
+	vector offset = self.view_ofs;
 
 	if (svtime - self.weapon_sound_loop_time > 0.5)
 	{
@@ -20,8 +20,8 @@ int WeaponLightning_Fire(vector forward)
 float BeamUpdate()
 {
 	// track the owner's position and aim
-	local vector start = self.owner.origin;
-	local vector offset = self.owner.view_ofs;
+	vector start = self.owner.origin;
+	vector offset = self.owner.view_ofs;
 
 	if (self.owner == local_player)
 	{
@@ -39,10 +39,10 @@ float BeamUpdate()
 	// rotation effect
 	self.angles_z += 4444*frametime;
 
-	local vector forward = getForwardVector(self.angles);
+	vector forward = getForwardVector(self.angles);
 	traceline(start + offset, (start + offset) + forward * (LIGHTNING_RANGE), MOVE_EVERYTHING | MOVE_ENTCHAIN, self);
-	local vector hit_pos = trace_endpos + (trace_plane_normal * 16);
-	local bool hit_player = false;
+	vector hit_pos = trace_endpos + (trace_plane_normal * 16);
+	bool hit_player = false;
 	for (entity ent = trace_ent; ent != world; ent = ent.chain)
 	{
 		if (ent.classname == CLASS_PLAYER && ent != self.owner)
@@ -56,14 +56,14 @@ float BeamUpdate()
 	{
 		// face the beam towards the hit location
 		forward = normalize(trace_endpos - start);
-		local vector newangles = vectoangles(forward);
+		vector newangles = vectoangles(forward);
 		self.angles_x = newangles_x;
 		self.angles_y = newangles_y;
 	}
 
-	local float distance = vlen(hit_pos - start);
-	local float segment_length = 30;
-	local int segments = floor(distance/segment_length)+1;
+	float distance = vlen(hit_pos - start);
+	float segment_length = 30;
+	int segments = floor(distance/segment_length)+1;
 
 	// try to not blind the other player with our shaft
 	if (hit_player)
@@ -80,14 +80,14 @@ float BeamUpdate()
 	}
 
 	// lights
-	local entity oldself = self;
+	entity oldself = self;
 	self = world; // HACK: dynamiclight_add has only one dynamic light slot per entity, but world has no limits
 
 	// we want the light to not be too close to the walls so we trace the beam towards the actual hit position
 	// TODO: we should do the trace with tracebox but Q1BSP does not like small bounding boxes
 	forward = normalize(hit_pos - start);
 
-	local float light = dynamiclight_add(start + forward * distance, 50, '3 3 3');
+	float light = dynamiclight_add(start + forward * distance, 50, '3 3 3');
 	dynamiclight_set(light, LFIELD_FLAGS, dynamiclight_get(light, LFIELD_FLAGS) | LFLAG_NOSHADOWS);
 	self = oldself;
 
@@ -102,28 +102,26 @@ void WeaponLightning_BeamDestroy()
 	remove(self);
 }
 
-void WeaponLightning_CreateLightningBeam()
+void WeaponLightning_CreateLightningBeam(vector start, vector end, entity player)
 {
-	local entity parent = readEntity();
-	local vector orig = readVector() - PLAYER_OFFSET_EYES;
-	local vector end = readVector();
+	start += PLAYER_OFFSET_EYES;
 
 	// re-use the previous beam
-	local entity beam;
-	if (parent.beam_ent != world)
-		beam = parent.beam_ent;
+	entity beam;
+	if (player.beam_ent != world)
+		beam = player.beam_ent;
 	else
 		beam = spawn();
 
 	setmodel(beam, MDL_BEAM);
 
-	beam.owner = parent;
+	beam.owner = player;
 	beam.classname = CLASS_LIGHTNING;
 	beam.solid = SOLID_NOT;
 	beam.movetype = MOVETYPE_NONE;
-	beam.origin = orig;
+	beam.origin = start;
 	setorigin(beam, beam.origin);
-	beam.angles = vectoangles(normalize(end-orig));
+	beam.angles = vectoangles(normalize(end-start));
 	beam.think = WeaponLightning_BeamDestroy;
 	beam.nextthink = time + LIGHTNING_RELOAD;
 
@@ -132,20 +130,20 @@ void WeaponLightning_CreateLightningBeam()
 
 	setsize(beam, VEC_ORIGIN, VEC_ORIGIN);
 
-	// local player updates its own beam
+	// player updates its own beam
 	beam.predraw = BeamUpdate;
-	if (parent != local_player)
+	if (player != local_player)
 		beam.drawmask = MASK_ENGINE;
 	else
-		parent.beam_ent = beam;
+		player.beam_ent = beam;
 }
 #endif
 
 void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player)
 {
 	traceline_lagged(pos, pos + dir * LIGHTNING_RANGE, /*MOVE_EVERYTHING |*/ MOVE_ENTCHAIN, player);
-	local vector hit_pos = trace_endpos;
-	local bool hit_something = false;
+	vector hit_pos = trace_endpos;
+	bool hit_something = false;
 
 	for (entity ent = trace_ent; ent != world; ent = ent.chain)
 	{
@@ -163,17 +161,14 @@ void WeaponLightning_SpawnLightning(vector pos, vector dir, entity player)
 	}
 
 #ifdef SSQC
+	msg_entity = world;
 	writeEvent(MSG_MULTICAST, EVENT_LIGHTNING);
-	WriteEntity(MSG_MULTICAST, player);
 	writeVector(MSG_MULTICAST, pos);
 	writeVector(MSG_MULTICAST, hit_pos);
+	WriteEntity(MSG_MULTICAST, player);
+	multicast(hit_pos, MULTICAST_PVS);
 
 	if (hit_something)
-	{
-		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-		WriteByte (MSG_MULTICAST, TE_LIGHTNINGBLOOD);
-		writeVector(MSG_MULTICAST, hit_pos);
-	}
-	multicast (hit_pos, MULTICAST_PVS);
+		te_lightningblood(hit_pos);
 #endif
 }

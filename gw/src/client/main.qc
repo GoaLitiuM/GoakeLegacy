@@ -140,11 +140,17 @@ void CSQC_Ent_Update(float isnew)
 		case SENDENTITY_PLAYER:
 			Player_Update(isnew != 0);
 			break;
+		case SENDENTITY_ITEM:
+			Item_Update(isnew != 0);
+			break;
 		case SENDENTITY_ROCKET:
 			WeaponRocket_Update(isnew != 0);
 			break;
-		case SENDENTITY_ITEM:
-			Item_Update(isnew != 0);
+		case SENDENTITY_NAIL:
+			WeaponNailgun_Update(isnew != 0);
+			break;
+		case SENDENTITY_GRENADE:
+			WeaponGrenade_Update(isnew != 0);
 			break;
 
 		default:
@@ -166,7 +172,11 @@ void CSQC_Parse_Event()
 	switch (type)
 	{
 		case EVENT_LIGHTNING:
-			WeaponLightning_CreateLightningBeam();
+			vector start = readVector();
+			vector end = readVector();
+			entity player = readEntity();
+
+			WeaponLightning_CreateLightningBeam(start, end, player);
 			break;
 		case EVENT_PLAYER_ATTACK:
 		{

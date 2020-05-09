@@ -10,7 +10,7 @@
 #define SND_WEAPON_NAILGUN "weapon/nailgun_fire.wav"
 #define SND_WEAPON_ROCKET "weapon/rocketlauncher_fire.wav"
 #define SND_WEAPON_LIGHTNING "weapon/lightning_fire.wav"
-#define SND_WEAPON_CROSSBOW "weapon/crossbow_fire.wav"
+#define SND_WEAPON_STAKE "weapon/stakelauncher_fire.wav"
 #define SND_WEAPON_GRENADE "weapon/grenadelauncher_fire.wav"
 
 #define SND_ARMOR_PICKUP "item/armor_pickup.wav"

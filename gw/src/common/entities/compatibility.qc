@@ -117,5 +117,5 @@ void ammo_rockets()
 
 void weapon_railgun()
 {
-	REMAP_TO_ENTITY(weapon_crossbow);
+	REMAP_TO_ENTITY(weapon_stake);
 }
