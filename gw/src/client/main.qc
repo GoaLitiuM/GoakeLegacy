@@ -179,12 +179,13 @@ void CSQC_Parse_Event()
 			entity killed = readEntity();
 			entity killer = readEntity();
 			entity source = readEntity();
+			string source_type = readString();
 
 			if (killed.entnum == player_localentnum)
 			{
 				entity oldself = self;
 				self = killed;
-				Player_OnDeath(source, killer);
+				Player_OnDeath(source);
 				self = oldself;
 
 				localcmd("-attack; -jump"); // unrelease these actions to prevent player respawning accidentally
@@ -193,14 +194,25 @@ void CSQC_Parse_Event()
 			string killed_name = infokey(killed, "name");
 			string killer_name = killer ? infokey(killer, "name") : "";
 
-			if (killer.entnum == killed.entnum || (!killer && !source))
-				Chat_SystemMessage(strcat(killed_name, " suicided"), CHAT_TYPE_DEATH);
-			else if (!killer && source)
-				Chat_SystemMessage(strcat(killed_name, " got killed by ", source.classname), CHAT_TYPE_DEATH);
-			else if (source.classname != CLASS_PLAYER)
-				Chat_SystemMessage(strcat(killer_name, " fragged ", killed_name, " with ", source.classname), CHAT_TYPE_DEATH);
+			if (killer.entnum == killed.entnum)
+			{
+				if (source_type)
+					Chat_SystemMessage(strcat(killed_name, " suicided"), CHAT_TYPE_DEATH);
+				else
+					Chat_SystemMessage(strcat(killed_name, " suicided with ", source.classname), CHAT_TYPE_DEATH);
+			}
+			else if (killer)
+			{
+				if (source_type)
+					Chat_SystemMessage(strcat(killer_name, " fragged ", killed_name, " with ", source.classname), CHAT_TYPE_DEATH);
+				else
+					Chat_SystemMessage(strcat(killer_name, " fragged ", killed_name), CHAT_TYPE_DEATH);
+			}
+			else if (source_type)
+				Chat_SystemMessage(strcat(killed_name, " got killed by ", source_type), CHAT_TYPE_DEATH);
 			else
-				Chat_SystemMessage(strcat(killer_name, " fragged ", killed_name), CHAT_TYPE_DEATH);
+				Chat_SystemMessage(strcat(killed_name, " died mysteriously"), CHAT_TYPE_DEATH);
+
 			break;
 		}
 

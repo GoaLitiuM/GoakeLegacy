@@ -127,6 +127,7 @@ vector BaseMode_OnPlayerApplyForce(entity player, vector force, entity source)
 
 void BaseMode_OnPlayerDeath(entity player, entity source)
 {
+	string source_type = "";
 	entity source_player = world;
 	if (source.classname == CLASS_PLAYER)
 		source_player = source;
@@ -135,6 +136,14 @@ void BaseMode_OnPlayerDeath(entity player, entity source)
 		if (source.owner.classname == CLASS_PLAYER)
 			source_player = source.owner;
 	}
+
+	if (source == world)
+	{
+		if (player.watertype == CONTENT_LAVA)
+			source_type = "lava";
+	}
+	else
+		source_type = source.classname;
 
 	if (gamemode_state == GameModeState::Playing)
 	{
@@ -157,5 +166,6 @@ void BaseMode_OnPlayerDeath(entity player, entity source)
 	WriteEntity(MSG_MULTICAST, player);
 	WriteEntity(MSG_MULTICAST, source_player);
 	WriteEntity(MSG_MULTICAST, source);
+	writeString(MSG_MULTICAST, source_type);
 	multicast(self.origin, MULTICAST_ALL_R);
 }

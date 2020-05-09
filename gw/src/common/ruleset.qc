@@ -2,6 +2,9 @@ const float WEAPON_RESPAWN_TIME = 1;
 const float ITEM_RESPAWN_TIME = 20;
 const float DAMAGE_MULTIPLIER_SELF = 0.45;
 const float HEALTH_DECAY_RATE = 1.0;
+const float LAVA_DAMAGE = 25;
+const float LAVA_DAMAGE_RATE = 0.5;
+
 const float MEGA_RESPAWN_TIME = 20;
 const float ARMOR_RESPAWN_TIME = 20;
 const float HEALTH_RESPAWN_TIME = 20;

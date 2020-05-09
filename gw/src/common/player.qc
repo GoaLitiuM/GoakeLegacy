@@ -11,6 +11,7 @@ void Mega_OnExpire(entity item);
 
 void Player_OnLand(float velocity);
 void Player_OnJump();
+void Player_TakeDamage(float damage, entity source);
 
 bool Player_IsDead(entity player)
 {
@@ -205,6 +206,21 @@ void Player_PostTick()
 
 	self.death_time = svtime; // in case the client doesn't predict their death
 
+
+	if (self.watertype == CONTENT_LAVA)
+	{
+		if (self.damage_time < time)
+			self.damage_time = time;
+	}
+	else //if (self.watertype == CONTENT_EMPTY || self.watertype == 0)
+		self.damage_time = 0;
+
+	if (time-self.damage_time >= 0 && self.watertype == CONTENT_LAVA)
+	{
+		self.damage_time += LAVA_DAMAGE_RATE;
+		Player_TakeDamage(LAVA_DAMAGE, world);
+	}
+
 	// health ticks down towards the softcap
 	if (self.health > self.health_softcap || self.health_mega_ent != world)
 	{
@@ -277,7 +293,7 @@ void Player_OnJump()
 	clientsound(self, CHAN_BODY, SND_JUMPLAND, SND_JUMPLAND_VOLUME*SND_JUMPLAND_JUMP_VOLUME, ATTN_NORM, pitch_variance, SOUNDFLAG_FOLLOW);
 }
 
-void Player_OnDeath(entity source, entity sourcePlayer)
+void Player_OnDeath(entity source)
 {
 	if (self.health_mega_ent)
 		Mega_OnExpire(self.health_mega_ent);
@@ -311,16 +327,16 @@ void Player_TakeDamage(float damage, entity source)
 	if (Player_IsDead(self))
 		return;
 
-	entity sourcePlayer = source.owner;
-	if (sourcePlayer.classname != CLASS_PLAYER)
-		sourcePlayer = world;
-
 #ifdef SSQC
 	damage = GameMode_OnPlayerTakeDamage(self, damage, source);
 #endif
 
 	if ((int)damage <= 0)
 		return;
+
+	entity sourcePlayer = source != world ? source.owner : world;
+	if (sourcePlayer != world && sourcePlayer.classname != CLASS_PLAYER)
+		sourcePlayer = world;
 
 	if (sourcePlayer == self)
 		damage *= DAMAGE_MULTIPLIER_SELF;
@@ -338,7 +354,7 @@ void Player_TakeDamage(float damage, entity source)
 		self.armortype = ARMOR_GREEN_ABSORB;
 
 	if (Player_IsDead(self))
-		Player_OnDeath(source, sourcePlayer);
+		Player_OnDeath(source);
 }
 
 void Player_ApplyForce(vector force, entity source)
@@ -358,11 +374,7 @@ void Player_Kill(entity source)
 	if (Player_IsDead(self))
 		return;
 
-	entity sourcePlayer = source.owner;
-	if (sourcePlayer.classname != CLASS_PLAYER)
-		sourcePlayer = world;
-
 	self.health = 0;
 	self.armorvalue = 0;
-	Player_OnDeath(source, sourcePlayer);
+	Player_OnDeath(source);
 }
