@@ -5463,6 +5463,8 @@ void Cmd_Join_f (void)
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 
 		SV_SpawnParmsToClient(host_client);
+		
+		host_client->spawned = true;
 
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
@@ -5591,6 +5593,8 @@ void Cmd_Observe_f (void)
 
 		SV_SpawnParmsToClient(host_client);
 		SV_SpawnSpectator ();
+		
+		host_client->spawned = true;
 
 		// call the spawn function
 #ifdef VM_Q1
