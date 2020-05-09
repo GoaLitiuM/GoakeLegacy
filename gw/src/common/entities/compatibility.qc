@@ -49,9 +49,26 @@ void item_health_large() // Q3
 {
 	REMAP_TO_ENTITY(item_health_50);
 }
+
+bool item_rockets_touch()
+{
+	// in QW, grenade launcher shares ammo with rocket launcher,
+	// so let's simulate picking up both types of ammo at once.
+
+	bool picked_rockets = Ammo_OnTouch();
+
+	// HACK
+	int old_stat = self.ammo_stat;
+	self.ammo_stat = STAT_AMMO_GRENADES;
+	bool picked_grenades = Ammo_OnTouch();
+	self.ammo_stat = old_stat;
+
+	return picked_rockets || picked_grenades;
+}
 void item_rockets()
 {
 	REMAP_TO_ENTITY(item_ammo_rockets);
+	Item_SetTouch(item_rockets_touch);
 }
 
 void item_cells()
@@ -82,6 +99,11 @@ void ammo_slugs() // railgun ammo
 }
 
 // ammo_cells = nails
+
+void ammo_grenades()
+{
+	REMAP_TO_ENTITY(item_ammo_grenades);
+}
 
 void ammo_lightning()
 {
