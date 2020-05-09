@@ -15,12 +15,12 @@ void Player_TakeDamage(float damage, entity source);
 
 bool Player_IsDead(entity player)
 {
-	return self.health <= 0;
+	return player.health <= 0;
 }
 
 bool Player_IsSpectator(entity player)
 {
-	return infokeyf(self, "*spectator") != 0;
+	return infokeyf(player, "*spectator") != 0;
 }
 
 bool Player_IsPlaying(entity player)
