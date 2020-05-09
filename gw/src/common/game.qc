@@ -83,7 +83,8 @@ entity Game_GetPlayerWithMostFrags()
 	return leader;
 }
 
-entity Game_GetRandomSpawn()
+int spawns_blocked = 0;
+entity Game_GetRandomSpawn(entity player, entity skip_spawn = 0)
 {
 	entity ent = world;
 
@@ -99,8 +100,12 @@ entity Game_GetRandomSpawn()
 	if (num_spawns == 0)
 	{
 		println("Map does not have any spawn entities.");
+		spawns_blocked = 0;
 		return world;
 	}
+
+	if (skip_spawn != world)
+		num_spawns--;
 
 	ent = world;
 	int spawn = randomInt(1, num_spawns);
@@ -109,12 +114,38 @@ entity Game_GetRandomSpawn()
 		ent = find(ent, classname, "info_player_start");
 		if (ent == world)
 			break;
+		if (skip_spawn != world && ent == skip_spawn)
+			continue;
 		spawn--;
 	}
 
 	if (ent == world)
+	{
 		println("No spawn found for player.");
+		spawns_blocked = 0;
+		return world;
+	}
 
+	vector check_origin = ent.origin + '0 0 0.1';
+	vector check_min = PLAYER_SIZE_MIN;
+	vector check_max = PLAYER_SIZE_MAX;
+	tracebox(check_origin, check_min, check_max, check_origin + '0 0 0.1', 0, player);
+
+	if (/*trace_startsolid ||*/ trace_allsolid || trace_ent != world)
+	{
+		dprintln("Entity ", trace_ent.classname, " is blocking a spawn");
+
+		if (spawns_blocked > 50)
+		{
+			println("Warning, no free spawn found for player.");
+			spawns_blocked = 0;
+			return ent;
+		}
+		spawns_blocked++;
+		return Game_GetRandomSpawn(player, ent);
+	}
+
+	spawns_blocked = 0;
 	return ent;
 }
 

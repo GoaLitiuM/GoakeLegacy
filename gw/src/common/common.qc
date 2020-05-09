@@ -36,10 +36,9 @@
 #define CLASS_ARROW "arrow"
 
 // player collision box and offsets
-const vector VEC_ORIGIN = '0 0 0';
-const vector VEC_OFFSET_EYES = '0 0 26';
-const vector VEC_HULL_MIN = '-15 -15 -24';
-const vector VEC_HULL_MAX = '15 15 32';
+const vector PLAYER_OFFSET_EYES = '0 0 26';
+const vector PLAYER_SIZE_MIN = '-15 -15 -24';
+const vector PLAYER_SIZE_MAX = '15 15 32';
 
 // custom voice channels
 const float CHAN_VOICE2 = 4;

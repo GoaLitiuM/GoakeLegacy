@@ -105,7 +105,7 @@ void WeaponLightning_BeamDestroy()
 void WeaponLightning_CreateLightningBeam()
 {
 	local entity parent = readEntity();
-	local vector orig = readVector() - VEC_OFFSET_EYES;
+	local vector orig = readVector() - PLAYER_OFFSET_EYES;
 	local vector end = readVector();
 
 	// re-use the previous beam

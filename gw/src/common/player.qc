@@ -47,9 +47,9 @@ void Player_Init()
 	self.classname = CLASS_PLAYER;
 	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_WALK;
-	self.view_ofs = VEC_OFFSET_EYES;
+	self.view_ofs = PLAYER_OFFSET_EYES;
 
-	setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
+	setsize(self, PLAYER_SIZE_MIN, PLAYER_SIZE_MAX);
 
 	self.spawn_wish = false;
 

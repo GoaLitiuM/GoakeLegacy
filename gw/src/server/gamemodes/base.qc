@@ -94,7 +94,7 @@ bool BaseMode_OnPlayerRequestRespawn(entity player)
 
 void BaseMode_OnPlayerSpawn(entity player)
 {
-	entity spawn = Game_GetRandomSpawn();
+	entity spawn = Game_GetRandomSpawn(player);
 	player.origin = spawn.origin;
 	player.angles = spawn.angles;
 
