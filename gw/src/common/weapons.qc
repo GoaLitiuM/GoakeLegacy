@@ -29,13 +29,29 @@ void Weapon_Init()
 	weapon_defs[WEAPON_GRENADE] = (Weapon){ "Grenade Launcher", "weapon_grenadelauncher", GRENADE_RELOAD, 1, WeaponGrenade_Fire, 0, 0 };
 }
 
-void Player_WeaponAttack(vector angle);
-void Player_WeaponReload(float reloadtime);
+void Player_WeaponReload(float reloadtime)
+{
+#ifdef CSQC
+	self.reload_time = svtime + reloadtime;
+#else
+	self.reload_time = time + reloadtime;
+#endif
+
+#ifdef SSQC
+	self.SendFlags |= SENDFLAGS_PLAYER_RELOAD;
+#endif
+}
 
 bool Player_IsReloading()
 {
+#ifdef CSQC
 	return svtime < self.reload_time;
+#else
+	return time < self.reload_time;
+#endif
 }
+
+void Player_WeaponAttack(vector angle);
 
 void Player_WeaponTick()
 {
@@ -94,9 +110,4 @@ void Player_WeaponAttack(vector angle)
 	multicast(self.origin, MULTICAST_PVS);
 #endif
 	self.is_attacking = true; // drives animations
-}
-
-void Player_WeaponReload(float reloadtime)
-{
-	self.reload_time = svtime + reloadtime;
 }

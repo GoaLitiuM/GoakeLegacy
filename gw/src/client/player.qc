@@ -33,6 +33,9 @@ void Player_Update(bool isnew)
 		server_solid = readFloat();
 		server_movetype = readFloat();
 	}
+	if (send_flags & SENDFLAGS_PLAYER_RELOAD)
+		self.reload_time = readFloat();
+
 	if (isnew)
 	{
 		self.server_pred_origin = self.origin;
