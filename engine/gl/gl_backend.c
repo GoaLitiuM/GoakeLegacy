@@ -4188,7 +4188,7 @@ static qboolean GLBE_RegisterLightShader(int mode)
 {
 	if (!shaderstate.inited_shader_light[mode])
 	{
-		char *name = va("rtlight%s%s%s%s%s", 
+		char *name = va("rtlight%s%s%s%s%s#ORM", 
 			(mode & LSHADER_SMAP)?"#PCF":"",
 			(mode & LSHADER_SPOT)?"#SPOT":"",
 			(mode & LSHADER_CUBE)?"#CUBE":"",
