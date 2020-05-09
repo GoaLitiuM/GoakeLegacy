@@ -7,6 +7,7 @@ void Warmup_OnPlayerInit(entity player)
 	self.weapons = ALL_WEAPONS;
 	for (int i=0; i<WEAPON_LAST; i++)
 		self.ammo[WEAPON_AMMO_INDEX(i)] = AMMO_INFINITE;
+	player.weapon = WEAPON_NAILGUN;
 }
 
 float Warmup_OnPlayerTakeDamage(entity player, float damage, entity source)
