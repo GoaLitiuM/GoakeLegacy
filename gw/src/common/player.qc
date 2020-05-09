@@ -26,7 +26,7 @@ bool Player_IsPlaying(entity player)
 {
 	if (strlen(infokey(player, "name")) == 0)
 		return false;
-	if (!Player_IsSpectator(player))
+	if (Player_IsSpectator(player))
 		return false;
 	return true;
 }
