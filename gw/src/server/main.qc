@@ -18,10 +18,6 @@ void worldspawn()
 	precache();
 }
 
-void() SetNewParms = {};
-
-void() SetChangeParms = {};
-
 // called for every entity before they are placed to the world
 void CheckSpawn(void() func)
 {

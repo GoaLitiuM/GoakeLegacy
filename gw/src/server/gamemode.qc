@@ -345,10 +345,9 @@ void GameMode_ForceRespawnPlayers()
 		if (player == world)
 			break;
 
-		if (strlen(infokey(player, "name")) == 0)
+		if (!Player_IsPlaying(player))
 			continue;
-		if (infokeyf(player, "*spectator") != 0)
-			continue;
+
 		GameMode_OnPlayerSpawn(player);
 	}
 }

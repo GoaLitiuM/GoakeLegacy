@@ -81,6 +81,9 @@ void BaseMode_Tick()
 		if (player == world)
 			break;
 
+		if (!Player_IsPlaying(player))
+			continue;
+
 		// revive dead players after a while
 		if (Player_IsDead(player) && time - player.death_time > 4.0)
 			GameMode_OnPlayerSpawn(player);
