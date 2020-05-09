@@ -259,7 +259,7 @@ cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2")
 cvar_t r_lightmap_nearest					= CVARFD ("gl_lightmap_nearest", "0", CVAR_ARCHIVE, "Use nearest sampling for lightmaps. This will give a more blocky look. Meaningless when gl_lightmap_average is enabled.");
 cvar_t r_lightmap_average					= CVARFD ("gl_lightmap_average", "0", CVAR_ARCHIVE, "Determine lightmap values based upon the center of the polygon. This will give a more buggy look, quite probably.");
 cvar_t r_lightmap_format					= CVARFCD ("r_lightmap_format", "", CVAR_ARCHIVE, R_Lightmap_Format_Changed, "Overrides the default texture format used for lightmaps. rgb9e5 is a good choice for HDR.");
-cvar_t r_lightmap_srgb						= CVARFD ("r_lightmap_srgb", "1", CVAR_ARCHIVE, "Load external lightmaps as sRGB.");
+cvar_t r_lightmap_srgb						= CVARFD ("r_lightmap_srgb", "0", CVAR_ARCHIVE, "Load external lightmaps as sRGB.");
 
 //otherwise it would defeat the point.
 cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
