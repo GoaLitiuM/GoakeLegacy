@@ -3,6 +3,7 @@ bool showscores;
 Font font_engine;
 Font font_main;
 Font font_main_med;
+Font font_main_semibig;
 Font font_main_big;
 Font font_chat;
 Font font_chat_bold;
@@ -14,6 +15,7 @@ void Hud_Init()
 	font_engine = LoadFont("", 8);
 	font_main = LoadFont("fonts/SairaCondensed-SemiBold.ttf", 16);
 	font_main_med = LoadFont("fonts/SairaCondensed-SemiBold.ttf", 28);
+	font_main_semibig = LoadFont("fonts/SairaCondensed-SemiBold.ttf", 34);
 	font_main_big = LoadFont("fonts/SairaCondensed-Black.ttf", 48);
 
 	font_info_title = LoadFont("fonts/SairaCondensed-Bold.ttf", 28);
