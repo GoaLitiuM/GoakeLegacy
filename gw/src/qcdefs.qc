@@ -6,6 +6,8 @@
 #define true 1
 #define false 0
 
+const vector VEC_ORIGIN = '0 0 0';
+
 #ifdef SSQC
 const float MSG_BROADCAST = 0;    /* The byte(s) will be unreliably sent to all players. MSG_ constants are valid arguments to the Write* builtin family. */
 #endif

@@ -171,7 +171,6 @@ float maxfps;
 .float weapon_sound_loop_time;
 .float death_time;
 .bool spawn_wish;
-.float event_flags;
 .bool is_attacking;
 .float landed_time;
 .float race_start_time;

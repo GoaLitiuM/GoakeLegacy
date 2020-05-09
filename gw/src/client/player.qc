@@ -7,8 +7,8 @@ void PlayerPrediction_Reset();
 
 void Player_Update(bool isnew)
 {
-	float server_solid = self.solid;
-	float server_movetype = self.movetype;
+	float new_solid = self.solid;
+	float new_movetype = self.movetype;
 
 	int send_flags = readInt();
 	if (send_flags & SENDFLAGS_ORIGIN)
@@ -30,8 +30,8 @@ void Player_Update(bool isnew)
 
 	if (send_flags & SENDFLAGS_PHYSICS)
 	{
-		server_solid = readFloat();
-		server_movetype = readFloat();
+		new_solid = readFloat();
+		new_movetype = readFloat();
 	}
 	if (send_flags & SENDFLAGS_PLAYER_RELOAD)
 		self.reload_time = readFloat();
@@ -77,8 +77,8 @@ void Player_Update(bool isnew)
 	}
 	if (send_flags & SENDFLAGS_PHYSICS)
 	{
-		self.solid = server_solid;
-		self.movetype = server_movetype;
+		self.solid = new_solid;
+		self.movetype = new_movetype;
 	}
 
 	self.server_time = time; // cltime?

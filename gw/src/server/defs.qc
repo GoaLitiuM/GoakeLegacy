@@ -11,15 +11,15 @@
 
 void writeVector(float to, vector vec)
 {
-	WriteCoord(to, vec_x);
-	WriteCoord(to, vec_y);
-	WriteCoord(to, vec_z);
+	WriteCoord(to, vec.x);
+	WriteCoord(to, vec.y);
+	WriteCoord(to, vec.z);
 }
 void writeVectorFloat(float to, vector vec)
 {
-	writeFloat(to, vec_x);
-	writeFloat(to, vec_y);
-	writeFloat(to, vec_z);
+	writeFloat(to, vec.x);
+	writeFloat(to, vec.y);
+	writeFloat(to, vec.z);
 }
 
 void writeEvent(float to, int event)
