@@ -90,6 +90,8 @@ void Player_Spawn()
 {
 	self.fixangle = 1;
 	self.velocity = '0 0 0';
+	setorigin(self, self.origin);
+	self.oldorigin = self.origin; // in case the player becomes stuck, avoid moving back to death position
 	Player_Init();
 }
 
