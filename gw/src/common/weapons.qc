@@ -26,6 +26,7 @@ void Weapon_Init()
 	weapon_defs[WEAPON_ROCKET] = (Weapon){ "Rocket Launcher", "weapon_rocketlauncher", ROCKET_RELOAD, 1, WeaponRocket_Fire, 0, 0 };
 	weapon_defs[WEAPON_LIGHTNING] = (Weapon){ "Lightning Gun", "weapon_lightning", LIGHTNING_RELOAD, 1, WeaponLightning_Fire, 0, 0 };
 	weapon_defs[WEAPON_CROSSBOW] = (Weapon){ "Crossbow", "weapon_crossbow", CROSSBOW_RELOAD, 1, WeaponCrossbow_Fire, 0, 0 };
+	weapon_defs[WEAPON_GRENADE] = (Weapon){ "Grenade Launcher", "weapon_grenadelauncher", GRENADE_RELOAD, 1, WeaponGrenade_Fire, 0, 0 };
 }
 
 void Player_WeaponAttack(vector angle);

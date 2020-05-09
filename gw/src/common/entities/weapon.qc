@@ -49,6 +49,17 @@ void weapon_rocketlauncher()
 		self.count = 5;
 }
 
+void weapon_grenadelauncher()
+{
+	Item_InitWeapon();
+	Item_SetTouch(Weapon_OnTouch);
+
+	self.weapons = WEAPON_BIT(WEAPON_GRENADE);
+	self.ammo_stat = STAT_AMMO_GRENADES;
+	if (self.count == 0)
+		self.count = 5;
+}
+
 void weapon_crossbow()
 {
 	Item_InitWeapon();

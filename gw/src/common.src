@@ -12,3 +12,4 @@
 #include <common/weapons/lightning.qc>
 #include <common/weapons/crossbow.qc>
 #include <common/weapons/nailgun.qc>
+#include <common/weapons/grenade.qc>

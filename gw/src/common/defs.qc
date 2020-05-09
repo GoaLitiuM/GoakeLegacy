@@ -57,6 +57,7 @@ enum
 	STAT_AMMO_ROCKETS,   	// EV_INTEGER
 	STAT_AMMO_CELLS,		// EV_INTEGER
 	STAT_AMMO_BOLTS, 	  	// EV_INTEGER
+	STAT_AMMO_GRENADES,		// EV_INTEGER
 	STAT_AMMO_LAST,
 
 	// global stats
@@ -105,6 +106,8 @@ int WEAPON_AMMO_STAT(int weapon)
 		return STAT_AMMO_CELLS;
 	else if (weapon == WEAPON_CROSSBOW)
 		return STAT_AMMO_BOLTS;
+	else if (weapon == WEAPON_GRENADE)
+		return STAT_AMMO_GRENADES;
 	return STAT_AMMO_NONE;
 }
 
@@ -123,18 +126,21 @@ int AMMO_MAX(int ammo_stat)
 		return LIGHTNING_MAX_AMMO;
 	else if (ammo_stat == STAT_AMMO_BOLTS)
 		return CROSSBOW_MAX_AMMO;
+	else if (ammo_stat == STAT_AMMO_GRENADES)
+		return GRENADE_MAX_AMMO;
 	return 9999;
 }
 
 #define WEAPON_BIT(x) (1 << x)
 #define STAT_WEAPON(x) (STAT_AMMO_FIRST + x)
-const int ALL_WEAPONS = WEAPON_BIT(WEAPON_NAILGUN) | WEAPON_BIT(WEAPON_ROCKET) | WEAPON_BIT(WEAPON_LIGHTNING) | WEAPON_BIT(WEAPON_CROSSBOW);
+const int ALL_WEAPONS = WEAPON_BIT(WEAPON_NAILGUN) | WEAPON_BIT(WEAPON_GRENADE) | WEAPON_BIT(WEAPON_ROCKET) | WEAPON_BIT(WEAPON_LIGHTNING) | WEAPON_BIT(WEAPON_CROSSBOW);
 #define AMMO_INFINITE (-1)
 
 // FIXME
 int WeaponRocket_Fire(vector forward);
 int WeaponLightning_Fire(vector forward);
 int WeaponCrossbow_Fire(vector forward);
+int WeaponGrenade_Fire(vector forward);
 int WeaponNailgun_Fire(vector forward);
 
 // globals for global stats

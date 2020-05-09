@@ -54,4 +54,13 @@ const float CROSSBOW_FORCE = 600;
 const float CROSSBOW_TIME = 30.0;
 const float CROSSBOW_MAX_AMMO = 15;
 
+const float GRENADE_RELOAD = 0.8;
+const float GRENADE_DAMAGE = 50;
+const float GRENADE_SPEED = 1500;//1800;
+const float GRENADE_RADIUS = 190;
+const float GRENADE_FORCE = 100;
+const float GRENADE_ANGLE = 3;
+const float GRENADE_ARM_TIME = 0.6;
+const float GRENADE_MAX_AMMO = 20;
+
 const float TELEPORT_MAX_VELOCITY = 400;

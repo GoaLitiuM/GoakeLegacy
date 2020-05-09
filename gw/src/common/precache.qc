@@ -6,6 +6,7 @@ void precache_sounds()
 	precache_sound(SND_WEAPON_ROCKET);
 	precache_sound(SND_WEAPON_LIGHTNING);
 	precache_sound(SND_WEAPON_CROSSBOW);
+	precache_sound(SND_WEAPON_GRENADE);
 
 	precache_sound(SND_ITEM_RESPAWN);
 	precache_sound(SND_ARMOR_PICKUP);
@@ -22,6 +23,7 @@ void precache_models()
 	precache_model(MDL_ROCKET);
 	precache_model(MDL_BEAM);
 	precache_model(MDL_ARROW);
+	precache_model(MDL_GRENADE);
 
 	precache_player_model(MDL_PLAYER);
 };

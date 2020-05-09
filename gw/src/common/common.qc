@@ -11,6 +11,7 @@
 #define SND_WEAPON_ROCKET "weapon/rocketlauncher_fire.wav"
 #define SND_WEAPON_LIGHTNING "weapon/lightning_fire.wav"
 #define SND_WEAPON_CROSSBOW "weapon/crossbow_fire.wav"
+#define SND_WEAPON_GRENADE "weapon/grenadelauncher_fire.wav"
 
 #define SND_ARMOR_PICKUP "item/armor_pickup.wav"
 #define SND_WEAPON_PICKUP "item/weapon_pickup.wav"
@@ -24,6 +25,7 @@
 #define MDL_PLAYER "models/players/crash"
 #define MDL_NAIL "progs/spike.mdl"
 #define MDL_ROCKET "progs/missile.mdl"
+#define MDL_GRENADE "progs/grenade.mdl"
 #define MDL_BEAM "progs/bolt2.mdl"
 #define MDL_ARROW "progs/arrow.mdl"
 
@@ -32,6 +34,7 @@
 #define CLASS_PLAYER_DISCONNECTED "player_disconnected"
 #define CLASS_NAIL "nail"
 #define CLASS_ROCKET "rocket"
+#define CLASS_GRENADE "grenade"
 #define CLASS_LIGHTNING "lightning"
 #define CLASS_ARROW "arrow"
 

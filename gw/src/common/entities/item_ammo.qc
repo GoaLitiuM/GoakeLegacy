@@ -46,3 +46,13 @@ void item_ammo_stakes()
 	if (self.count == 0)
 		self.count = 5;
 }
+
+void item_ammo_grenades()
+{
+	Item_InitAmmo();
+	Item_SetTouch(Ammo_OnTouch);
+
+	self.ammo_stat = STAT_AMMO_GRENADES;
+	if (self.count == 0)
+		self.count = 5;
+}
