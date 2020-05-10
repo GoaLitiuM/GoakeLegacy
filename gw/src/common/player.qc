@@ -39,6 +39,7 @@ void Player_Init()
 	self.health_softcap = 100;
 	self.armortype = ARMOR_GREEN_ABSORB;
 	self.armorvalue = 0;
+	self.armorvalue_max = 200;
 
 	self.weapon = 0;
 	self.weapons = 0;

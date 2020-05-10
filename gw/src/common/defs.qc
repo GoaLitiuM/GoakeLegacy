@@ -161,6 +161,7 @@ float maxfps;
 .entity health_mega_ent;	// last picked up mega
 .float armortype;
 .float armorvalue;
+//.float armorvalue_max;
 .float last_velocity_z;
 .float last_pmove_flags;
 .float reload_time;
