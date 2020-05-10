@@ -56,7 +56,8 @@ void Player_Init()
 
 #ifdef CSQC
 	// prevent player from shooting and jumping accidentally after using these buttons to spawn
-	localcmd("-attack; -jump");
+	if (self == local_player)
+		localcmd("-attack; -jump");
 #endif
 
 	self.SendFlags |= SENDFLAGS_ALL;
