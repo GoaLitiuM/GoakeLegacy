@@ -41,7 +41,13 @@ void RaceStart_OnTouch()
 		return;
 
 	if (!other.race_started || time-other.race_start_time > 1)
+	{
+#ifdef CSQC
+		Chat_SystemMessage("Race Started...", CHAT_TYPE_RACE);
+#else
 		println(CLSV, "Race started...");
+#endif
+	}
 
 	other.race_start_time = time;
 	other.race_started = true;
@@ -66,5 +72,10 @@ void RaceEnd_OnTouch()
 
 	float race_time = time - other.race_start_time;
 	other.race_started = false;
+
+#ifdef CSQC
+	Chat_SystemMessage(strcat("Time: ", ftos(race_time), "s"), CHAT_TYPE_RACE);
+#else
 	println(CLSV, "Time: ", ftos(race_time), "s");
+#endif
 }
