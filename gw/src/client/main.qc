@@ -161,7 +161,11 @@ void CSQC_Ent_Update(float isnew)
 void CSQC_Ent_Remove()
 {
 	if (self.classname == CLASS_PLAYER)
+	{
 		Player_Remove();
+		if (self != local_player)
+			remove(self);
+	}
 	else
 		remove(self);
 }
