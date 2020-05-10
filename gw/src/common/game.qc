@@ -131,9 +131,17 @@ entity Game_GetRandomSpawn(entity player, entity skip_spawn = 0)
 	vector check_max = PLAYER_SIZE_MAX;
 	tracebox(check_origin, check_min, check_max, check_origin + '0 0 0.1', 0, player);
 
-	if (/*trace_startsolid ||*/ trace_allsolid || trace_ent != world)
+	bool blocked = false;
+	if (trace_allsolid && !trace_ent)
+		blocked = true;
+	else if (trace_ent && trace_ent.solid == SOLID_CORPSE)
+	{}	// player with no collision is there, ignore it
+	else if (trace_allsolid)
+		blocked = true;
+
+	if (blocked)
 	{
-		dprintln("Entity ", trace_ent.classname, " is blocking a spawn");
+		dprintln("Entity ", trace_ent ? trace_ent.classname : "world", " is blocking a spawn");
 
 		if (spawns_blocked > 50)
 		{
