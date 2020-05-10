@@ -19,6 +19,20 @@ int Game_CountClients()
 int Game_CountPlayers()
 {
 	int total_players = 0;
+
+#ifdef CSQC
+	// players are not always visible for other players, so we can't count entities in this case
+	for (int i=0; i<32; i++)
+	{
+		if (!getplayerkeyvalue(i, "name"))
+			continue;
+
+		if (getplayerkeyfloat(i, "*spectator") != 0)
+			continue;
+
+		total_players++;
+	}
+#else
 	entity player = world;
 	while (true)
 	{
@@ -31,6 +45,7 @@ int Game_CountPlayers()
 
 		total_players++;
 	}
+#endif
 
 	return total_players;
 }
@@ -38,6 +53,20 @@ int Game_CountPlayers()
 int Game_CountPlayersReady()
 {
 	int ready_players = 0;
+#ifdef CSQC
+	// players are not always visible for other players, so we can't count entities in this case
+	for (int i=0; i<32; i++)
+	{
+		if (!getplayerkeyvalue(i, "name"))
+			continue;
+
+		if (getplayerkeyfloat(i, "*spectator") != 0)
+			continue;
+
+		if (getplayerkeyfloat(i, "ready") != 0)
+			ready_players++;
+	}
+#else
 	entity player = world;
 	while (true)
 	{
@@ -51,6 +80,7 @@ int Game_CountPlayersReady()
 		if (infokeyf(player, "ready") != 0)
 			ready_players++;
 	}
+#endif
 
 	return ready_players;
 }
