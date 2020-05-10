@@ -76,11 +76,11 @@ void Player_Remove()
 {
 	self.solid = SOLID_NOT;
 #ifdef CSQC
-	self.predraw = noop_predraw;
+	//self.predraw = noop_predraw;
 #endif
 
-	setorigin(self, self.origin);
-	setmodel(self, 0);
+	//setorigin(self, self.origin);
+	//setmodel(self, 0);
 
 	// force last picked up mega to spawn
 	if (self.health_mega_ent)
