@@ -6,6 +6,7 @@
 //release
 #define GAME_VER_MAJOR			0
 #define GAME_VER_MINOR			3
+#define GAME_VER_PATCH			1
 #define GAME_VER_EXTRA			""				//short descriptive word for the release ("beta" etc.)
 
 //goake fork specific features
@@ -244,6 +245,15 @@
 #endif
 #endif
 
+#ifdef GAME_VER_PATCH
+#undef FTE_VER_PATCH
+#define FTE_VER_PATCH GAME_VER_PATCH
+#endif
+
 #ifndef FTE_VER_EXTRA
 #define FTE_VER_EXTRA ""
+#endif
+
+#ifndef FTE_VER_PATCH
+#define FTE_VER_PATCH 0
 #endif

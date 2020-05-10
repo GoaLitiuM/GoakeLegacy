@@ -7606,7 +7606,7 @@ int __mingw_vfprintf (FILE *__stream, const char *__format, __VALIST __local_arg
 
 int version_number(void)
 {
-	int base = FTE_VER_MAJOR * 10000 + FTE_VER_MINOR * 100;
+	int base = FTE_VER_MAJOR * 10000 + FTE_VER_MINOR * 100 + FTE_VER_PATCH;
 
 #ifdef OFFICIAL_RELEASE
 	base -= 1;
@@ -7623,7 +7623,7 @@ char *version_string(void)
 	if (!done)
 	{
 #ifdef OFFICIAL_RELEASE
-		Q_snprintfz(s, sizeof(s), "%s v%i.%i%s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_EXTRA);
+		Q_snprintfz(s, sizeof(s), "%s v%i.%i.%i%s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_PATCH, FTE_VER_EXTRA);
 #elif defined(SVNREVISION) && defined(SVNDATE)
 		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));	//if both are defined then its a known unmodified svn revision.
 #else

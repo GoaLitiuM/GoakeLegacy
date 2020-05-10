@@ -1966,7 +1966,7 @@ void pscript_property_map_sets(struct context *ctx, const char *val)
 
 float pscript_property_curver_getf(struct context *ctx)
 {
-	int base = FTE_VER_MAJOR * 10000 + FTE_VER_MINOR * 100;
+	int base = FTE_VER_MAJOR * 10000 + FTE_VER_MINOR * 100 + FTE_VER_PATCH;
 	return base;
 //	return version_number();
 }

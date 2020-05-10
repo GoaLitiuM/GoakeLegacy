@@ -831,7 +831,7 @@ HRESULT WINAPI DllRegisterServer(void)
 		{
 			char s[128];
 #ifdef OFFICIAL_RELEASE
-			Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+			Q_snprintfz(s, sizeof(s), "%s v%i.%02i.%i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_PATCH, FTE_VER_MINOR);
 #elif defined(SVNREVISION)
 			Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
 #else

@@ -862,7 +862,7 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 		strftime (buffer, sizeof(buffer), "Time: %Y-%m-%d %H:%M:%S\n",timeinfo);
 		write(fd, buffer, strlen(buffer));
 
-		Q_snprintfz(buffer, sizeof(buffer), "Ver: %i.%02i%s\n", FTE_VER_MAJOR, FTE_VER_MINOR,
+		Q_snprintfz(buffer, sizeof(buffer), "Ver: %i.%02i.%i%s\n", FTE_VER_MAJOR, FTE_VER_MINOR, FTE_VER_PATCH,
 #ifdef OFFICIAL_RELEASE
 			" (official)");
 #else
