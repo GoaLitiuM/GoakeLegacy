@@ -1,24 +1,24 @@
 
 void WeaponStake_StakeOnTouch();
 
-void WeaponStake_SpawnStake(vector pos, vector dir, entity player)
-{
-	entity stake = spawn();
-	stake.owner = player;
+#ifdef SSQC
+float WeaponStake_SendEntity(entity ent, float flags)
+#endif
 
+void WeaponStake_Init(entity stake)
+{
 	stake.movetype = MOVETYPE_TOSS;
 	stake.solid = SOLID_SLIDEBOX;
 	stake.classname = CLASS_ARROW;
-	stake.velocity = dir * STAKE_SPEED;
-	stake.angles = vectoangles(dir);
+
 	stake.touch = WeaponStake_StakeOnTouch;
 
 	stake.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
 	stake.colormod = COLOR(160, 124, 0);
 
-	stake.origin = pos;
-	setorigin(stake, pos);
-
+#ifdef SSQC
+	stake.SendEntity = WeaponStake_SendEntity;
+#endif
 #ifdef CSQC
 	stake.drawmask = MASK_ENGINE;
 	stake.forceshader = shaderforname("stakeshader", "{\nprogram defaultsprite\ndiffusemap \"$whiteimage\"\n}");
@@ -26,6 +26,18 @@ void WeaponStake_SpawnStake(vector pos, vector dir, entity player)
 
 	setmodel(stake, MDL_ARROW);
 	setsize(stake, VEC_ORIGIN, VEC_ORIGIN);
+}
+
+void WeaponStake_SpawnStake(vector pos, vector dir, entity player)
+{
+	entity stake = spawn();
+	stake.owner = player;
+	stake.velocity = dir * STAKE_SPEED;
+	stake.angles = vectoangles(dir);
+	stake.origin = pos;
+	setorigin(stake, pos);
+
+	WeaponStake_Init(stake);
 }
 
 void WeaponStake_StakeDestroy()
@@ -45,6 +57,39 @@ int WeaponStake_Fire(vector forward)
 
 	return 1;
 }
+
+#ifdef CSQC
+void WeaponStake_Update(float isnew)
+{
+	self.origin = readVector();
+	self.angles = readVector();
+	self.velocity = readVector();
+	self.owner = readEntity();
+
+	if (isnew)
+	{
+		self.server_projectile = true;
+		WeaponStake_Init(self);
+
+		if (self.owner == local_player)
+			self.drawmask = 0;
+	}
+
+	setorigin(self, self.origin);
+}
+#endif
+
+#ifdef SSQC
+float WeaponStake_SendEntity(entity ent, float flags)
+{
+	writeByte(MSG_ENTITY, SENDENTITY_STAKE);
+	writeVector(MSG_ENTITY, self.origin);
+	writeVector(MSG_ENTITY, self.angles);
+	writeVector(MSG_ENTITY, self.velocity);
+	writeEntity(MSG_ENTITY, self.owner);
+	return 1;
+}
+#endif
 
 void WeaponStake_StakeOnTouch()
 {

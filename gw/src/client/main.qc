@@ -152,6 +152,9 @@ void CSQC_Ent_Update(float isnew)
 		case SENDENTITY_GRENADE:
 			WeaponGrenade_Update(isnew != 0);
 			break;
+		case SENDENTITY_STAKE:
+			WeaponStake_Update(isnew != 0);
+			break;
 
 		default:
 			error(strcat("unknown entity type in CSQC_Ent_Update: ", ftos(type)));

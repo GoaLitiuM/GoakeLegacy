@@ -12,6 +12,7 @@ enum // entity types used in SendEntity and CSQC_Ent_Update
 	SENDENTITY_ROCKET,
 	SENDENTITY_NAIL,
 	SENDENTITY_GRENADE,
+	SENDENTITY_STAKE,
 };
 
 // CSQC events
