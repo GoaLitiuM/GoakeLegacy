@@ -1,5 +1,8 @@
 void TriggerHurt_OnTouch()
 {
+	if (other.classname != CLASS_PLAYER)
+		return;
+
 	if (self.dmg > 0)
 		applyEntityDamage(other, (float)self.dmg, self);
 }
@@ -8,7 +11,7 @@ void trigger_hurt()
 {
 	self.touch = TriggerHurt_OnTouch;
 	self.solid = SOLID_TRIGGER;
-	setmodel (self, self.model);
+	setmodel(self, self.model);
 	self.movetype = MOVETYPE_NONE;
 	self.modelindex = 0;
 	self.model = "";
@@ -16,6 +19,9 @@ void trigger_hurt()
 
 void TriggerPush_OnTouch()
 {
+	if (other.classname != CLASS_PLAYER)
+		return;
+
 	if (self.pushforce > 0)
 	{
 		vector force;
@@ -43,7 +49,7 @@ void trigger_push()
 
 	self.touch = TriggerPush_OnTouch;
 	self.solid = SOLID_TRIGGER;
-	setmodel (self, self.model);
+	setmodel(self, self.model);
 	self.movetype = MOVETYPE_NONE;
 	self.modelindex = 0;
 	self.model = "";
