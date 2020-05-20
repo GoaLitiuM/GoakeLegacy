@@ -95,7 +95,6 @@ void Player_WeaponAttack(vector angle)
 			if (*weapon_ammo < 0)
 				*weapon_ammo = 0;
 		}
-		self.projectile_id++;
 
 		float reload_time = weapon_def->reload_time;
 		if (weapon_def->reload != 0)

@@ -54,7 +54,6 @@ void RegisterStats()
 	//RegisterFieldStat(STAT_NEXT_WEAPON, EV_FLOAT, weapon_next);
 	RegisterFieldStat(STAT_WEAPONS, EV_INTEGER, weapons);
 	RegisterFieldStat(STAT_RELOAD_TIME, EV_FLOAT, reload_time);
-	RegisterFieldStat(STAT_PROJECTILE_ID, EV_INTEGER, projectile_id);
 
 	for (int i=0; i<=STAT_AMMO_LAST-STAT_AMMO_FIRST; i++)
 		RegisterFieldStat(STAT_AMMO_FIRST+i, EV_INTEGER, ammo[i]);

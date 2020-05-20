@@ -46,7 +46,6 @@ void WeaponGrenade_SpawnGrenade(vector pos, vector dir, entity player)
 	grenade.owner = player;
 	grenade.velocity = dir * GRENADE_SPEED;
 	grenade.angles = vectoangles(dir);
-	grenade.projectile_id = player.projectile_id;
 	grenade.origin = pos;
 	grenade.arm_time = time + GRENADE_ARM_TIME;
 
@@ -61,16 +60,17 @@ void WeaponGrenade_Update(float isnew)
 	self.angles = readVector();
 	self.velocity = readVector();
 	self.owner = readEntity();
-	int pid = readFloat();
 
 	if (isnew)
 	{
 		self.server_projectile = true;
 		WeaponGrenade_Init(self);
+
+		if (self.owner == local_player)
+			self.drawmask = 0;
 	}
 
 	setorigin(self, self.origin);
-	self.projectile_id = pid;
 }
 #endif
 
@@ -82,7 +82,6 @@ float WeaponGrenade_SendEntity(entity ent, float flags)
 	writeVector(MSG_ENTITY, self.angles);
 	writeVector(MSG_ENTITY, self.velocity);
 	writeEntity(MSG_ENTITY, self.owner);
-	writeFloat(MSG_ENTITY, self.projectile_id);
 	return 1;
 }
 #endif

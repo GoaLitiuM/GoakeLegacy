@@ -42,7 +42,6 @@ void WeaponRocket_SpawnRocket(vector pos, vector dir, entity player)
 	missile.owner = player;
 	missile.velocity = dir * ROCKET_SPEED;
 	missile.angles = vectoangles(dir);
-	missile.projectile_id = player.projectile_id;
 	missile.origin = pos;
 
 	setorigin(missile, missile.origin);
@@ -56,16 +55,17 @@ void WeaponRocket_Update(float isnew)
 	self.angles = readVector();
 	self.velocity = readVector();
 	self.owner = readEntity();
-	int pid = readFloat();
 
 	if (isnew)
 	{
 		self.server_projectile = true;
 		WeaponRocket_Init(self);
+
+		if (self.owner == local_player)
+			self.drawmask = 0;
 	}
 
 	setorigin(self, self.origin);
-	self.projectile_id = pid;
 }
 #endif
 
@@ -77,7 +77,6 @@ float WeaponRocket_SendEntity(entity ent, float flags)
 	writeVector(MSG_ENTITY, self.angles);
 	writeVector(MSG_ENTITY, self.velocity);
 	writeEntity(MSG_ENTITY, self.owner);
-	writeFloat(MSG_ENTITY, self.projectile_id);
 	return 1;
 }
 #endif

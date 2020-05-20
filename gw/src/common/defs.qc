@@ -50,7 +50,6 @@ enum
 	STAT_ITEMS,             // EV_INTEGER
 	STAT_EFFECTS,           // EV_INTEGER
 	STAT_RELOAD_TIME,       // EV_FLOAT
-	STAT_PROJECTILE_ID,		// EV_INTEGER
 
 	// ammo stats
 	STAT_AMMO_NONE,			// or STAT_AMMO_FIRST
@@ -180,7 +179,6 @@ vector input_subframe_angles;
 .int voted;
 
 // projectiles
-.int projectile_id;
 .bool server_projectile;
 
 // items
