@@ -61,32 +61,13 @@ int WeaponStake_Fire(vector forward)
 #ifdef CSQC
 void WeaponStake_Update(float isnew)
 {
-	self.origin = readVector();
-	self.angles = readVector();
-	self.velocity = readVector();
-	self.owner = readEntity();
-
-	if (isnew)
-	{
-		self.server_projectile = true;
-		WeaponStake_Init(self);
-
-		if (self.owner == local_player)
-			self.drawmask = 0;
-	}
-
-	setorigin(self, self.origin);
+	ReadProjectile(isnew, WeaponStake_Init);
 }
 #endif
-
 #ifdef SSQC
 float WeaponStake_SendEntity(entity ent, float flags)
 {
-	writeByte(MSG_ENTITY, SENDENTITY_STAKE);
-	writeVector(MSG_ENTITY, self.origin);
-	writeVector(MSG_ENTITY, self.angles);
-	writeVector(MSG_ENTITY, self.velocity);
-	writeEntity(MSG_ENTITY, self.owner);
+	WriteProjectile(MSG_ENTITY, SENDENTITY_STAKE);
 	return 1;
 }
 #endif

@@ -51,32 +51,13 @@ void WeaponRocket_SpawnRocket(vector pos, vector dir, entity player)
 #ifdef CSQC
 void WeaponRocket_Update(float isnew)
 {
-	self.origin = readVector();
-	self.angles = readVector();
-	self.velocity = readVector();
-	self.owner = readEntity();
-
-	if (isnew)
-	{
-		self.server_projectile = true;
-		WeaponRocket_Init(self);
-
-		if (self.owner == local_player)
-			self.drawmask = 0;
-	}
-
-	setorigin(self, self.origin);
+	ReadProjectile(isnew, WeaponRocket_Init);
 }
 #endif
-
 #ifdef SSQC
 float WeaponRocket_SendEntity(entity ent, float flags)
 {
-	writeByte(MSG_ENTITY, SENDENTITY_ROCKET);
-	writeVector(MSG_ENTITY, self.origin);
-	writeVector(MSG_ENTITY, self.angles);
-	writeVector(MSG_ENTITY, self.velocity);
-	writeEntity(MSG_ENTITY, self.owner);
+	WriteProjectile(MSG_ENTITY, SENDENTITY_ROCKET);
 	return 1;
 }
 #endif

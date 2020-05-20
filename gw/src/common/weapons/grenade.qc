@@ -56,32 +56,13 @@ void WeaponGrenade_SpawnGrenade(vector pos, vector dir, entity player)
 #ifdef CSQC
 void WeaponGrenade_Update(float isnew)
 {
-	self.origin = readVector();
-	self.angles = readVector();
-	self.velocity = readVector();
-	self.owner = readEntity();
-
-	if (isnew)
-	{
-		self.server_projectile = true;
-		WeaponGrenade_Init(self);
-
-		if (self.owner == local_player)
-			self.drawmask = 0;
-	}
-
-	setorigin(self, self.origin);
+	ReadProjectile(isnew, WeaponGrenade_Init);
 }
 #endif
-
 #ifdef SSQC
 float WeaponGrenade_SendEntity(entity ent, float flags)
 {
-	writeByte(MSG_ENTITY, SENDENTITY_GRENADE);
-	writeVector(MSG_ENTITY, self.origin);
-	writeVector(MSG_ENTITY, self.angles);
-	writeVector(MSG_ENTITY, self.velocity);
-	writeEntity(MSG_ENTITY, self.owner);
+	WriteProjectile(MSG_ENTITY, SENDENTITY_GRENADE);
 	return 1;
 }
 #endif

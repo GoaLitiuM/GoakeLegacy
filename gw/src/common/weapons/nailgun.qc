@@ -51,32 +51,13 @@ void WeaponNailgun_SpawnNail(vector pos, vector dir, entity player)
 #ifdef CSQC
 void WeaponNailgun_Update(float isnew)
 {
-	self.origin = readVector();
-	self.angles = readVector();
-	self.velocity = readVector();
-	self.owner = readEntity();
-
-	if (isnew)
-	{
-		self.server_projectile = true;
-		WeaponNailgun_Init(self);
-
-		if (self.owner == local_player)
-			self.drawmask = 0;
-	}
-
-	setorigin(self, self.origin);
+	ReadProjectile(isnew, WeaponNailgun_Init);
 }
 #endif
-
 #ifdef SSQC
 float WeaponNailgun_SendEntity(entity ent, float flags)
 {
-	writeByte(MSG_ENTITY, SENDENTITY_NAIL);
-	writeVector(MSG_ENTITY, self.origin);
-	writeVector(MSG_ENTITY, self.angles);
-	writeVector(MSG_ENTITY, self.velocity);
-	writeEntity(MSG_ENTITY, self.owner);
+	WriteProjectile(MSG_ENTITY, SENDENTITY_NAIL);
 	return 1;
 }
 #endif
