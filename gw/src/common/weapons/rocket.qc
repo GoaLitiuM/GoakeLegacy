@@ -59,7 +59,10 @@ void WeaponRocket_Update(float isnew)
 	int pid = readFloat();
 
 	if (isnew)
+	{
+		self.server_projectile = true;
 		WeaponRocket_Init(self);
+	}
 
 	setorigin(self, self.origin);
 	self.projectile_id = pid;

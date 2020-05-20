@@ -64,7 +64,11 @@ void WeaponGrenade_Update(float isnew)
 	int pid = readFloat();
 
 	if (isnew)
+	{
+		self.server_projectile = true;
 		WeaponGrenade_Init(self);
+	}
+
 	setorigin(self, self.origin);
 	self.projectile_id = pid;
 }

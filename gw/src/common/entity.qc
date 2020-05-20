@@ -2,6 +2,12 @@ void applyEntityDamage(entity target, float damage, entity source)
 {
 	if (target.classname == CLASS_PLAYER)
 	{
+		if (self.server_projectile && self.owner == target)
+		{
+			// client owned projectiles were predicted earlier
+			return;
+		}
+
 		entity oldself = self;
 		self = target;
 		Player_TakeDamage(damage, source);
@@ -13,6 +19,12 @@ void applyEntityForce(entity target, vector force, entity source)
 {
 	if (target.classname == CLASS_PLAYER)
 	{
+		if (self.server_projectile && self.owner == target)
+		{
+			// client owned projectiles were predicted earlier
+			return;
+		}
+
 		entity oldself = self;
 		self = target;
 		Player_ApplyForce(force, source);

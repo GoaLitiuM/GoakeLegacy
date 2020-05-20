@@ -181,6 +181,7 @@ vector input_subframe_angles;
 
 // projectiles
 .int projectile_id;
+.bool server_projectile;
 
 // items
 .bool itemclass;

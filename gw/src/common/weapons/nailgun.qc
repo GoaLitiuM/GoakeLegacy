@@ -59,7 +59,10 @@ void WeaponNailgun_Update(float isnew)
 	int pid = readFloat();
 
 	if (isnew)
+	{
+		self.server_projectile = true;
 		WeaponNailgun_Init(self);
+	}
 
 	setorigin(self, self.origin);
 	self.projectile_id = pid;
