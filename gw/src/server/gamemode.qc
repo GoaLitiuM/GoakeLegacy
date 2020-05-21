@@ -77,7 +77,7 @@ const float gamemode_endscreen_transition = 10;
 #define GameMode_Register(X) GameMode_Register_internal((GameMode)X)
 
 void GameMode_Register_internal(GameMode gm);
-string GameMode_GetModeName();
+string GameMode_GetPendingModeName();
 string GameMode_GetWarmupModeName();
 GameMode* GameMode_FindMode(string mode);
 void GameMode_SetState(GameModeState newstate);
@@ -85,7 +85,7 @@ void GameMode_OverrideMode(GameMode* new_gamemode);
 void GameMode_OnPlayerSpawn(entity player);
 int GameMode_GetMinimumPlayers();
 void GameMode_ResetTimer();
-GameMode* GameMode_GetMode();
+GameMode* GameMode_GetPendingMode();
 void GameMode_OnJoin(entity player);
 void GameMode_OnSpectate(entity player);
 
@@ -114,12 +114,12 @@ void GameMode_Init()
 		cvar_set("gm_warmupmode", cvar_defstring("gm_warmupmode"));
 		gamemode_warmup = GameMode_FindMode(GameMode_GetWarmupModeName());
 	}
-	gamemode_pending = GameMode_FindMode(GameMode_GetModeName());
+	gamemode_pending = GameMode_FindMode(GameMode_GetPendingModeName());
 	if (!gamemode_pending)
 	{
-		println("Invalid game mode: ", GameMode_GetModeName());
+		println("Invalid game mode: ", GameMode_GetPendingModeName());
 		cvar_set("gm_mode", cvar_defstring("gm_mode"));
-		gamemode_pending = GameMode_FindMode(GameMode_GetModeName());
+		gamemode_pending = GameMode_FindMode(GameMode_GetPendingModeName());
 	}
 
 	GameMode_OverrideMode(gamemode_pending);
@@ -169,7 +169,7 @@ void GameMode_BroadcastGameMode(entity target)
 	else if (gamemode_players <= 0)
 		return;
 
-	GameMode* current_mode = GameMode_GetMode();
+	GameMode* current_mode = GameMode_GetPendingMode();
 	writeEvent(MSG_MULTICAST, EVENT_GAMEMODE_CHANGED);
 	writeString(MSG_MULTICAST, current_mode->name);
 	writeString(MSG_MULTICAST, current_mode->fullname);
@@ -244,12 +244,17 @@ string GameMode_GetWarmupModeName()
 	return strtolower(cvar_string("gm_warmupmode"));
 }
 
-string GameMode_GetModeName()
+string GameMode_GetPendingModeName()
 {
 	return strtolower(cvar_string("gm_mode"));
 }
 
-GameMode* GameMode_GetMode()
+string GameMode_GetCurrentModeName()
+{
+	return gamemode->name;
+}
+
+GameMode* GameMode_GetPendingMode()
 {
 	if (gamemode_state == GameModeState::Warmup || gamemode_state == GameModeState::Countdown)
 		return gamemode_pending;
@@ -259,7 +264,7 @@ GameMode* GameMode_GetMode()
 
 void GameMode_SetMode(GameMode* new_gamemode)
 {
-	GameMode* old_gamemode = GameMode_GetMode();
+	GameMode* old_gamemode = GameMode_GetPendingMode();
 	GameMode_OverrideMode(new_gamemode);
 	gamemode_pending = gamemode;
 
@@ -299,7 +304,7 @@ void GameMode_OnInit()
 int GameMode_GetMinimumPlayers()
 {
 	int minimum_players = 2;
-	GameMode* mode = GameMode_GetMode();
+	GameMode* mode = GameMode_GetPendingMode();
 	if (mode->getMinimumPlayers)
 		minimum_players = mode->getMinimumPlayers();
 
@@ -651,7 +656,7 @@ void GameMode_TickEndScreen()
 
 void GameMode_Tick()
 {
-	string mode = GameMode_GetModeName();
+	string mode = GameMode_GetPendingModeName();
 	if (mode != last_gamemode)
 	{
 		GameMode* new_gamemode = GameMode_FindMode(mode);

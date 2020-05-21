@@ -238,3 +238,17 @@ void Game_DropPlayerWeapon(entity player)
 		player.ammo[ammo_index] = 0;
 	}
 }
+
+string Game_GetMode()
+{
+#ifdef CSQC
+	return gamemode_name;
+#else
+	return GameMode_GetCurrentModeName();
+#endif
+}
+
+bool Game_IsRace()
+{
+	return Game_GetMode() == "race";
+}

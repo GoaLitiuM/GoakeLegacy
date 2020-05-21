@@ -39,6 +39,8 @@ void RaceStart_OnTouch()
 {
 	if (other.classname != CLASS_PLAYER)
 		return;
+	else if (!Game_IsRace())
+		return;
 
 	if (!other.race_started || time-other.race_start_time > 1)
 	{
@@ -57,8 +59,9 @@ void RaceCheckpoint_OnTouch()
 {
 	if (other.classname != CLASS_PLAYER)
 		return;
-
-	if (!other.race_started)
+	else if (!Game_IsRace())
+		return;
+	else if (!other.race_started)
 		return;
 }
 
@@ -66,8 +69,9 @@ void RaceEnd_OnTouch()
 {
 	if (other.classname != CLASS_PLAYER)
 		return;
-
-	if (!other.race_started)
+	else if (!Game_IsRace())
+		return;
+	else if (!other.race_started)
 		return;
 
 	float race_time = time - other.race_start_time;

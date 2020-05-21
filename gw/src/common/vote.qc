@@ -192,7 +192,7 @@ GameMode* GameMode_FindMode(string mode);
 void GameMode_SetMode(GameMode* mode);
 void GameMode_SetFragLimit(int fraglimit);
 void GameMode_SetTimeLimit(int timelimit);
-string GameMode_GetModeName();
+string GameMode_GetPendingModeName();
 int GameMode_GetFragLimit();
 int GameMode_GetTimeLimit();
 void GameMode_ResetReadyPlayers();
@@ -402,7 +402,7 @@ void Vote_OnCallVote(entity player, int vote, variant value)
 	if (vote == CALLVOTE_MODE)
 	{
 		value_str = strtolower((string)value);
-		if (GameMode_GetModeName() == value_str)
+		if (GameMode_GetPendingModeName() == value_str)
 			return;
 
 		println("Player '", player_name, "' initiated callvote mode ", (string)value);
