@@ -89,7 +89,9 @@ cvar_t	developer = CVAR("developer","1");
 cvar_t	developer = CVARD("developer","0", "Enables the spewing of additional developer/debugging messages. 2 will give even more spam, much of it unwanted.");
 #endif
 
+#ifdef HAVE_LEGACY
 cvar_t	registered = CVARD("registered","0","Set if quake's pak1.pak is available");
+#endif
 cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
 cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
 cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
@@ -4649,6 +4651,8 @@ void COM_ParsePlusSets (qboolean docbuf)
 }
 
 void Cvar_DefaultFree(char *str);
+
+#ifdef HAVE_LEGACY
 /*
 ================
 COM_CheckRegistered
@@ -4691,7 +4695,7 @@ void COM_CheckRegistered (void)
 			Con_TPrintf ("Playing registered version.\n");
 	}
 }
-
+#endif
 
 
 /*
@@ -5816,7 +5820,9 @@ void COM_Init (void)
 
 	Cvar_Register (&developer, "Debugging");
 	Cvar_Register (&sys_platform, "Gamecode");
+#ifdef HAVE_LEGACY
 	Cvar_Register (&registered, "Copy protection");
+#endif	
 	Cvar_Register (&gameversion, "Gamecode");
 	Cvar_Register (&gameversion_min, "Gamecode");
 	Cvar_Register (&gameversion_max, "Gamecode");

@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "fs.h"
 #include "cl_master.h"
 
-cvar_t ruleset_allow_in		= CVAR("ruleset_allow_in", "1");
+cvar_t ruleset_allow_in		= CVARF("ruleset_allow_in", "1", CVAR_HIDDEN_LEGACY);
 cvar_t rcon_level			= CVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= CVAR("cmd_maxbuffersize", "65536");
 #ifdef HAVE_LEGACY
@@ -3602,6 +3602,7 @@ skipblock:
 	If_Token_Clear(ts);
 }
 
+#ifndef NOLEGACY2
 static void Cmd_Vstr_f( void )
 {
 	char	*v;
@@ -3615,6 +3616,7 @@ static void Cmd_Vstr_f( void )
 	v = Cvar_VariableString(Cmd_Argv(1));
 	Cbuf_InsertText(v, Cmd_ExecLevel, true);
 }
+#endif
 
 static void Cmd_toggle_f(void)
 {
@@ -4249,7 +4251,9 @@ void Cmd_Init (void)
 // register our commands
 //
 	Cmd_AddCommandAD ("cfg_save",Cmd_WriteConfig_f, Cmd_Exec_c, NULL);
+#ifndef NOLEGACY2
 	Cmd_AddCommandAD ("saveconfig",Cmd_WriteConfig_f, Cmd_Exec_c, NULL);	//for dpcompat
+#endif
 
 	Cmd_AddCommandAD ("cfg_load",Cmd_Exec_f, Cmd_Exec_c, NULL);
 	Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
@@ -4257,7 +4261,9 @@ void Cmd_Init (void)
 	Cmd_AddCommandAD ("exec",Cmd_Exec_f, Cmd_Exec_c, NULL);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);
 	Cmd_AddCommand ("alias",Cmd_Alias_f);
+#ifndef NOLEGACY2
 	Cmd_AddCommand ("newalias",Cmd_Alias_f);
+#endif
 	Cmd_AddCommand ("wait", Cmd_Wait_f);
 #ifdef HAVE_CLIENT
 	Cmd_AddCommand ("cmd", Cmd_ForwardToServer_f);
@@ -4278,7 +4284,9 @@ void Cmd_Init (void)
 #endif
 	Cmd_AddCommandAD ("seta", Cmd_set_f, Cmd_Set_c, "Changes the current value of the named cvar, creating it if it doesn't yet exist. Also forces the archive flag so that the cvar will always be written into any saved configs.");
 	Cmd_AddCommandAD ("seta_calc", Cmd_set_f, Cmd_Set_c, "Sets the named cvar to the result of a (complex) expression. Also forces the archive flag so that the cvar will always be written into any saved configs.");
+#ifndef NOLEGACY2
 	Cmd_AddCommandD ("vstr", Cmd_Vstr_f, "Executes the string value of the cvar, much like if it were an alias. For compatibility with q3.");
+#endif
 	Cmd_AddCommandAD ("inc", Cvar_Inc_f, Cmd_Set_c, "Adds a value to the named cvar. Use a negative value if you wish to decrease the cvar's value.");
 	//FIXME: Add seta some time.
 	Cmd_AddCommand ("if", Cmd_if_f);

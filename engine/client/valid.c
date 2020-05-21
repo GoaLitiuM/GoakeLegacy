@@ -25,7 +25,7 @@ cvar_t auth_validateclients	= CVAR("auth_validateclients", "1");
 #endif
 cvar_t allow_f_system		= CVAR("allow_f_system", "0");
 cvar_t allow_f_cmdline		= CVAR("allow_f_cmdline", "0");
-cvar_t ruleset			= CVARCD("ruleset", "none", rulesetcallback, "Known rulesets are:\nnone: no explicit rules, all 'minor cheats' are allowed.\nstrict: equivelent to the smackdown ruleset. Note that this will block certain graphical enhancements too.");
+cvar_t ruleset			= CVARFCD("ruleset", "none", CVAR_HIDDEN_LEGACY, rulesetcallback, "Known rulesets are:\nnone: no explicit rules, all 'minor cheats' are allowed.\nstrict: equivelent to the smackdown ruleset. Note that this will block certain graphical enhancements too.");
 
 #ifdef HAVE_LEGACY
 #define SECURITY_INIT_BAD_CHECKSUM	1

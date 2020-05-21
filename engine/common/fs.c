@@ -5673,7 +5673,9 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			allowreloadconfigs = false;
 #endif
 
+#ifdef HAVE_LEGACY
 		COM_CheckRegistered();
+#endif
 
 #ifdef HAVE_CLIENT
 		if (qrenderer != QR_NONE && allowvidrestart)

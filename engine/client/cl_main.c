@@ -214,20 +214,20 @@ cvar_t	host_mapname			= CVARAF("mapname", "",
 									  "host_mapname", CVAR_HIDDEN_LEGACY);
 
 #define RULESETADVICE " You should not normally change this cvar from its permissive default, instead impose limits on yourself only through the 'ruleset' cvar."
-cvar_t	ruleset_allow_playercount			= CVARD("ruleset_allow_playercount", "1", "Specifies whether teamplay triggers that count nearby players are allowed in the current ruleset."RULESETADVICE);
-cvar_t	ruleset_allow_frj					= CVARD("ruleset_allow_frj", "1", "Specifies whether Forward-Rocket-Jump scripts are allowed in the current ruleset. If 0, limits on yaw speed will be imposed so they cannot be scripted."RULESETADVICE);
+cvar_t	ruleset_allow_playercount			= CVARFD("ruleset_allow_playercount", "1", CVAR_HIDDEN_LEGACY, "Specifies whether teamplay triggers that count nearby players are allowed in the current ruleset."RULESETADVICE);
+cvar_t	ruleset_allow_frj					= CVARFD("ruleset_allow_frj", "1", CVAR_HIDDEN_LEGACY, "Specifies whether Forward-Rocket-Jump scripts are allowed in the current ruleset. If 0, limits on yaw speed will be imposed so they cannot be scripted."RULESETADVICE);
 												//FIXME: rename ruleset_allow_frj to allow_scripts to match ezquake - 0: block multiple commands in binds, 1: cap angle speed changes, 2: vanilla quake
-cvar_t	ruleset_allow_semicheats			= CVARD("ruleset_allow_semicheats", "1", "If 0, this blocks a range of cvars that are marked as semi-cheats. Such cvars will be locked to their empty/0 value."RULESETADVICE);
-cvar_t	ruleset_allow_packet				= CVARD("ruleset_allow_packet", "1", "If 0, network packets sent via the 'packet' command will be blocked. This makes scripting timers a little harder."RULESETADVICE);
-cvar_t	ruleset_allow_particle_lightning	= CVARD("ruleset_allow_particle_lightning", "1", "A setting of 0 blocks using the particle system to replace lightning gun trails. This prevents making the trails thinner thus preventing them from obscuring your view of your enemies."RULESETADVICE);
-cvar_t	ruleset_allow_overlongsounds		= CVARD("ruleset_allow_overlong_sounds", "1", "A setting of 0 will block the use of extra-long pickup sounds as item respawn timers."RULESETADVICE);
-cvar_t	ruleset_allow_larger_models			= CVARD("ruleset_allow_larger_models", "1", "Enforces a maximum bounds limit on models, to prevent the use of additional spikes attached to the model from being used as a kind of wallhack."RULESETADVICE);
-cvar_t	ruleset_allow_modified_eyes			= CVARD("ruleset_allow_modified_eyes", "0", "When 0, completely hides progs/eyes.mdl if it is not strictly identical to vanilla quake."RULESETADVICE);
-cvar_t	ruleset_allow_sensitive_texture_replacements = CVARD("ruleset_allow_sensitive_texture_replacements", "1", "Allows the replacement of certain model textures (as well as the models themselves). This prevents adding extra fullbrights to make them blatently obvious."RULESETADVICE);
-cvar_t	ruleset_allow_localvolume			= CVARD("ruleset_allow_localvolume", "1", "Allows the use of the snd_playersoundvolume cvar. Muting your own sounds can make it easier to hear where your opponent is."RULESETADVICE);
-cvar_t  ruleset_allow_shaders				= CVARFD("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM, "When 0, this completely disables the use of external shader files, preventing custom shaders from being used for wallhacks."RULESETADVICE);
-cvar_t  ruleset_allow_watervis				= CVARFD("ruleset_allow_watervis", "1", CVAR_SHADERSYSTEM, "When 0, this enforces ugly opaque water."RULESETADVICE);
-cvar_t  ruleset_allow_fbmodels				= CVARFD("ruleset_allow_fbmodels", "0", CVAR_SHADERSYSTEM, "When 1, allows all models to be displayed fullbright, completely ignoring the lightmaps. This feature exists only for parity with ezquake's defaults."RULESETADVICE);
+cvar_t	ruleset_allow_semicheats			= CVARFD("ruleset_allow_semicheats", "1", CVAR_HIDDEN_LEGACY, "If 0, this blocks a range of cvars that are marked as semi-cheats. Such cvars will be locked to their empty/0 value."RULESETADVICE);
+cvar_t	ruleset_allow_packet				= CVARFD("ruleset_allow_packet", "1", CVAR_HIDDEN_LEGACY, "If 0, network packets sent via the 'packet' command will be blocked. This makes scripting timers a little harder."RULESETADVICE);
+cvar_t	ruleset_allow_particle_lightning	= CVARFD("ruleset_allow_particle_lightning", "1", CVAR_HIDDEN_LEGACY, "A setting of 0 blocks using the particle system to replace lightning gun trails. This prevents making the trails thinner thus preventing them from obscuring your view of your enemies."RULESETADVICE);
+cvar_t	ruleset_allow_overlongsounds		= CVARFD("ruleset_allow_overlong_sounds", "1", CVAR_HIDDEN_LEGACY, "A setting of 0 will block the use of extra-long pickup sounds as item respawn timers."RULESETADVICE);
+cvar_t	ruleset_allow_larger_models			= CVARFD("ruleset_allow_larger_models", "1", CVAR_HIDDEN_LEGACY, "Enforces a maximum bounds limit on models, to prevent the use of additional spikes attached to the model from being used as a kind of wallhack."RULESETADVICE);
+cvar_t	ruleset_allow_modified_eyes			= CVARFD("ruleset_allow_modified_eyes", "0", CVAR_HIDDEN_LEGACY, "When 0, completely hides progs/eyes.mdl if it is not strictly identical to vanilla quake."RULESETADVICE);
+cvar_t	ruleset_allow_sensitive_texture_replacements = CVARFD("ruleset_allow_sensitive_texture_replacements", "1", CVAR_HIDDEN_LEGACY, "Allows the replacement of certain model textures (as well as the models themselves). This prevents adding extra fullbrights to make them blatently obvious."RULESETADVICE);
+cvar_t	ruleset_allow_localvolume			= CVARFD("ruleset_allow_localvolume", "1", CVAR_HIDDEN_LEGACY, "Allows the use of the snd_playersoundvolume cvar. Muting your own sounds can make it easier to hear where your opponent is."RULESETADVICE);
+cvar_t  ruleset_allow_shaders				= CVARFD("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM | CVAR_HIDDEN_LEGACY, "When 0, this completely disables the use of external shader files, preventing custom shaders from being used for wallhacks."RULESETADVICE);
+cvar_t  ruleset_allow_watervis				= CVARFD("ruleset_allow_watervis", "1", CVAR_SHADERSYSTEM | CVAR_HIDDEN_LEGACY, "When 0, this enforces ugly opaque water."RULESETADVICE);
+cvar_t  ruleset_allow_fbmodels				= CVARFD("ruleset_allow_fbmodels", "0", CVAR_SHADERSYSTEM | CVAR_HIDDEN_LEGACY, "When 1, allows all models to be displayed fullbright, completely ignoring the lightmaps. This feature exists only for parity with ezquake's defaults."RULESETADVICE);
 
 extern cvar_t cl_hightrack;
 extern cvar_t	vid_renderer;
