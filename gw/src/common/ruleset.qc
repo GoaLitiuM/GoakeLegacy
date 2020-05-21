@@ -1,4 +1,5 @@
 const float WEAPON_RESPAWN_TIME = 1;
+const bool WEAPON_STAY = true;
 const float ITEM_RESPAWN_TIME = 20;
 const float DAMAGE_MULTIPLIER_SELF = 0.45;
 const float HEALTH_DECAY_RATE = 1.0;

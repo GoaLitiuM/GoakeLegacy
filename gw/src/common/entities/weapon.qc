@@ -10,6 +10,8 @@ bool Weapon_OnTouch()
 		other.weapons |= self.weapons;
 		picked = true;
 	}
+	else if (WEAPON_STAY && !player_drop)
+		return false;
 
 	// ammo component of the weapon
 	int ammo_count = abs(self.count);
