@@ -18,6 +18,9 @@ void WeaponRocket_Init(entity missile)
 	setmodel(missile, MDL_ROCKET);
 	setsize(missile, VEC_ORIGIN, VEC_ORIGIN);
 
+	missile.dimension_solid = DIMENSION_PROJECTILE;
+	missile.dimension_hit = DIMENSION_ALL & (~DIMENSION_PROJECTILE);
+
 #ifdef SSQC
 	missile.SendEntity = WeaponRocket_SendEntity;
 #endif

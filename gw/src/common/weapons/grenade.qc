@@ -22,6 +22,9 @@ void WeaponGrenade_Init(entity grenade)
 	setmodel(grenade, MDL_GRENADE);
 	setsize(grenade, '-1 -1 -1', '1 1 1');
 
+	grenade.dimension_solid = DIMENSION_PROJECTILE;
+	grenade.dimension_hit = DIMENSION_ALL & (~DIMENSION_PROJECTILE);
+
 #ifdef SSQC
 	grenade.SendEntity = WeaponGrenade_SendEntity;
 #endif
@@ -72,10 +75,9 @@ void WeaponGrenade_OnTouch()
 {
 	//TODO: remove after 30 seconds or so
 	if (other == self.owner)
-	{
-		println("poink?");
 		return;
-	}
+	else if (other.solid == SOLID_CORPSE)
+		return;
 
 	if (time < self.arm_time)
 		return; // bounce

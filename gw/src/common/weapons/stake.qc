@@ -17,6 +17,12 @@ void WeaponStake_Init(entity stake)
 	stake.effects |= EF_NOSHADOW | EF_FULLBRIGHT;
 	stake.colormod = COLOR(160, 124, 0);
 
+	setmodel(stake, MDL_ARROW);
+	setsize(stake, VEC_ORIGIN, VEC_ORIGIN);
+
+	stake.dimension_solid = DIMENSION_PROJECTILE;
+	stake.dimension_hit = DIMENSION_ALL & (~DIMENSION_PROJECTILE);
+
 #ifdef SSQC
 	stake.SendEntity = WeaponStake_SendEntity;
 #endif
@@ -24,9 +30,6 @@ void WeaponStake_Init(entity stake)
 	stake.drawmask = MASK_ENGINE;
 	stake.forceshader = shaderforname("stakeshader", "{\nprogram defaultsprite\ndiffusemap \"$whiteimage\"\n}");
 #endif
-
-	setmodel(stake, MDL_ARROW);
-	setsize(stake, VEC_ORIGIN, VEC_ORIGIN);
 }
 
 void WeaponStake_SpawnStake(vector pos, vector dir, entity player)
