@@ -140,12 +140,36 @@ const int ALL_WEAPONS = WEAPON_BIT(WEAPON_NAILGUN) | WEAPON_BIT(WEAPON_GRENADE) 
 
 #define COLOR(r, g, b) [r/255, g/255, b/255]
 
+enum : string
+{
+	CLASS_NONE = "",
+	CLASS_PLAYER = "player",
+	CLASS_PLAYER_SPECTATOR = "player_spectator",
+	CLASS_PLAYER_DISCONNECTED = "player_disconnected",
+	CLASS_NAIL = "nail",
+	CLASS_ROCKET = "rocket",
+	CLASS_GRENADE = "grenade",
+	CLASS_LIGHTNING = "lightning",
+	CLASS_ARROW = "arrow",
+};
+
+enum : string
+{
+	CLASSTYPE_NONE = "",
+	CLASSTYPE_PROJECTILE = "projectile",
+	CLASSTYPE_PROJECTILE_SERVER = "projectile_server",
+	CLASSTYPE_ITEM = "item",
+};
+
 // FIXME
 int WeaponRocket_Fire(vector forward);
 int WeaponLightning_Fire(vector forward);
 int WeaponStake_Fire(vector forward);
 int WeaponGrenade_Fire(vector forward);
 int WeaponNailgun_Fire(vector forward);
+
+// all entities
+.string classtype; // like classname but broader
 
 // globals for global stats
 float sv_autojump;
@@ -179,11 +203,7 @@ float maxfps;
 vector input_subframe_angles;
 .int voted;
 
-// projectiles
-.bool server_projectile;
-
 // items
-.bool itemclass;
 .entity last_touched; // last entity who touched the item
 .string pickup_sound;
 .bool() touch2;

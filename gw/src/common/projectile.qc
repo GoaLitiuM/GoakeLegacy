@@ -8,11 +8,13 @@ void ReadProjectile(float isnew, void(entity) init_func)
 
 	if (isnew)
 	{
-		self.server_projectile = true;
 		init_func(self);
 
 		if (self.owner == local_player)
 			self.drawmask = 0;
+
+		if (self.classtype == CLASSTYPE_PROJECTILE)
+			self.classtype = CLASSTYPE_PROJECTILE_SERVER;
 	}
 
 	setorigin(self, self.origin);

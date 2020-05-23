@@ -7,6 +7,7 @@ float WeaponStake_SendEntity(entity ent, float flags)
 
 void WeaponStake_Init(entity stake)
 {
+	stake.classtype = CLASSTYPE_PROJECTILE;
 	stake.movetype = MOVETYPE_TOSS;
 	stake.solid = SOLID_SLIDEBOX;
 	stake.classname = CLASS_ARROW;

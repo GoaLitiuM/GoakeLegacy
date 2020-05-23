@@ -29,15 +29,6 @@
 #define MDL_BEAM "progs/bolt2.mdl"
 #define MDL_ARROW "progs/arrow.mdl"
 
-#define CLASS_PLAYER "player"
-#define CLASS_PLAYER_SPECTATOR "player_spectator"
-#define CLASS_PLAYER_DISCONNECTED "player_disconnected"
-#define CLASS_NAIL "nail"
-#define CLASS_ROCKET "rocket"
-#define CLASS_GRENADE "grenade"
-#define CLASS_LIGHTNING "lightning"
-#define CLASS_ARROW "arrow"
-
 // player collision box and offsets
 const vector PLAYER_OFFSET_EYES = '0 0 26';
 const vector PLAYER_SIZE_MIN = '-15 -15 -24';

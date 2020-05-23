@@ -55,7 +55,7 @@ void Item_Init(string texture, string sound)
 	self.pickup_sound = sound;
 	self.pickup_time = 0;
 
-	self.itemclass = true;
+	self.classtype = CLASSTYPE_ITEM;
 
 	Item_SetActive(true);
 }

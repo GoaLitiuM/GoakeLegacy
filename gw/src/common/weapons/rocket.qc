@@ -8,6 +8,7 @@ float WeaponRocket_SendEntity(entity ent, float flags);
 
 void WeaponRocket_Init(entity missile)
 {
+	missile.classtype = CLASSTYPE_PROJECTILE;
 	missile.movetype = MOVETYPE_FLYMISSILE;
 	missile.solid = SOLID_SLIDEBOX;
 	missile.classname = CLASS_ROCKET;

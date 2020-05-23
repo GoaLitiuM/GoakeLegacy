@@ -9,6 +9,7 @@ float WeaponGrenade_SendEntity(entity ent, float flags);
 .float arm_time;
 void WeaponGrenade_Init(entity grenade)
 {
+	grenade.classtype = CLASSTYPE_PROJECTILE;
 	grenade.movetype = MOVETYPE_BOUNCE;
 	grenade.solid = SOLID_SLIDEBOX;
 

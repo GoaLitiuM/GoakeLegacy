@@ -57,7 +57,7 @@ void BaseMode_OnStart()
 	entity item = world;
 	while (true)
 	{
-		item = findfloat(item, itemclass, (bool)true);
+		item = findfloat(item, classtype, CLASSTYPE_ITEM);
 		if (item == world)
 			break;
 
