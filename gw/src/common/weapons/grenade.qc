@@ -71,6 +71,26 @@ float WeaponGrenade_SendEntity(entity ent, float flags)
 }
 #endif
 
+void WeaponGrenade_OnCheckStuckThink()
+{
+	// grenades sometimes get stuck and wont trigger touch events
+	if (time < self.arm_time)
+	{
+		self.nextthink = time;
+		return;
+	}
+	else if (vlen(self.velocity) > 0)
+	{
+		self.nextthink = time;
+		return;
+	}
+
+	entity oldother = other;
+	other = world;
+	WeaponGrenade_OnTouch();
+	other = oldother;
+}
+
 void WeaponGrenade_OnTouch()
 {
 	//TODO: remove after 30 seconds or so
@@ -80,7 +100,11 @@ void WeaponGrenade_OnTouch()
 		return;
 
 	if (time < self.arm_time)
+	{
+		self.think = WeaponGrenade_OnCheckStuckThink;
+		self.nextthink = self.arm_time;
 		return; // bounce
+	}
 
 	if (pointcontents(self.origin) == CONTENT_SKY)
 	{
