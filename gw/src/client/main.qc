@@ -169,7 +169,7 @@ void CSQC_Ent_Remove()
 		if (self != local_player)
 			remove(self);
 	}
-	else
+	else if (self.classtype != CLASSTYPE_PROJECTILE_SERVER)
 		remove(self);
 }
 
